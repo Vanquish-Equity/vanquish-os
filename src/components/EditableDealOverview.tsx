@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { updateDealFieldAction } from "@/lib/deals/actions";
+import SelectMenu from "@/components/SelectMenu";
 
 type Option = {
   id: string;
@@ -21,6 +22,8 @@ type EditableDeal = {
 };
 
 type SaveResult = Promise<string | null>;
+
+const EMPTY_VALUE = "__empty__";
 
 function formatMoney(n: number | null) {
   if (!n) return "—";
@@ -90,21 +93,25 @@ function EditableSelectField({
   const [error, setError] = useState<string | null>(null);
 
   async function save() {
+    await saveValue(draft);
+  }
+
+  async function saveValue(nextValue: string) {
     if (pending) return;
 
-    if (!allowEmpty && !draft) {
+    if (!allowEmpty && !nextValue) {
       setError(`${label} is required.`);
       return;
     }
 
-    if (draft === (value ?? "")) {
+    if (nextValue === (value ?? "")) {
       setEditing(false);
       setError(null);
       return;
     }
 
     setPending(true);
-    const nextError = await onSave(draft || null);
+    const nextError = await onSave(nextValue || null);
     setPending(false);
 
     if (nextError) {
@@ -137,21 +144,29 @@ function EditableSelectField({
   return (
     <FieldFrame label={label} error={error}>
       <div className="flex items-center gap-1.5">
-        <select
-          autoFocus
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={() => void save()}
-          className="min-w-0 flex-1 rounded-xl border border-neutral-100 bg-white px-2.5 py-1.5 text-[12.5px] font-semibold text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
-          disabled={pending}
-        >
-          {allowEmpty && <option value="">None</option>}
-          {options.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.name}
-            </option>
-          ))}
-        </select>
+        <div className="min-w-0 flex-1">
+          <SelectMenu
+            value={draft || (allowEmpty ? EMPTY_VALUE : "")}
+            onChange={(nextValue) => {
+              const normalizedValue = nextValue === EMPTY_VALUE ? "" : nextValue;
+              setDraft(normalizedValue);
+              void saveValue(normalizedValue);
+            }}
+            options={[
+              ...(allowEmpty
+                ? [{ value: EMPTY_VALUE, label: "None" }]
+                : []),
+              ...options.map((option) => ({
+                value: option.id,
+                label: option.name,
+              })),
+            ]}
+            placeholder={`Choose ${label.toLocaleLowerCase()}`}
+            disabled={pending}
+            autoFocus
+            buttonClassName="px-2.5 py-1.5 font-semibold"
+          />
+        </div>
         <SaveButton pending={pending} onSave={() => void save()} />
       </div>
     </FieldFrame>

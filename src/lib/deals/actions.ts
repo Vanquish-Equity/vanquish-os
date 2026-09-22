@@ -7,6 +7,7 @@ type FieldErrors = Partial<
   Record<
     | "companyName"
     | "industryId"
+    | "newIndustryName"
     | "dealName"
     | "stageId"
     | "priorityId"
@@ -24,6 +25,7 @@ export type DealActionResult =
 export type CreateDealInput = {
   companyName: string;
   industryId: string;
+  newIndustryName: string;
   dealName: string;
   stageId: string;
   priorityId: string;
@@ -48,6 +50,8 @@ type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 type DealStageResult =
   | { ok: true; companyId: string | null }
   | { ok: false; message: string };
+
+const NEW_CATEGORY_VALUE = "__new_category__";
 
 function cleanText(value: string | null | undefined) {
   return (value ?? "").trim();
@@ -89,13 +93,28 @@ async function persistDealStage(
     return { ok: false, message: "Deal and stage are required." };
   }
 
-  const { data, error } = (await supabase
+  const { data: existingDeal, error: lookupError } = (await supabase
     .from("deals")
-    .update({ stage_id: cleanStageId })
-    .eq("id", cleanDealId)
     .select("company_id")
+    .eq("id", cleanDealId)
     .maybeSingle()) as unknown as {
     data: { company_id: string | null } | null;
+    error: { message: string } | null;
+  };
+
+  if (lookupError) {
+    return { ok: false, message: lookupError.message };
+  }
+
+  if (!existingDeal) {
+    return { ok: false, message: "Deal not found." };
+  }
+
+  const { count, error } = (await supabase
+    .from("deals")
+    .update({ stage_id: cleanStageId }, { count: "exact" })
+    .eq("id", cleanDealId)) as unknown as {
+    count: number | null;
     error: { message: string } | null;
   };
 
@@ -103,18 +122,73 @@ async function persistDealStage(
     return { ok: false, message: error.message };
   }
 
-  if (!data) {
-    return { ok: false, message: "Deal not found." };
+  if (count === 0) {
+    return {
+      ok: false,
+      message:
+        "Deal update was blocked by database write policy. Apply migration 0003 and try again.",
+    };
   }
 
-  return { ok: true, companyId: data.company_id };
+  return { ok: true, companyId: existingDeal.company_id };
+}
+
+async function resolveIndustryId(
+  supabase: SupabaseClient,
+  industryId: string,
+  newIndustryName: string
+) {
+  if (!newIndustryName) {
+    return { ok: true as const, industryId };
+  }
+
+  const { data: industries, error: lookupError } = (await supabase
+    .from("industries")
+    .select("id,name")) as unknown as {
+    data: { id: string; name: string }[] | null;
+    error: { message: string } | null;
+  };
+
+  if (lookupError) {
+    return { ok: false as const, message: lookupError.message };
+  }
+
+  const normalizedName = newIndustryName.toLocaleLowerCase();
+  const existingIndustry = (industries ?? []).find(
+    (industry) => industry.name.trim().toLocaleLowerCase() === normalizedName
+  );
+
+  if (existingIndustry) {
+    return { ok: true as const, industryId: existingIndustry.id };
+  }
+
+  const { data: createdIndustry, error: createError } = (await supabase
+    .from("industries")
+    .insert({ name: newIndustryName })
+    .select("id")
+    .single()) as unknown as {
+    data: { id: string } | null;
+    error: { message: string } | null;
+  };
+
+  if (createError) {
+    return { ok: false as const, message: createError.message };
+  }
+
+  if (!createdIndustry) {
+    return { ok: false as const, message: "Category could not be created." };
+  }
+
+  return { ok: true as const, industryId: createdIndustry.id };
 }
 
 export async function createDealAction(
   input: CreateDealInput
 ): Promise<DealActionResult> {
   const companyName = cleanText(input.companyName);
-  const industryId = cleanText(input.industryId);
+  const rawIndustryId = cleanText(input.industryId);
+  const newIndustryName = cleanText(input.newIndustryName);
+  const industryId = rawIndustryId === NEW_CATEGORY_VALUE ? "" : rawIndustryId;
   const fallbackDealName = companyName ? `${companyName} — new deal` : "";
   const dealName = cleanText(input.dealName) || fallbackDealName;
   const stageId = cleanText(input.stageId);
@@ -124,7 +198,12 @@ export async function createDealAction(
   const fieldErrors: FieldErrors = {};
 
   if (!companyName) fieldErrors.companyName = "Company name is required.";
-  if (!industryId) fieldErrors.industryId = "Choose an industry.";
+  if (!industryId && !newIndustryName) {
+    fieldErrors.industryId = "Choose or create a category.";
+  }
+  if (rawIndustryId === NEW_CATEGORY_VALUE && !newIndustryName) {
+    fieldErrors.newIndustryName = "New category name is required.";
+  }
   if (!dealName) fieldErrors.dealName = "Deal name is required.";
   if (!stageId) fieldErrors.stageId = "Choose a stage.";
   if (!priorityId) fieldErrors.priorityId = "Choose a priority.";
@@ -142,6 +221,16 @@ export async function createDealAction(
   }
 
   const supabase = await createClient();
+  const resolvedIndustry = await resolveIndustryId(
+    supabase,
+    industryId,
+    newIndustryName
+  );
+
+  if (!resolvedIndustry.ok) {
+    return { ok: false, message: resolvedIndustry.message };
+  }
+
   const { data: companies, error: companyLookupError } = (await supabase
     .from("companies")
     .select("id,name")) as unknown as {
@@ -163,7 +252,7 @@ export async function createDealAction(
   if (!companyId) {
     const { data: createdCompany, error: createCompanyError } = (await supabase
       .from("companies")
-      .insert({ name: companyName, industry_id: industryId })
+      .insert({ name: companyName, industry_id: resolvedIndustry.industryId })
       .select("id")
       .single()) as unknown as {
       data: { id: string } | null;
@@ -280,15 +369,24 @@ export async function updateDealFieldAction(
     update.potential_investment = parsed.value;
   }
 
-  const { error } = (await supabase
+  const { count, error } = (await supabase
     .from("deals")
-    .update(update)
+    .update(update, { count: "exact" })
     .eq("id", dealId)) as unknown as {
+    count: number | null;
     error: { message: string } | null;
   };
 
   if (error) {
     return { ok: false, message: error.message };
+  }
+
+  if (count === 0) {
+    return {
+      ok: false,
+      message:
+        "Deal update was blocked by database write policy. Apply migration 0003 and try again.",
+    };
   }
 
   revalidateDealPaths(companyId);

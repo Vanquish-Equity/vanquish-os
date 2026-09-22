@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createDealAction, type CreateDealInput } from "@/lib/deals/actions";
+import SelectMenu, { type SelectMenuOption } from "@/components/SelectMenu";
 
 type Option = {
   id: string;
@@ -11,9 +12,12 @@ type Option = {
 
 type FormErrors = Partial<Record<keyof CreateDealInput, string>>;
 
+const NEW_CATEGORY_VALUE = "__new_category__";
+
 const emptyForm: CreateDealInput = {
   companyName: "",
   industryId: "",
+  newIndustryName: "",
   dealName: "",
   stageId: "",
   priorityId: "",
@@ -30,9 +34,13 @@ function buildInitialForm(stages: Option[]): CreateDealInput {
 
 function validateForm(values: CreateDealInput) {
   const errors: FormErrors = {};
+  const creatingCategory = values.industryId === NEW_CATEGORY_VALUE;
 
   if (!values.companyName.trim()) errors.companyName = "Company name is required.";
-  if (!values.industryId) errors.industryId = "Choose an industry.";
+  if (!values.industryId) errors.industryId = "Choose a category.";
+  if (creatingCategory && !values.newIndustryName.trim()) {
+    errors.newIndustryName = "New category name is required.";
+  }
   if (!values.dealName.trim()) errors.dealName = "Deal name is required.";
   if (!values.stageId) errors.stageId = "Choose a stage.";
   if (!values.priorityId) errors.priorityId = "Choose a priority.";
@@ -50,6 +58,13 @@ function validateForm(values: CreateDealInput) {
 
 function fieldId(name: keyof CreateDealInput) {
   return `new-deal-${name}`;
+}
+
+function toMenuOptions(options: Option[]): SelectMenuOption[] {
+  return options.map((option) => ({
+    value: option.id,
+    label: option.name,
+  }));
 }
 
 export default function NewDealModal({
@@ -70,6 +85,12 @@ export default function NewDealModal({
   const [errors, setErrors] = useState<FormErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const categoryOptions = [
+    ...toMenuOptions(industries),
+    { value: NEW_CATEGORY_VALUE, label: "Create new category" },
+  ];
+  const stageOptions = toMenuOptions(stages);
+  const priorityOptions = toMenuOptions(priorities);
 
   useEffect(() => {
     if (!open) return;
@@ -107,6 +128,10 @@ export default function NewDealModal({
         };
       }
 
+      if (name === "industryId" && value !== NEW_CATEGORY_VALUE) {
+        return { ...current, industryId: value, newIndustryName: "" };
+      }
+
       return { ...current, [name]: value };
     });
 
@@ -125,7 +150,7 @@ export default function NewDealModal({
 
     const focusable = Array.from(
       dialogRef.current.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
       )
     );
 
@@ -239,25 +264,43 @@ export default function NewDealModal({
                   htmlFor={fieldId("industryId")}
                   className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400"
                 >
-                  Industry
+                  Category
                 </label>
-                <select
+                <SelectMenu
                   id={fieldId("industryId")}
                   value={values.industryId}
-                  onChange={(event) => updateValue("industryId", event.target.value)}
-                  className="w-full rounded-xl border border-neutral-100 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
-                >
-                  <option value="">Choose industry</option>
-                  {industries.map((industry) => (
-                    <option key={industry.id} value={industry.id}>
-                      {industry.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => updateValue("industryId", value)}
+                  options={categoryOptions}
+                  placeholder="Choose category"
+                />
                 {errors.industryId && (
                   <p className="mt-1 text-xs text-red-600">{errors.industryId}</p>
                 )}
               </div>
+
+              {values.industryId === NEW_CATEGORY_VALUE && (
+                <div>
+                  <label
+                    htmlFor={fieldId("newIndustryName")}
+                    className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400"
+                  >
+                    New category
+                  </label>
+                  <input
+                    id={fieldId("newIndustryName")}
+                    value={values.newIndustryName}
+                    onChange={(event) =>
+                      updateValue("newIndustryName", event.target.value)
+                    }
+                    className="w-full rounded-xl border border-neutral-100 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
+                  />
+                  {errors.newIndustryName && (
+                    <p className="mt-1 text-xs text-red-600">
+                      {errors.newIndustryName}
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label
@@ -288,18 +331,13 @@ export default function NewDealModal({
                   >
                     Stage
                   </label>
-                  <select
+                  <SelectMenu
                     id={fieldId("stageId")}
                     value={values.stageId}
-                    onChange={(event) => updateValue("stageId", event.target.value)}
-                    className="w-full rounded-xl border border-neutral-100 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
-                  >
-                    {stages.map((stage) => (
-                      <option key={stage.id} value={stage.id}>
-                        {stage.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => updateValue("stageId", value)}
+                    options={stageOptions}
+                    placeholder="Choose stage"
+                  />
                   {errors.stageId && (
                     <p className="mt-1 text-xs text-red-600">{errors.stageId}</p>
                   )}
@@ -312,19 +350,13 @@ export default function NewDealModal({
                   >
                     Priority
                   </label>
-                  <select
+                  <SelectMenu
                     id={fieldId("priorityId")}
                     value={values.priorityId}
-                    onChange={(event) => updateValue("priorityId", event.target.value)}
-                    className="w-full rounded-xl border border-neutral-100 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
-                  >
-                    <option value="">Choose priority</option>
-                    {priorities.map((priority) => (
-                      <option key={priority.id} value={priority.id}>
-                        {priority.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => updateValue("priorityId", value)}
+                    options={priorityOptions}
+                    placeholder="Choose priority"
+                  />
                   {errors.priorityId && (
                     <p className="mt-1 text-xs text-red-600">{errors.priorityId}</p>
                   )}
