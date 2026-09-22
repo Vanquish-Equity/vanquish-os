@@ -20,3 +20,21 @@ body {
   font-family: var(--font-plus-jakarta), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+
+.pipeline-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #d4dadc transparent;
+}
+
+.pipeline-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.pipeline-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pipeline-scroll::-webkit-scrollbar-thumb {
+  background-color: #d4dadc;
+  border-radius: 999px;
+}
