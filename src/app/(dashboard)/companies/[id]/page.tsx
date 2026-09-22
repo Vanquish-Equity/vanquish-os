@@ -1,14 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
+import EditableDealOverview from "@/components/EditableDealOverview";
 import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
-
-function formatMoney(n: number | null) {
-  if (!n) return "—";
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
-  return `$${n}`;
-}
 
 export default async function CompanyDetailPage({
   params,
@@ -37,7 +31,7 @@ export default async function CompanyDetailPage({
   const { data: deals } = await supabase
     .from("deals")
     .select(
-      "id,name,potential_investment,round,owner,updated_at,stage:pipeline_stages(name),priority:priorities(name)"
+      "id,name,potential_investment,round,owner,updated_at,stage_id,priority_id,stage:pipeline_stages(id,name),priority:priorities(id,name)"
     )
     .eq("company_id", id)
     .order("updated_at", { ascending: false });
@@ -49,13 +43,20 @@ export default async function CompanyDetailPage({
         potential_investment: number | null;
         round: string | null;
         owner: string | null;
-        stage: { name: string } | null;
-        priority: { name: string } | null;
+        stage_id: string;
+        priority_id: string | null;
+        stage: { id: string; name: string } | null;
+        priority: { id: string; name: string } | null;
       }
     | undefined;
 
-  const [{ data: history }, { data: interactions }, { data: people }] =
-    await Promise.all([
+  const [
+    { data: history },
+    { data: interactions },
+    { data: people },
+    { data: stages },
+    { data: priorities },
+  ] = await Promise.all([
       primaryDeal
         ? supabase
             .from("deal_status_history")
@@ -73,6 +74,14 @@ export default async function CompanyDetailPage({
         .from("people")
         .select("id,name,title,linkedin_url")
         .eq("primary_organization_id", id),
+      supabase
+        .from("pipeline_stages")
+        .select("id,name")
+        .order("sort_order"),
+      supabase
+        .from("priorities")
+        .select("id,name")
+        .order("sort_order"),
     ]);
 
   return (
@@ -109,45 +118,20 @@ export default async function CompanyDetailPage({
       <div className="grid grid-cols-[2fr_1fr] gap-3.5">
         <div className="flex flex-col gap-3.5">
           {primaryDeal && (
-            <div className="rounded-[14px] border border-neutral-100 bg-white p-5">
-              <h2 className="mb-3.5 text-[14.5px] font-semibold text-ink">
-                Deal Overview
-              </h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="mb-1 text-[10.5px] uppercase tracking-wide text-neutral-400">
-                    Stage
-                  </div>
-                  <div className="text-[13px] font-semibold">
-                    {primaryDeal.stage?.name ?? "—"}
-                  </div>
-                </div>
-                <div>
-                  <div className="mb-1 text-[10.5px] uppercase tracking-wide text-neutral-400">
-                    Priority
-                  </div>
-                  <div className="text-[13px] font-semibold">
-                    {primaryDeal.priority?.name ?? "—"}
-                  </div>
-                </div>
-                <div>
-                  <div className="mb-1 text-[10.5px] uppercase tracking-wide text-neutral-400">
-                    Owner
-                  </div>
-                  <div className="text-[13px] font-semibold">
-                    {primaryDeal.owner ?? "—"}
-                  </div>
-                </div>
-                <div>
-                  <div className="mb-1 text-[10.5px] uppercase tracking-wide text-neutral-400">
-                    Potential Investment
-                  </div>
-                  <div className="text-[13px] font-semibold">
-                    {formatMoney(primaryDeal.potential_investment)}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <EditableDealOverview
+              deal={{
+                id: primaryDeal.id,
+                companyId: company.id,
+                stageId: primaryDeal.stage_id,
+                stageName: primaryDeal.stage?.name ?? null,
+                priorityId: primaryDeal.priority_id,
+                priorityName: primaryDeal.priority?.name ?? null,
+                owner: primaryDeal.owner,
+                potentialInvestment: primaryDeal.potential_investment,
+              }}
+              stages={stages ?? []}
+              priorities={priorities ?? []}
+            />
           )}
 
           <div className="rounded-[14px] border border-neutral-100 bg-white p-5">

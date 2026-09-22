@@ -1,9 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
-import PipelineColumn from "@/components/PipelineColumn";
+import NewDealModal from "@/components/NewDealModal";
+import PipelineBoard from "@/components/PipelineBoard";
 
 export const dynamic = "force-dynamic";
 
 type Stage = { id: string; name: string; sort_order: number };
+type Option = { id: string; name: string };
 type Deal = {
   id: string;
   name: string;
@@ -17,7 +19,12 @@ type Deal = {
 export default async function PipelinePage() {
   const supabase = await createClient();
 
-  const [{ data: stages }, { data: deals }] = await Promise.all([
+  const [
+    { data: stages },
+    { data: deals },
+    { data: industries },
+    { data: priorities },
+  ] = await Promise.all([
     supabase
       .from("pipeline_stages")
       .select("id,name,sort_order")
@@ -30,20 +37,25 @@ export default async function PipelinePage() {
       .order("updated_at", { ascending: false }) as unknown as Promise<{
       data: Deal[];
     }>,
+    supabase
+      .from("industries")
+      .select("id,name")
+      .order("name") as unknown as Promise<{ data: Option[] }>,
+    supabase
+      .from("priorities")
+      .select("id,name")
+      .order("sort_order") as unknown as Promise<{ data: Option[] }>,
   ]);
 
-  const dealsByStage = new Map<string, Deal[]>();
-  (deals ?? []).forEach((d) => {
-    const list = dealsByStage.get(d.stage_id) ?? [];
-    list.push(d);
-    dealsByStage.set(d.stage_id, list);
-  });
-
   const totalDeals = deals?.length ?? 0;
+  const boardKey = [
+    ...(stages ?? []).map((stage) => stage.id),
+    ...(deals ?? []).map((deal) => `${deal.id}:${deal.stage_id}:${deal.updated_at}`),
+  ].join("|");
 
   return (
     <div className="flex flex-col gap-4 px-7 py-6">
-      <header className="flex items-end justify-between gap-4">
+      <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">
             Pipeline
@@ -53,6 +65,11 @@ export default async function PipelinePage() {
             {totalDeals === 0 && "No deals yet — add one in Supabase or wait for the migration."}
           </p>
         </div>
+        <NewDealModal
+          industries={industries ?? []}
+          stages={stages ?? []}
+          priorities={priorities ?? []}
+        />
       </header>
 
       {!stages?.length ? (
@@ -60,20 +77,7 @@ export default async function PipelinePage() {
           No pipeline stages found. Run the M1 migration in Supabase first.
         </div>
       ) : (
-        <div
-          className="grid gap-3"
-          style={{
-            gridTemplateColumns: `repeat(${stages.length}, minmax(240px, 1fr))`,
-          }}
-        >
-          {stages.map((stage) => (
-            <PipelineColumn
-              key={stage.id}
-              stageName={stage.name}
-              deals={dealsByStage.get(stage.id) ?? []}
-            />
-          ))}
-        </div>
+        <PipelineBoard key={boardKey} stages={stages} deals={deals ?? []} />
       )}
     </div>
   );

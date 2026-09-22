@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -28,17 +29,19 @@ function NavLink({ href, label }: { href: string; label: string }) {
 export default function Sidebar({ userEmail }: { userEmail: string }) {
   return (
     <aside className="flex h-screen w-[248px] flex-shrink-0 flex-col bg-ink px-3.5 py-5">
-      <div className="mb-6 flex items-center gap-2.5 px-2">
-        <div className="flex h-8.5 w-8.5 flex-shrink-0 items-center justify-center rounded-[9px] bg-gradient-to-br from-cyan-400 to-[#093236] font-[family-name:var(--font-display)] text-[15px] font-semibold text-white">
-          V
+      <div className="mb-6 px-2">
+        <div className="h-[42px] w-[166px]">
+          <Image
+            src="/vanquish-logotype.png"
+            alt="Vanquish"
+            width={2172}
+            height={724}
+            priority
+            className="h-full w-full object-contain object-left"
+          />
         </div>
-        <div>
-          <div className="font-[family-name:var(--font-display)] text-sm font-semibold leading-tight text-white">
-            Vanquish
-          </div>
-          <div className="mt-0.5 text-[9px] tracking-[1.6px] text-neutral-500">
-            OPERATING SYSTEM
-          </div>
+        <div className="mt-1 text-[9px] tracking-[1.6px] text-neutral-500">
+          OPERATING SYSTEM
         </div>
       </div>
 

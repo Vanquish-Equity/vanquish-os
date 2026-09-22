@@ -1,9 +1,11 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useState } from "react";
 import Link from "next/link";
+import { useDraggable, useDroppable } from "@dnd-kit/core";
 
-type Deal = {
+export type PipelineDeal = {
   id: string;
   name: string;
   potential_investment: number | null;
@@ -22,18 +24,92 @@ function formatMoney(n: number | null) {
 
 const COLLAPSED_MAX_HEIGHT = 560; // px — roughly ~4-5 cards before it scrolls
 
+function DealCard({
+  deal,
+  activeDealId,
+  pending,
+}: {
+  deal: PipelineDeal;
+  activeDealId: string | null;
+  pending: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } =
+    useDraggable({
+      id: deal.id,
+      data: { stageId: deal.stage_id },
+    });
+
+  const style: CSSProperties = {
+    touchAction: "none",
+    transform: transform
+      ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
+      : undefined,
+    zIndex: isDragging ? 20 : undefined,
+    opacity: isDragging || activeDealId === deal.id ? 0.45 : undefined,
+  };
+
+  return (
+    <Link
+      ref={setNodeRef}
+      href={`/companies/${deal.company?.id}`}
+      style={style}
+      className={`block rounded-xl border bg-white p-3.5 transition hover:border-cyan-200 ${
+        pending ? "border-cyan-100" : "border-neutral-100"
+      }`}
+      {...attributes}
+      {...listeners}
+    >
+      <DealCardBody deal={deal} />
+    </Link>
+  );
+}
+
+export function DealCardBody({ deal }: { deal: PipelineDeal }) {
+  return (
+    <>
+      <div className="mb-2 flex items-start justify-between gap-2">
+        <h3 className="text-[12.5px] font-semibold text-ink">
+          {deal.company?.name ?? deal.name}
+        </h3>
+        {deal.priority?.name === "High" && (
+          <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2 py-0.5 text-[10.5px] font-semibold text-cyan-800">
+            High
+          </span>
+        )}
+      </div>
+      <div className="text-[11px] text-neutral-500">
+        {deal.name}
+        {formatMoney(deal.potential_investment) &&
+          ` · ${formatMoney(deal.potential_investment)}`}
+      </div>
+    </>
+  );
+}
+
 export default function PipelineColumn({
+  stageId,
   stageName,
   deals,
+  activeDealId,
+  pendingDealIds,
 }: {
+  stageId: string;
   stageName: string;
-  deals: Deal[];
+  deals: PipelineDeal[];
+  activeDealId: string | null;
+  pendingDealIds: Set<string>;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const { isOver, setNodeRef } = useDroppable({ id: stageId });
   const canExpand = deals.length > 0;
 
   return (
-    <div className="flex flex-col rounded-[14px] bg-[#f7f9fa] p-3">
+    <div
+      ref={setNodeRef}
+      className={`flex flex-col rounded-[14px] bg-[#f7f9fa] p-3 transition ${
+        isOver ? "ring-1 ring-cyan-200" : ""
+      }`}
+    >
       <div className="mb-3 flex items-center justify-between px-1.5 pt-0.5">
         <span className="text-xs font-semibold text-neutral-700">
           {stageName}
@@ -78,27 +154,12 @@ export default function PipelineColumn({
         }}
       >
         {deals.map((deal) => (
-          <Link
+          <DealCard
             key={deal.id}
-            href={`/companies/${deal.company?.id}`}
-            className="block rounded-xl border border-neutral-100 bg-white p-3.5 hover:border-cyan-200"
-          >
-            <div className="mb-2 flex items-start justify-between gap-2">
-              <h3 className="text-[12.5px] font-semibold text-ink">
-                {deal.company?.name ?? deal.name}
-              </h3>
-              {deal.priority?.name === "High" && (
-                <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2 py-0.5 text-[10.5px] font-semibold text-cyan-800">
-                  High
-                </span>
-              )}
-            </div>
-            <div className="text-[11px] text-neutral-500">
-              {deal.name}
-              {formatMoney(deal.potential_investment) &&
-                ` · ${formatMoney(deal.potential_investment)}`}
-            </div>
-          </Link>
+            deal={deal}
+            activeDealId={activeDealId}
+            pending={pendingDealIds.has(deal.id)}
+          />
         ))}
         {deals.length === 0 && (
           <div className="rounded-xl border border-dashed border-neutral-200 p-3.5 text-center text-[11px] text-neutral-400">
