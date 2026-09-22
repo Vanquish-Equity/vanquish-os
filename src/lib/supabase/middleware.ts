@@ -25,25 +25,26 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Keeps the session cookie refreshed, but the redirect gate is disabled
+  // for now (no SMTP / OAuth configured yet in Supabase). To re-enable,
+  // uncomment the block below.
+  await supabase.auth.getUser();
 
-  const isAuthRoute =
-    request.nextUrl.pathname.startsWith("/login") ||
-    request.nextUrl.pathname.startsWith("/auth");
-
-  if (!user && !isAuthRoute) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    return NextResponse.redirect(url);
-  }
-
-  if (user && request.nextUrl.pathname === "/login") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/pipeline";
-    return NextResponse.redirect(url);
-  }
+  // const isAuthRoute =
+  //   request.nextUrl.pathname.startsWith("/login") ||
+  //   request.nextUrl.pathname.startsWith("/auth");
+  //
+  // if (!user && !isAuthRoute) {
+  //   const url = request.nextUrl.clone();
+  //   url.pathname = "/login";
+  //   return NextResponse.redirect(url);
+  // }
+  //
+  // if (user && request.nextUrl.pathname === "/login") {
+  //   const url = request.nextUrl.clone();
+  //   url.pathname = "/pipeline";
+  //   return NextResponse.redirect(url);
+  // }
 
   return response;
 }

@@ -1,7 +1,9 @@
 import Sidebar from "@/components/Sidebar";
 import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 
+// Auth is temporarily disabled (no SMTP / OAuth configured yet in Supabase).
+// To re-enable: uncomment the redirect below and restore the check in
+// src/lib/supabase/middleware.ts.
 export default async function DashboardLayout({
   children,
 }: {
@@ -12,11 +14,11 @@ export default async function DashboardLayout({
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/login");
+  // if (!user) redirect("/login");
 
   return (
     <div className="flex h-screen overflow-hidden bg-white">
-      <Sidebar userEmail={user.email ?? "Vanquish"} />
+      <Sidebar userEmail={user?.email ?? "Vanquish"} />
       <main className="min-w-0 flex-1 overflow-auto">{children}</main>
     </div>
   );
