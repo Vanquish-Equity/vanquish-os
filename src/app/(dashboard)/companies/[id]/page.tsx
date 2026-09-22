@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import EditableDealOverview from "@/components/EditableDealOverview";
+import DocumentsCard, { type DocumentItem } from "@/components/DocumentsCard";
 import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -56,6 +57,7 @@ export default async function CompanyDetailPage({
     { data: people },
     { data: stages },
     { data: priorities },
+    { data: documentRows },
   ] = await Promise.all([
       primaryDeal
         ? supabase
@@ -82,7 +84,39 @@ export default async function CompanyDetailPage({
         .from("priorities")
         .select("id,name")
         .order("sort_order"),
+      supabase
+        .from("documents")
+        .select("id,name,storage_path,size_bytes,created_at")
+        .eq("company_id", id)
+        .order("created_at", { ascending: false }) as unknown as Promise<{
+        data:
+          | {
+              id: string;
+              name: string;
+              storage_path: string;
+              size_bytes: number | null;
+              created_at: string;
+            }[]
+          | null;
+      }>,
     ]);
+
+  const documents: DocumentItem[] = await Promise.all(
+    (documentRows ?? []).map(async (doc) => {
+      const { data: signed } = await supabase.storage
+        .from("documents")
+        .createSignedUrl(doc.storage_path, 60 * 60);
+
+      return {
+        id: doc.id,
+        name: doc.name,
+        storagePath: doc.storage_path,
+        sizeBytes: doc.size_bytes,
+        createdAt: doc.created_at,
+        signedUrl: signed?.signedUrl ?? null,
+      };
+    })
+  );
 
   return (
     <div className="flex flex-col gap-4 px-7 py-6">
@@ -239,6 +273,8 @@ export default async function CompanyDetailPage({
               </a>
             </div>
           )}
+
+          <DocumentsCard companyId={company.id} documents={documents} />
         </div>
       </div>
     </div>
