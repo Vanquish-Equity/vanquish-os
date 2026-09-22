@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Vanquish OS — M1 (Core CRM + Pipeline)
 
-## Getting Started
+Vanquish's internal deal-flow operating system. This is the first vertical
+slice: a company enters, becomes a deal, moves through the pipeline with
+real status history, and the team can see it — no spreadsheet.
 
-First, run the development server:
+Stack: Next.js 16 (App Router) + Supabase (Postgres, Auth) + Tailwind v4.
+
+## 1. Push this to GitHub
+
+The git history is already committed and `origin` already points at
+`github.com/Vanquish-Equity/vanquish-os`. From this folder:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git push -u origin main
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 2. Set up Supabase
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+In your Supabase project's SQL Editor, run the two migration files **in order**:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. `supabase/migrations/0001_core_schema.sql` — creates all tables, the
+   pipeline stages/priorities taxonomies, RLS policies and the trigger that
+   automatically logs every stage change into `deal_status_history`.
+2. `supabase/migrations/0002_seed_tracker.sql` — the real 123 rows from
+   `Company_Tracker.xlsx`, migrated into 106 companies + 123 deals with
+   seeded status history. (Regenerate it any time with
+   `python3 scripts/generate_seed.py` if the source tracker changes.)
 
-## Learn More
+Then go to **Authentication → Providers** and make sure Email (magic link)
+is enabled — that's how Scott, Francis, Pedro and you sign in. No signup
+form; anyone with a `@vanquish` (or whichever domain you want) email can
+request a link. Add an allow-list later if you want to lock that down.
 
-To learn more about Next.js, take a look at the following resources:
+## 3. Environment variables
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Copy `.env.local.example` to `.env.local` and fill in your project's
+**Project URL** and **anon public key** (Project Settings → API — both are
+safe to expose client-side, that's what "anon public" means).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+cp .env.local.example .env.local
+```
 
-## Deploy on Vercel
+## 4. Run it
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm install
+npm run dev
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Open http://localhost:3000 — it redirects to `/login`, sends a magic link,
+then drops you into `/pipeline`.
+
+## 5. Deploy
+
+Once it's on GitHub, tell Claude (or go to vercel.com/new) to import the
+repo — the Vercel account is already connected. Set the same two env vars
+there before the first deploy.
+
+## What's here vs. what's next
+
+This is Milestone 1 from the Technical Blueprint: Companies, Deals, People,
+activity history, real auth. It deliberately does **not** include Gmail
+sync, document governance, chat, comments or the Review Queue — those are
+milestones 2+, and they get built on top of this same schema rather than
+a rewrite. See `supabase/migrations/0001_core_schema.sql` for the full
+data model and its comments.
