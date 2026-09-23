@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 const workspaceItems = [
   { href: "/overview", label: "Overview" },
@@ -14,12 +15,22 @@ const workspaceItems = [
   { href: "/portfolio", label: "Portfolio" },
 ];
 
-function NavLink({ href, label }: { href: string; label: string }) {
-  const pathname = usePathname();
-  const active = pathname === href || pathname.startsWith(href + "/");
+function NavLink({
+  activeHref,
+  href,
+  label,
+  onNavigate,
+}: {
+  activeHref: string;
+  href: string;
+  label: string;
+  onNavigate: (href: string) => void;
+}) {
+  const active = activeHref === href || activeHref.startsWith(href + "/");
   return (
     <Link
       href={href}
+      onClick={() => onNavigate(href)}
       className={`flex items-center gap-2.5 rounded-[9px] px-3 py-2.5 text-[13px] font-medium transition-colors ${
         active
           ? "bg-[#12191c] text-white"
@@ -32,6 +43,10 @@ function NavLink({ href, label }: { href: string; label: string }) {
 }
 
 export default function Sidebar({ userEmail }: { userEmail: string }) {
+  const pathname = usePathname();
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const activeHref = pendingHref || pathname;
+
   return (
     <aside className="flex h-screen w-[248px] flex-shrink-0 flex-col bg-ink px-3.5 py-5">
       <div className="mb-6 px-2">
@@ -55,7 +70,12 @@ export default function Sidebar({ userEmail }: { userEmail: string }) {
       </div>
       <nav className="flex flex-col gap-0.5">
         {workspaceItems.map((item) => (
-          <NavLink key={item.href} {...item} />
+          <NavLink
+            key={item.href}
+            {...item}
+            activeHref={activeHref}
+            onNavigate={setPendingHref}
+          />
         ))}
       </nav>
 

@@ -6,6 +6,7 @@ import {
   type CompanyListItem,
 } from "@/lib/companies/listing";
 import { createClient } from "@/lib/supabase/server";
+import { startDevPageTimer } from "@/lib/performance";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,7 @@ function latestDate(values: Array<string | null | undefined>) {
 
 export default async function CompaniesPage() {
   const supabase = await createClient();
+  const endTimer = startDevPageTimer("page:data:companies");
   const { data: companyRows } = (await supabase
     .from("companies")
     .select(
@@ -73,6 +75,7 @@ export default async function CompaniesPage() {
         data: RequirementRow[] | null;
       })
     : { data: [] };
+  endTimer();
 
   const requirementsByDeal = new Map<string, RequirementRow[]>();
   (requirementRows ?? []).forEach((requirement) => {

@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import NewTaskModal from "@/components/NewTaskModal";
 import TaskRow, { type TaskItem } from "@/components/TaskRow";
+import { startDevPageTimer } from "@/lib/performance";
+import { getPriorityOptions } from "@/lib/taxonomies";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +26,9 @@ export default async function TasksPage({
 }) {
   const { status } = await searchParams;
   const supabase = await createClient();
+  const endTimer = startDevPageTimer("page:data:tasks");
 
-  const [{ data: tasks }, { data: companies }, { data: priorities }] =
+  const [{ data: tasks }, { data: companies }, priorities] =
     await Promise.all([
       supabase
         .from("tasks")
@@ -41,11 +44,9 @@ export default async function TasksPage({
         .select("id,name")
         .is("deleted_at", null)
         .order("name") as unknown as Promise<{ data: Option[] }>,
-      supabase
-        .from("priorities")
-        .select("id,name")
-        .order("sort_order") as unknown as Promise<{ data: Option[] }>,
+      getPriorityOptions() as Promise<Option[]>,
     ]);
+  endTimer();
 
   const allTasks: TaskItem[] = (tasks ?? []).map((t) => ({
     id: t.id,
@@ -80,7 +81,7 @@ export default async function TasksPage({
             Follow-ups and next actions, linked to a company when relevant.
           </p>
         </div>
-        <NewTaskModal companies={companies ?? []} priorities={priorities ?? []} />
+        <NewTaskModal companies={companies ?? []} priorities={priorities} />
       </header>
 
       {status !== "done" && (

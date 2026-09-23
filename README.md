@@ -102,6 +102,11 @@ new migrations a second time to confirm they are re-runnable.
 Import the GitHub repo into Vercel and set the same Supabase env vars before the
 first deploy.
 
+Vercel functions are pinned to `pdx1` in `vercel.json` to stay close to the
+Supabase project in `us-west-2`. Keep those regions aligned when moving either
+service; cross-region database round trips make every dashboard navigation feel
+slower.
+
 ## Confidentiality Rule
 
 Portfolio pages are internal. SPV ledgers, cap tables and investor positions

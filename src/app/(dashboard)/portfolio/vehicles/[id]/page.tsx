@@ -10,6 +10,7 @@ import {
   labelForInstrument,
   labelForVehicleStatus,
 } from "@/lib/labels";
+import { startDevPageTimer } from "@/lib/performance";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -181,23 +182,22 @@ export default async function VehiclePage({
   const checklistFilters = await searchParams;
   const supabase = await createClient();
   const path = `/portfolio/vehicles/${id}`;
-
-  const { data: vehicle } = (await supabase
-    .from("legal_entities")
-    .select(
-      "id,name,entity_type,jurisdiction,vehicle_status,formation_date,resident_agent,notes"
-    )
-    .eq("id", id)
-    .maybeSingle()) as unknown as { data: Vehicle | null };
-
-  if (!vehicle) notFound();
+  const endTimer = startDevPageTimer(`page:data:vehicle:${id}`);
 
   const [
+    { data: vehicle },
     { data: aliases },
     { data: positions },
     { data: investmentVehicles },
     { data: capitalEvents },
   ] = await Promise.all([
+    supabase
+      .from("legal_entities")
+      .select(
+        "id,name,entity_type,jurisdiction,vehicle_status,formation_date,resident_agent,notes"
+      )
+      .eq("id", id)
+      .maybeSingle() as unknown as Promise<{ data: Vehicle | null }>,
     supabase
       .from("legal_entity_aliases")
       .select("alias,source")
@@ -230,6 +230,8 @@ export default async function VehiclePage({
     }>,
   ]);
 
+  if (!vehicle) notFound();
+
   const vehicleInvestments = (investmentVehicles ?? [])
     .map((row) => row.investment)
     .filter(Boolean) as NonNullable<InvestmentVehicle["investment"]>[];
@@ -249,6 +251,7 @@ export default async function VehiclePage({
     )
     .or(requirementFilters.join(","))
     .is("archived_at", null)) as unknown as { data: Requirement[] | null };
+  endTimer();
   const spvRequirements = (requirements ?? []).filter((row) => row.scope === "spv");
   const investorRequirements = (requirements ?? []).filter(
     (row) => row.scope === "investor_spv" && row.position_id && positionIds.has(row.position_id)

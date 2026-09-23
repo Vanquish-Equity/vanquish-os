@@ -12,7 +12,17 @@ import LogInteractionForm from "@/components/LogInteractionForm";
 import RelativeTime from "@/components/RelativeTime";
 import TrashBanner from "@/components/TrashBanner";
 import { humanizeCode, labelForInstrument } from "@/lib/labels";
+import { startDevPageTimer } from "@/lib/performance";
 import { createClient } from "@/lib/supabase/server";
+import {
+  getDealOutcomeOptions,
+  getDocumentCategories,
+  getDocumentTypes,
+  getIndustryOptions,
+  getPipelineStages,
+  getPriorityOptions,
+  getRelationshipStateOptions,
+} from "@/lib/taxonomies";
 
 export const dynamic = "force-dynamic";
 
@@ -115,27 +125,50 @@ export default async function CompanyDetailPage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
+  const endTimer = startDevPageTimer(`page:data:company:${id}`);
 
-  const { data: company } = (await supabase
-    .from("companies")
-    .select(
-      "id,name,description,website,industry_id,deleted_at,updated_at,industry:industries(name)"
-    )
-    .eq("id", id)
-    .maybeSingle()) as unknown as { data: Company | null };
+  const [
+    { data: company },
+    { data: deals },
+    stages,
+    priorities,
+    outcomes,
+    relationshipStates,
+    industries,
+    documentCategories,
+    documentTypes,
+  ] = await Promise.all([
+    supabase
+      .from("companies")
+      .select(
+        "id,name,description,website,industry_id,deleted_at,updated_at,industry:industries(name)"
+      )
+      .eq("id", id)
+      .maybeSingle() as unknown as Promise<{ data: Company | null }>,
+    supabase
+      .from("deals")
+      .select(
+        "id,name,potential_investment,round,owner,updated_at,last_activity_at,stage_id,priority_id,outcome_id,relationship_state_id,stage:pipeline_stages(id,name),priority:priorities(id,name),outcome:deal_outcomes(id,name),relationship_state:relationship_states(id,name)"
+      )
+      .eq("company_id", id)
+      .is("archived_at", null)
+      .order("updated_at", { ascending: false }) as unknown as Promise<{
+      data: DealRow[] | null;
+    }>,
+    getPipelineStages() as Promise<Option[]>,
+    getPriorityOptions() as Promise<Option[]>,
+    getDealOutcomeOptions() as Promise<Option[]>,
+    getRelationshipStateOptions() as Promise<Option[]>,
+    getIndustryOptions() as Promise<Option[]>,
+    getDocumentCategories() as Promise<
+      { id: string; code: string; name: string }[]
+    >,
+    getDocumentTypes() as Promise<
+      { id: string; name: string; category_id: string }[]
+    >,
+  ]);
 
   if (!company) notFound();
-
-  const { data: deals } = (await supabase
-    .from("deals")
-    .select(
-      "id,name,potential_investment,round,owner,updated_at,last_activity_at,stage_id,priority_id,outcome_id,relationship_state_id,stage:pipeline_stages(id,name),priority:priorities(id,name),outcome:deal_outcomes(id,name),relationship_state:relationship_states(id,name)"
-    )
-    .eq("company_id", id)
-    .is("archived_at", null)
-    .order("updated_at", { ascending: false })) as unknown as {
-    data: DealRow[] | null;
-  };
 
   const dealRows = deals ?? [];
   const primaryDeal = dealRows[0];
@@ -145,14 +178,7 @@ export default async function CompanyDetailPage({
     { data: history },
     { data: interactions },
     { data: people },
-    { data: stages },
-    { data: priorities },
-    { data: outcomes },
-    { data: relationshipStates },
     { data: documentRows },
-    { data: industries },
-    { data: documentCategories },
-    { data: documentTypes },
     { data: requirements },
     { data: activity },
     { data: investments },
@@ -206,25 +232,6 @@ export default async function CompanyDetailPage({
       .eq("primary_organization_id", id)
       .is("archived_at", null),
     supabase
-      .from("pipeline_stages")
-      .select("id,name")
-      .eq("is_active", true)
-      .order("sort_order") as unknown as Promise<{ data: Option[] | null }>,
-    supabase
-      .from("priorities")
-      .select("id,name")
-      .order("sort_order") as unknown as Promise<{ data: Option[] | null }>,
-    supabase
-      .from("deal_outcomes")
-      .select("id,name")
-      .eq("is_active", true)
-      .order("sort_order") as unknown as Promise<{ data: Option[] | null }>,
-    supabase
-      .from("relationship_states")
-      .select("id,name")
-      .eq("is_active", true)
-      .order("sort_order") as unknown as Promise<{ data: Option[] | null }>,
-    supabase
       .from("documents")
       .select("id,name,storage_path,drive_url,size_bytes,created_at")
       .eq("company_id", id)
@@ -240,23 +247,6 @@ export default async function CompanyDetailPage({
             created_at: string;
           }[]
         | null;
-    }>,
-    supabase
-      .from("industries")
-      .select("id,name")
-      .order("name") as unknown as Promise<{ data: Option[] | null }>,
-    supabase
-      .from("document_categories")
-      .select("id,code,name")
-      .order("sort_order") as unknown as Promise<{
-      data: { id: string; code: string; name: string }[] | null;
-    }>,
-    supabase
-      .from("document_types")
-      .select("id,name,category_id")
-      .eq("is_active", true)
-      .order("name") as unknown as Promise<{
-      data: { id: string; name: string; category_id: string }[] | null;
     }>,
     primaryDeal
       ? (supabase
@@ -347,6 +337,7 @@ export default async function CompanyDetailPage({
       };
     })
   );
+  endTimer();
 
   const relevantIds = new Set([
     id,

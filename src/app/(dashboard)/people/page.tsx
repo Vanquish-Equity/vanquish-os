@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import NewPersonModal from "@/components/NewPersonModal";
+import { startDevPageTimer } from "@/lib/performance";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,7 @@ function initials(name: string) {
 
 export default async function PeoplePage() {
   const supabase = await createClient();
+  const endTimer = startDevPageTimer("page:data:people");
 
   const [{ data: people }, { data: companies }] = await Promise.all([
     supabase
@@ -46,6 +48,7 @@ export default async function PeoplePage() {
       .is("deleted_at", null)
       .order("name") as unknown as Promise<{ data: Option[] }>,
   ]);
+    endTimer();
 
   return (
     <div className="flex flex-col gap-4 px-7 py-6">

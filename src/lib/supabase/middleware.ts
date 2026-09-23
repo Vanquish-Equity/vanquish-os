@@ -1,7 +1,14 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function updateSession(request: NextRequest) {
+  // AUTH_DISABLED: login enforcement is intentionally off, so avoid creating a
+  // Supabase client and calling auth.getUser() on every request. Restore the
+  // block below when SMTP/OAuth and the redirect gate ship.
+  return NextResponse.next({ request });
+
+  /*
+  import { createServerClient } from "@supabase/ssr";
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -25,26 +32,26 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // Keeps the session cookie refreshed, but the redirect gate is disabled
-  // for now (no SMTP / OAuth configured yet in Supabase). To re-enable,
-  // uncomment the block below.
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  // const isAuthRoute =
-  //   request.nextUrl.pathname.startsWith("/login") ||
-  //   request.nextUrl.pathname.startsWith("/auth");
-  //
-  // if (!user && !isAuthRoute) {
-  //   const url = request.nextUrl.clone();
-  //   url.pathname = "/login";
-  //   return NextResponse.redirect(url);
-  // }
-  //
-  // if (user && request.nextUrl.pathname === "/login") {
-  //   const url = request.nextUrl.clone();
-  //   url.pathname = "/pipeline";
-  //   return NextResponse.redirect(url);
-  // }
+  const isAuthRoute =
+    request.nextUrl.pathname.startsWith("/login") ||
+    request.nextUrl.pathname.startsWith("/auth");
+
+  if (!user && !isAuthRoute) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
+
+  if (user && request.nextUrl.pathname === "/login") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/pipeline";
+    return NextResponse.redirect(url);
+  }
 
   return response;
+  */
 }

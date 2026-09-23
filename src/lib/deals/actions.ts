@@ -1,9 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { logActivity } from "@/lib/activity/log";
 import { applyDealTemplateAction } from "@/lib/requirements/actions";
 import { createClient } from "@/lib/supabase/server";
+import { TAXONOMY_TAGS } from "@/lib/taxonomies";
 
 type FieldErrors = Partial<
   Record<
@@ -172,7 +173,7 @@ async function resolveIndustryId(
   newIndustryName: string
 ) {
   if (!newIndustryName) {
-    return { ok: true as const, industryId };
+    return { ok: true as const, created: false, industryId };
   }
 
   const { data: industries, error: lookupError } = (await supabase
@@ -192,7 +193,7 @@ async function resolveIndustryId(
   );
 
   if (existingIndustry) {
-    return { ok: true as const, industryId: existingIndustry.id };
+    return { ok: true as const, created: false, industryId: existingIndustry.id };
   }
 
   const { data: createdIndustry, error: createError } = (await supabase
@@ -212,7 +213,7 @@ async function resolveIndustryId(
     return { ok: false as const, message: "Category could not be created." };
   }
 
-  return { ok: true as const, industryId: createdIndustry.id };
+  return { ok: true as const, created: true, industryId: createdIndustry.id };
 }
 
 export async function createDealAction(
@@ -262,6 +263,9 @@ export async function createDealAction(
 
   if (!resolvedIndustry.ok) {
     return { ok: false, message: resolvedIndustry.message };
+  }
+  if (resolvedIndustry.created) {
+    revalidateTag(TAXONOMY_TAGS.industries, "max");
   }
 
   const { data: companies, error: companyLookupError } = (await supabase

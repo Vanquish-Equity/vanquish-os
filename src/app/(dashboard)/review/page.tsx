@@ -1,5 +1,6 @@
 import ReviewItemActions from "@/components/ReviewItemActions";
 import { createClient } from "@/lib/supabase/server";
+import { startDevPageTimer } from "@/lib/performance";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ type ReviewItem = {
 
 export default async function ReviewPage() {
   const supabase = await createClient();
+  const endTimer = startDevPageTimer("page:data:review");
   const { data: items } = (await supabase
     .from("review_items")
     .select("id,review_type,payload,created_at")
@@ -30,6 +32,7 @@ export default async function ReviewPage() {
     .order("created_at", { ascending: false })) as unknown as {
     data: ReviewItem[] | null;
   };
+  endTimer();
 
   return (
     <div className="flex flex-col gap-4 px-7 py-6">

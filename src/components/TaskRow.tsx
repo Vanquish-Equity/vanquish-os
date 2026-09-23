@@ -25,20 +25,26 @@ export default function TaskRow({ task }: { task: TaskItem }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const done = task.status === "done";
-  const overdue = isOverdue(task.dueAt, task.status);
+  const [status, setStatus] = useState(task.status);
+  const [archived, setArchived] = useState(false);
+  const done = status === "done";
+  const overdue = isOverdue(task.dueAt, status);
 
   async function toggleDone() {
+    const previousStatus = status;
+    const nextStatus = done ? "open" : "done";
     setPending(true);
     setError(null);
+    setStatus(nextStatus);
     const result = await setTaskStatusAction({
       taskId: task.id,
-      status: done ? "open" : "done",
+      status: nextStatus,
       companyId: task.companyId,
     });
     setPending(false);
 
     if (!result.ok) {
+      setStatus(previousStatus);
       setError(result.message);
       return;
     }
@@ -48,6 +54,7 @@ export default function TaskRow({ task }: { task: TaskItem }) {
   async function handleDelete() {
     setPending(true);
     setError(null);
+    setArchived(true);
     const result = await deleteTaskAction({
       taskId: task.id,
       companyId: task.companyId,
@@ -55,11 +62,14 @@ export default function TaskRow({ task }: { task: TaskItem }) {
     setPending(false);
 
     if (!result.ok) {
+      setArchived(false);
       setError(result.message);
       return;
     }
     router.refresh();
   }
+
+  if (archived) return null;
 
   return (
     <div className="flex items-center gap-3 border-b border-neutral-50 px-4 py-3 last:border-0">

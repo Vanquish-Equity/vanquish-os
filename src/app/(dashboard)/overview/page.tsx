@@ -2,6 +2,7 @@ import Link from "next/link";
 import OverviewAttentionPanel from "@/components/OverviewAttentionPanel";
 import RelativeTime from "@/components/RelativeTime";
 import { getNeedsAttentionDeals } from "@/lib/deals/attention";
+import { startDevPageTimer } from "@/lib/performance";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -111,6 +112,7 @@ function describeEvent(event: ActivityRow) {
 
 export default async function OverviewPage() {
   const supabase = await createClient();
+  const endTimer = startDevPageTimer("page:data:overview");
 
   const [
     { data: deals },
@@ -191,6 +193,7 @@ export default async function OverviewPage() {
       data: { deal_id: string | null; updated_at: string }[] | null;
     }>,
   ]);
+  endTimer();
 
   function latestByDeal(
     rows: Array<{ deal_id: string | null; at: string }> | null | undefined

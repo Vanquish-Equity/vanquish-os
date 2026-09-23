@@ -3,6 +3,7 @@ import {
   labelForFundingStatus,
   labelForInstrument,
 } from "@/lib/labels";
+import { startDevPageTimer } from "@/lib/performance";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -51,6 +52,7 @@ export default async function PortfolioPage({
   const healthFilter =
     filters.filter ?? (filters.criticalMissing === "1" ? "critical_missing" : "");
   const supabase = await createClient();
+  const endTimer = startDevPageTimer("page:data:portfolio");
   const [{ data: investments }, { data: requirements }, { data: vehicles }] =
     await Promise.all([
       supabase
@@ -77,6 +79,7 @@ export default async function PortfolioPage({
         data: { id: string; name: string }[] | null;
       }>,
     ]);
+  endTimer();
 
   const healthByInvestment = new Map<
     string,

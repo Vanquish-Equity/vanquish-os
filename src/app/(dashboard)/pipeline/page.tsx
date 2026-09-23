@@ -1,4 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
+import { startDevPageTimer } from "@/lib/performance";
+import {
+  getIndustryOptions,
+  getPipelineStages,
+  getPriorityOptions,
+} from "@/lib/taxonomies";
 import NewDealModal from "@/components/NewDealModal";
 import PipelineBoard from "@/components/PipelineBoard";
 import Link from "next/link";
@@ -32,18 +38,10 @@ export default async function PipelinePage({
   const { filter, hideTerminal, priority, stage } = await searchParams;
   const shouldHideTerminal = hideTerminal === "1" || filter === "active";
   const supabase = await createClient();
+  const endTimer = startDevPageTimer("page:data:pipeline");
 
-  const [
-    { data: stages },
-    { data: deals },
-    { data: industries },
-    { data: priorities },
-  ] = await Promise.all([
-      supabase
-        .from("pipeline_stages")
-        .select("id,name,sort_order")
-        .eq("is_active", true)
-        .order("sort_order") as unknown as Promise<{ data: Stage[] }>,
+  const [stages, { data: deals }, industries, priorities] = await Promise.all([
+    getPipelineStages() as Promise<Stage[]>,
       supabase
         .from("deals")
         .select(
@@ -54,15 +52,10 @@ export default async function PipelinePage({
         .order("updated_at", { ascending: false }) as unknown as Promise<{
       data: Deal[];
     }>,
-    supabase
-      .from("industries")
-      .select("id,name")
-      .order("name") as unknown as Promise<{ data: Option[] }>,
-    supabase
-      .from("priorities")
-      .select("id,name")
-      .order("sort_order") as unknown as Promise<{ data: Option[] }>,
+    getIndustryOptions() as Promise<Option[]>,
+    getPriorityOptions() as Promise<Option[]>,
   ]);
+  endTimer();
 
   const visibleDeals = (deals ?? []).filter((deal) => {
     if (shouldHideTerminal && (deal.outcome || deal.stage?.is_terminal)) return false;
@@ -89,9 +82,9 @@ export default async function PipelinePage({
           </p>
         </div>
         <NewDealModal
-          industries={industries ?? []}
-          stages={stages ?? []}
-          priorities={priorities ?? []}
+          industries={industries}
+          stages={stages}
+          priorities={priorities}
         />
       </header>
 
@@ -110,7 +103,7 @@ export default async function PipelinePage({
         </Link>
       </div>
 
-      {!stages?.length ? (
+      {!stages.length ? (
         <div className="rounded-[14px] border border-neutral-100 bg-white p-6 text-sm text-neutral-500">
           No pipeline stages found. Run the M1 migration in Supabase first.
         </div>

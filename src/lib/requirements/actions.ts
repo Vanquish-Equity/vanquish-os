@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { logActivity } from "@/lib/activity/log";
 import { createClient } from "@/lib/supabase/server";
+import { TAXONOMY_TAGS } from "@/lib/taxonomies";
 
 export type RequirementActionResult =
   | { ok: true }
@@ -60,7 +61,11 @@ async function resolveDocumentType(input: {
   supabase: SupabaseClient;
 }) {
   if (input.documentTypeId) {
-    return { ok: true as const, documentTypeId: input.documentTypeId };
+    return {
+      ok: true as const,
+      created: false,
+      documentTypeId: input.documentTypeId,
+    };
   }
 
   const label = cleanText(input.label);
@@ -81,7 +86,11 @@ async function resolveDocumentType(input: {
     return { ok: false as const, message: existingByNameError.message };
   }
   if (existingByName) {
-    return { ok: true as const, documentTypeId: existingByName.id };
+    return {
+      ok: true as const,
+      created: false,
+      documentTypeId: existingByName.id,
+    };
   }
 
   const { data: otherCategory, error: categoryError } = (await input.supabase
@@ -111,7 +120,9 @@ async function resolveDocumentType(input: {
     error: { message: string } | null;
   };
 
-  if (created) return { ok: true as const, documentTypeId: created.id };
+  if (created) {
+    return { ok: true as const, created: true, documentTypeId: created.id };
+  }
 
   if (createError) {
     const { data: existingByCode } = (await input.supabase
@@ -123,7 +134,11 @@ async function resolveDocumentType(input: {
     };
 
     if (existingByCode) {
-      return { ok: true as const, documentTypeId: existingByCode.id };
+      return {
+        ok: true as const,
+        created: false,
+        documentTypeId: existingByCode.id,
+      };
     }
 
     return { ok: false as const, message: createError.message };
@@ -218,6 +233,9 @@ export async function addDealRequirementAction(
   });
 
   if (!resolvedType.ok) return { ok: false, message: resolvedType.message };
+  if (resolvedType.created) {
+    revalidateTag(TAXONOMY_TAGS.documentTypes, "max");
+  }
 
   const { error } = await supabase.from("document_requirements").insert({
     scope: "deal_dd",

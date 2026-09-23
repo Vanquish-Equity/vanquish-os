@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import RequirementInlineControls from "@/components/RequirementInlineControls";
 import { humanizeCode, labelForCriticality } from "@/lib/labels";
+import { startDevPageTimer } from "@/lib/performance";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -57,16 +58,15 @@ export default async function InvestorPage({
   const { id } = await params;
   const supabase = await createClient();
   const path = `/portfolio/investors/${id}`;
+  const endTimer = startDevPageTimer(`page:data:investor:${id}`);
 
-  const { data: investor } = (await supabase
-    .from("investors")
-    .select("id,display_name,legal_name,investor_type,notes")
-    .eq("id", id)
-    .maybeSingle()) as unknown as { data: Investor | null };
-
-  if (!investor) notFound();
-
-  const [{ data: aliases }, { data: positions }] = await Promise.all([
+  const [{ data: investor }, { data: aliases }, { data: positions }] =
+    await Promise.all([
+      supabase
+        .from("investors")
+        .select("id,display_name,legal_name,investor_type,notes")
+        .eq("id", id)
+        .maybeSingle() as unknown as Promise<{ data: Investor | null }>,
     supabase
       .from("investor_aliases")
       .select("alias,source")
@@ -84,6 +84,8 @@ export default async function InvestorPage({
       .order("created_at") as unknown as Promise<{ data: Position[] | null }>,
   ]);
 
+  if (!investor) notFound();
+
   const positionIds = (positions ?? []).map((position) => position.id);
   const { data: requirements } = positionIds.length
     ? ((await supabase
@@ -95,6 +97,7 @@ export default async function InvestorPage({
         .in("position_id", positionIds)
         .is("archived_at", null)) as unknown as { data: Requirement[] | null })
     : { data: [] as Requirement[] };
+  endTimer();
 
   return (
     <div className="flex flex-col gap-4 px-7 py-6">

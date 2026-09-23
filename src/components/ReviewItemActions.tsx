@@ -8,14 +8,17 @@ export default function ReviewItemActions({ itemId }: { itemId: string }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [resolved, setResolved] = useState(false);
 
   function submit(action: "separate" | "duplicate_archive_one" | "ignore") {
+    setResolved(true);
     startTransition(async () => {
       const result = await resolveReviewItemAction({
         reviewItemId: itemId,
         action,
       });
       if (!result.ok) {
+        setResolved(false);
         setError(result.message);
         return;
       }
@@ -23,6 +26,8 @@ export default function ReviewItemActions({ itemId }: { itemId: string }) {
       router.refresh();
     });
   }
+
+  if (resolved && !error) return null;
 
   return (
     <div className="flex flex-wrap items-center gap-2">
