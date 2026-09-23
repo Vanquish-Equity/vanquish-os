@@ -154,7 +154,7 @@ export default async function CompaniesPage() {
 
       <Suspense
         fallback={
-          <div className="rounded-[14px] border border-neutral-100 bg-white p-6 text-sm text-neutral-500">
+          <div className="vq-card-static rounded-[14px] bg-white p-6 text-sm text-neutral-500">
             Loading companies...
           </div>
         }

@@ -88,7 +88,7 @@ export default async function PipelinePage({
         />
       </header>
 
-      <div className="flex items-center justify-between rounded-[14px] border border-neutral-100 bg-white px-3 py-2">
+      <div className="vq-card-static flex items-center justify-between rounded-[14px] bg-white px-3 py-2">
         <div className="text-[12px] text-neutral-500">
           Terminal outcome filter:{" "}
           <span className="font-semibold text-ink">
@@ -104,7 +104,7 @@ export default async function PipelinePage({
       </div>
 
       {!stages.length ? (
-        <div className="rounded-[14px] border border-neutral-100 bg-white p-6 text-sm text-neutral-500">
+        <div className="vq-card-static rounded-[14px] bg-white p-6 text-sm text-neutral-500">
           No pipeline stages found. Run the M1 migration in Supabase first.
         </div>
       ) : (

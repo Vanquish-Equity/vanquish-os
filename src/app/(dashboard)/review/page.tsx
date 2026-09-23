@@ -45,16 +45,16 @@ export default async function ReviewPage() {
         </p>
       </header>
 
-      <div className="flex flex-col gap-3">
+      <div className="vq-card-grid flex flex-col gap-3">
         {(items ?? []).length === 0 && (
-          <div className="rounded-[14px] border border-neutral-100 bg-white p-8 text-center text-[12.5px] text-neutral-400">
+          <div className="vq-card-static rounded-[14px] bg-white p-8 text-center text-[12.5px] text-neutral-400">
             No open review items.
           </div>
         )}
         {(items ?? []).map((item) => (
           <div
             key={item.id}
-            className="rounded-[14px] border border-neutral-100 bg-white p-5"
+            className="vq-card rounded-[14px] bg-white p-5"
           >
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>

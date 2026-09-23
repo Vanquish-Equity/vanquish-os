@@ -468,7 +468,7 @@ export default async function CompanyDetailPage({
         ))}
       </nav>
 
-      <section id="attention" className="rounded-[14px] border border-neutral-100 bg-white p-5 scroll-mt-16">
+      <section id="attention" className="vq-card rounded-[14px] bg-white p-5 scroll-mt-16">
         <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
           Needs attention for this company
         </h2>
@@ -574,7 +574,7 @@ export default async function CompanyDetailPage({
             priorities={priorities ?? []}
           />
         ) : (
-          <div className="rounded-[14px] border border-neutral-100 bg-white p-5">
+          <div className="vq-card rounded-[14px] bg-white p-5">
             <h2 className="mb-2 text-[14.5px] font-semibold text-ink">
               Deal Overview
             </h2>
@@ -603,7 +603,7 @@ export default async function CompanyDetailPage({
       )}
 
       <section id="timeline" className="grid grid-cols-[1.3fr_0.7fr] gap-3.5 scroll-mt-16">
-        <div className="rounded-[14px] border border-neutral-100 bg-white p-5">
+        <div className="vq-card rounded-[14px] bg-white p-5">
           <h2 className="mb-3 text-[14.5px] font-semibold text-ink">Timeline</h2>
           <div className="flex flex-col gap-3">
             {timeline.length === 0 && (
@@ -640,9 +640,9 @@ export default async function CompanyDetailPage({
         </div>
       </section>
 
-      <section id="people" className="rounded-[14px] border border-neutral-100 bg-white p-5 scroll-mt-16">
+      <section id="people" className="vq-card rounded-[14px] bg-white p-5 scroll-mt-16">
         <h2 className="mb-3 text-[14.5px] font-semibold text-ink">People</h2>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="vq-card-grid grid grid-cols-2 gap-3">
           {(people ?? []).length === 0 && (
             <p className="col-span-2 rounded-xl border border-dashed border-neutral-200 px-3 py-4 text-center text-[12px] text-neutral-400">
               People captures founders, operators and relationship owners tied to this company.
@@ -681,7 +681,7 @@ export default async function CompanyDetailPage({
         />
       </section>
 
-      <section id="investments" className="rounded-[14px] border border-neutral-100 bg-white p-5 scroll-mt-16">
+      <section id="investments" className="vq-card rounded-[14px] bg-white p-5 scroll-mt-16">
         <h2 className="mb-3 text-[14.5px] font-semibold text-ink">Investments</h2>
         {(investments ?? []).length === 0 ? (
           <p className="rounded-xl border border-dashed border-neutral-200 px-3 py-4 text-center text-[12px] text-neutral-400">
@@ -700,7 +700,7 @@ export default async function CompanyDetailPage({
                       ? `/portfolio/vehicles/${vehicle.id}?investment=${investment.id}#checklist`
                       : "/portfolio"
                   }
-                  className="rounded-xl border border-neutral-100 px-3 py-2.5 text-[12px] transition hover:border-cyan-200"
+                  className="vq-card rounded-xl px-3 py-2.5 text-[12px]"
                 >
                   <div className="font-semibold text-ink">
                     {investment.external_ref} / {investment.round_label ?? "Round"}

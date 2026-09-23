@@ -139,7 +139,7 @@ export default async function PortfolioPage({
         </p>
       </header>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-[14px] border border-neutral-100 bg-white px-3 py-2">
+      <div className="vq-card-static flex flex-wrap items-center gap-2 rounded-[14px] bg-white px-3 py-2">
         <Link
           href="/portfolio"
           className="rounded-lg border border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-600 transition hover:border-neutral-300 hover:text-neutral-800"
@@ -194,7 +194,7 @@ export default async function PortfolioPage({
         </Link>
       </div>
 
-      <div className="overflow-hidden rounded-[14px] border border-neutral-100 bg-white">
+      <div className="vq-card-static overflow-hidden rounded-[14px] bg-white">
         <table className="w-full text-[12.5px]">
           <thead>
             <tr className="border-b border-neutral-100 text-left text-[10.5px] uppercase tracking-wide text-neutral-400">

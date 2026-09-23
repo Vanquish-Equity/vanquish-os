@@ -63,7 +63,7 @@ function StatTile({
   return (
     <Link
       href={href}
-      className="rounded-[14px] border border-neutral-100 bg-white p-4 transition hover:border-cyan-200"
+      className="vq-card rounded-[14px] bg-white p-4"
     >
       <div className="text-[10.5px] uppercase tracking-wide text-neutral-400">
         {label}
@@ -295,7 +295,7 @@ export default async function OverviewPage() {
         </p>
       </header>
 
-      <div className="grid grid-cols-4 gap-3.5">
+      <div className="vq-card-grid grid grid-cols-4 gap-3.5">
         <StatTile
           label="Active Deals"
           value={activeDeals.length}
@@ -324,7 +324,7 @@ export default async function OverviewPage() {
           staleDeals={staleDeals}
         />
 
-        <div className="rounded-[14px] border border-neutral-100 bg-white p-5">
+        <div className="vq-card-static rounded-[14px] bg-white p-5">
           <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
             Recent Activity
           </h2>
@@ -349,7 +349,7 @@ export default async function OverviewPage() {
         </div>
       </div>
 
-      <div className="rounded-[14px] border border-neutral-100 bg-white p-5">
+      <div className="vq-card-static rounded-[14px] bg-white p-5">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <h2 className="text-[14.5px] font-semibold text-ink">
@@ -366,7 +366,7 @@ export default async function OverviewPage() {
             Portfolio
           </Link>
         </div>
-        <div className="grid grid-cols-[180px_180px_1fr] gap-3">
+        <div className="vq-card-grid grid grid-cols-[180px_180px_1fr] gap-3">
           <Link href="/portfolio?filter=critical_missing" className="rounded-xl bg-[#f7f9fa] p-3 transition hover:ring-1 hover:ring-cyan-200">
             <div className="text-[10.5px] uppercase tracking-wide text-neutral-400">
               Critical Missing

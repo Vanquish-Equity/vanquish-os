@@ -38,7 +38,7 @@ export default async function CompaniesTrashPage() {
         </p>
       </header>
 
-      <div className="overflow-hidden rounded-[14px] border border-neutral-100 bg-white">
+      <div className="vq-card-static overflow-hidden rounded-[14px] bg-white">
         <table className="w-full text-[12.5px]">
           <thead>
             <tr className="border-b border-neutral-100 text-left text-[10.5px] uppercase tracking-wide text-neutral-400">

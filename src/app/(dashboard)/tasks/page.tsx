@@ -85,7 +85,7 @@ export default async function TasksPage({
       </header>
 
       {status !== "done" && (
-        <div className="rounded-[14px] border border-neutral-100 bg-white">
+        <div className="vq-card-static rounded-[14px] bg-white">
           <div className="border-b border-neutral-100 px-4 py-2.5 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
             Open ({openTasks.length})
           </div>
@@ -100,7 +100,7 @@ export default async function TasksPage({
       )}
 
       {status !== "open" && doneTasks.length > 0 && (
-        <div className="rounded-[14px] border border-neutral-100 bg-white">
+        <div className="vq-card-static rounded-[14px] bg-white">
           <div className="border-b border-neutral-100 px-4 py-2.5 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
             Done ({doneTasks.length})
           </div>
