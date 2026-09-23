@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { logActivity } from "@/lib/activity/log";
+import { applyDealTemplateAction } from "@/lib/requirements/actions";
 import { createClient } from "@/lib/supabase/server";
 
 type FieldErrors = Partial<
@@ -41,7 +43,13 @@ export type UpdateDealStageInput = {
 export type UpdateDealFieldInput = {
   dealId: string;
   companyId: string;
-  field: "stage_id" | "priority_id" | "owner" | "potential_investment";
+  field:
+    | "stage_id"
+    | "priority_id"
+    | "owner"
+    | "potential_investment"
+    | "outcome_id"
+    | "relationship_state_id";
   value: string | null;
 };
 
@@ -78,6 +86,29 @@ function revalidateDealPaths(companyId?: string | null) {
 
   if (companyId) {
     revalidatePath(`/companies/${companyId}`);
+  }
+}
+
+async function maybeApplyDueDiligenceTemplate(input: {
+  dealId: string;
+  companyId: string;
+  stageId: string;
+}) {
+  const supabase = await createClient();
+  const { data: stage } = (await supabase
+    .from("pipeline_stages")
+    .select("name")
+    .eq("id", input.stageId)
+    .maybeSingle()) as unknown as {
+    data: { name: string } | null;
+  };
+
+  if (stage?.name === "Due Diligence") {
+    await applyDealTemplateAction({
+      dealId: input.dealId,
+      companyId: input.companyId,
+      templateCode: "GENERIC_DD",
+    });
   }
 }
 
@@ -248,6 +279,7 @@ export async function createDealAction(
   );
 
   let companyId = existingCompany?.id ?? null;
+  let createdCompanyForDeal = false;
 
   if (!companyId) {
     const { data: createdCompany, error: createCompanyError } = (await supabase
@@ -268,6 +300,7 @@ export async function createDealAction(
     }
 
     companyId = createdCompany.id;
+    createdCompanyForDeal = true;
   }
 
   const { data: createdDeal, error: createDealError } = (await supabase
@@ -296,6 +329,30 @@ export async function createDealAction(
 
   revalidateDealPaths(companyId);
 
+  if (createdCompanyForDeal) {
+    await logActivity(
+      {
+        eventType: "COMPANY_CREATED",
+        targetType: "company",
+        targetId: companyId,
+        payload: { name: companyName },
+        actor: "anonymous",
+      },
+      supabase
+    );
+  }
+
+  await logActivity(
+    {
+      eventType: "DEAL_CREATED",
+      targetType: "deal",
+      targetId: createdDeal.id,
+      payload: { name: dealName, companyId, stageId, priorityId },
+      actor: "anonymous",
+    },
+    supabase
+  );
+
   return { ok: true, companyId, dealId: createdDeal.id };
 }
 
@@ -310,6 +367,13 @@ export async function updateDealStageAction(
   }
 
   revalidateDealPaths(result.companyId);
+  if (result.companyId) {
+    await maybeApplyDueDiligenceTemplate({
+      dealId: input.dealId,
+      companyId: result.companyId,
+      stageId: input.stageId,
+    });
+  }
 
   return { ok: true, companyId: result.companyId ?? undefined, dealId: input.dealId };
 }
@@ -338,6 +402,11 @@ export async function updateDealFieldAction(
     }
 
     revalidateDealPaths(result.companyId ?? companyId);
+    await maybeApplyDueDiligenceTemplate({
+      dealId,
+      companyId: result.companyId ?? companyId,
+      stageId: cleanText(input.value),
+    });
     return { ok: true, companyId: result.companyId ?? companyId, dealId };
   }
 
@@ -345,7 +414,17 @@ export async function updateDealFieldAction(
     priority_id?: string | null;
     owner?: string | null;
     potential_investment?: number | null;
+    outcome_id?: string | null;
+    relationship_state_id?: string | null;
   } = {};
+
+  const { data: before } = (await supabase
+    .from("deals")
+    .select(input.field)
+    .eq("id", dealId)
+    .maybeSingle()) as unknown as {
+    data: Record<string, string | number | null> | null;
+  };
 
   if (input.field === "priority_id") {
     update.priority_id = cleanText(input.value) || null;
@@ -369,6 +448,14 @@ export async function updateDealFieldAction(
     update.potential_investment = parsed.value;
   }
 
+  if (input.field === "outcome_id") {
+    update.outcome_id = cleanText(input.value) || null;
+  }
+
+  if (input.field === "relationship_state_id") {
+    update.relationship_state_id = cleanText(input.value) || null;
+  }
+
   const { count, error } = (await supabase
     .from("deals")
     .update(update, { count: "exact" })
@@ -390,6 +477,22 @@ export async function updateDealFieldAction(
   }
 
   revalidateDealPaths(companyId);
+
+  await logActivity(
+    {
+      eventType:
+        input.field === "outcome_id" ? "DEAL_OUTCOME_CHANGED" : "DEAL_FIELD_CHANGED",
+      targetType: "deal",
+      targetId: dealId,
+      payload: {
+        field: input.field,
+        from: before?.[input.field] ?? null,
+        to: update[input.field as keyof typeof update] ?? null,
+      },
+      actor: "anonymous",
+    },
+    supabase
+  );
 
   return { ok: true, companyId, dealId };
 }

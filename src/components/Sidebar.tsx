@@ -10,6 +10,8 @@ const workspaceItems = [
   { href: "/companies", label: "Companies" },
   { href: "/people", label: "People" },
   { href: "/tasks", label: "Tasks" },
+  { href: "/review", label: "Review" },
+  { href: "/portfolio", label: "Portfolio" },
 ];
 
 function NavLink({ href, label }: { href: string; label: string }) {

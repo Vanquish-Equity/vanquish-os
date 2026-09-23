@@ -1,0 +1,96 @@
+"use client";
+
+import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { logInteractionAction } from "@/lib/interactions/actions";
+
+export type InteractionDealOption = {
+  id: string;
+  name: string;
+};
+
+export default function LogInteractionForm({
+  companyId,
+  deals,
+}: {
+  companyId: string;
+  deals: InteractionDealOption[];
+}) {
+  const router = useRouter();
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    formData.set("companyId", companyId);
+
+    startTransition(async () => {
+      const result = await logInteractionAction(formData);
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+      setError(null);
+      formRef.current?.reset();
+      router.refresh();
+    });
+  }
+
+  const inputClass =
+    "rounded-xl border border-neutral-100 bg-white px-2.5 py-2 text-[12px] font-medium text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100";
+
+  return (
+    <div className="rounded-[14px] border border-neutral-100 bg-white p-5">
+      <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
+        Log Interaction
+      </h2>
+      <form ref={formRef} onSubmit={handleSubmit} className="grid gap-2">
+        <div className="grid grid-cols-3 gap-2">
+          <select name="type" className={inputClass} defaultValue="note">
+            {["note", "call", "meeting", "email", "other"].map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </select>
+          <input
+            name="occurredAt"
+            type="datetime-local"
+            className={inputClass}
+          />
+          <select name="dealId" className={inputClass} defaultValue="">
+            <option value="">Company-level</option>
+            {deals.map((deal) => (
+              <option key={deal.id} value={deal.id}>
+                {deal.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <input
+          name="subject"
+          placeholder="Subject"
+          className={inputClass}
+        />
+        <textarea
+          name="summary"
+          placeholder="Summary"
+          rows={3}
+          className={inputClass}
+        />
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[11px] text-red-600">{error}</span>
+          <button
+            type="submit"
+            disabled={isPending}
+            className="rounded-lg bg-ink px-3.5 py-2 text-[11.5px] font-semibold text-white transition hover:bg-neutral-800 disabled:opacity-50"
+          >
+            {isPending ? "Saving..." : "Log"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { logActivity } from "@/lib/activity/log";
 import { createClient } from "@/lib/supabase/server";
 
 export type TaskActionResult =
@@ -51,13 +52,16 @@ export async function createTaskAction(
   if (error) return { ok: false, message: error.message };
   if (!data) return { ok: false, message: "Task could not be created." };
 
-  await supabase.from("activity_events").insert({
-    event_type: "TASK_CREATED",
-    target_type: "task",
-    target_id: data.id,
-    payload: { title },
-    actor: cleanText(input.owner) || "system",
-  });
+  await logActivity(
+    {
+      eventType: "TASK_CREATED",
+      targetType: "task",
+      targetId: data.id,
+      payload: { title },
+      actor: cleanText(input.owner) || "anonymous",
+    },
+    supabase
+  );
 
   revalidateTaskPaths(input.companyId);
   return { ok: true, taskId: data.id };
@@ -87,15 +91,16 @@ export async function setTaskStatusAction(input: {
     };
   }
 
-  if (input.status === "done") {
-    await supabase.from("activity_events").insert({
-      event_type: "TASK_COMPLETED",
-      target_type: "task",
-      target_id: taskId,
+  await logActivity(
+    {
+      eventType: input.status === "done" ? "TASK_COMPLETED" : "TASK_REOPENED",
+      targetType: "task",
+      targetId: taskId,
       payload: {},
-      actor: "system",
-    });
-  }
+      actor: "anonymous",
+    },
+    supabase
+  );
 
   revalidateTaskPaths(input.companyId);
   return { ok: true };
@@ -111,7 +116,7 @@ export async function deleteTaskAction(input: {
   const supabase = await createClient();
   const { count, error } = await supabase
     .from("tasks")
-    .delete({ count: "exact" })
+    .update({ archived_at: new Date().toISOString() }, { count: "exact" })
     .eq("id", taskId);
 
   if (error) return { ok: false, message: error.message };
@@ -119,9 +124,20 @@ export async function deleteTaskAction(input: {
     return {
       ok: false,
       message:
-        "Delete was blocked by database write policy. Apply the latest migration and try again.",
+        "Archive was blocked by database write policy. Apply the latest migration and try again.",
     };
   }
+
+  await logActivity(
+    {
+      eventType: "TASK_ARCHIVED",
+      targetType: "task",
+      targetId: taskId,
+      payload: {},
+      actor: "anonymous",
+    },
+    supabase
+  );
 
   revalidateTaskPaths(input.companyId);
   return { ok: true };

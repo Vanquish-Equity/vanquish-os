@@ -27,6 +27,7 @@ export default async function TasksPage() {
         .select(
           "id,title,owner,due_at,status,company_id,company:companies(id,name),priority:priorities(name)"
         )
+        .is("archived_at", null)
         .order("due_at", { ascending: true, nullsFirst: false }) as unknown as Promise<{
         data: TaskRowData[] | null;
       }>,

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { logActivity } from "@/lib/activity/log";
 import { createClient } from "@/lib/supabase/server";
 
 export type PersonActionResult =
@@ -55,13 +56,19 @@ export async function createPersonAction(
     });
     // Non-fatal: the person record already exists; a duplicate email is the
     // most likely failure (unique constraint) and shouldn't block creation.
-    if (emailError) {
-      return {
-        ok: true,
-        personId: person.id,
-      };
-    }
+    void emailError;
   }
+
+  await logActivity(
+    {
+      eventType: "PERSON_CREATED",
+      targetType: "person",
+      targetId: person.id,
+      payload: { name, companyId: input.companyId },
+      actor: "anonymous",
+    },
+    supabase
+  );
 
   revalidatePeoplePaths(input.companyId);
   return { ok: true, personId: person.id };
@@ -85,6 +92,13 @@ export async function updatePersonFieldAction(
   }
 
   const supabase = await createClient();
+  const { data: before } = (await supabase
+    .from("people")
+    .select(input.field)
+    .eq("id", personId)
+    .maybeSingle()) as unknown as {
+    data: Record<string, string | null> | null;
+  };
   const update: Record<string, string | null> = {
     [input.field]:
       input.field === "name" ? cleanText(input.value) : cleanText(input.value) || null,
@@ -103,6 +117,21 @@ export async function updatePersonFieldAction(
         "Update was blocked by database write policy. Apply the latest migration and try again.",
     };
   }
+
+  await logActivity(
+    {
+      eventType: "PERSON_UPDATED",
+      targetType: "person",
+      targetId: personId,
+      payload: {
+        field: input.field,
+        from: before?.[input.field] ?? null,
+        to: update[input.field] ?? null,
+      },
+      actor: "anonymous",
+    },
+    supabase
+  );
 
   revalidatePeoplePaths(input.companyId);
   return { ok: true };

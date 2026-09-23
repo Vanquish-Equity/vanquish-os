@@ -126,7 +126,7 @@ export default function TaskRow({ task }: { task: TaskItem }) {
         disabled={pending}
         className="flex-shrink-0 text-[11px] font-semibold text-neutral-300 transition hover:text-red-600 disabled:opacity-50"
       >
-        Remove
+        Archive
       </button>
     </div>
   );

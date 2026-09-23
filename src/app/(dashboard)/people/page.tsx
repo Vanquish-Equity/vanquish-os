@@ -38,6 +38,7 @@ export default async function PeoplePage() {
       .select(
         "id,name,title,linkedin_url,primary_organization_id,organization:companies(id,name),person_emails(email,is_primary)"
       )
+      .is("archived_at", null)
       .order("name") as unknown as Promise<{ data: PersonRow[] | null }>,
     supabase
       .from("companies")

@@ -15,6 +15,10 @@ type EditableDeal = {
   companyId: string;
   stageId: string;
   stageName: string | null;
+  outcomeId: string | null;
+  outcomeName: string | null;
+  relationshipStateId: string | null;
+  relationshipStateName: string | null;
   priorityId: string | null;
   priorityName: string | null;
   owner: string | null;
@@ -359,10 +363,14 @@ function EditableNumberField({
 export default function EditableDealOverview({
   deal,
   stages,
+  outcomes,
+  relationshipStates,
   priorities,
 }: {
   deal: EditableDeal;
   stages: Option[];
+  outcomes: Option[];
+  relationshipStates: Option[];
   priorities: Option[];
 }) {
   const router = useRouter();
@@ -370,7 +378,13 @@ export default function EditableDealOverview({
   const currentDeal = { ...deal, ...overrides };
 
   async function saveField(
-    field: "stage_id" | "priority_id" | "owner" | "potential_investment",
+    field:
+      | "stage_id"
+      | "priority_id"
+      | "owner"
+      | "potential_investment"
+      | "outcome_id"
+      | "relationship_state_id",
     value: string | null
   ) {
     const result = await updateDealFieldAction({
@@ -401,6 +415,24 @@ export default function EditableDealOverview({
         };
       }
 
+      if (field === "outcome_id") {
+        const outcome = outcomes.find((option) => option.id === value);
+        return {
+          ...current,
+          outcomeId: value,
+          outcomeName: outcome?.name ?? null,
+        };
+      }
+
+      if (field === "relationship_state_id") {
+        const state = relationshipStates.find((option) => option.id === value);
+        return {
+          ...current,
+          relationshipStateId: value,
+          relationshipStateName: state?.name ?? null,
+        };
+      }
+
       if (field === "owner") {
         return { ...current, owner: value };
       }
@@ -427,6 +459,22 @@ export default function EditableDealOverview({
           displayValue={currentDeal.stageName ?? "—"}
           options={stages}
           onSave={(value) => saveField("stage_id", value)}
+        />
+        <EditableSelectField
+          label="Outcome"
+          value={currentDeal.outcomeId}
+          displayValue={currentDeal.outcomeName ?? "None"}
+          options={outcomes}
+          allowEmpty
+          onSave={(value) => saveField("outcome_id", value)}
+        />
+        <EditableSelectField
+          label="Relationship State"
+          value={currentDeal.relationshipStateId}
+          displayValue={currentDeal.relationshipStateName ?? "None"}
+          options={relationshipStates}
+          allowEmpty
+          onSave={(value) => saveField("relationship_state_id", value)}
         />
         <EditableSelectField
           label="Priority"

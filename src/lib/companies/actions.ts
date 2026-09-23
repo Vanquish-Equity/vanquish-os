@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { logActivity } from "@/lib/activity/log";
 import { createClient } from "@/lib/supabase/server";
 
 export type CompanyActionResult =
@@ -53,6 +54,13 @@ export async function updateCompanyFieldAction(
   }
 
   const supabase = await createClient();
+  const { data: before } = (await supabase
+    .from("companies")
+    .select(input.field)
+    .eq("id", companyId)
+    .maybeSingle()) as unknown as {
+    data: Record<string, string | null> | null;
+  };
   const update: Record<string, string | null> = {
     [input.field]: input.field === "name" ? cleanText(input.value) : cleanText(input.value) || null,
   };
@@ -68,6 +76,21 @@ export async function updateCompanyFieldAction(
   );
 
   if (!result.ok) return result;
+
+  await logActivity(
+    {
+      eventType: "COMPANY_UPDATED",
+      targetType: "company",
+      targetId: companyId,
+      payload: {
+        field: input.field,
+        from: before?.[input.field] ?? null,
+        to: update[input.field] ?? null,
+      },
+      actor: "anonymous",
+    },
+    supabase
+  );
 
   revalidateCompanyPaths(companyId);
   return { ok: true };
@@ -89,6 +112,17 @@ async function setDeletedAt(
   );
 
   if (!result.ok) return result;
+
+  await logActivity(
+    {
+      eventType: value ? "COMPANY_ARCHIVED" : "COMPANY_RESTORED",
+      targetType: "company",
+      targetId: companyId,
+      payload: { archivedAt: value },
+      actor: "anonymous",
+    },
+    supabase
+  );
 
   revalidateCompanyPaths(companyId);
   return { ok: true };
