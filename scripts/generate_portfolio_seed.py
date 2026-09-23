@@ -120,7 +120,7 @@ def company_insert_sql(name: str) -> list[str]:
 
 def clean_vehicle_name(value: str) -> str:
     text = value.strip()
-    text = re.sub(r"^Mixed:\s*", "", text, flags=re.I)
+    text = re.sub(r"^Mixed(/partial)?:\s*", "", text, flags=re.I)
     text = re.sub(r"\s*\((JIO|shared|investor)\)\s*$", "", text, flags=re.I)
     return text.strip()
 
@@ -129,9 +129,14 @@ def split_vehicles(value: str) -> list[str]:
     text = value.strip()
     if not text or "direct" in text.lower() or "no spv" in text.lower():
         return []
-    text = re.sub(r"^Mixed:\s*", "", text, flags=re.I)
-    parts = [clean_vehicle_name(part) for part in re.split(r"\s+\+\s+", text)]
-    return [part for part in parts if part]
+    text = re.sub(r"^Mixed(/partial)?:\s*", "", text, flags=re.I)
+    parts = [clean_vehicle_name(part) for part in re.split(r"\s+\+\s+|\s*;\s*", text)]
+    # Drop placeholders such as "TBD / confirm structure" or "Scott structure TBD":
+    # an unknown structure is not a vehicle.
+    return [
+        part for part in parts
+        if part and not re.search(r"\bTBD\b|confirm|not located", part, flags=re.I)
+    ]
 
 
 def vehicle_attrs(name: str, status: str = "Known") -> tuple[str, str | None, str]:
@@ -166,7 +171,22 @@ def vehicle_lookup_expr(name: str | None) -> str:
     return f"(select id from legal_entities where name = {esc(clean_vehicle_name(name))} limit 1)"
 
 
+# The audit checklist spells some investors several ways. They are one investor
+# each; the other spellings are stored as aliases.
+CANONICAL_INVESTORS = {
+    "andregos limited": "Andregos",
+    "andregos ltd.": "Andregos",
+    "andregos ltd": "Andregos",
+    "montse": "Montserrat",
+}
+
+
+def canonical_investor(name: str) -> str:
+    return CANONICAL_INVESTORS.get(name.strip().lower(), name.strip())
+
+
 def investor_lookup_expr(name: str) -> str:
+    name = canonical_investor(name)
     return f"(select id from investors where display_name = {esc(name)} limit 1)"
 
 
@@ -185,10 +205,27 @@ def document_type_expr(label: str) -> str:
 def parse_vehicle_from_notes(notes: str) -> str | None:
     if "Vehicle/structure not located" in notes:
         return None
-    match = re.search(r"Vehicle:\s*([^|]+)$", notes)
+    match = re.search(r"Vehicle:\s*(.+)$", notes)
     if not match:
         return None
-    return clean_vehicle_name(match.group(1).strip())
+    tail = match.group(1)
+    # Notes continue after the vehicle ("...LLC. SAFE dated..."), and S.A. names
+    # contain periods, so match the vehicle name structurally.
+    vehicle = re.match(r"(Vanquish .+?(?:LLC|S\.A\.(?: \(Panama\))?))", tail)
+    if vehicle:
+        return clean_vehicle_name(vehicle.group(1))
+    return clean_vehicle_name(tail.split("|")[0].strip())
+
+
+def position_status_from_notes(notes: str, vehicle_name: str | None) -> str:
+    lowered = notes.lower()
+    if "unverified" in lowered or "pending reconciliation" in lowered:
+        return "excluded_pending_reconciliation"
+    if "authorized" in lowered or "not verified" in lowered:
+        return "to_confirm"
+    if vehicle_name is None:
+        return "to_confirm"
+    return "funded"
 
 
 def parse_alias_from_notes(notes: str) -> str | None:
@@ -282,18 +319,30 @@ def main() -> None:
 
     lines.append("")
     for row in relationships:
-        investor = row["Investor"].strip()
+        raw_investor = row["Investor"].strip()
+        investor = canonical_investor(raw_investor)
         notes = row["Notes"].strip()
         external_ref = row["Investment ID"].strip()
         vehicle_name = parse_vehicle_from_notes(notes)
-        position_status = "to_confirm" if vehicle_name is None and "not located" in notes.lower() else "funded"
+        position_status = position_status_from_notes(notes, vehicle_name)
         alias = parse_alias_from_notes(notes)
 
+        # Position-specific notes live on the position, not on the investor.
         lines.append(
-            "insert into investors (display_name, investor_type, notes) values ("
-            f"{esc(investor)}, 'unknown', {esc(notes)}"
-            ") on conflict (display_name) do update set notes = excluded.notes;"
+            "insert into investors (display_name, investor_type) values ("
+            f"{esc(investor)}, 'unknown'"
+            ") on conflict (display_name) do nothing;"
         )
+        if raw_investor != investor:
+            lines.append(
+                "insert into investor_aliases (investor_id, alias, source) "
+                f"select {investor_lookup_expr(investor)}, {esc(raw_investor)}, 'Audit checklist name' "
+                "where not exists ("
+                "select 1 from investor_aliases "
+                f"where investor_id = {investor_lookup_expr(investor)} "
+                f"and lower(alias) = lower({esc(raw_investor)})"
+                ");"
+            )
         if alias and alias != investor:
             lines.append(
                 "insert into investor_aliases (investor_id, alias, source) "
@@ -321,6 +370,10 @@ def main() -> None:
             ");"
         )
 
+    lines.append(
+        "update legal_entities set vehicle_status = 'shared_vehicle' "
+        "where id in (select vehicle_id from investment_vehicles group by vehicle_id having count(*) > 1);"
+    )
     lines.append("")
     status_counts = Counter()
     for row in checklist:
@@ -332,7 +385,8 @@ def main() -> None:
         criticality = CRITICALITY_MAP[row["Criticality"].strip()]
         executed = EXECUTED_MAP.get(row["Executed?"].strip(), "unknown")
         scope = scope_mapping(row["Scope"].strip())
-        vehicle_name = clean_vehicle_name(row["Legal Vehicle / SPV"].strip())
+        # Mixed structures ("A + B", "A; TBD") resolve to their first real vehicle.
+        vehicle_name = (split_vehicles(row["Legal Vehicle / SPV"].strip()) or [None])[0]
         investor = row["Investor (if applicable)"].strip()
         found_file = row["Found File Name"].strip()
         drive_url = row["Drive Location / Link"].strip()
@@ -366,7 +420,9 @@ def main() -> None:
                 "(select id from investor_positions "
                 f"where investment_id = {investment_lookup_expr(investment_ref)} "
                 f"and investor_id = {investor_lookup_expr(investor)} "
-                f"and vehicle_id is not distinct from {vehicle_lookup_expr(vehicle_name)} "
+                # Prefer the position in the checklist's vehicle, but never fail when the
+                # checklist names a mixed/unknown vehicle.
+                f"order by (vehicle_id is not distinct from {vehicle_lookup_expr(vehicle_name)}) desc "
                 "limit 1)"
             )
 
@@ -393,7 +449,7 @@ def main() -> None:
             f"{esc(status)}, {esc(executed)}, {esc(found_file)}, {esc(drive_url)}, "
             f"{esc(entity_on_doc)}, {esc(date_on_doc)}::date, {esc(notes)}, "
             f"{satisfied_expr}, {esc(external_ref)}"
-            ") on conflict (external_ref) do update set "
+            ") on conflict (external_ref) where external_ref is not null do update set "
             "status = excluded.status, executed = excluded.executed, "
             "found_file_name = excluded.found_file_name, drive_url = excluded.drive_url, "
             "entity_on_document = excluded.entity_on_document, date_on_document = excluded.date_on_document, "

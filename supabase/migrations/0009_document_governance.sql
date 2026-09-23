@@ -262,24 +262,24 @@ do $$
 declare
   tpl uuid;
   dtype uuid;
-  code text;
+  tpl_code text;
   i int;
   codes text[];
 begin
-  select id into tpl from document_templates where code = 'GENERIC_DD';
+  select id into tpl from document_templates where document_templates.code = 'GENERIC_DD';
   codes := array['pitch_deck','financial_model','cap_table','historical_financials','corporate_documents','customer_cohort_data','ip_documentation','legal','market_data'];
   for i in 1..array_length(codes, 1) loop
-    select id into dtype from document_types where code = codes[i];
+    select id into dtype from document_types where document_types.code = codes[i];
     insert into document_template_items (template_id, document_type_id, criticality, required, sort_order)
     values (tpl, dtype, 'important', true, i)
     on conflict (template_id, document_type_id) do update set sort_order = excluded.sort_order;
   end loop;
 
-  foreach code in array array['SPV_LLC','SPV_SA_PANAMA']
+  foreach tpl_code in array array['SPV_LLC','SPV_SA_PANAMA']
   loop
-    select id into tpl from document_templates where document_templates.code = code;
+    select id into tpl from document_templates where document_templates.code = tpl_code;
     codes := case
-      when code = 'SPV_SA_PANAMA' then
+      when tpl_code = 'SPV_SA_PANAMA' then
         array['certificate_formation_incorporation','shareholders_agreement_sha','ein_irs_confirmation','manager_consent_transaction','manager_consent_capital_increase','share_register','bank_wire_evidence_outbound_investment','tax_engagement_letter','form_8804_signed_tax_return','form_8879_pe']
       else
         array['certificate_formation_incorporation','operating_agreement_llc_agreement','ein_irs_confirmation','manager_consent_transaction','manager_consent_capital_increase','spv_cap_table_membership_ledger','bank_wire_evidence_outbound_investment','tax_engagement_letter','form_8804_signed_tax_return','form_8879_pe']
@@ -292,11 +292,11 @@ begin
     end loop;
   end loop;
 
-  foreach code in array array['INVESTOR_SPV_LLC','INVESTOR_SPV_SA_PANAMA']
+  foreach tpl_code in array array['INVESTOR_SPV_LLC','INVESTOR_SPV_SA_PANAMA']
   loop
-    select id into tpl from document_templates where document_templates.code = code;
+    select id into tpl from document_templates where document_templates.code = tpl_code;
     codes := case
-      when code = 'INVESTOR_SPV_SA_PANAMA' then
+      when tpl_code = 'INVESTOR_SPV_SA_PANAMA' then
         array['subscription_purchase_agreement','accredited_investor_questionnaire','tax_form_w9_w8','wire_confirmation_contribution','share_certificate','side_letter','docusign_completion_certificate']
       else
         array['subscription_purchase_agreement','joinder_operating_agreement_signature','accredited_investor_questionnaire','tax_form_w9_w8','wire_confirmation_contribution','ownership_evidence_membership_certificate','side_letter','docusign_completion_certificate']
@@ -309,7 +309,7 @@ begin
     end loop;
   end loop;
 
-  select id into tpl from document_templates where code = 'COMPANY_PREFERRED_EQUITY';
+  select id into tpl from document_templates where document_templates.code = 'COMPANY_PREFERRED_EQUITY';
   codes := array['stock_purchase_subscription_agreement','stock_certificate_ownership_confirmation','amended_restate_certificate_charter','investors_rights_agreement','voting_agreement','rofr_cosale_agreement','board_stockholder_consents_closing','closing_checklist_binder_signature_package','side_letter_management_rights','wire_confirmation_funding'];
   for i in 1..array_length(codes, 1) loop
     select id into dtype from document_types where document_types.code = codes[i];
@@ -318,7 +318,7 @@ begin
     on conflict (template_id, document_type_id) do update set sort_order = excluded.sort_order, criticality = excluded.criticality;
   end loop;
 
-  select id into tpl from document_templates where code = 'COMPANY_SAFE';
+  select id into tpl from document_templates where document_templates.code = 'COMPANY_SAFE';
   codes := array['executed_safe','board_consent_safe','safe_side_letter','docusign_completion_certificate','wire_confirmation_funding','conversion_capitalization_evidence'];
   for i in 1..array_length(codes, 1) loop
     select id into dtype from document_types where document_types.code = codes[i];
@@ -327,7 +327,7 @@ begin
     on conflict (template_id, document_type_id) do update set sort_order = excluded.sort_order, criticality = excluded.criticality, required = excluded.required;
   end loop;
 
-  select id into tpl from document_templates where code = 'COMPANY_CONVERTIBLE_NOTE';
+  select id into tpl from document_templates where document_templates.code = 'COMPANY_CONVERTIBLE_NOTE';
   codes := array['convertible_promissory_note','note_purchase_agreement','board_consent_note','conversion_amendment_maturity','wire_confirmation_funding'];
   for i in 1..array_length(codes, 1) loop
     select id into dtype from document_types where document_types.code = codes[i];

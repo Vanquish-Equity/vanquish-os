@@ -216,7 +216,7 @@ def main() -> None:
             lines.append(
                 "insert into deal_status_history "
                 "(deal_id, stage_id, changed_at, changed_by, note, field_name, old_value_text, new_value_text, source) "
-                "values ("
+                "select "
                 f"{esc(deal_id)}, "
                 f"(select id from pipeline_stages where name = {esc(stage)}), "
                 f"{esc(changed_at)}::timestamptz, "
@@ -225,8 +225,10 @@ def main() -> None:
                 "'stage', "
                 "null, "
                 f"{esc(value)}, "
-                "'migration'"
-                ");"
+                "'migration' "
+                "where not exists (select 1 from deal_status_history "
+                f"where deal_id = {esc(deal_id)} and changed_by = 'migration:tracker' "
+                f"and changed_at = {esc(changed_at)}::timestamptz and new_value_text = {esc(value)});"
             )
             history_rows += 1
 
@@ -237,11 +239,13 @@ def main() -> None:
             lines.append(
                 "insert into interactions "
                 "(company_id, deal_id, type, occurred_at, subject, summary, created_by) "
-                "values ("
+                "select "
                 f"{esc(seed['company_id'])}, {esc(deal_id)}, 'note', "
                 f"coalesce({esc(last_activity)}::timestamptz, now()), "
-                f"{esc(subject)}, {esc(text)}, 'migration:tracker'"
-                ");"
+                f"{esc(subject)}, {esc(text)}, 'migration:tracker' "
+                "where not exists (select 1 from interactions "
+                f"where deal_id = {esc(deal_id)} and created_by = 'migration:tracker' "
+                f"and subject = {esc(subject)} and summary = {esc(text)});"
             )
             note_rows += 1
 
