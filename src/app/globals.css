@@ -20,6 +20,7 @@ body {
   font-family: var(--font-plus-jakarta), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+button:not(:disabled) { cursor: pointer; }
 
 .pipeline-scroll {
   scrollbar-width: thin;
