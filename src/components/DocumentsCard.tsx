@@ -1,18 +1,33 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import {
-  deleteDocumentAction,
+  addDriveLinkDocumentAction,
+  archiveDocumentAction,
   uploadDocumentAction,
 } from "@/lib/documents/actions";
+import { formatCanonicalDocumentName } from "@/lib/documents/naming";
 
 export type DocumentItem = {
   id: string;
   name: string;
-  storagePath: string;
+  storagePath: string | null;
+  driveUrl: string | null;
   sizeBytes: number | null;
   createdAt: string;
   signedUrl: string | null;
+};
+
+export type DocumentCategoryOption = {
+  id: string;
+  code: string;
+  name: string;
+};
+
+export type DocumentTypeOption = {
+  id: string;
+  name: string;
+  categoryId: string;
 };
 
 function formatSize(bytes: number | null) {
@@ -41,26 +56,88 @@ function FileIcon() {
   );
 }
 
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
+      {children}
+    </label>
+  );
+}
+
 export default function DocumentsCard({
   companyId,
+  companyName,
+  dealId,
   documents,
+  categories,
+  documentTypes,
 }: {
   companyId: string;
+  dealId?: string | null;
+  companyName: string;
   documents: DocumentItem[];
+  categories: DocumentCategoryOption[];
+  documentTypes: DocumentTypeOption[];
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [entityRole, setEntityRole] = useState("TARGET");
+  const [categoryId, setCategoryId] = useState("");
+  const [documentTypeId, setDocumentTypeId] = useState("");
+  const [documentDate, setDocumentDate] = useState("");
+  const [periodLabel, setPeriodLabel] = useState("");
+  const [docStatus, setDocStatus] = useState("UNKNOWN");
+  const [driveName, setDriveName] = useState("");
+  const [driveUrl, setDriveUrl] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setError(null);
+  const selectedCategory = categories.find((category) => category.id === categoryId);
+  const selectedType = documentTypes.find((type) => type.id === documentTypeId);
+  const suggestedName = useMemo(() => {
+    if (!selectedCategory || !selectedType) return null;
+    return formatCanonicalDocumentName({
+      entityRole,
+      entityName: companyName,
+      category: selectedCategory.code,
+      documentType: selectedType.name,
+      periodLabel,
+      documentDate,
+      docStatus,
+      extension: "pdf",
+    });
+  }, [
+    companyName,
+    docStatus,
+    documentDate,
+    entityRole,
+    periodLabel,
+    selectedCategory,
+    selectedType,
+  ]);
 
+  function appendMetadata(formData: FormData) {
+    if (dealId) formData.set("dealId", dealId);
+    formData.set("entityRole", entityRole);
+    if (categoryId) formData.set("categoryId", categoryId);
+    if (documentTypeId) formData.set("documentTypeId", documentTypeId);
+    if (documentDate) formData.set("documentDate", documentDate);
+    if (periodLabel) formData.set("periodLabel", periodLabel);
+    if (docStatus) formData.set("docStatus", docStatus);
+  }
+
+  function handleUpload() {
+    const file = inputRef.current?.files?.[0];
+    if (!file) {
+      setError("Choose a file first.");
+      return;
+    }
+
+    setError(null);
     const formData = new FormData();
     formData.set("file", file);
     formData.set("companyId", companyId);
+    appendMetadata(formData);
 
     startTransition(async () => {
       const result = await uploadDocumentAction(formData);
@@ -69,44 +146,185 @@ export default function DocumentsCard({
     });
   }
 
-  function handleDelete(doc: DocumentItem) {
+  function handleAddDriveLink() {
+    if (!driveName.trim() || !driveUrl.trim()) {
+      setError("Drive document name and link are required.");
+      return;
+    }
+
     setError(null);
-    setDeletingId(doc.id);
+    const formData = new FormData();
+    formData.set("companyId", companyId);
+    formData.set("name", driveName);
+    formData.set("driveUrl", driveUrl);
+    appendMetadata(formData);
+
     startTransition(async () => {
-      const result = await deleteDocumentAction({
-        id: doc.id,
-        storagePath: doc.storagePath,
-        companyId,
-      });
-      if (!result.ok) setError(result.message);
-      setDeletingId(null);
+      const result = await addDriveLinkDocumentAction(formData);
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+      setDriveName("");
+      setDriveUrl("");
     });
   }
 
+  function handleArchive(doc: DocumentItem) {
+    setError(null);
+    setArchivingId(doc.id);
+    startTransition(async () => {
+      const result = await archiveDocumentAction({
+        id: doc.id,
+        companyId,
+      });
+      if (!result.ok) setError(result.message);
+      setArchivingId(null);
+    });
+  }
+
+  const inputClass =
+    "rounded-xl border border-neutral-100 bg-white px-2.5 py-2 text-[12px] font-medium text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100";
+
   return (
     <div className="rounded-[14px] border border-neutral-100 bg-white p-5">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-[14.5px] font-semibold text-ink">Documents</h2>
-        <label className="cursor-pointer rounded-lg border border-neutral-200 px-2.5 py-1.5 text-[11px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800">
-          {isPending ? "Uploading…" : "Upload"}
+      <h2 className="mb-3 text-[14.5px] font-semibold text-ink">Documents</h2>
+
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        <FieldLabel>
+          Entity
+          <select
+            value={entityRole}
+            onChange={(event) => setEntityRole(event.target.value)}
+            className={inputClass}
+          >
+            {["TARGET", "SPV", "LP", "FUND", "VANQUISH", "DEAL", "COUNTERPARTY"].map(
+              (role) => (
+                <option key={role} value={role}>
+                  {role}
+                </option>
+              )
+            )}
+          </select>
+        </FieldLabel>
+        <FieldLabel>
+          Status
+          <select
+            value={docStatus}
+            onChange={(event) => setDocStatus(event.target.value)}
+            className={inputClass}
+          >
+            {["UNKNOWN", "DRAFT", "EXECUTED", "RECEIVED", "SUPERSEDED"].map(
+              (status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              )
+            )}
+          </select>
+        </FieldLabel>
+        <FieldLabel>
+          Category
+          <select
+            value={categoryId}
+            onChange={(event) => {
+              setCategoryId(event.target.value);
+              setDocumentTypeId("");
+            }}
+            className={inputClass}
+          >
+            <option value="">None</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </FieldLabel>
+        <FieldLabel>
+          Type
+          <select
+            value={documentTypeId}
+            onChange={(event) => setDocumentTypeId(event.target.value)}
+            className={inputClass}
+          >
+            <option value="">None</option>
+            {documentTypes
+              .filter((type) => !categoryId || type.categoryId === categoryId)
+              .map((type) => (
+                <option key={type.id} value={type.id}>
+                  {type.name}
+                </option>
+              ))}
+          </select>
+        </FieldLabel>
+        <FieldLabel>
+          Date
           <input
-            ref={inputRef}
-            type="file"
-            className="hidden"
-            onChange={handleFileChange}
-            disabled={isPending}
+            type="date"
+            value={documentDate}
+            onChange={(event) => setDocumentDate(event.target.value)}
+            className={inputClass}
           />
-        </label>
+        </FieldLabel>
+        <FieldLabel>
+          Period
+          <input
+            value={periodLabel}
+            onChange={(event) => setPeriodLabel(event.target.value)}
+            placeholder="2026-Q2"
+            className={inputClass}
+          />
+        </FieldLabel>
       </div>
 
-      {error && (
-        <p className="mb-2.5 text-[11px] text-red-600">{error}</p>
+      {suggestedName && (
+        <div className="mb-3 rounded-xl bg-[#f7f9fa] px-3 py-2 text-[11px] font-medium text-neutral-600">
+          Suggested filename: <span className="text-ink">{suggestedName}</span>
+        </div>
       )}
+
+      <div className="mb-3 flex gap-2">
+        <input ref={inputRef} type="file" className="min-w-0 flex-1 text-[12px]" />
+        <button
+          type="button"
+          onClick={handleUpload}
+          disabled={isPending}
+          className="rounded-lg bg-ink px-3 py-2 text-[11px] font-semibold text-white transition hover:bg-neutral-800 disabled:opacity-50"
+        >
+          {isPending ? "Saving..." : "Upload"}
+        </button>
+      </div>
+
+      <div className="mb-3 grid grid-cols-[1fr_1.2fr_auto] gap-2">
+        <input
+          value={driveName}
+          onChange={(event) => setDriveName(event.target.value)}
+          placeholder="Drive document name"
+          className={inputClass}
+        />
+        <input
+          value={driveUrl}
+          onChange={(event) => setDriveUrl(event.target.value)}
+          placeholder="Drive link"
+          className={inputClass}
+        />
+        <button
+          type="button"
+          onClick={handleAddDriveLink}
+          disabled={isPending}
+          className="rounded-lg border border-neutral-200 px-3 py-2 text-[11px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800 disabled:opacity-50"
+        >
+          Add Link
+        </button>
+      </div>
+
+      {error && <p className="mb-2.5 text-[11px] text-red-600">{error}</p>}
 
       <div className="flex flex-col gap-2">
         {documents.length === 0 && (
           <p className="text-[12px] text-neutral-400">
-            No documents yet — memos, decks, term sheets.
+            No documents yet - memos, decks, term sheets.
           </p>
         )}
         {documents.map((doc) => (
@@ -115,7 +333,7 @@ export default function DocumentsCard({
             className="flex items-center justify-between gap-2 rounded-xl border border-neutral-100 px-3 py-2.5"
           >
             <a
-              href={doc.signedUrl ?? undefined}
+              href={doc.signedUrl ?? doc.driveUrl ?? undefined}
               target="_blank"
               rel="noreferrer"
               className="flex min-w-0 items-center gap-2 text-[12px] font-medium text-ink hover:text-cyan-800"
@@ -127,15 +345,15 @@ export default function DocumentsCard({
             </a>
             <div className="flex flex-shrink-0 items-center gap-2">
               <span className="text-[10.5px] text-neutral-400">
-                {formatSize(doc.sizeBytes)}
+                {doc.driveUrl ? "Drive" : formatSize(doc.sizeBytes)}
               </span>
               <button
                 type="button"
-                onClick={() => handleDelete(doc)}
+                onClick={() => handleArchive(doc)}
                 disabled={isPending}
                 className="text-[10.5px] font-semibold text-neutral-400 hover:text-red-600 disabled:opacity-50"
               >
-                {deletingId === doc.id ? "…" : "Remove"}
+                {archivingId === doc.id ? "..." : "Archive"}
               </button>
             </div>
           </div>
