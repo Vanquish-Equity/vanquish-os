@@ -4,6 +4,105 @@
   --background: #ffffff;
   --ink: #0a0e10;
   --cyan: #00c2d1;
+  --shadow-rest: 0 1px 2px rgb(10 14 16 / 0.06), 0 8px 24px rgb(10 14 16 / 0.06);
+  --shadow-hover: 0 3px 6px rgb(10 14 16 / 0.08), 0 14px 32px rgb(10 14 16 / 0.12);
+}
+
+@property --vq-card-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes vq-card-border-spin {
+  from { --vq-card-angle: 0deg; }
+  to { --vq-card-angle: 360deg; }
+}
+
+.vq-card-grid {
+  transition: opacity 220ms ease;
+}
+
+.vq-card-grid .vq-card {
+  transition: opacity 220ms ease, box-shadow 220ms ease, transform 220ms ease;
+}
+
+.vq-card-grid:hover .vq-card:not(:hover) {
+  opacity: 0.8;
+}
+
+.vq-card {
+  position: relative;
+  isolation: isolate;
+  border-color: transparent;
+  box-shadow: var(--shadow-rest);
+  transition: opacity 220ms ease, box-shadow 220ms ease, transform 220ms ease;
+}
+
+.vq-card-static {
+  position: relative;
+  isolation: isolate;
+  border-color: transparent;
+  box-shadow: var(--shadow-rest);
+}
+
+.vq-card::before {
+  position: absolute;
+  z-index: 0;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--vq-card-angle),
+    transparent 0deg 270deg,
+    rgb(0 194 209 / 0.18) 300deg,
+    var(--cyan) 330deg,
+    transparent 360deg
+  );
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  transition: opacity 220ms ease;
+}
+
+.vq-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.vq-card:hover {
+  border-color: transparent;
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-3px) scale(1.005);
+}
+
+.vq-card:hover::before {
+  animation: vq-card-border-spin 3.6s linear infinite;
+  opacity: 1;
+}
+
+.vq-card-static::before {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vq-card,
+  .vq-card-grid .vq-card {
+    transition: opacity 220ms ease, box-shadow 220ms ease;
+  }
+
+  .vq-card:hover {
+    transform: none;
+  }
+
+  .vq-card:hover::before {
+    animation: none;
+    background: var(--cyan);
+  }
 }
 
 @theme inline {
