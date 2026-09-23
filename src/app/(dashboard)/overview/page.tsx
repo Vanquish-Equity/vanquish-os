@@ -1,4 +1,7 @@
 import Link from "next/link";
+import OverviewAttentionPanel from "@/components/OverviewAttentionPanel";
+import RelativeTime from "@/components/RelativeTime";
+import { getNeedsAttentionDeals } from "@/lib/deals/attention";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -7,17 +10,20 @@ type DealRow = {
   id: string;
   name: string;
   updated_at: string;
+  first_seen_at: string | null;
   last_activity_at: string | null;
+  attention_snoozed_until: string | null;
+  archived_at: string | null;
+  source_system: string | null;
   company: { id: string; name: string } | null;
   stage: { name: string; is_terminal: boolean } | null;
   priority: { name: string } | null;
+  outcome: { name: string } | null;
+  relationship_state: { name: string } | null;
 };
 
 type TaskRow = {
   id: string;
-  title: string;
-  due_at: string | null;
-  company: { id: string; name: string } | null;
 };
 
 type ActivityRow = {
@@ -41,9 +47,8 @@ type InvestmentLookupRow = {
   external_ref: string;
   round_label: string | null;
   company: { name: string } | null;
+  investment_vehicles: { vehicle: { id: string; name: string } | null }[];
 };
-
-const STALE_DAYS = 21;
 
 function StatTile({
   label,
@@ -67,10 +72,6 @@ function StatTile({
       </div>
     </Link>
   );
-}
-
-function daysAgo(iso: string) {
-  return Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function describeEvent(event: ActivityRow) {
@@ -117,17 +118,22 @@ export default async function OverviewPage() {
     { data: activity },
     { data: requirements },
     { data: investments },
+    { data: interactionSignals },
+    { data: taskSignals },
+    { data: stageSignals },
+    { data: documentSignals },
+    { data: requirementSignals },
   ] = await Promise.all([
     supabase
       .from("deals")
       .select(
-        "id,name,updated_at,last_activity_at,company:companies!inner(id,name,deleted_at),stage:pipeline_stages(name,is_terminal),priority:priorities(name)"
+        "id,name,updated_at,first_seen_at,last_activity_at,attention_snoozed_until,archived_at,source_system,company:companies!inner(id,name,deleted_at),stage:pipeline_stages(name,is_terminal),priority:priorities(name),outcome:deal_outcomes(name),relationship_state:relationship_states(name)"
       )
       .is("company.deleted_at", null)
       .is("archived_at", null) as unknown as Promise<{ data: DealRow[] | null }>,
     supabase
       .from("tasks")
-      .select("id,title,due_at,company:companies(id,name)")
+      .select("id")
       .eq("status", "open")
       .is("archived_at", null)
       .order("due_at", { ascending: true, nullsFirst: false }) as unknown as Promise<{
@@ -147,26 +153,108 @@ export default async function OverviewPage() {
     }>,
     supabase
       .from("investments")
-      .select("id,external_ref,round_label,company:companies(name)")
+      .select("id,external_ref,round_label,company:companies(name),investment_vehicles(vehicle:legal_entities(id,name))")
       .is("archived_at", null) as unknown as Promise<{
       data: InvestmentLookupRow[] | null;
     }>,
+    supabase
+      .from("interactions")
+      .select("deal_id,occurred_at")
+      .not("deal_id", "is", null)
+      .is("archived_at", null) as unknown as Promise<{
+      data: { deal_id: string | null; occurred_at: string }[] | null;
+    }>,
+    supabase
+      .from("tasks")
+      .select("deal_id,created_at")
+      .not("deal_id", "is", null)
+      .is("archived_at", null) as unknown as Promise<{
+      data: { deal_id: string | null; created_at: string }[] | null;
+    }>,
+    supabase
+      .from("deal_status_history")
+      .select("deal_id,changed_at") as unknown as Promise<{
+      data: { deal_id: string; changed_at: string }[] | null;
+    }>,
+    supabase
+      .from("documents")
+      .select("deal_id,created_at")
+      .not("deal_id", "is", null)
+      .is("archived_at", null) as unknown as Promise<{
+      data: { deal_id: string | null; created_at: string }[] | null;
+    }>,
+    supabase
+      .from("document_requirements")
+      .select("deal_id,updated_at")
+      .not("deal_id", "is", null)
+      .is("archived_at", null) as unknown as Promise<{
+      data: { deal_id: string | null; updated_at: string }[] | null;
+    }>,
   ]);
 
-  const activeDeals = (deals ?? []).filter((d) => !d.stage?.is_terminal);
+  function latestByDeal(
+    rows: Array<{ deal_id: string | null; at: string }> | null | undefined
+  ) {
+    const latest = new Map<string, string>();
+    (rows ?? []).forEach((row) => {
+      if (!row.deal_id) return;
+      const current = latest.get(row.deal_id);
+      if (!current || new Date(row.at).getTime() > new Date(current).getTime()) {
+        latest.set(row.deal_id, row.at);
+      }
+    });
+    return latest;
+  }
+
+  const interactionByDeal = latestByDeal(
+    (interactionSignals ?? []).map((row) => ({
+      at: row.occurred_at,
+      deal_id: row.deal_id,
+    }))
+  );
+  const taskByDeal = latestByDeal(
+    (taskSignals ?? []).map((row) => ({ at: row.created_at, deal_id: row.deal_id }))
+  );
+  const stageByDeal = latestByDeal(
+    (stageSignals ?? []).map((row) => ({ at: row.changed_at, deal_id: row.deal_id }))
+  );
+  const documentByDeal = latestByDeal([
+    ...(documentSignals ?? []).map((row) => ({
+      at: row.created_at,
+      deal_id: row.deal_id,
+    })),
+    ...(requirementSignals ?? []).map((row) => ({
+      at: row.updated_at,
+      deal_id: row.deal_id,
+    })),
+  ]);
+
+  const activeDeals = (deals ?? []).filter((d) => !d.stage?.is_terminal && !d.outcome);
   const dueDiligence = activeDeals.filter((d) => d.stage?.name === "Due Diligence");
   const highPriority = activeDeals.filter((d) => d.priority?.name === "High");
-  const staleDeals = activeDeals
-    .filter((d) => daysAgo(d.last_activity_at ?? d.updated_at) >= STALE_DAYS)
-    .sort(
-      (a, b) =>
-        daysAgo(b.last_activity_at ?? b.updated_at) -
-        daysAgo(a.last_activity_at ?? a.updated_at)
-    );
-
-  const today = new Date(new Date().toDateString());
-  const overdueTasks = (openTasks ?? []).filter(
-    (t) => t.due_at && new Date(t.due_at) < today
+  const { importedDeals, staleDeals } = getNeedsAttentionDeals(
+    (deals ?? []).map((deal) => ({
+      archivedAt: deal.archived_at,
+      attentionSnoozedUntil: deal.attention_snoozed_until,
+      companyDeletedAt: null,
+      companyId: deal.company?.id ?? "",
+      companyName: deal.company?.name ?? deal.name,
+      documentLastAt: documentByDeal.get(deal.id) ?? null,
+      firstSeenAt: deal.first_seen_at,
+      id: deal.id,
+      interactionLastAt: interactionByDeal.get(deal.id) ?? null,
+      lastActivityAt: deal.last_activity_at,
+      name: deal.name,
+      outcomeName: deal.outcome?.name ?? null,
+      priorityName: deal.priority?.name ?? null,
+      relationshipStateName: deal.relationship_state?.name ?? null,
+      sourceSystem: deal.source_system,
+      stageChangeLastAt: stageByDeal.get(deal.id) ?? null,
+      stageIsTerminal: deal.stage?.is_terminal ?? false,
+      stageName: deal.stage?.name ?? null,
+      taskLastAt: taskByDeal.get(deal.id) ?? null,
+      updatedAt: deal.updated_at,
+    }))
   );
 
   const portfolioRequirements = requirements ?? [];
@@ -205,85 +293,33 @@ export default async function OverviewPage() {
       </header>
 
       <div className="grid grid-cols-4 gap-3.5">
-        <StatTile label="Active Deals" value={activeDeals.length} href="/pipeline" />
-        <StatTile label="Due Diligence" value={dueDiligence.length} href="/pipeline" />
-        <StatTile label="High Priority" value={highPriority.length} href="/pipeline" />
-        <StatTile label="Open Tasks" value={(openTasks ?? []).length} href="/tasks" />
+        <StatTile
+          label="Active Deals"
+          value={activeDeals.length}
+          href="/pipeline?filter=active"
+        />
+        <StatTile
+          label="Due Diligence"
+          value={dueDiligence.length}
+          href="/pipeline?stage=Due%20Diligence"
+        />
+        <StatTile
+          label="High Priority"
+          value={highPriority.length}
+          href="/pipeline?priority=High"
+        />
+        <StatTile
+          label="Open Tasks"
+          value={(openTasks ?? []).length}
+          href="/tasks?status=open"
+        />
       </div>
 
       <div className="grid grid-cols-[1.4fr_1fr] gap-3.5">
-        <div className="rounded-[14px] border border-neutral-100 bg-white p-5">
-          <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
-            Needs Attention
-          </h2>
-
-          <div className="flex flex-col gap-4">
-            <div>
-              <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
-                Overdue tasks ({overdueTasks.length})
-              </div>
-              {overdueTasks.length === 0 ? (
-                <p className="text-[12px] text-neutral-400">Nothing overdue.</p>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {overdueTasks.slice(0, 5).map((t) => (
-                    <div
-                      key={t.id}
-                      className="flex items-center justify-between gap-2 text-[12.5px]"
-                    >
-                      <span className="truncate text-ink">{t.title}</span>
-                      <span className="flex-shrink-0 font-semibold text-red-600">
-                        {t.due_at && new Date(t.due_at).toLocaleDateString()}
-                      </span>
-                    </div>
-                  ))}
-                  {overdueTasks.length > 5 && (
-                    <Link
-                      href="/tasks"
-                      className="text-[11.5px] font-semibold text-cyan-700 hover:text-cyan-800"
-                    >
-                      View all {overdueTasks.length}
-                    </Link>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div>
-              <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
-                Stale deals - no update in {STALE_DAYS}+ days ({staleDeals.length})
-              </div>
-              {staleDeals.length === 0 ? (
-                <p className="text-[12px] text-neutral-400">Nothing stale.</p>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {staleDeals.slice(0, 5).map((d) => (
-                    <Link
-                      key={d.id}
-                      href={`/companies/${d.company?.id}`}
-                      className="flex items-center justify-between gap-2 text-[12.5px] hover:text-cyan-700"
-                    >
-                      <span className="truncate text-ink">
-                        {d.company?.name ?? d.name}
-                      </span>
-                      <span className="flex-shrink-0 text-neutral-400">
-                        {daysAgo(d.last_activity_at ?? d.updated_at)}d
-                      </span>
-                    </Link>
-                  ))}
-                  {staleDeals.length > 5 && (
-                    <Link
-                      href="/pipeline"
-                      className="text-[11.5px] font-semibold text-cyan-700 hover:text-cyan-800"
-                    >
-                      View all {staleDeals.length}
-                    </Link>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <OverviewAttentionPanel
+          importedDeals={importedDeals}
+          staleDeals={staleDeals}
+        />
 
         <div className="rounded-[14px] border border-neutral-100 bg-white p-5">
           <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
@@ -299,7 +335,7 @@ export default async function OverviewPage() {
                 className="border-b border-neutral-50 pb-3 last:border-0 last:pb-0"
               >
                 <div className="text-[10px] uppercase tracking-wide text-neutral-400">
-                  {new Date(event.occurred_at).toLocaleString()}
+                  <RelativeTime date={event.occurred_at} />
                 </div>
                 <div className="mt-0.5 text-[12.5px] text-ink">
                   {describeEvent(event)}
@@ -321,29 +357,29 @@ export default async function OverviewPage() {
             </p>
           </div>
           <Link
-            href="/portfolio"
+            href="/portfolio?filter=critical_missing"
             className="rounded-lg border border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
           >
             Portfolio
           </Link>
         </div>
         <div className="grid grid-cols-[180px_180px_1fr] gap-3">
-          <div className="rounded-xl bg-[#f7f9fa] p-3">
+          <Link href="/portfolio?filter=critical_missing" className="rounded-xl bg-[#f7f9fa] p-3 transition hover:ring-1 hover:ring-cyan-200">
             <div className="text-[10.5px] uppercase tracking-wide text-neutral-400">
               Critical Missing
             </div>
             <div className="mt-1 font-[family-name:var(--font-display)] text-[24px] font-semibold text-ink">
               {criticalMissing}
             </div>
-          </div>
-          <div className="rounded-xl bg-[#f7f9fa] p-3">
+          </Link>
+          <Link href="/portfolio?filter=needs_review" className="rounded-xl bg-[#f7f9fa] p-3 transition hover:ring-1 hover:ring-cyan-200">
             <div className="text-[10.5px] uppercase tracking-wide text-neutral-400">
               Needs Review
             </div>
             <div className="mt-1 font-[family-name:var(--font-display)] text-[24px] font-semibold text-ink">
               {needsReview}
             </div>
-          </div>
+          </Link>
           <div className="rounded-xl bg-[#f7f9fa] p-3">
             <div className="mb-2 text-[10.5px] uppercase tracking-wide text-neutral-400">
               Top Investments By Gaps
@@ -353,8 +389,13 @@ export default async function OverviewPage() {
             ) : (
               <div className="flex flex-col gap-1.5">
                 {topGapInvestments.map(({ investment, count }) => (
-                  <div
+                  <Link
                     key={investment?.id ?? String(count)}
+                    href={
+                      investment?.investment_vehicles?.[0]?.vehicle?.id
+                        ? `/portfolio/vehicles/${investment.investment_vehicles[0].vehicle.id}?filter=open_gaps&investment=${investment.id}#checklist`
+                        : `/portfolio?filter=needs_review`
+                    }
                     className="flex items-center justify-between gap-3 text-[12px]"
                   >
                     <span className="truncate text-ink">
@@ -362,7 +403,7 @@ export default async function OverviewPage() {
                       {investment?.round_label ?? investment?.external_ref ?? "Round"}
                     </span>
                     <span className="font-semibold text-neutral-500">{count}</span>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}

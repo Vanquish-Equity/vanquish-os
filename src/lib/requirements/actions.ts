@@ -16,6 +16,8 @@ type TemplateItem = {
   document_type: { name: string } | null;
 };
 
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
 function cleanText(value: string | FormDataEntryValue | null | undefined) {
   return String(value ?? "").trim();
 }
@@ -42,7 +44,96 @@ async function getTemplateItems(templateCode: string) {
   return { supabase, data, error };
 }
 
+function codeFromLabel(label: string) {
+  const code = label
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 48);
+
+  return `custom_${code || "document"}`;
+}
+
+async function resolveDocumentType(input: {
+  documentTypeId: string;
+  label: string;
+  supabase: SupabaseClient;
+}) {
+  if (input.documentTypeId) {
+    return { ok: true as const, documentTypeId: input.documentTypeId };
+  }
+
+  const label = cleanText(input.label);
+  if (!label) {
+    return { ok: false as const, message: "Document type or item name is required." };
+  }
+
+  const { data: existingByName, error: existingByNameError } = (await input.supabase
+    .from("document_types")
+    .select("id")
+    .ilike("name", label)
+    .maybeSingle()) as unknown as {
+    data: { id: string } | null;
+    error: { message: string } | null;
+  };
+
+  if (existingByNameError) {
+    return { ok: false as const, message: existingByNameError.message };
+  }
+  if (existingByName) {
+    return { ok: true as const, documentTypeId: existingByName.id };
+  }
+
+  const { data: otherCategory, error: categoryError } = (await input.supabase
+    .from("document_categories")
+    .select("id")
+    .eq("code", "OTHER")
+    .maybeSingle()) as unknown as {
+    data: { id: string } | null;
+    error: { message: string } | null;
+  };
+
+  if (categoryError) return { ok: false as const, message: categoryError.message };
+  if (!otherCategory) return { ok: false as const, message: "Other category missing." };
+
+  const code = codeFromLabel(label);
+  const { data: created, error: createError } = (await input.supabase
+    .from("document_types")
+    .insert({
+      category_id: otherCategory.id,
+      code,
+      default_date_semantics: "none",
+      name: label,
+    })
+    .select("id")
+    .maybeSingle()) as unknown as {
+    data: { id: string } | null;
+    error: { message: string } | null;
+  };
+
+  if (created) return { ok: true as const, documentTypeId: created.id };
+
+  if (createError) {
+    const { data: existingByCode } = (await input.supabase
+      .from("document_types")
+      .select("id")
+      .eq("code", code)
+      .maybeSingle()) as unknown as {
+      data: { id: string } | null;
+    };
+
+    if (existingByCode) {
+      return { ok: true as const, documentTypeId: existingByCode.id };
+    }
+
+    return { ok: false as const, message: createError.message };
+  }
+
+  return { ok: false as const, message: "Document type could not be created." };
+}
+
 export async function applyDealTemplateAction(input: {
+  createdAutomatically?: boolean;
   dealId: string;
   companyId: string;
   templateCode?: string;
@@ -54,7 +145,7 @@ export async function applyDealTemplateAction(input: {
 
   const { supabase, data: items, error } = await getTemplateItems(templateCode);
   if (error) return { ok: false, message: error.message };
-  if (!items?.length) return { ok: false, message: "Template has no items." };
+  if (!items?.length) return { ok: false, message: "Checklist has no items." };
 
   const { data: existing } = (await supabase
     .from("document_requirements")
@@ -89,7 +180,12 @@ export async function applyDealTemplateAction(input: {
       eventType: "REQUIREMENT_STATUS_CHANGED",
       targetType: "deal",
       targetId: dealId,
-      payload: { action: "template_applied", templateCode, created: rows.length },
+      payload: {
+        action: "checklist_created",
+        created: rows.length,
+        createdAutomatically: Boolean(input.createdAutomatically),
+        templateCode,
+      },
       actor: "anonymous",
     },
     supabase
@@ -105,20 +201,29 @@ export async function addDealRequirementAction(
   const dealId = cleanText(formData.get("dealId"));
   const companyId = cleanText(formData.get("companyId"));
   const documentTypeId = cleanText(formData.get("documentTypeId"));
+  const documentTypeName = cleanText(formData.get("documentTypeName"));
   const expectedLabel = cleanText(formData.get("expectedLabel"));
   const criticality = cleanText(formData.get("criticality")) || "important";
   const required = formData.get("required") !== "false";
 
-  if (!dealId || !companyId || !documentTypeId) {
-    return { ok: false, message: "Deal and document type are required." };
+  if (!dealId || !companyId || (!documentTypeId && !documentTypeName)) {
+    return { ok: false, message: "Deal and checklist item are required." };
   }
 
   const supabase = await createClient();
+  const resolvedType = await resolveDocumentType({
+    documentTypeId,
+    label: expectedLabel || documentTypeName,
+    supabase,
+  });
+
+  if (!resolvedType.ok) return { ok: false, message: resolvedType.message };
+
   const { error } = await supabase.from("document_requirements").insert({
     scope: "deal_dd",
     deal_id: dealId,
-    document_type_id: documentTypeId,
-    expected_label: expectedLabel || "Document",
+    document_type_id: resolvedType.documentTypeId,
+    expected_label: expectedLabel || documentTypeName || "Document",
     criticality,
     required,
     status: "not_searched",
@@ -218,6 +323,37 @@ export async function linkRequirementDocumentAction(input: {
   return { ok: true };
 }
 
+export async function archiveRequirementAction(input: {
+  requirementId: string;
+  companyId?: string | null;
+  revalidatePath?: string | null;
+}): Promise<RequirementActionResult> {
+  const requirementId = cleanText(input.requirementId);
+  if (!requirementId) return { ok: false, message: "Missing requirement." };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("document_requirements")
+    .update({ archived_at: new Date().toISOString() })
+    .eq("id", requirementId);
+
+  if (error) return { ok: false, message: error.message };
+
+  await logActivity(
+    {
+      eventType: "REQUIREMENT_STATUS_CHANGED",
+      targetType: "document_requirement",
+      targetId: requirementId,
+      payload: { action: "requirement_archived" },
+      actor: "anonymous",
+    },
+    supabase
+  );
+
+  revalidateTargets(input.companyId, input.revalidatePath);
+  return { ok: true };
+}
+
 export async function applyPortfolioTemplateAction(input: {
   templateCode: string;
   scope: "spv" | "investor_spv" | "spv_company";
@@ -227,11 +363,11 @@ export async function applyPortfolioTemplateAction(input: {
   revalidatePath?: string | null;
 }): Promise<RequirementActionResult> {
   const templateCode = cleanText(input.templateCode);
-  if (!templateCode) return { ok: false, message: "Choose a template." };
+  if (!templateCode) return { ok: false, message: "Choose a checklist." };
 
   const { supabase, data: items, error } = await getTemplateItems(templateCode);
   if (error) return { ok: false, message: error.message };
-  if (!items?.length) return { ok: false, message: "Template has no items." };
+  if (!items?.length) return { ok: false, message: "Checklist has no items." };
 
   let query = supabase
     .from("document_requirements")
@@ -287,7 +423,7 @@ export async function applyPortfolioTemplateAction(input: {
       eventType: "REQUIREMENT_STATUS_CHANGED",
       targetType: input.scope,
       targetId,
-      payload: { action: "template_applied", templateCode, created: rows.length },
+      payload: { action: "checklist_created", templateCode, created: rows.length },
       actor: "anonymous",
     },
     supabase

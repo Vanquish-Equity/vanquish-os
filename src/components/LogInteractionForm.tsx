@@ -12,9 +12,15 @@ export type InteractionDealOption = {
 export default function LogInteractionForm({
   companyId,
   deals,
+  initialDealId = "",
+  onSuccess,
+  title = "Log Interaction",
 }: {
   companyId: string;
   deals: InteractionDealOption[];
+  initialDealId?: string;
+  onSuccess?: () => void;
+  title?: string | null;
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement | null>(null);
@@ -34,6 +40,7 @@ export default function LogInteractionForm({
       }
       setError(null);
       formRef.current?.reset();
+      onSuccess?.();
       router.refresh();
     });
   }
@@ -43,9 +50,11 @@ export default function LogInteractionForm({
 
   return (
     <div className="rounded-[14px] border border-neutral-100 bg-white p-5">
-      <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
-        Log Interaction
-      </h2>
+      {title && (
+        <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
+          {title}
+        </h2>
+      )}
       <form ref={formRef} onSubmit={handleSubmit} className="grid gap-2">
         <div className="grid grid-cols-3 gap-2">
           <select name="type" className={inputClass} defaultValue="note">
@@ -60,7 +69,7 @@ export default function LogInteractionForm({
             type="datetime-local"
             className={inputClass}
           />
-          <select name="dealId" className={inputClass} defaultValue="">
+          <select name="dealId" className={inputClass} defaultValue={initialDealId}>
             <option value="">Company-level</option>
             {deals.map((deal) => (
               <option key={deal.id} value={deal.id}>

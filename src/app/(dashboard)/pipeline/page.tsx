@@ -13,6 +13,7 @@ type Deal = {
   potential_investment: number | null;
   updated_at: string;
   stage_id: string;
+  stage: { name: string; is_terminal: boolean } | null;
   company: { id: string; name: string } | null;
   priority: { name: string } | null;
   outcome: { name: string } | null;
@@ -21,10 +22,15 @@ type Deal = {
 export default async function PipelinePage({
   searchParams,
 }: {
-  searchParams: Promise<{ hideTerminal?: string }>;
+  searchParams: Promise<{
+    filter?: string;
+    hideTerminal?: string;
+    priority?: string;
+    stage?: string;
+  }>;
 }) {
-  const { hideTerminal } = await searchParams;
-  const shouldHideTerminal = hideTerminal === "1";
+  const { filter, hideTerminal, priority, stage } = await searchParams;
+  const shouldHideTerminal = hideTerminal === "1" || filter === "active";
   const supabase = await createClient();
 
   const [
@@ -41,7 +47,7 @@ export default async function PipelinePage({
       supabase
         .from("deals")
         .select(
-          "id,name,potential_investment,updated_at,stage_id,outcome:deal_outcomes(name),company:companies!inner(id,name,deleted_at),priority:priorities(name)"
+          "id,name,potential_investment,updated_at,stage_id,stage:pipeline_stages(name,is_terminal),outcome:deal_outcomes(name),company:companies!inner(id,name,deleted_at),priority:priorities(name)"
         )
         .is("company.deleted_at", null)
         .is("archived_at", null)
@@ -58,9 +64,12 @@ export default async function PipelinePage({
       .order("sort_order") as unknown as Promise<{ data: Option[] }>,
   ]);
 
-  const visibleDeals = shouldHideTerminal
-    ? (deals ?? []).filter((deal) => !deal.outcome)
-    : (deals ?? []);
+  const visibleDeals = (deals ?? []).filter((deal) => {
+    if (shouldHideTerminal && (deal.outcome || deal.stage?.is_terminal)) return false;
+    if (stage && deal.stage?.name !== stage) return false;
+    if (priority && deal.priority?.name !== priority) return false;
+    return true;
+  });
   const totalDeals = visibleDeals.length;
   const boardKey = [
     ...(stages ?? []).map((stage) => stage.id),

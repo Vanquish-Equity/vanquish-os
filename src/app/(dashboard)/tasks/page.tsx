@@ -17,7 +17,12 @@ type TaskRowData = {
   priority: { name: string } | null;
 };
 
-export default async function TasksPage() {
+export default async function TasksPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
+  const { status } = await searchParams;
   const supabase = await createClient();
 
   const [{ data: tasks }, { data: companies }, { data: priorities }] =
@@ -78,20 +83,22 @@ export default async function TasksPage() {
         <NewTaskModal companies={companies ?? []} priorities={priorities ?? []} />
       </header>
 
-      <div className="rounded-[14px] border border-neutral-100 bg-white">
-        <div className="border-b border-neutral-100 px-4 py-2.5 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
-          Open ({openTasks.length})
-        </div>
-        {openTasks.length === 0 ? (
-          <div className="px-4 py-8 text-center text-[12.5px] text-neutral-400">
-            No open tasks.
+      {status !== "done" && (
+        <div className="rounded-[14px] border border-neutral-100 bg-white">
+          <div className="border-b border-neutral-100 px-4 py-2.5 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
+            Open ({openTasks.length})
           </div>
-        ) : (
-          openTasks.map((task) => <TaskRow key={task.id} task={task} />)
-        )}
-      </div>
+          {openTasks.length === 0 ? (
+            <div className="px-4 py-8 text-center text-[12.5px] text-neutral-400">
+              No open tasks.
+            </div>
+          ) : (
+            openTasks.map((task) => <TaskRow key={task.id} task={task} />)
+          )}
+        </div>
+      )}
 
-      {doneTasks.length > 0 && (
+      {status !== "open" && doneTasks.length > 0 && (
         <div className="rounded-[14px] border border-neutral-100 bg-white">
           <div className="border-b border-neutral-100 px-4 py-2.5 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
             Done ({doneTasks.length})

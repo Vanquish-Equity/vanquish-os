@@ -81,6 +81,7 @@ function parseOptionalInvestment(value: string | null | undefined) {
 }
 
 function revalidateDealPaths(companyId?: string | null) {
+  revalidatePath("/overview");
   revalidatePath("/pipeline");
   revalidatePath("/companies");
 
@@ -105,6 +106,7 @@ async function maybeApplyDueDiligenceTemplate(input: {
 
   if (stage?.name === "Due Diligence") {
     await applyDealTemplateAction({
+      createdAutomatically: true,
       dealId: input.dealId,
       companyId: input.companyId,
       templateCode: "GENERIC_DD",
@@ -495,4 +497,62 @@ export async function updateDealFieldAction(
   );
 
   return { ok: true, companyId, dealId };
+}
+
+export async function snoozeDealAttentionAction(input: {
+  dealId: string;
+  companyId?: string | null;
+  days?: number;
+}): Promise<DealActionResult> {
+  const dealId = cleanText(input.dealId);
+  if (!dealId) {
+    return {
+      ok: false,
+      message: "Deal is required.",
+      fieldErrors: { dealId: "Deal is required." },
+    };
+  }
+
+  const days = input.days && input.days > 0 ? input.days : 30;
+  const snoozedUntil = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+  const supabase = await createClient();
+
+  const { data: before, error: lookupError } = (await supabase
+    .from("deals")
+    .select("company_id,attention_snoozed_until")
+    .eq("id", dealId)
+    .maybeSingle()) as unknown as {
+    data: { attention_snoozed_until: string | null; company_id: string | null } | null;
+    error: { message: string } | null;
+  };
+
+  if (lookupError) return { ok: false, message: lookupError.message };
+  if (!before) return { ok: false, message: "Deal not found." };
+
+  const companyId = input.companyId ?? before.company_id;
+  const { error } = await supabase
+    .from("deals")
+    .update({ attention_snoozed_until: snoozedUntil })
+    .eq("id", dealId);
+
+  if (error) return { ok: false, message: error.message };
+
+  await logActivity(
+    {
+      actor: "anonymous",
+      eventType: "DEAL_FIELD_CHANGED",
+      payload: {
+        field: "attention_snoozed_until",
+        from: before.attention_snoozed_until,
+        reason: "snoozed from Needs attention",
+        to: snoozedUntil,
+      },
+      targetId: dealId,
+      targetType: "deal",
+    },
+    supabase
+  );
+
+  revalidateDealPaths(companyId);
+  return { ok: true, companyId: companyId ?? undefined, dealId };
 }
