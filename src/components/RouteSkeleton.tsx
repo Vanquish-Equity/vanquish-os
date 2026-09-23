@@ -36,7 +36,7 @@ export default function RouteSkeleton({
               <div key={index} className="h-24 rounded-xl border border-neutral-100 bg-neutral-50" />
             ))}
           </div>
-          <div className="rounded-xl border border-neutral-100 bg-white p-4">
+          <div className="vq-card-static rounded-xl bg-white p-4">
             {Array.from({ length: rows }, (_, row) => (
               <div key={row} className="flex items-center gap-4 border-b border-neutral-100 py-4 last:border-0">
                 <div className="h-8 w-8 rounded-lg bg-neutral-100" />

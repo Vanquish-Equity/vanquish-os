@@ -254,7 +254,7 @@ function EditableTextField({
               setError(null);
             }
           }}
-          className="min-w-0 flex-1 rounded-xl border border-neutral-100 bg-white px-2.5 py-1.5 text-[12.5px] font-semibold text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
+          className="min-w-0 flex-1 rounded-xl border border-neutral-200 bg-white px-2.5 py-1.5 text-[12.5px] font-semibold text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
           disabled={pending}
         />
         <SaveButton pending={pending} onSave={() => void save()} />
@@ -351,7 +351,7 @@ function EditableNumberField({
               setError(null);
             }
           }}
-          className="min-w-0 flex-1 rounded-xl border border-neutral-100 bg-white px-2.5 py-1.5 text-[12.5px] font-semibold text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
+          className="min-w-0 flex-1 rounded-xl border border-neutral-200 bg-white px-2.5 py-1.5 text-[12.5px] font-semibold text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
           disabled={pending}
         />
         <SaveButton pending={pending} onSave={() => void save()} />
@@ -448,7 +448,7 @@ export default function EditableDealOverview({
   }
 
   return (
-    <div className="rounded-[14px] border border-neutral-100 bg-white p-5">
+    <div className="vq-card-static rounded-[14px] bg-white p-5">
       <h2 className="mb-3.5 text-[14.5px] font-semibold text-ink">
         Deal Overview
       </h2>

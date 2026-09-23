@@ -108,7 +108,7 @@ export default function DueDiligenceCard({
     (type) => type.name.toLocaleLowerCase() === newItemName.toLocaleLowerCase()
   );
   const inputClass =
-    "rounded-xl border border-neutral-100 bg-white px-2.5 py-2 text-[12px] font-medium text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100";
+    "rounded-xl border border-neutral-200 bg-white px-2.5 py-2 text-[12px] font-medium text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100";
 
   function run(action: () => Promise<{ ok: true } | { ok: false; message: string }>) {
     startTransition(async () => {
@@ -138,7 +138,7 @@ export default function DueDiligenceCard({
   return (
     <section
       id="due-diligence"
-      className="rounded-[14px] border border-neutral-100 bg-white p-5"
+      className="vq-card-static rounded-[14px] bg-white p-5"
     >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
@@ -186,7 +186,7 @@ export default function DueDiligenceCard({
               >
                 Start standard DD checklist
               </button>
-              <div className="absolute left-1/2 top-10 z-20 hidden w-72 -translate-x-1/2 rounded-xl border border-neutral-100 bg-white p-3 text-left shadow-lg group-focus-within:block group-hover:block">
+              <div className="vq-card-static absolute left-1/2 top-10 z-20 hidden w-72 -translate-x-1/2 rounded-xl bg-white p-3 text-left shadow-lg group-focus-within:block group-hover:block">
                 <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
                   Adds 9 items
                 </div>

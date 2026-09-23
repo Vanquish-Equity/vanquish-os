@@ -218,7 +218,7 @@ export default function NewDealModal({
             role="dialog"
             aria-modal="true"
             aria-labelledby="new-deal-title"
-            className="max-h-[92vh] w-full max-w-[540px] overflow-y-auto rounded-[14px] border border-neutral-100 bg-white p-5 shadow-xl"
+            className="vq-card-static max-h-[92vh] w-full max-w-[540px] overflow-y-auto rounded-[14px] bg-white p-5 shadow-xl"
           >
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
@@ -252,7 +252,7 @@ export default function NewDealModal({
                   id={fieldId("companyName")}
                   value={values.companyName}
                   onChange={(event) => updateValue("companyName", event.target.value)}
-                  className="w-full rounded-xl border border-neutral-100 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
+                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
                 />
                 {errors.companyName && (
                   <p className="mt-1 text-xs text-red-600">{errors.companyName}</p>
@@ -292,7 +292,7 @@ export default function NewDealModal({
                     onChange={(event) =>
                       updateValue("newIndustryName", event.target.value)
                     }
-                    className="w-full rounded-xl border border-neutral-100 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
+                    className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
                   />
                   {errors.newIndustryName && (
                     <p className="mt-1 text-xs text-red-600">
@@ -316,7 +316,7 @@ export default function NewDealModal({
                     setDealNameTouched(true);
                     updateValue("dealName", event.target.value);
                   }}
-                  className="w-full rounded-xl border border-neutral-100 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
+                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
                 />
                 {errors.dealName && (
                   <p className="mt-1 text-xs text-red-600">{errors.dealName}</p>
@@ -375,7 +375,7 @@ export default function NewDealModal({
                     id={fieldId("owner")}
                     value={values.owner}
                     onChange={(event) => updateValue("owner", event.target.value)}
-                    className="w-full rounded-xl border border-neutral-100 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
+                    className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
                   />
                   {errors.owner && (
                     <p className="mt-1 text-xs text-red-600">{errors.owner}</p>
@@ -398,7 +398,7 @@ export default function NewDealModal({
                     onChange={(event) =>
                       updateValue("potentialInvestment", event.target.value)
                     }
-                    className="w-full rounded-xl border border-neutral-100 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
+                    className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
                   />
                   {errors.potentialInvestment && (
                     <p className="mt-1 text-xs text-red-600">

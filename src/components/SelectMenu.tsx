@@ -70,7 +70,7 @@ export default function SelectMenu({
         aria-controls={listboxId}
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
-        className={`flex w-full items-center justify-between gap-2 rounded-xl border border-neutral-100 bg-white px-3 py-2 text-left text-[12.5px] text-ink outline-none transition hover:border-neutral-200 focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-50 ${buttonClassName}`}
+        className={`flex w-full items-center justify-between gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-left text-[12.5px] text-ink outline-none transition hover:border-neutral-200 focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-50 ${buttonClassName}`}
       >
         <span className={selectedOption ? "truncate" : "truncate text-neutral-400"}>
           {selectedOption?.label ?? placeholder}
@@ -100,7 +100,7 @@ export default function SelectMenu({
           id={listboxId}
           role="listbox"
           aria-labelledby={id}
-          className="absolute z-[70] mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-neutral-100 bg-white p-1 shadow-lg"
+          className="vq-card-static absolute z-[70] mt-1 max-h-56 w-full overflow-y-auto rounded-xl bg-white p-1"
         >
           {options.map((option) => {
             const selected = option.value === value;

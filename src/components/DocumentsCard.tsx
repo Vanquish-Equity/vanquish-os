@@ -186,10 +186,10 @@ export default function DocumentsCard({
   }
 
   const inputClass =
-    "rounded-xl border border-neutral-100 bg-white px-2.5 py-2 text-[12px] font-medium text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100";
+    "rounded-xl border border-neutral-200 bg-white px-2.5 py-2 text-[12px] font-medium text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100";
 
   return (
-    <div className="rounded-[14px] border border-neutral-100 bg-white p-5">
+    <div className="vq-card-static rounded-[14px] bg-white p-5">
       <h2 className="mb-3 text-[14.5px] font-semibold text-ink">Documents</h2>
 
       <div className="mb-3 grid grid-cols-2 gap-2">

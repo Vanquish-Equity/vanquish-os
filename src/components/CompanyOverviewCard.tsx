@@ -144,7 +144,7 @@ function EditableText({
               setError(null);
             }
           }}
-          className="min-w-0 flex-1 rounded-xl border border-neutral-100 bg-white px-2.5 py-1.5 text-[12.5px] font-semibold text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
+          className="min-w-0 flex-1 rounded-xl border border-neutral-200 bg-white px-2.5 py-1.5 text-[12.5px] font-semibold text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
           disabled={pending}
         />
         <SaveButton pending={pending} onSave={() => void save()} />
@@ -240,7 +240,7 @@ function ConfirmDeleteDialog({
 }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 px-4">
-      <div className="w-full max-w-sm rounded-[14px] border border-neutral-100 bg-white p-5 shadow-xl">
+      <div className="vq-card-static w-full max-w-sm rounded-[14px] bg-white p-5 shadow-xl">
         <h3 className="mb-1.5 text-[14.5px] font-semibold text-ink">
           Move to trash?
         </h3>
@@ -329,7 +329,7 @@ export default function CompanyOverviewCard({
   }
 
   return (
-    <div className="rounded-[14px] border border-neutral-100 bg-white p-5">
+    <div className="vq-card-static rounded-[14px] bg-white p-5">
       <div className="mb-3.5 flex items-center justify-between">
         <h2 className="text-[14.5px] font-semibold text-ink">
           Company Overview

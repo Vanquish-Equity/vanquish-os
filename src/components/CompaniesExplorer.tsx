@@ -78,7 +78,7 @@ function FilterMenu({
         {label}
         {selected.length > 0 ? ` (${selected.length})` : ""}
       </summary>
-      <div className="absolute left-0 top-9 z-20 max-h-72 w-56 overflow-auto rounded-xl border border-neutral-100 bg-white p-2 shadow-lg">
+      <div className="vq-card-static absolute left-0 top-9 z-20 max-h-72 w-56 overflow-auto rounded-xl bg-white p-2">
         {options.length === 0 ? (
           <div className="px-2 py-2 text-[12px] text-neutral-400">No options</div>
         ) : (
@@ -241,7 +241,7 @@ export default function CompaniesExplorer({
 
   return (
     <div className="flex flex-col gap-3.5">
-      <div className="rounded-[14px] border border-neutral-100 bg-white p-3">
+      <div className="vq-card-static rounded-[14px] bg-white p-3">
         <div className="flex flex-wrap items-center gap-2">
           <input
             value={draftQuery}
@@ -252,7 +252,7 @@ export default function CompaniesExplorer({
               })
             }
             placeholder="Search name, alias or industry"
-            className="min-w-[260px] flex-1 rounded-xl border border-neutral-100 bg-white px-3 py-2 text-[12.5px] font-medium text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
+            className="min-w-[260px] flex-1 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[12.5px] font-medium text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
           />
           <FilterMenu
             label="Industry"
@@ -364,7 +364,7 @@ export default function CompaniesExplorer({
       </div>
 
       {rows.length === 0 ? (
-        <div className="rounded-[14px] border border-neutral-100 bg-white p-8 text-center">
+        <div className="vq-card-static rounded-[14px] bg-white p-8 text-center">
           <h2 className="text-[15px] font-semibold text-ink">No matching companies</h2>
           <p className="mt-1 text-[12.5px] text-neutral-500">
             This list is for finding the company record that owns each deal,
@@ -387,7 +387,7 @@ export default function CompaniesExplorer({
           </div>
         </div>
       ) : view === "table" ? (
-        <div className="max-h-[calc(100vh-230px)] overflow-auto rounded-[14px] border border-neutral-100 bg-white">
+        <div className="vq-card-static max-h-[calc(100vh-230px)] overflow-auto rounded-[14px] bg-white">
           <table className="w-full text-[12.5px]">
             <thead className="sticky top-0 z-10 bg-white">
               <tr className="border-b border-neutral-100 text-left text-[10.5px] uppercase tracking-wide text-neutral-400">
@@ -452,12 +452,12 @@ export default function CompaniesExplorer({
           </table>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="vq-card-grid grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {rows.map((company) => (
             <Link
               key={company.id}
               href={`/companies/${company.id}`}
-              className="rounded-[14px] border border-neutral-100 bg-white p-4 transition hover:border-cyan-200"
+              className="vq-card rounded-[14px] bg-white p-4"
             >
               <div className="mb-2 flex items-start justify-between gap-3">
                 <div className="min-w-0">

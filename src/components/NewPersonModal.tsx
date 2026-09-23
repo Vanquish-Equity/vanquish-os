@@ -112,7 +112,7 @@ export default function NewPersonModal({ companies }: { companies: Option[] }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="new-person-title"
-            className="max-h-[92vh] w-full max-w-[460px] overflow-y-auto rounded-[14px] border border-neutral-100 bg-white p-5 shadow-xl"
+            className="vq-card-static max-h-[92vh] w-full max-w-[460px] overflow-y-auto rounded-[14px] bg-white p-5 shadow-xl"
           >
             <div className="mb-4 flex items-start justify-between gap-4">
               <h2
@@ -143,7 +143,7 @@ export default function NewPersonModal({ companies }: { companies: Option[] }) {
                     setValues((v) => ({ ...v, name: e.target.value }));
                     setNameError(null);
                   }}
-                  className="w-full rounded-xl border border-neutral-100 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
+                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
                 />
                 {nameError && <p className="mt-1 text-xs text-red-600">{nameError}</p>}
               </div>
@@ -156,7 +156,7 @@ export default function NewPersonModal({ companies }: { companies: Option[] }) {
                   <input
                     value={values.title}
                     onChange={(e) => setValues((v) => ({ ...v, title: e.target.value }))}
-                    className="w-full rounded-xl border border-neutral-100 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
+                    className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
                   />
                 </div>
                 <div>
@@ -180,7 +180,7 @@ export default function NewPersonModal({ companies }: { companies: Option[] }) {
                   type="email"
                   value={values.email}
                   onChange={(e) => setValues((v) => ({ ...v, email: e.target.value }))}
-                  className="w-full rounded-xl border border-neutral-100 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
+                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
                 />
               </div>
 
@@ -193,7 +193,7 @@ export default function NewPersonModal({ companies }: { companies: Option[] }) {
                   onChange={(e) =>
                     setValues((v) => ({ ...v, linkedinUrl: e.target.value }))
                   }
-                  className="w-full rounded-xl border border-neutral-100 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
+                  className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
                 />
               </div>
 

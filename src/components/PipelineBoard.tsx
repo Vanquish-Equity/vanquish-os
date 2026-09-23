@@ -205,7 +205,7 @@ export default function PipelineBoard({
       )}
 
       <div
-        className="grid gap-3"
+        className="vq-card-grid grid gap-3"
         style={{
           gridTemplateColumns: `repeat(${stages.length}, minmax(240px, 1fr))`,
         }}

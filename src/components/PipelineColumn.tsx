@@ -53,8 +53,8 @@ function DealCard({
       ref={setNodeRef}
       href={`/companies/${deal.company?.id}`}
       style={style}
-      className={`block rounded-xl border bg-white p-3.5 transition hover:border-cyan-200 ${
-        pending ? "border-cyan-100" : "border-neutral-100"
+      className={`vq-card block rounded-xl bg-white p-3.5 ${
+        pending ? "opacity-60" : ""
       }`}
       {...attributes}
       {...listeners}
