@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import EditableDealOverview from "@/components/EditableDealOverview";
+import CompanyOverviewCard from "@/components/CompanyOverviewCard";
+import TrashBanner from "@/components/TrashBanner";
 import DocumentsCard, { type DocumentItem } from "@/components/DocumentsCard";
 import { notFound } from "next/navigation";
 
@@ -15,7 +17,9 @@ export default async function CompanyDetailPage({
 
   const { data: company } = (await supabase
     .from("companies")
-    .select("id,name,description,website,industry:industries(name)")
+    .select(
+      "id,name,description,website,industry_id,deleted_at,industry:industries(name)"
+    )
     .eq("id", id)
     .maybeSingle()) as unknown as {
     data: {
@@ -23,6 +27,8 @@ export default async function CompanyDetailPage({
       name: string;
       description: string | null;
       website: string | null;
+      industry_id: string | null;
+      deleted_at: string | null;
       industry: { name: string } | null;
     } | null;
   };
@@ -58,6 +64,7 @@ export default async function CompanyDetailPage({
     { data: stages },
     { data: priorities },
     { data: documentRows },
+    { data: industries },
   ] = await Promise.all([
       primaryDeal
         ? supabase
@@ -99,6 +106,12 @@ export default async function CompanyDetailPage({
             }[]
           | null;
       }>,
+      supabase
+        .from("industries")
+        .select("id,name")
+        .order("name") as unknown as Promise<{
+        data: { id: string; name: string }[] | null;
+      }>,
     ]);
 
   const documents: DocumentItem[] = await Promise.all(
@@ -120,6 +133,10 @@ export default async function CompanyDetailPage({
 
   return (
     <div className="flex flex-col gap-4 px-7 py-6">
+      {company.deleted_at && (
+        <TrashBanner companyId={company.id} companyName={company.name} />
+      )}
+
       <header className="flex items-start justify-between gap-4">
         <div>
           <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
@@ -151,6 +168,18 @@ export default async function CompanyDetailPage({
 
       <div className="grid grid-cols-[2fr_1fr] gap-3.5">
         <div className="flex flex-col gap-3.5">
+          <CompanyOverviewCard
+            company={{
+              id: company.id,
+              name: company.name,
+              website: company.website,
+              description: company.description,
+              industryId: company.industry_id,
+              industryName: company.industry?.name ?? null,
+            }}
+            industries={industries ?? []}
+          />
+
           {primaryDeal && (
             <EditableDealOverview
               deal={{

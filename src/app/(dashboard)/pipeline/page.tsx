@@ -32,8 +32,9 @@ export default async function PipelinePage() {
     supabase
       .from("deals")
       .select(
-        "id,name,potential_investment,updated_at,stage_id,company:companies(id,name),priority:priorities(name)"
+        "id,name,potential_investment,updated_at,stage_id,company:companies!inner(id,name,deleted_at),priority:priorities(name)"
       )
+      .is("company.deleted_at", null)
       .order("updated_at", { ascending: false }) as unknown as Promise<{
       data: Deal[];
     }>,
