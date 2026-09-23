@@ -9,7 +9,9 @@ import DueDiligenceCard, {
 } from "@/components/DueDiligenceCard";
 import EditableDealOverview from "@/components/EditableDealOverview";
 import LogInteractionForm from "@/components/LogInteractionForm";
+import RelativeTime from "@/components/RelativeTime";
 import TrashBanner from "@/components/TrashBanner";
+import { humanizeCode, labelForInstrument } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +25,7 @@ type Company = {
   website: string | null;
   industry_id: string | null;
   deleted_at: string | null;
+  updated_at: string;
   industry: { name: string } | null;
 };
 
@@ -61,6 +64,19 @@ type InvestmentRow = {
   investment_vehicles: {
     vehicle: { id: string; name: string } | null;
   }[];
+};
+
+type CompanyTaskRow = {
+  id: string;
+  title: string;
+  due_at: string | null;
+};
+
+type ReviewRow = {
+  id: string;
+  review_type: string;
+  payload: { company_name?: string };
+  created_at: string;
 };
 
 function formatMoney(n: number | null) {
@@ -103,7 +119,7 @@ export default async function CompanyDetailPage({
   const { data: company } = (await supabase
     .from("companies")
     .select(
-      "id,name,description,website,industry_id,deleted_at,industry:industries(name)"
+      "id,name,description,website,industry_id,deleted_at,updated_at,industry:industries(name)"
     )
     .eq("id", id)
     .maybeSingle()) as unknown as { data: Company | null };
@@ -140,6 +156,8 @@ export default async function CompanyDetailPage({
     { data: requirements },
     { data: activity },
     { data: investments },
+    { data: companyTasks },
+    { data: reviewItems },
   ] = await Promise.all([
     dealIds.length
       ? (supabase
@@ -292,6 +310,22 @@ export default async function CompanyDetailPage({
       .order("investment_date", { ascending: false }) as unknown as Promise<{
       data: InvestmentRow[] | null;
     }>,
+    supabase
+      .from("tasks")
+      .select("id,title,due_at")
+      .eq("company_id", id)
+      .eq("status", "open")
+      .is("archived_at", null)
+      .order("due_at", { ascending: true, nullsFirst: false }) as unknown as Promise<{
+      data: CompanyTaskRow[] | null;
+    }>,
+    supabase
+      .from("review_items")
+      .select("id,review_type,payload,created_at")
+      .eq("status", "open")
+      .order("created_at", { ascending: false }) as unknown as Promise<{
+      data: ReviewRow[] | null;
+    }>,
   ]);
 
   const documents: DocumentItem[] = await Promise.all(
@@ -365,6 +399,30 @@ export default async function CompanyDetailPage({
     documentTypeId: row.document_type_id,
     satisfiedByDocumentId: row.satisfied_by_document_id,
   }));
+  const today = new Date(new Date().toDateString());
+  const overdueTasks = (companyTasks ?? []).filter(
+    (task) => task.due_at && new Date(task.due_at) < today
+  );
+  const missingDdItems = requirementItems.filter(
+    (item) =>
+      item.required &&
+      !["received_found", "not_applicable", "waived"].includes(item.status)
+  );
+  const openReviewItems = (reviewItems ?? []).filter(
+    (item) => item.payload?.company_name === company.name
+  );
+  const checklistCreatedAutomatically = Boolean(
+    primaryDeal &&
+      (activity ?? []).some(
+        (event) =>
+          event.target_id === primaryDeal.id &&
+          event.payload?.createdAutomatically === true
+      )
+  );
+  const lastUpdateAt =
+    primaryDeal?.last_activity_at ??
+    primaryDeal?.updated_at ??
+    company.updated_at;
 
   return (
     <div className="flex flex-col gap-4 px-7 py-6">
@@ -375,216 +433,305 @@ export default async function CompanyDetailPage({
       <header className="flex items-start justify-between gap-4">
         <div>
           <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
-            Company{primaryDeal ? " / Active Deal" : ""}
+            <Link href="/companies" className="hover:text-cyan-700">
+              Companies
+            </Link>{" "}
+            / {company.name}
           </div>
           <h1 className="font-[family-name:var(--font-display)] text-[25px] font-semibold tracking-tight text-ink">
             {company.name}
           </h1>
           <p className="mt-1 text-[13px] text-neutral-500">
-            {primaryDeal?.round ?? "No active deal"}
-            {company.industry?.name ? ` / ${company.industry.name}` : ""}
+            {primaryDeal?.stage?.name ?? "No active deal"}
+            {primaryDeal?.priority?.name ? ` / ${primaryDeal.priority.name} priority` : ""}
+            {primaryDeal?.owner ? ` / ${primaryDeal.owner}` : ""}
+            {lastUpdateAt ? " / last update " : ""}
+            {lastUpdateAt && <RelativeTime date={lastUpdateAt} />}
           </p>
         </div>
-        {primaryDeal && (
-          <div className="flex flex-shrink-0 gap-2">
-            {primaryDeal.priority?.name && (
-              <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-[11px] font-semibold text-cyan-800">
-                {primaryDeal.priority.name} priority
-              </span>
-            )}
-            {primaryDeal.stage?.name && (
-              <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2.5 py-1 text-[11px] font-semibold text-neutral-600">
-                {primaryDeal.stage.name}
-              </span>
-            )}
-          </div>
-        )}
+        <a
+          href="#log-update"
+          className="flex-shrink-0 rounded-full bg-ink px-3.5 py-2 text-[11.5px] font-semibold text-white transition hover:bg-neutral-800"
+        >
+          Log update
+        </a>
       </header>
 
-      <div className="grid grid-cols-[2fr_1fr] gap-3.5">
-        <div className="flex flex-col gap-3.5">
-          <CompanyOverviewCard
-            company={{
-              id: company.id,
-              name: company.name,
-              website: company.website,
-              description: company.description,
-              industryId: company.industry_id,
-              industryName: company.industry?.name ?? null,
+      <nav className="sticky top-0 z-20 flex flex-wrap gap-2 border-b border-neutral-100 bg-white/95 py-2 backdrop-blur">
+        {[
+          ["attention", "Needs attention"],
+          ["deal-overview", "Deal overview"],
+          ["due-diligence", "Due diligence"],
+          ["timeline", "Timeline"],
+          ["people", "People"],
+          ["documents", "Documents"],
+          ["investments", "Investments"],
+        ].map(([href, label]) => (
+          <a
+            key={href}
+            href={`#${href}`}
+            className="rounded-full border border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-500 transition hover:border-cyan-300 hover:text-cyan-800"
+          >
+            {label}
+          </a>
+        ))}
+      </nav>
+
+      <section id="attention" className="rounded-[14px] border border-neutral-100 bg-white p-5 scroll-mt-16">
+        <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
+          Needs attention for this company
+        </h2>
+        {overdueTasks.length === 0 &&
+        missingDdItems.length === 0 &&
+        openReviewItems.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-neutral-200 px-3 py-4 text-center text-[12px] text-neutral-400">
+            No overdue tasks, open review items or missing diligence items.
+          </p>
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-xl bg-[#f7f9fa] p-3">
+              <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
+                Overdue tasks ({overdueTasks.length})
+              </div>
+              {overdueTasks.length === 0 ? (
+                <p className="text-[12px] text-neutral-400">Nothing overdue.</p>
+              ) : (
+                <div className="flex flex-col gap-1.5 text-[12px]">
+                  {overdueTasks.map((task) => (
+                    <Link
+                      key={task.id}
+                      href="/tasks?status=open"
+                      className="font-medium text-ink hover:text-cyan-700"
+                    >
+                      {task.title}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="rounded-xl bg-[#f7f9fa] p-3">
+              <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
+                Missing DD items ({missingDdItems.length})
+              </div>
+              {missingDdItems.length === 0 ? (
+                <p className="text-[12px] text-neutral-400">Checklist is current.</p>
+              ) : (
+                <div className="flex flex-col gap-1.5 text-[12px] text-ink">
+                  {missingDdItems.slice(0, 5).map((item) => (
+                    <a key={item.id} href="#due-diligence" className="hover:text-cyan-700">
+                      {item.expectedLabel}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="rounded-xl bg-[#f7f9fa] p-3">
+              <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
+                Review items ({openReviewItems.length})
+              </div>
+              {openReviewItems.length === 0 ? (
+                <p className="text-[12px] text-neutral-400">Nothing in review.</p>
+              ) : (
+                <div className="flex flex-col gap-1.5 text-[12px]">
+                  {openReviewItems.map((item) => (
+                    <Link
+                      key={item.id}
+                      href="/review"
+                      className="font-medium text-ink hover:text-cyan-700"
+                    >
+                      {humanizeCode(item.review_type)}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section id="deal-overview" className="grid grid-cols-2 gap-3.5 scroll-mt-16">
+        <CompanyOverviewCard
+          company={{
+            id: company.id,
+            name: company.name,
+            website: company.website,
+            description: company.description,
+            industryId: company.industry_id,
+            industryName: company.industry?.name ?? null,
+          }}
+          industries={industries ?? []}
+        />
+        {primaryDeal ? (
+          <EditableDealOverview
+            deal={{
+              id: primaryDeal.id,
+              companyId: company.id,
+              stageId: primaryDeal.stage_id,
+              stageName: primaryDeal.stage?.name ?? null,
+              outcomeId: primaryDeal.outcome_id,
+              outcomeName: primaryDeal.outcome?.name ?? null,
+              relationshipStateId: primaryDeal.relationship_state_id,
+              relationshipStateName: primaryDeal.relationship_state?.name ?? null,
+              priorityId: primaryDeal.priority_id,
+              priorityName: primaryDeal.priority?.name ?? null,
+              owner: primaryDeal.owner,
+              potentialInvestment: primaryDeal.potential_investment,
             }}
-            industries={industries ?? []}
+            stages={stages ?? []}
+            outcomes={outcomes ?? []}
+            relationshipStates={relationshipStates ?? []}
+            priorities={priorities ?? []}
           />
+        ) : (
+          <div className="rounded-[14px] border border-neutral-100 bg-white p-5">
+            <h2 className="mb-2 text-[14.5px] font-semibold text-ink">
+              Deal Overview
+            </h2>
+            <p className="text-[12px] text-neutral-400">
+              No active deal is linked to this company yet.
+            </p>
+          </div>
+        )}
+      </section>
 
-          {primaryDeal && (
-            <>
-              <EditableDealOverview
-                deal={{
-                  id: primaryDeal.id,
-                  companyId: company.id,
-                  stageId: primaryDeal.stage_id,
-                  stageName: primaryDeal.stage?.name ?? null,
-                  outcomeId: primaryDeal.outcome_id,
-                  outcomeName: primaryDeal.outcome?.name ?? null,
-                  relationshipStateId: primaryDeal.relationship_state_id,
-                  relationshipStateName: primaryDeal.relationship_state?.name ?? null,
-                  priorityId: primaryDeal.priority_id,
-                  priorityName: primaryDeal.priority?.name ?? null,
-                  owner: primaryDeal.owner,
-                  potentialInvestment: primaryDeal.potential_investment,
-                }}
-                stages={stages ?? []}
-                outcomes={outcomes ?? []}
-                relationshipStates={relationshipStates ?? []}
-                priorities={priorities ?? []}
-              />
+      {primaryDeal && (
+        <DueDiligenceCard
+          checklistCreatedAutomatically={checklistCreatedAutomatically}
+          companyId={company.id}
+          dealId={primaryDeal.id}
+          requirements={requirementItems}
+          documentTypes={(documentTypes ?? []).map((type) => ({
+            id: type.id,
+            name: type.name,
+          }))}
+          documents={documents.map((document) => ({
+            id: document.id,
+            name: document.name,
+          }))}
+        />
+      )}
 
-              <DueDiligenceCard
-                companyId={company.id}
-                dealId={primaryDeal.id}
-                requirements={requirementItems}
-                documentTypes={(documentTypes ?? []).map((type) => ({
-                  id: type.id,
-                  name: type.name,
-                }))}
-                documents={documents.map((document) => ({
-                  id: document.id,
-                  name: document.name,
-                }))}
-              />
-            </>
-          )}
-
+      <section id="timeline" className="grid grid-cols-[1.3fr_0.7fr] gap-3.5 scroll-mt-16">
+        <div className="rounded-[14px] border border-neutral-100 bg-white p-5">
+          <h2 className="mb-3 text-[14.5px] font-semibold text-ink">Timeline</h2>
+          <div className="flex flex-col gap-3">
+            {timeline.length === 0 && (
+              <p className="rounded-xl border border-dashed border-neutral-200 px-3 py-4 text-center text-[12px] text-neutral-400">
+                No activity recorded yet.
+              </p>
+            )}
+            {timeline.map((item) => (
+              <div
+                key={item.id}
+                className="border-b border-neutral-50 pb-3 last:border-0 last:pb-0"
+              >
+                <div className="mb-0.5 text-[10px] uppercase tracking-wide text-neutral-400">
+                  {item.eyebrow} / <RelativeTime date={item.at} />
+                </div>
+                <div className="text-[12.5px] font-medium text-ink">
+                  {item.label}
+                </div>
+                {item.detail && (
+                  <div className="mt-0.5 text-[12px] text-neutral-500">
+                    {item.detail}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div id="log-update">
           <LogInteractionForm
             companyId={company.id}
             deals={dealRows.map((deal) => ({ id: deal.id, name: deal.name }))}
+            title="Log update"
           />
-
-          <div className="rounded-[14px] border border-neutral-100 bg-white p-5">
-            <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
-              Unified Timeline
-            </h2>
-            <div className="flex flex-col gap-3">
-              {timeline.length === 0 && (
-                <p className="text-[12px] text-neutral-400">
-                  No activity recorded yet.
-                </p>
-              )}
-              {timeline.map((item) => (
-                <div
-                  key={item.id}
-                  className="border-b border-neutral-50 pb-3 last:border-0 last:pb-0"
-                >
-                  <div className="mb-0.5 text-[10px] uppercase tracking-wide text-neutral-400">
-                    {item.eyebrow} / {new Date(item.at).toLocaleString()}
-                  </div>
-                  <div className="text-[12.5px] font-medium text-ink">
-                    {item.label}
-                  </div>
-                  {item.detail && (
-                    <div className="mt-0.5 text-[12px] text-neutral-500">
-                      {item.detail}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
+      </section>
 
-        <div className="flex flex-col gap-3.5">
-          <div className="rounded-[14px] border border-neutral-100 bg-white p-5">
-            <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
-              People
-            </h2>
-            <div className="flex flex-col gap-3">
-              {(people ?? []).length === 0 && (
-                <p className="text-[12px] text-neutral-400">
-                  No people linked yet.
-                </p>
-              )}
-              {(people ?? []).map((p) => (
-                <div key={p.id} className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#f0fafb] text-[11px] font-semibold text-cyan-800">
-                    {p.name
-                      .split(" ")
-                      .map((n: string) => n[0])
-                      .slice(0, 2)
-                      .join("")}
-                  </div>
-                  <div>
-                    <div className="text-[12.5px] font-semibold">{p.name}</div>
-                    <div className="text-[11px] text-neutral-500">
-                      {p.title ?? "-"}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {(investments ?? []).length > 0 && (
-            <div className="rounded-[14px] border border-neutral-100 bg-white p-5">
-              <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
-                Investments
-              </h2>
-              <div className="flex flex-col gap-2">
-                {(investments ?? []).map((investment) => (
-                  <Link
-                    key={investment.id}
-                    href="/portfolio"
-                    className="rounded-xl border border-neutral-100 px-3 py-2.5 text-[12px] transition hover:border-cyan-200"
-                  >
-                    <div className="font-semibold text-ink">
-                      {investment.external_ref} / {investment.round_label ?? "Round"}
-                    </div>
-                    <div className="mt-0.5 text-neutral-500">
-                      {investment.instrument.replaceAll("_", " ")}
-                      {formatMoney(investment.total_amount)
-                        ? ` / ${formatMoney(investment.total_amount)}`
-                        : ""}
-                    </div>
-                    <div className="mt-0.5 text-neutral-400">
-                      {investment.investment_vehicles
-                        ?.map((row) => row.vehicle?.name)
-                        .filter(Boolean)
-                        .join(", ") || "Direct / to confirm"}
-                    </div>
-                  </Link>
-                ))}
+      <section id="people" className="rounded-[14px] border border-neutral-100 bg-white p-5 scroll-mt-16">
+        <h2 className="mb-3 text-[14.5px] font-semibold text-ink">People</h2>
+        <div className="grid grid-cols-2 gap-3">
+          {(people ?? []).length === 0 && (
+            <p className="col-span-2 rounded-xl border border-dashed border-neutral-200 px-3 py-4 text-center text-[12px] text-neutral-400">
+              People captures founders, operators and relationship owners tied to this company.
+            </p>
+          )}
+          {(people ?? []).map((p) => (
+            <div key={p.id} className="flex items-center gap-2.5 rounded-xl border border-neutral-100 px-3 py-2.5">
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#f0fafb] text-[11px] font-semibold text-cyan-800">
+                {p.name
+                  .split(" ")
+                  .map((n: string) => n[0])
+                  .slice(0, 2)
+                  .join("")}
+              </div>
+              <div>
+                <div className="text-[12.5px] font-semibold">{p.name}</div>
+                <div className="text-[11px] text-neutral-500">{p.title ?? "-"}</div>
               </div>
             </div>
-          )}
-
-          {company.website && (
-            <div className="rounded-[14px] border border-neutral-100 bg-white p-5">
-              <h2 className="mb-2 text-[14.5px] font-semibold text-ink">
-                Website
-              </h2>
-              <a
-                href={company.website}
-                target="_blank"
-                rel="noreferrer"
-                className="text-[12.5px] text-cyan-700 hover:underline"
-              >
-                {company.website}
-              </a>
-            </div>
-          )}
-
-          <DocumentsCard
-            companyId={company.id}
-            companyName={company.name}
-            dealId={primaryDeal?.id ?? null}
-            documents={documents}
-            categories={documentCategories ?? []}
-            documentTypes={(documentTypes ?? []).map((type) => ({
-              id: type.id,
-              name: type.name,
-              categoryId: type.category_id,
-            }))}
-          />
+          ))}
         </div>
-      </div>
+      </section>
+
+      <section id="documents" className="scroll-mt-16">
+        <DocumentsCard
+          companyId={company.id}
+          companyName={company.name}
+          dealId={primaryDeal?.id ?? null}
+          documents={documents}
+          categories={documentCategories ?? []}
+          documentTypes={(documentTypes ?? []).map((type) => ({
+            id: type.id,
+            name: type.name,
+            categoryId: type.category_id,
+          }))}
+        />
+      </section>
+
+      <section id="investments" className="rounded-[14px] border border-neutral-100 bg-white p-5 scroll-mt-16">
+        <h2 className="mb-3 text-[14.5px] font-semibold text-ink">Investments</h2>
+        {(investments ?? []).length === 0 ? (
+          <p className="rounded-xl border border-dashed border-neutral-200 px-3 py-4 text-center text-[12px] text-neutral-400">
+            Investments linked to this company will appear here after portfolio reconciliation.
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {(investments ?? []).map((investment) => {
+              const vehicle = investment.investment_vehicles?.[0]?.vehicle;
+
+              return (
+                <Link
+                  key={investment.id}
+                  href={
+                    vehicle
+                      ? `/portfolio/vehicles/${vehicle.id}?investment=${investment.id}#checklist`
+                      : "/portfolio"
+                  }
+                  className="rounded-xl border border-neutral-100 px-3 py-2.5 text-[12px] transition hover:border-cyan-200"
+                >
+                  <div className="font-semibold text-ink">
+                    {investment.external_ref} / {investment.round_label ?? "Round"}
+                  </div>
+                  <div className="mt-0.5 text-neutral-500">
+                    {labelForInstrument(investment.instrument)}
+                    {formatMoney(investment.total_amount)
+                      ? ` / ${formatMoney(investment.total_amount)}`
+                      : ""}
+                  </div>
+                  <div className="mt-0.5 text-neutral-400">
+                    {investment.investment_vehicles
+                      ?.map((row) => row.vehicle?.name)
+                      .filter(Boolean)
+                      .join(", ") || "Direct / to confirm"}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

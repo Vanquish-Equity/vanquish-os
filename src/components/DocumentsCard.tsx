@@ -7,6 +7,7 @@ import {
   uploadDocumentAction,
 } from "@/lib/documents/actions";
 import { formatCanonicalDocumentName } from "@/lib/documents/naming";
+import { labelForDocumentStatus, labelForEntityRole } from "@/lib/labels";
 
 export type DocumentItem = {
   id: string;
@@ -201,7 +202,7 @@ export default function DocumentsCard({
             {["TARGET", "SPV", "LP", "FUND", "VANQUISH", "DEAL", "COUNTERPARTY"].map(
               (role) => (
                 <option key={role} value={role}>
-                  {role}
+                  {labelForEntityRole(role)}
                 </option>
               )
             )}
@@ -217,7 +218,7 @@ export default function DocumentsCard({
             {["UNKNOWN", "DRAFT", "EXECUTED", "RECEIVED", "SUPERSEDED"].map(
               (status) => (
                 <option key={status} value={status}>
-                  {status}
+                  {labelForDocumentStatus(status)}
                 </option>
               )
             )}

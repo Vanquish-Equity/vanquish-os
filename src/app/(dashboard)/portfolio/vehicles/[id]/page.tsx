@@ -3,6 +3,12 @@ import { notFound } from "next/navigation";
 import ApplyPortfolioTemplateButton from "@/components/ApplyPortfolioTemplateButton";
 import RequirementInlineControls from "@/components/RequirementInlineControls";
 import { addCapitalEventAction } from "@/lib/portfolio/actions";
+import {
+  labelForCriticality,
+  labelForEventType,
+  labelForInstrument,
+  labelForVehicleStatus,
+} from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -89,11 +95,24 @@ function companyTemplateForInstrument(instrument: string) {
   return "COMPANY_PREFERRED_EQUITY";
 }
 
+function matchesRequirementFilter(row: Requirement, filter: string | undefined) {
+  if (filter === "critical_missing") {
+    return row.criticality === "critical" && row.status === "missing";
+  }
+  if (filter === "needs_review") return row.status === "needs_review";
+  if (filter === "open_gaps") {
+    return row.status === "missing" || row.status === "needs_review";
+  }
+  return true;
+}
+
 function RequirementTable({
+  emptyText = "No checklist items match this filter.",
   title,
   rows,
   path,
 }: {
+  emptyText?: string;
   title: string;
   rows: Requirement[];
   path: string;
@@ -104,7 +123,7 @@ function RequirementTable({
       <div className="flex flex-col gap-2">
         {rows.length === 0 && (
           <p className="rounded-xl border border-dashed border-neutral-200 px-3 py-4 text-center text-[12px] text-neutral-400">
-            No requirements loaded.
+            {emptyText}
           </p>
         )}
         {rows.map((row) => (
@@ -117,7 +136,7 @@ function RequirementTable({
                 {row.expected_label}
               </div>
               <div className="mt-0.5 text-[10.5px] uppercase tracking-wide text-neutral-400">
-                {row.criticality}
+                {labelForCriticality(row.criticality)}
               </div>
               {(row.drive_url || row.found_file_name || row.notes) && (
                 <div className="mt-1 text-[11.5px] text-neutral-500">
@@ -151,11 +170,14 @@ function RequirementTable({
 }
 
 export default async function VehiclePage({
+  searchParams,
   params,
 }: {
+  searchParams: Promise<{ filter?: string; investment?: string }>;
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const checklistFilters = await searchParams;
   const supabase = await createClient();
   const path = `/portfolio/vehicles/${id}`;
 
@@ -236,6 +258,21 @@ export default async function VehiclePage({
       row.investment_id &&
       investmentIds.has(row.investment_id)
   );
+  const filteredSpvRequirements = spvRequirements.filter((row) =>
+    matchesRequirementFilter(row, checklistFilters.filter)
+  );
+  const filteredInvestorRequirements = investorRequirements.filter((row) =>
+    matchesRequirementFilter(row, checklistFilters.filter)
+  );
+  const filteredCompanyRequirements = companyRequirements.filter((row) => {
+    if (
+      checklistFilters.investment &&
+      row.investment_id !== checklistFilters.investment
+    ) {
+      return false;
+    }
+    return matchesRequirementFilter(row, checklistFilters.filter);
+  });
   const totalCapital = (positions ?? []).reduce(
     (sum, position) => sum + (position.amount ?? 0),
     0
@@ -262,7 +299,7 @@ export default async function VehiclePage({
         </h1>
         <p className="mt-1 text-[13px] text-neutral-500">
           {vehicle.entity_type.toUpperCase()} / {vehicle.jurisdiction ?? "Jurisdiction to confirm"} /{" "}
-          {vehicle.vehicle_status.replaceAll("_", " ")}
+          {labelForVehicleStatus(vehicle.vehicle_status)}
         </p>
       </header>
 
@@ -271,7 +308,7 @@ export default async function VehiclePage({
           <div className="mb-3 flex items-start justify-between gap-3">
             <h2 className="text-[14.5px] font-semibold text-ink">Vehicle Details</h2>
             <ApplyPortfolioTemplateButton
-              label="Apply SPV Template"
+              label="Start SPV checklist"
               templateCode={templateForVehicle(vehicle.entity_type)}
               scope="spv"
               vehicleId={vehicle.id}
@@ -307,11 +344,11 @@ export default async function VehiclePage({
                 </Link>
                 <div className="mt-0.5 text-[11.5px] text-neutral-500">
                   {investment.external_ref} / {investment.round_label ?? "Round"} /{" "}
-                  {investment.instrument.replaceAll("_", " ")}
+                  {labelForInstrument(investment.instrument)}
                 </div>
                 <div className="mt-2">
                   <ApplyPortfolioTemplateButton
-                    label="Apply Company Template"
+                    label="Start company checklist"
                     templateCode={companyTemplateForInstrument(investment.instrument)}
                     scope="spv_company"
                     investmentId={investment.id}
@@ -354,8 +391,17 @@ export default async function VehiclePage({
                   </Link>
                 </td>
                 <td className="px-3 py-2 text-neutral-600">
-                  {position.investment?.company?.name ?? "-"} /{" "}
-                  {position.investment?.round_label ?? position.investment?.external_ref}
+                  {position.investment?.company ? (
+                    <Link
+                      href={`/companies/${position.investment.company.id}`}
+                      className="hover:text-cyan-700"
+                    >
+                      {position.investment.company.name}
+                    </Link>
+                  ) : (
+                    "-"
+                  )}{" "}
+                  / {position.investment?.round_label ?? position.investment?.external_ref}
                 </td>
                 <td className="px-3 py-2 text-neutral-600">
                   {formatMoney(position.amount)}
@@ -370,7 +416,7 @@ export default async function VehiclePage({
                 </td>
                 <td className="px-3 py-2">
                   <ApplyPortfolioTemplateButton
-                    label="Apply Investor Template"
+                    label="Start investor checklist"
                     templateCode={investorTemplateForVehicle(vehicle.entity_type)}
                     scope="investor_spv"
                     positionId={position.id}
@@ -391,7 +437,7 @@ export default async function VehiclePage({
           {(capitalEvents ?? []).map((event) => (
             <div key={event.id} className="rounded-xl border border-neutral-100 px-3 py-2.5">
               <div className="text-[12.5px] font-semibold text-ink">
-                {event.event_type.replaceAll("_", " ")}
+                {labelForEventType(event.event_type)}
                 {event.event_date ? ` / ${new Date(event.event_date).toLocaleDateString()}` : ""}
               </div>
               <div className="mt-0.5 text-[11.5px] text-neutral-500">
@@ -424,7 +470,7 @@ export default async function VehiclePage({
               "other",
             ].map((eventType) => (
               <option key={eventType} value={eventType}>
-                {eventType.replaceAll("_", " ")}
+                {labelForEventType(eventType)}
               </option>
             ))}
           </select>
@@ -444,17 +490,49 @@ export default async function VehiclePage({
         </form>
       </div>
 
-      <RequirementTable title="SPV Documents" rows={spvRequirements} path={path} />
-      <RequirementTable
-        title="Investor -> SPV"
-        rows={investorRequirements}
-        path={path}
-      />
-      <RequirementTable
-        title="SPV -> Company"
-        rows={companyRequirements}
-        path={path}
-      />
+      <div id="checklist" className="flex flex-col gap-4 scroll-mt-6">
+        <div className="flex flex-wrap items-center gap-2 rounded-[14px] border border-neutral-100 bg-white px-3 py-2">
+          <Link
+            href={path}
+            className="rounded-lg border border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-600 transition hover:border-neutral-300 hover:text-neutral-800"
+          >
+            All checklist items
+          </Link>
+          <Link
+            href={`${path}?filter=open_gaps#checklist`}
+            className="rounded-lg border border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
+          >
+            Open gaps
+          </Link>
+          <Link
+            href={`${path}?filter=critical_missing#checklist`}
+            className="rounded-lg border border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
+          >
+            Critical missing
+          </Link>
+          <Link
+            href={`${path}?filter=needs_review#checklist`}
+            className="rounded-lg border border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
+          >
+            Needs review
+          </Link>
+        </div>
+        <RequirementTable
+          title="SPV Documents"
+          rows={filteredSpvRequirements}
+          path={path}
+        />
+        <RequirementTable
+          title="Investor to SPV"
+          rows={filteredInvestorRequirements}
+          path={path}
+        />
+        <RequirementTable
+          title="SPV to Company"
+          rows={filteredCompanyRequirements}
+          path={path}
+        />
+      </div>
     </div>
   );
 }

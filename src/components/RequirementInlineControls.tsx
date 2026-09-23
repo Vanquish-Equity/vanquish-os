@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateRequirementAction } from "@/lib/requirements/actions";
+import { labelForExecuted, labelForRequirementStatus } from "@/lib/labels";
 
 const STATUSES = [
   "not_searched",
@@ -57,7 +58,7 @@ export default function RequirementInlineControls({
       >
         {STATUSES.map((item) => (
           <option key={item} value={item}>
-            {item.replaceAll("_", " ")}
+            {labelForRequirementStatus(item)}
           </option>
         ))}
       </select>
@@ -69,7 +70,7 @@ export default function RequirementInlineControls({
       >
         {["unknown", "yes", "no"].map((item) => (
           <option key={item} value={item}>
-            executed: {item}
+            {labelForExecuted(item)}
           </option>
         ))}
       </select>

@@ -25,7 +25,7 @@ export default function ApplyPortfolioTemplateButton({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  function applyTemplate() {
+  function applyChecklist() {
     startTransition(async () => {
       const result = await applyPortfolioTemplateAction({
         templateCode,
@@ -50,7 +50,7 @@ export default function ApplyPortfolioTemplateButton({
       <button
         type="button"
         disabled={isPending}
-        onClick={applyTemplate}
+        onClick={applyChecklist}
         className="rounded-lg border border-neutral-200 px-3 py-1.5 text-[11px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800 disabled:opacity-50"
       >
         {isPending ? "Applying..." : label}

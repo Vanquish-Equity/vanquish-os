@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import RequirementInlineControls from "@/components/RequirementInlineControls";
+import { humanizeCode, labelForCriticality } from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -105,14 +106,14 @@ export default async function InvestorPage({
           <Link href="/portfolio" className="hover:text-cyan-700">
             Portfolio
           </Link>{" "}
-          / Investor
+          / Investors / {investor.display_name}
         </div>
         <h1 className="font-[family-name:var(--font-display)] text-[25px] font-semibold tracking-tight text-ink">
           {investor.display_name}
         </h1>
         <p className="mt-1 text-[13px] text-neutral-500">
           {investor.legal_name ?? "Legal name to confirm"} /{" "}
-          {investor.investor_type}
+          {humanizeCode(investor.investor_type)}
         </p>
       </header>
 
@@ -175,7 +176,7 @@ export default async function InvestorPage({
                     {formatMoney(position.amount)}
                   </td>
                   <td className="px-3 py-2 text-neutral-600">
-                    {position.status.replaceAll("_", " ")}
+                    {humanizeCode(position.status)}
                   </td>
                 </tr>
               ))}
@@ -204,7 +205,7 @@ export default async function InvestorPage({
                   {row.expected_label}
                 </div>
                 <div className="mt-0.5 text-[10.5px] uppercase tracking-wide text-neutral-400">
-                  {row.criticality}
+                  {labelForCriticality(row.criticality)}
                 </div>
                 {(row.drive_url || row.found_file_name || row.notes) && (
                   <div className="mt-1 text-[11.5px] text-neutral-500">

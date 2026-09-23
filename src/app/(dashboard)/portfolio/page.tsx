@@ -1,4 +1,8 @@
 import Link from "next/link";
+import {
+  labelForFundingStatus,
+  labelForInstrument,
+} from "@/lib/labels";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -39,10 +43,13 @@ export default async function PortfolioPage({
   searchParams: Promise<{
     vehicle?: string;
     instrument?: string;
+    filter?: string;
     criticalMissing?: string;
   }>;
 }) {
   const filters = await searchParams;
+  const healthFilter =
+    filters.filter ?? (filters.criticalMissing === "1" ? "critical_missing" : "");
   const supabase = await createClient();
   const [{ data: investments }, { data: requirements }, { data: vehicles }] =
     await Promise.all([
@@ -105,7 +112,10 @@ export default async function PortfolioPage({
     if (filters.instrument && investment.instrument !== filters.instrument) {
       return false;
     }
-    if (filters.criticalMissing === "1" && !health?.criticalMissing) {
+    if (healthFilter === "critical_missing" && !health?.criticalMissing) {
+      return false;
+    }
+    if (healthFilter === "needs_review" && !health?.needsReview) {
       return false;
     }
     return true;
@@ -156,18 +166,28 @@ export default async function PortfolioPage({
                 : "border-neutral-200 text-neutral-600 hover:border-cyan-300 hover:text-cyan-800"
             }`}
           >
-            {instrument.replaceAll("_", " ")}
+            {labelForInstrument(instrument)}
           </Link>
         ))}
         <Link
-          href="/portfolio?criticalMissing=1"
+          href="/portfolio?filter=critical_missing"
           className={`rounded-lg border px-3 py-1.5 text-[11.5px] font-semibold transition ${
-            filters.criticalMissing === "1"
+            healthFilter === "critical_missing"
               ? "border-cyan-300 text-cyan-800"
               : "border-neutral-200 text-neutral-600 hover:border-cyan-300 hover:text-cyan-800"
           }`}
         >
           Has critical missing
+        </Link>
+        <Link
+          href="/portfolio?filter=needs_review"
+          className={`rounded-lg border px-3 py-1.5 text-[11.5px] font-semibold transition ${
+            healthFilter === "needs_review"
+              ? "border-cyan-300 text-cyan-800"
+              : "border-neutral-200 text-neutral-600 hover:border-cyan-300 hover:text-cyan-800"
+          }`}
+        >
+          Needs review
         </Link>
       </div>
 
@@ -210,7 +230,7 @@ export default async function PortfolioPage({
                     {investment.round_label ?? "-"}
                   </td>
                   <td className="px-4 py-3 text-neutral-600">
-                    {investment.instrument.replaceAll("_", " ")}
+                    {labelForInstrument(investment.instrument)}
                   </td>
                   <td className="px-4 py-3 text-neutral-600">
                     {investment.investment_date
@@ -240,7 +260,7 @@ export default async function PortfolioPage({
                     </div>
                   </td>
                   <td className="px-4 py-3 text-neutral-600">
-                    {investment.funding_status.replaceAll("_", " ")}
+                    {labelForFundingStatus(investment.funding_status)}
                   </td>
                   <td className="px-4 py-3 text-neutral-600">
                     <span className="font-semibold text-ink">
