@@ -23,6 +23,9 @@ create index if not exists document_requirements_document_type_id_idx
 create index if not exists document_requirements_satisfied_by_document_id_idx
   on document_requirements(satisfied_by_document_id);
 create index if not exists investors_person_id_idx on investors(person_id);
+create index if not exists capital_events_document_id_idx on capital_events(document_id);
+create index if not exists capital_events_investor_id_idx on capital_events(investor_id);
+create index if not exists investments_deal_id_idx on investments(deal_id);
 
 -- Supabase's auth_rls_initplan advisor flags policies that evaluate
 -- auth.role() once per row. Recreate each affected public policy with the
@@ -39,7 +42,10 @@ begin
     select schemaname, tablename, policyname, roles, cmd, qual, with_check
     from pg_policies
     where schemaname = 'public'
-      and (qual like '%auth.role()%' or with_check like '%auth.role()%')
+      and (
+        (qual ~* 'auth\.role\(\)' and qual !~* 'select\s+auth\.role\(\)')
+        or (with_check ~* 'auth\.role\(\)' and with_check !~* 'select\s+auth\.role\(\)')
+      )
   loop
     using_expression := replace(policy_row.qual, 'auth.role()', '(select auth.role())');
     check_expression := replace(policy_row.with_check, 'auth.role()', '(select auth.role())');
