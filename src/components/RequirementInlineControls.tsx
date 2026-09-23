@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateRequirementAction } from "@/lib/requirements/actions";
 import { labelForExecuted, labelForRequirementStatus } from "@/lib/labels";
+import SelectMenu from "@/components/SelectMenu";
 
 const STATUSES = [
   "not_searched",
@@ -29,8 +30,6 @@ export default function RequirementInlineControls({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const inputClass =
-    "rounded-lg border border-neutral-100 bg-white px-2 py-1.5 text-[11.5px] font-medium text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100";
 
   function update(next: { status?: string; executed?: string }) {
     startTransition(async () => {
@@ -50,30 +49,28 @@ export default function RequirementInlineControls({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <select
+      <SelectMenu
         value={status}
         disabled={isPending}
-        onChange={(event) => update({ status: event.target.value })}
-        className={inputClass}
-      >
-        {STATUSES.map((item) => (
-          <option key={item} value={item}>
-            {labelForRequirementStatus(item)}
-          </option>
-        ))}
-      </select>
-      <select
+        onChange={(value) => update({ status: value })}
+        options={STATUSES.map((item) => ({
+          label: labelForRequirementStatus(item),
+          value: item,
+        }))}
+        buttonClassName="rounded-lg px-2 py-1.5 text-[11.5px] font-medium"
+        rootClassName="min-w-[132px]"
+      />
+      <SelectMenu
         value={executed}
         disabled={isPending}
-        onChange={(event) => update({ executed: event.target.value })}
-        className={inputClass}
-      >
-        {["unknown", "yes", "no"].map((item) => (
-          <option key={item} value={item}>
-            {labelForExecuted(item)}
-          </option>
-        ))}
-      </select>
+        onChange={(value) => update({ executed: value })}
+        options={["unknown", "yes", "no"].map((item) => ({
+          label: labelForExecuted(item),
+          value: item,
+        }))}
+        buttonClassName="rounded-lg px-2 py-1.5 text-[11.5px] font-medium"
+        rootClassName="min-w-[98px]"
+      />
       {error && <span className="text-[11px] text-red-600">{error}</span>}
     </div>
   );

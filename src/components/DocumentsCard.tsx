@@ -8,6 +8,7 @@ import {
 } from "@/lib/documents/actions";
 import { formatCanonicalDocumentName } from "@/lib/documents/naming";
 import { labelForDocumentStatus, labelForEntityRole } from "@/lib/labels";
+import SelectMenu from "@/components/SelectMenu";
 
 export type DocumentItem = {
   id: string;
@@ -59,9 +60,9 @@ function FileIcon() {
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <label className="flex flex-col gap-1 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
+    <div className="flex flex-col gap-1 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
       {children}
-    </label>
+    </div>
   );
 }
 
@@ -194,70 +195,72 @@ export default function DocumentsCard({
       <div className="mb-3 grid grid-cols-2 gap-2">
         <FieldLabel>
           Entity
-          <select
+          <SelectMenu
             value={entityRole}
-            onChange={(event) => setEntityRole(event.target.value)}
-            className={inputClass}
-          >
-            {["TARGET", "SPV", "LP", "FUND", "VANQUISH", "DEAL", "COUNTERPARTY"].map(
-              (role) => (
-                <option key={role} value={role}>
-                  {labelForEntityRole(role)}
-                </option>
-              )
-            )}
-          </select>
+            onChange={setEntityRole}
+            options={[
+              "TARGET",
+              "SPV",
+              "LP",
+              "FUND",
+              "VANQUISH",
+              "DEAL",
+              "COUNTERPARTY",
+            ].map((role) => ({
+              label: labelForEntityRole(role),
+              value: role,
+            }))}
+            buttonClassName="text-[12px] font-medium"
+          />
         </FieldLabel>
         <FieldLabel>
           Status
-          <select
+          <SelectMenu
             value={docStatus}
-            onChange={(event) => setDocStatus(event.target.value)}
-            className={inputClass}
-          >
-            {["UNKNOWN", "DRAFT", "EXECUTED", "RECEIVED", "SUPERSEDED"].map(
-              (status) => (
-                <option key={status} value={status}>
-                  {labelForDocumentStatus(status)}
-                </option>
-              )
+            onChange={setDocStatus}
+            options={["UNKNOWN", "DRAFT", "EXECUTED", "RECEIVED", "SUPERSEDED"].map(
+              (status) => ({
+                label: labelForDocumentStatus(status),
+                value: status,
+              })
             )}
-          </select>
+            buttonClassName="text-[12px] font-medium"
+          />
         </FieldLabel>
         <FieldLabel>
           Category
-          <select
+          <SelectMenu
             value={categoryId}
-            onChange={(event) => {
-              setCategoryId(event.target.value);
+            onChange={(value) => {
+              setCategoryId(value);
               setDocumentTypeId("");
             }}
-            className={inputClass}
-          >
-            <option value="">None</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
+            options={[
+              { label: "None", value: "" },
+              ...categories.map((category) => ({
+                label: category.name,
+                value: category.id,
+              })),
+            ]}
+            buttonClassName="text-[12px] font-medium"
+          />
         </FieldLabel>
         <FieldLabel>
           Type
-          <select
+          <SelectMenu
             value={documentTypeId}
-            onChange={(event) => setDocumentTypeId(event.target.value)}
-            className={inputClass}
-          >
-            <option value="">None</option>
-            {documentTypes
+            onChange={setDocumentTypeId}
+            options={[
+              { label: "None", value: "" },
+              ...documentTypes
               .filter((type) => !categoryId || type.categoryId === categoryId)
-              .map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
-              ))}
-          </select>
+              .map((type) => ({
+                label: type.name,
+                value: type.id,
+              })),
+            ]}
+            buttonClassName="text-[12px] font-medium"
+          />
         </FieldLabel>
         <FieldLabel>
           Date

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import ApplyPortfolioTemplateButton from "@/components/ApplyPortfolioTemplateButton";
 import RequirementInlineControls from "@/components/RequirementInlineControls";
+import { FormSelectMenu } from "@/components/SelectMenu";
 import { addCapitalEventAction } from "@/lib/portfolio/actions";
 import {
   labelForCriticality,
@@ -453,8 +454,10 @@ export default async function VehiclePage({
         <form action={addCapitalEvent} className="grid grid-cols-[150px_150px_1fr_auto] gap-2">
           <input type="hidden" name="vehicleId" value={vehicle.id} />
           <input type="hidden" name="returnPath" value={path} />
-          <select name="eventType" className="rounded-xl border border-neutral-100 px-2.5 py-2 text-[12px]">
-            {[
+          <FormSelectMenu
+            name="eventType"
+            defaultValue="formation"
+            options={[
               "formation",
               "operating_agreement",
               "shareholders_agreement",
@@ -468,12 +471,12 @@ export default async function VehiclePage({
               "wire_in",
               "wire_out",
               "other",
-            ].map((eventType) => (
-              <option key={eventType} value={eventType}>
-                {labelForEventType(eventType)}
-              </option>
-            ))}
-          </select>
+            ].map((eventType) => ({
+              label: labelForEventType(eventType),
+              value: eventType,
+            }))}
+            buttonClassName="px-2.5 py-2 text-[12px]"
+          />
           <input
             type="date"
             name="eventDate"

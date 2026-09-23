@@ -14,6 +14,7 @@ import {
   labelForCriticality,
   labelForRequirementStatus,
 } from "@/lib/labels";
+import SelectMenu from "@/components/SelectMenu";
 
 export type RequirementItem = {
   id: string;
@@ -239,29 +240,30 @@ export default function DueDiligenceCard({
                       </div>
                     )}
                     {linkingRequirementId === requirement.id && (
-                      <select
+                      <SelectMenu
                         value={requirement.satisfiedByDocumentId ?? ""}
                         disabled={isPending}
-                        onChange={(event) => {
-                          if (!event.target.value) return;
+                        onChange={(value) => {
+                          if (!value) return;
                           run(() =>
                             linkRequirementDocumentAction({
                               companyId,
-                              documentId: event.target.value,
+                              documentId: value,
                               requirementId: requirement.id,
                             })
                           );
                           setLinkingRequirementId(null);
                         }}
-                        className={`${inputClass} mt-2 w-full`}
-                      >
-                        <option value="">Choose document</option>
-                        {documents.map((document) => (
-                          <option key={document.id} value={document.id}>
-                            {document.name}
-                          </option>
-                        ))}
-                      </select>
+                        options={[
+                          { label: "Choose document", value: "" },
+                          ...documents.map((document) => ({
+                            label: document.name,
+                            value: document.id,
+                          })),
+                        ]}
+                        buttonClassName="text-[12px] font-medium"
+                        rootClassName="mt-2"
+                      />
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-2">

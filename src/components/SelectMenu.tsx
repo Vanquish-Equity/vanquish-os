@@ -17,6 +17,7 @@ export default function SelectMenu({
   autoFocus = false,
   onChange,
   buttonClassName = "",
+  rootClassName = "",
 }: {
   id?: string;
   value: string;
@@ -26,6 +27,7 @@ export default function SelectMenu({
   autoFocus?: boolean;
   onChange: (value: string) => void;
   buttonClassName?: string;
+  rootClassName?: string;
 }) {
   const generatedId = useId();
   const listboxId = `${id ?? generatedId}-listbox`;
@@ -58,7 +60,7 @@ export default function SelectMenu({
   }, [open]);
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className={`relative ${rootClassName}`}>
       <button
         id={id}
         type="button"
@@ -131,5 +133,69 @@ export default function SelectMenu({
         </div>
       )}
     </div>
+  );
+}
+
+export function FormSelectMenu({
+  autoFocus = false,
+  buttonClassName = "",
+  defaultValue = "",
+  disabled = false,
+  id,
+  name,
+  onChange,
+  options,
+  placeholder = "Select",
+  rootClassName = "",
+}: {
+  autoFocus?: boolean;
+  buttonClassName?: string;
+  defaultValue?: string;
+  disabled?: boolean;
+  id?: string;
+  name: string;
+  onChange?: (value: string) => void;
+  options: SelectMenuOption[];
+  placeholder?: string;
+  rootClassName?: string;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [selection, setSelection] = useState({
+    defaultValue,
+    value: defaultValue,
+  });
+  const value =
+    selection.defaultValue === defaultValue ? selection.value : defaultValue;
+
+  useEffect(() => {
+    const form = inputRef.current?.form;
+    if (!form) return;
+
+    function handleReset() {
+      setSelection({ defaultValue, value: defaultValue });
+    }
+
+    form.addEventListener("reset", handleReset);
+    return () => form.removeEventListener("reset", handleReset);
+  }, [defaultValue]);
+
+  return (
+    <>
+      <input ref={inputRef} type="hidden" name={name} value={value} />
+      <SelectMenu
+        id={id}
+        value={value}
+        options={options}
+        placeholder={placeholder}
+        disabled={disabled}
+        autoFocus={autoFocus}
+        onChange={(nextValue) => {
+          setSelection({ defaultValue, value: nextValue });
+          onChange?.(nextValue);
+        }}
+        buttonClassName={buttonClassName}
+        rootClassName={rootClassName}
+      />
+    </>
   );
 }

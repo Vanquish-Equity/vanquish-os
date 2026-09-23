@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { logInteractionAction } from "@/lib/interactions/actions";
+import { FormSelectMenu } from "@/components/SelectMenu";
 
 export type InteractionDealOption = {
   id: string;
@@ -57,26 +58,32 @@ export default function LogInteractionForm({
       )}
       <form ref={formRef} onSubmit={handleSubmit} className="grid gap-2">
         <div className="grid grid-cols-3 gap-2">
-          <select name="type" className={inputClass} defaultValue="note">
-            {["note", "call", "meeting", "email", "other"].map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
+          <FormSelectMenu
+            name="type"
+            defaultValue="note"
+            options={["note", "call", "meeting", "email", "other"].map((type) => ({
+              label: type,
+              value: type,
+            }))}
+            buttonClassName="text-[12px] font-medium"
+          />
           <input
             name="occurredAt"
             type="datetime-local"
             className={inputClass}
           />
-          <select name="dealId" className={inputClass} defaultValue={initialDealId}>
-            <option value="">Company-level</option>
-            {deals.map((deal) => (
-              <option key={deal.id} value={deal.id}>
-                {deal.name}
-              </option>
-            ))}
-          </select>
+          <FormSelectMenu
+            name="dealId"
+            defaultValue={initialDealId}
+            options={[
+              { label: "Company-level", value: "" },
+              ...deals.map((deal) => ({
+                label: deal.name,
+                value: deal.id,
+              })),
+            ]}
+            buttonClassName="text-[12px] font-medium"
+          />
         </div>
         <input
           name="subject"

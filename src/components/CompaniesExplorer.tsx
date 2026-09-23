@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import RelativeTime from "@/components/RelativeTime";
+import SelectMenu from "@/components/SelectMenu";
 import {
   filterCompanies,
   sortCompanies,
@@ -283,17 +284,16 @@ export default function CompaniesExplorer({
               toggleListValue("outcome", value, filters.outcomes ?? [])
             }
           />
-          <select
+          <SelectMenu
             value={filters.hasInvestment ?? ""}
-            onChange={(event) =>
-              updateQuery({ hasInvestment: event.target.value || null })
-            }
-            className="rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[11.5px] font-semibold text-neutral-600 outline-none transition hover:border-cyan-300 focus:border-cyan-300"
-          >
-            <option value="">Has investment</option>
-            <option value="yes">Invested only</option>
-            <option value="no">No investment</option>
-          </select>
+            onChange={(value) => updateQuery({ hasInvestment: value || null })}
+            options={[
+              { label: "Has investment", value: "" },
+              { label: "Invested only", value: "yes" },
+              { label: "No investment", value: "no" },
+            ]}
+            buttonClassName="rounded-full border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-600"
+          />
           <button
             type="button"
             onClick={clearFilters}
@@ -308,24 +308,32 @@ export default function CompaniesExplorer({
           </div>
           <div className="flex items-center gap-2">
             {view === "cards" && (
-              <select
+              <SelectMenu
                 value={sort ? `${sort.key}:${sort.direction}` : "last_update:desc"}
-                onChange={(event) => {
-                  const [key, direction] = event.target.value.split(":");
+                onChange={(value) => {
+                  const [key, direction] = value.split(":");
                   updateQuery({
                     dir: direction === "asc" ? "asc" : "desc",
                     sort: asSortKey(key) ?? "last_update",
                   });
                 }}
-                className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-[11.5px] font-semibold text-neutral-600 outline-none"
-              >
-                <option value="last_update:desc">Last update, newest first</option>
-                <option value="last_update:asc">Last update, oldest first</option>
-                <option value="company:asc">Company, A-Z</option>
-                <option value="company:desc">Company, Z-A</option>
-                <option value="deals:desc">Deals, most first</option>
-                <option value="invested:desc">Invested first</option>
-              </select>
+                options={[
+                  {
+                    label: "Last update, newest first",
+                    value: "last_update:desc",
+                  },
+                  {
+                    label: "Last update, oldest first",
+                    value: "last_update:asc",
+                  },
+                  { label: "Company, A-Z", value: "company:asc" },
+                  { label: "Company, Z-A", value: "company:desc" },
+                  { label: "Deals, most first", value: "deals:desc" },
+                  { label: "Invested first", value: "invested:desc" },
+                ]}
+                buttonClassName="rounded-lg border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-600"
+                rootClassName="min-w-[190px]"
+              />
             )}
             <div className="rounded-full border border-neutral-200 p-0.5">
               <button
