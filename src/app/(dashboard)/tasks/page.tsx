@@ -1,0 +1,105 @@
+import { createClient } from "@/lib/supabase/server";
+import NewTaskModal from "@/components/NewTaskModal";
+import TaskRow, { type TaskItem } from "@/components/TaskRow";
+
+export const dynamic = "force-dynamic";
+
+type Option = { id: string; name: string };
+
+type TaskRowData = {
+  id: string;
+  title: string;
+  owner: string | null;
+  due_at: string | null;
+  status: "open" | "done";
+  company_id: string | null;
+  company: { id: string; name: string } | null;
+  priority: { name: string } | null;
+};
+
+export default async function TasksPage() {
+  const supabase = await createClient();
+
+  const [{ data: tasks }, { data: companies }, { data: priorities }] =
+    await Promise.all([
+      supabase
+        .from("tasks")
+        .select(
+          "id,title,owner,due_at,status,company_id,company:companies(id,name),priority:priorities(name)"
+        )
+        .order("due_at", { ascending: true, nullsFirst: false }) as unknown as Promise<{
+        data: TaskRowData[] | null;
+      }>,
+      supabase
+        .from("companies")
+        .select("id,name")
+        .is("deleted_at", null)
+        .order("name") as unknown as Promise<{ data: Option[] }>,
+      supabase
+        .from("priorities")
+        .select("id,name")
+        .order("sort_order") as unknown as Promise<{ data: Option[] }>,
+    ]);
+
+  const allTasks: TaskItem[] = (tasks ?? []).map((t) => ({
+    id: t.id,
+    title: t.title,
+    owner: t.owner,
+    dueAt: t.due_at,
+    status: t.status,
+    priorityName: t.priority?.name ?? null,
+    companyId: t.company_id,
+    companyName: t.company?.name ?? null,
+  }));
+
+  const openTasks = allTasks
+    .filter((t) => t.status === "open")
+    .sort((a, b) => {
+      // Overdue/soonest due first, tasks with no due date last.
+      if (!a.dueAt && !b.dueAt) return 0;
+      if (!a.dueAt) return 1;
+      if (!b.dueAt) return -1;
+      return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
+    });
+  const doneTasks = allTasks.filter((t) => t.status === "done");
+
+  return (
+    <div className="flex flex-col gap-4 px-7 py-6">
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">
+            Tasks
+          </h1>
+          <p className="mt-1 text-[13px] text-neutral-500">
+            Follow-ups and next actions, linked to a company when relevant.
+          </p>
+        </div>
+        <NewTaskModal companies={companies ?? []} priorities={priorities ?? []} />
+      </header>
+
+      <div className="rounded-[14px] border border-neutral-100 bg-white">
+        <div className="border-b border-neutral-100 px-4 py-2.5 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
+          Open ({openTasks.length})
+        </div>
+        {openTasks.length === 0 ? (
+          <div className="px-4 py-8 text-center text-[12.5px] text-neutral-400">
+            No open tasks.
+          </div>
+        ) : (
+          openTasks.map((task) => <TaskRow key={task.id} task={task} />)
+        )}
+      </div>
+
+      {doneTasks.length > 0 && (
+        <div className="rounded-[14px] border border-neutral-100 bg-white">
+          <div className="border-b border-neutral-100 px-4 py-2.5 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
+            Done ({doneTasks.length})
+          </div>
+          {doneTasks.map((task) => (
+            <TaskRow key={task.id} task={task} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

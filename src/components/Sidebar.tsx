@@ -5,8 +5,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const workspaceItems = [
+  { href: "/overview", label: "Overview" },
   { href: "/pipeline", label: "Pipeline" },
   { href: "/companies", label: "Companies" },
+  { href: "/people", label: "People" },
+  { href: "/tasks", label: "Tasks" },
 ];
 
 function NavLink({ href, label }: { href: string; label: string }) {
