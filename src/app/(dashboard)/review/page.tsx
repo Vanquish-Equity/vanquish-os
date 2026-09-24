@@ -116,7 +116,7 @@ export default async function ReviewPage() {
               const archivedRow = item.payload.deals?.find((deal) => deal.deal_id === item.resolution?.archived_deal_id)?.row;
               const action = item.resolution?.action === "duplicate_archive_one"
                 ? `Duplicate archived${archivedRow ? ` (tracker row ${archivedRow})` : ""}`
-                : item.resolution?.action === "separate" ? "Separate opportunities" : "Ignored";
+                : item.resolution?.action === "separate" ? "Kept both opportunities" : "Ignored";
               return (
                 <div key={item.id} className="flex flex-wrap justify-between gap-2 py-2 text-[12px]">
                   <span className="font-medium text-ink">{item.payload.company_name ?? "Review item"}</span>
