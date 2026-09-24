@@ -59,7 +59,7 @@ export default function ReviewItemActions({ itemId, deals, reviewType }: { itemI
         onClick={() => submit("separate")}
         className="rounded-lg bg-ink px-3 py-2 text-[11px] font-semibold text-white transition hover:bg-neutral-800 disabled:opacity-50"
       >
-        Separate opportunities
+        Keep both
       </button>}
       {reviewType === "duplicate_tracker_row" && <button
         type="button"
@@ -67,7 +67,7 @@ export default function ReviewItemActions({ itemId, deals, reviewType }: { itemI
         onClick={() => choosingDuplicate ? submit("duplicate_archive_one") : setChoosingDuplicate(true)}
         className="rounded-lg border border-neutral-200 px-3 py-2 text-[11px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800 disabled:opacity-50"
       >
-        {choosingDuplicate ? "Archive selected duplicate" : "Duplicate"}
+        {choosingDuplicate ? "Archive selected row" : "Select duplicate"}
       </button>}
       {reviewType === "duplicate_tracker_row" && choosingDuplicate && <button type="button" disabled={isPending} onClick={() => { setChoosingDuplicate(false); setError(null); }}
         className="px-2 py-2 text-[11px] text-neutral-500">Cancel</button>}
