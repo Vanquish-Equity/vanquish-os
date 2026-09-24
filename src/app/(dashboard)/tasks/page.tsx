@@ -7,6 +7,7 @@ import { getPriorityOptions } from "@/lib/taxonomies";
 export const dynamic = "force-dynamic";
 
 type Option = { id: string; name: string };
+type DealOption = { id: string; name: string; company_id: string };
 
 type TaskRowData = {
   id: string;
@@ -14,7 +15,10 @@ type TaskRowData = {
   owner: string | null;
   due_at: string | null;
   status: "open" | "done";
+  priority_id: string | null;
   company_id: string | null;
+  deal_id: string | null;
+  deal: { name: string } | null;
   company: { id: string; name: string } | null;
   priority: { name: string } | null;
 };
@@ -28,12 +32,12 @@ export default async function TasksPage({
   const supabase = await createClient();
   const endTimer = startDevPageTimer("page:data:tasks");
 
-  const [{ data: tasks }, { data: companies }, priorities] =
+  const [{ data: tasks }, { data: companies }, { data: deals }, priorities] =
     await Promise.all([
       supabase
         .from("tasks")
         .select(
-          "id,title,owner,due_at,status,company_id,company:companies(id,name),priority:priorities(name)"
+          "id,title,owner,due_at,status,company_id,deal_id,priority_id,company:companies(id,name),deal:deals(name),priority:priorities(name)"
         )
         .is("archived_at", null)
         .order("due_at", { ascending: true, nullsFirst: false }) as unknown as Promise<{
@@ -44,6 +48,8 @@ export default async function TasksPage({
         .select("id,name")
         .is("deleted_at", null)
         .order("name") as unknown as Promise<{ data: Option[] }>,
+      supabase.from("deals").select("id,name,company_id")
+        .is("archived_at", null).order("name") as unknown as Promise<{ data: DealOption[] }>,
       getPriorityOptions() as Promise<Option[]>,
     ]);
   endTimer();
@@ -55,8 +61,10 @@ export default async function TasksPage({
     dueAt: t.due_at,
     status: t.status,
     priorityName: t.priority?.name ?? null,
+    priorityId: t.priority_id,
     companyId: t.company_id,
     companyName: t.company?.name ?? null,
+    dealName: t.deal?.name ?? null,
   }));
 
   const openTasks = allTasks
@@ -81,7 +89,7 @@ export default async function TasksPage({
             Follow-ups and next actions, linked to a company when relevant.
           </p>
         </div>
-        <NewTaskModal companies={companies ?? []} priorities={priorities} />
+        <NewTaskModal companies={companies ?? []} deals={deals ?? []} priorities={priorities} />
       </header>
 
       {status !== "done" && (
@@ -94,7 +102,7 @@ export default async function TasksPage({
               No open tasks.
             </div>
           ) : (
-            openTasks.map((task) => <TaskRow key={task.id} task={task} />)
+            openTasks.map((task) => <TaskRow key={task.id} task={task} priorities={priorities} />)
           )}
         </div>
       )}
@@ -105,7 +113,7 @@ export default async function TasksPage({
             Done ({doneTasks.length})
           </div>
           {doneTasks.map((task) => (
-            <TaskRow key={task.id} task={task} />
+            <TaskRow key={task.id} task={task} priorities={priorities} />
           ))}
         </div>
       )}

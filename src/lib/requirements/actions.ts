@@ -316,13 +316,27 @@ export async function linkRequirementDocumentAction(input: {
   }
 
   const supabase = await createClient();
+  const [{ data: requirement, error: requirementError }, { data: document, error: documentError }] = await Promise.all([
+    supabase.from("document_requirements").select("deal_id,scope").eq("id", requirementId).is("archived_at", null).maybeSingle(),
+    supabase.from("documents").select("company_id,deal_id").eq("id", documentId).is("archived_at", null).maybeSingle(),
+  ]);
+  if (requirementError || documentError) return { ok: false, message: requirementError?.message ?? documentError?.message ?? "Lookup failed." };
+  if (!requirement || !document || requirement.scope !== "deal_dd" || !requirement.deal_id) {
+    return { ok: false, message: "Active deal requirement and document are required." };
+  }
+  const { data: deal } = await supabase.from("deals").select("company_id").eq("id", requirement.deal_id).is("archived_at", null).maybeSingle();
+  if (!deal || deal.company_id !== document.company_id || (document.deal_id && document.deal_id !== requirement.deal_id)) {
+    return { ok: false, message: "Choose a document from this deal or its company." };
+  }
   const { error } = await supabase
     .from("document_requirements")
     .update({
       satisfied_by_document_id: documentId,
       status: "received_found",
     })
-    .eq("id", requirementId);
+    .eq("id", requirementId)
+    .eq("deal_id", requirement.deal_id)
+    .is("archived_at", null);
 
   if (error) return { ok: false, message: error.message };
 

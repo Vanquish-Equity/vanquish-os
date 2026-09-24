@@ -10,6 +10,7 @@ type Option = { id: string; name: string };
 type FormValues = {
   title: string;
   companyId: string;
+  dealId: string;
   owner: string;
   dueAt: string;
   priorityId: string;
@@ -18,6 +19,7 @@ type FormValues = {
 const emptyForm: FormValues = {
   title: "",
   companyId: "",
+  dealId: "",
   owner: "",
   dueAt: "",
   priorityId: "",
@@ -29,9 +31,11 @@ function toMenuOptions(options: Option[]): SelectMenuOption[] {
 
 export default function NewTaskModal({
   companies,
+  deals,
   priorities,
 }: {
   companies: Option[];
+  deals: { id: string; name: string; company_id: string }[];
   priorities: Option[];
 }) {
   const router = useRouter();
@@ -74,7 +78,7 @@ export default function NewTaskModal({
     const result = await createTaskAction({
       title: values.title,
       companyId: values.companyId || null,
-      dealId: null,
+      dealId: values.dealId || null,
       owner: values.owner,
       dueAt: values.dueAt || null,
       priorityId: values.priorityId || null,
@@ -161,11 +165,23 @@ export default function NewTaskModal({
                 </label>
                 <SelectMenu
                   value={values.companyId}
-                  onChange={(value) => setValues((v) => ({ ...v, companyId: value }))}
+                  onChange={(value) => setValues((v) => ({ ...v, companyId: value, dealId: "" }))}
                   options={toMenuOptions(companies)}
                   placeholder="No company"
                 />
               </div>
+
+              {values.companyId && (
+                <div>
+                  <label className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
+                    Deal (optional)
+                  </label>
+                  <SelectMenu value={values.dealId}
+                    onChange={(value) => setValues((v) => ({ ...v, dealId: value }))}
+                    options={toMenuOptions(deals.filter((deal) => deal.company_id === values.companyId))}
+                    placeholder="No deal" />
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>

@@ -20,6 +20,9 @@ type ReviewItem = {
     }[];
   };
   created_at: string;
+  status: "open" | "resolved" | "ignored";
+  resolved_at: string | null;
+  resolution: { action?: string; archived_deal_id?: string | null };
 };
 
 export default async function ReviewPage() {
@@ -27,12 +30,14 @@ export default async function ReviewPage() {
   const endTimer = startDevPageTimer("page:data:review");
   const { data: items } = (await supabase
     .from("review_items")
-    .select("id,review_type,payload,created_at")
-    .eq("status", "open")
-    .order("created_at", { ascending: false })) as unknown as {
+    .select("id,review_type,payload,created_at,status,resolved_at,resolution")
+    .order("created_at", { ascending: false })
+    .limit(100)) as unknown as {
     data: ReviewItem[] | null;
   };
   endTimer();
+  const openItems = (items ?? []).filter((item) => item.status === "open");
+  const closedItems = (items ?? []).filter((item) => item.status !== "open");
 
   return (
     <div className="flex flex-col gap-4 px-7 py-6">
@@ -46,12 +51,12 @@ export default async function ReviewPage() {
       </header>
 
       <div className="vq-card-grid flex flex-col gap-3">
-        {(items ?? []).length === 0 && (
+        {openItems.length === 0 && (
           <div className="vq-card-static rounded-[14px] bg-white p-8 text-center text-[12.5px] text-neutral-400">
             No open review items.
           </div>
         )}
-        {(items ?? []).map((item) => (
+        {openItems.map((item) => (
           <div
             key={item.id}
             className="vq-card rounded-[14px] bg-white p-5"
@@ -99,10 +104,29 @@ export default async function ReviewPage() {
               ))}
             </div>
 
-            <ReviewItemActions itemId={item.id} />
+            <ReviewItemActions itemId={item.id} deals={item.payload.deals ?? []} reviewType={item.review_type} />
           </div>
         ))}
       </div>
+      {closedItems.length > 0 && (
+        <section className="vq-card-static rounded-[14px] bg-white p-5">
+          <h2 className="mb-3 text-[13px] font-semibold text-ink">Recent decisions</h2>
+          <div className="divide-y divide-neutral-100">
+            {closedItems.map((item) => {
+              const archivedRow = item.payload.deals?.find((deal) => deal.deal_id === item.resolution?.archived_deal_id)?.row;
+              const action = item.resolution?.action === "duplicate_archive_one"
+                ? `Duplicate archived${archivedRow ? ` (tracker row ${archivedRow})` : ""}`
+                : item.resolution?.action === "separate" ? "Separate opportunities" : "Ignored";
+              return (
+                <div key={item.id} className="flex flex-wrap justify-between gap-2 py-2 text-[12px]">
+                  <span className="font-medium text-ink">{item.payload.company_name ?? "Review item"}</span>
+                  <span className="text-neutral-500">{action} · {new Date(item.resolved_at ?? item.created_at).toLocaleDateString()}</span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
