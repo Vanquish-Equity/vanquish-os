@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import LogInteractionForm from "@/components/LogInteractionForm";
 import type { AttentionDeal } from "@/lib/deals/attention";
 import { snoozeDealAttentionAction } from "@/lib/deals/actions";
@@ -108,108 +109,147 @@ export default function OverviewAttentionPanel({
   const [importsOpen, setImportsOpen] = useState(false);
   const rowsToShow = importsOpen ? importedDeals : importedDeals.slice(0, 3);
 
+  useEffect(() => {
+    if (!loggingDeal) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setLoggingDeal(null);
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [loggingDeal]);
+
   return (
-    <div className="vq-card-static rounded-[14px] bg-white p-5">
-      <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
-        Needs Attention
-      </h2>
+    <>
+      <div className="vq-card-static rounded-[14px] bg-white p-5">
+        <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
+          Needs Attention
+        </h2>
 
-      <div className="vq-card-grid flex flex-col gap-4">
-        <div>
-          <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
-            Stale deals ({staleDeals.length})
+        <div className="vq-card-grid flex flex-col gap-4">
+          <div>
+            <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
+              Stale deals ({staleDeals.length})
+            </div>
+            {staleDeals.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-neutral-200 px-3 py-4 text-center text-[12px] text-neutral-400">
+                No active deals are past their stage-specific update window.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {staleDeals.slice(0, 7).map((deal) => (
+                  <AttentionRow
+                    key={deal.id}
+                    deal={deal}
+                    onLogUpdate={setLoggingDeal}
+                  />
+                ))}
+                {staleDeals.length > 7 && (
+                  <Link
+                    href="/pipeline?filter=stale"
+                    className="text-[11.5px] font-semibold text-cyan-700 hover:text-cyan-800"
+                  >
+                    View all {staleDeals.length}
+                  </Link>
+                )}
+              </div>
+            )}
           </div>
-          {staleDeals.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-neutral-200 px-3 py-4 text-center text-[12px] text-neutral-400">
-              No active deals are past their stage-specific update window.
-            </p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {staleDeals.slice(0, 7).map((deal) => (
-                <AttentionRow
-                  key={deal.id}
-                  deal={deal}
-                  onLogUpdate={setLoggingDeal}
-                />
-              ))}
-              {staleDeals.length > 7 && (
-                <Link
-                  href="/pipeline?filter=stale"
-                  className="text-[11.5px] font-semibold text-cyan-700 hover:text-cyan-800"
-                >
-                  View all {staleDeals.length}
-                </Link>
-              )}
-            </div>
-          )}
-        </div>
 
-        <div className="rounded-xl border border-neutral-100 bg-[#f7f9fa] p-3">
-          <button
-            type="button"
-            onClick={() => setImportsOpen((current) => !current)}
-            className="flex w-full items-center justify-between gap-3 text-left"
-          >
-            <span className="text-[10.5px] font-semibold uppercase tracking-wide text-neutral-500">
-              Imported from tracker - no activity logged yet ({importedDeals.length})
-            </span>
-            <span className="text-[11px] font-semibold text-cyan-800">
-              {importsOpen ? "Collapse" : "Expand"}
-            </span>
-          </button>
-          <p className="mt-1 text-[12px] text-neutral-500">
-            Log an update or change the stage to clear this.
-          </p>
-
-          {rowsToShow.length > 0 && (
-            <div className="mt-3 flex flex-col gap-2">
-              {rowsToShow.map((deal) => (
-                <AttentionRow
-                  key={deal.id}
-                  deal={deal}
-                  onLogUpdate={setLoggingDeal}
-                />
-              ))}
-            </div>
-          )}
-          {importedDeals.length === 0 && (
-            <p className="mt-3 text-[12px] text-neutral-400">
-              Every imported deal has follow-up activity.
+          <div className="rounded-xl border border-neutral-100 bg-[#f7f9fa] p-3">
+            <button
+              type="button"
+              onClick={() => setImportsOpen((current) => !current)}
+              className="flex w-full items-center justify-between gap-3 text-left"
+            >
+              <span className="text-[10.5px] font-semibold uppercase tracking-wide text-neutral-500">
+                Imported from tracker - no activity logged yet ({importedDeals.length})
+              </span>
+              <span className="text-[11px] font-semibold text-cyan-800">
+                {importsOpen ? "Collapse" : "Expand"}
+              </span>
+            </button>
+            <p className="mt-1 text-[12px] text-neutral-500">
+              Log an update or change the stage to clear this.
             </p>
-          )}
+
+            {rowsToShow.length > 0 && (
+              <div className="mt-3 flex flex-col gap-2">
+                {rowsToShow.map((deal) => (
+                  <AttentionRow
+                    key={deal.id}
+                    deal={deal}
+                    onLogUpdate={setLoggingDeal}
+                  />
+                ))}
+              </div>
+            )}
+            {importedDeals.length === 0 && (
+              <p className="mt-3 text-[12px] text-neutral-400">
+                Every imported deal has follow-up activity.
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
-      {loggingDeal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 px-4">
-          <div className="vq-card-static w-full max-w-2xl rounded-[14px] bg-white p-5 shadow-xl">
-            <div className="mb-3 flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-[15px] font-semibold text-ink">
-                  Log update for {loggingDeal.companyName}
-                </h3>
-                <p className="mt-0.5 text-[12px] text-neutral-500">
-                  This will clear the tracker-only state and refresh activity.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setLoggingDeal(null)}
-                className="rounded-full border border-neutral-200 px-3 py-1 text-[11px] font-semibold text-neutral-500 hover:border-neutral-300 hover:text-neutral-700"
+      {typeof document !== "undefined" && loggingDeal
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[1000] flex items-center justify-center bg-ink/40 px-4 py-6"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setLoggingDeal(null);
+              }}
+            >
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="overview-log-update-title"
+                className="w-full max-w-2xl overflow-visible rounded-[14px] bg-white p-5 shadow-2xl"
               >
-                Close
-              </button>
-            </div>
-            <LogInteractionForm
-              companyId={loggingDeal.companyId}
-              deals={[{ id: loggingDeal.id, name: loggingDeal.name }]}
-              initialDealId={loggingDeal.id}
-              onSuccess={() => setLoggingDeal(null)}
-              title={null}
-            />
-          </div>
-        </div>
-      )}
-    </div>
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div>
+                    <h3
+                      id="overview-log-update-title"
+                      className="text-[15px] font-semibold text-ink"
+                    >
+                      Log update for {loggingDeal.companyName}
+                    </h3>
+                    <p className="mt-0.5 text-[12px] text-neutral-500">
+                      This will clear the tracker-only state and refresh activity.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setLoggingDeal(null)}
+                    className="rounded-full border border-neutral-200 px-3 py-1 text-[11px] font-semibold text-neutral-500 transition hover:border-neutral-300 hover:text-neutral-700"
+                  >
+                    Close
+                  </button>
+                </div>
+                <LogInteractionForm
+                  companyId={loggingDeal.companyId}
+                  deals={[{ id: loggingDeal.id, name: loggingDeal.name }]}
+                  initialDealId={loggingDeal.id}
+                  onSuccess={() => setLoggingDeal(null)}
+                  title={null}
+                  variant="plain"
+                />
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+    </>
   );
 }

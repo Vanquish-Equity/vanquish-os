@@ -16,12 +16,14 @@ export default function LogInteractionForm({
   initialDealId = "",
   onSuccess,
   title = "Log Interaction",
+  variant = "card",
 }: {
   companyId: string;
   deals: InteractionDealOption[];
   initialDealId?: string;
   onSuccess?: () => void;
   title?: string | null;
+  variant?: "card" | "plain";
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement | null>(null);
@@ -48,16 +50,18 @@ export default function LogInteractionForm({
 
   const inputClass =
     "rounded-xl border border-neutral-200 bg-white px-2.5 py-2 text-[12px] font-medium text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100";
+  const containerClass =
+    variant === "card" ? "vq-card-static rounded-[14px] bg-white p-5" : "";
 
   return (
-    <div className="vq-card-static rounded-[14px] bg-white p-5">
+    <div className={containerClass}>
       {title && (
         <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
           {title}
         </h2>
       )}
       <form ref={formRef} onSubmit={handleSubmit} className="grid gap-2">
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <FormSelectMenu
             name="type"
             defaultValue="note"
