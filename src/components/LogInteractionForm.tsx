@@ -14,6 +14,7 @@ export default function LogInteractionForm({
   companyId,
   deals,
   initialDealId = "",
+  lockDeal = false,
   onSuccess,
   title = "Log Interaction",
   variant = "card",
@@ -21,6 +22,8 @@ export default function LogInteractionForm({
   companyId: string;
   deals: InteractionDealOption[];
   initialDealId?: string;
+  // Keeps the interaction on initialDealId instead of offering a deal picker.
+  lockDeal?: boolean;
   onSuccess?: () => void;
   title?: string | null;
   variant?: "card" | "plain";
@@ -76,18 +79,27 @@ export default function LogInteractionForm({
             type="datetime-local"
             className={inputClass}
           />
-          <FormSelectMenu
-            name="dealId"
-            defaultValue={initialDealId}
-            options={[
-              { label: "Company-level", value: "" },
-              ...deals.map((deal) => ({
-                label: deal.name,
-                value: deal.id,
-              })),
-            ]}
-            buttonClassName="text-[12px] font-medium"
-          />
+          {lockDeal ? (
+            <>
+              <input type="hidden" name="dealId" value={initialDealId} />
+              <div className="truncate rounded-xl bg-[#f7f9fa] px-2.5 py-2 text-[12px] font-medium text-neutral-600">
+                {deals.find((deal) => deal.id === initialDealId)?.name ?? "This deal"}
+              </div>
+            </>
+          ) : (
+            <FormSelectMenu
+              name="dealId"
+              defaultValue={initialDealId}
+              options={[
+                { label: "Company-level", value: "" },
+                ...deals.map((deal) => ({
+                  label: deal.name,
+                  value: deal.id,
+                })),
+              ]}
+              buttonClassName="text-[12px] font-medium"
+            />
+          )}
         </div>
         <input
           name="subject"

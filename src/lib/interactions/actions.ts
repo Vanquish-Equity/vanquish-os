@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity/log";
+import { activeDealInCompanyError } from "@/lib/deals/guards";
 import { createClient } from "@/lib/supabase/server";
 
 export type InteractionActionResult =
@@ -28,6 +29,11 @@ export async function logInteractionAction(
   }
 
   const supabase = await createClient();
+  if (dealId) {
+    const dealError = await activeDealInCompanyError(supabase, dealId, companyId);
+    if (dealError) return { ok: false, message: dealError };
+  }
+
   const { data, error } = (await supabase
     .from("interactions")
     .insert({
@@ -60,6 +66,7 @@ export async function logInteractionAction(
   );
 
   revalidatePath(`/companies/${companyId}`);
+  if (dealId) revalidatePath(`/companies/${companyId}/deals/${dealId}`);
   revalidatePath("/overview");
   return { ok: true, interactionId: data.id };
 }

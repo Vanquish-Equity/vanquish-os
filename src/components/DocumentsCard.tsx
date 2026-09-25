@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   addDriveLinkDocumentAction,
   archiveDocumentAction,
@@ -19,6 +20,13 @@ export type DocumentItem = {
   sizeBytes: number | null;
   createdAt: string;
   signedUrl: string | null;
+  // Optional tag shown next to the file, e.g. "Company" or the deal name.
+  scopeLabel?: string | null;
+};
+
+export type DocumentDealOption = {
+  id: string;
+  name: string;
 };
 
 export type DocumentCategoryOption = {
@@ -71,18 +79,30 @@ export default function DocumentsCard({
   companyId,
   companyName,
   dealId,
+  dealOptions,
   documents,
   categories,
   documentTypes,
+  title = "Documents",
+  description,
+  emptyMessage = "No documents yet - memos, decks, term sheets.",
 }: {
   companyId: string;
+  // Fixed deal for new documents. Ignored when dealOptions is provided.
   dealId?: string | null;
+  // Lets the user choose company-level or one specific opportunity.
+  dealOptions?: DocumentDealOption[];
   companyName: string;
   documents: DocumentItem[];
   categories: DocumentCategoryOption[];
   documentTypes: DocumentTypeOption[];
+  title?: string;
+  description?: string;
+  emptyMessage?: string;
 }) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [linkedDealId, setLinkedDealId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const [entityRole, setEntityRole] = useState("TARGET");
@@ -120,7 +140,8 @@ export default function DocumentsCard({
   ]);
 
   function appendMetadata(formData: FormData) {
-    if (dealId) formData.set("dealId", dealId);
+    const targetDealId = dealOptions ? linkedDealId : dealId;
+    if (targetDealId) formData.set("dealId", targetDealId);
     formData.set("entityRole", entityRole);
     if (categoryId) formData.set("categoryId", categoryId);
     if (documentTypeId) formData.set("documentTypeId", documentTypeId);
@@ -146,6 +167,7 @@ export default function DocumentsCard({
       const result = await uploadDocumentAction(formData);
       if (!result.ok) setError(result.message);
       if (inputRef.current) inputRef.current.value = "";
+      if (result.ok) router.refresh();
     });
   }
 
@@ -170,6 +192,7 @@ export default function DocumentsCard({
       }
       setDriveName("");
       setDriveUrl("");
+      router.refresh();
     });
   }
 
@@ -183,6 +206,7 @@ export default function DocumentsCard({
       });
       if (!result.ok) setError(result.message);
       setArchivingId(null);
+      if (result.ok) router.refresh();
     });
   }
 
@@ -191,9 +215,30 @@ export default function DocumentsCard({
 
   return (
     <div className="vq-card-static rounded-[14px] bg-white p-5">
-      <h2 className="mb-3 text-[14.5px] font-semibold text-ink">Documents</h2>
+      <h2 className={`text-[14.5px] font-semibold text-ink ${description ? "" : "mb-3"}`}>
+        {title}
+      </h2>
+      {description && (
+        <p className="mb-3 mt-0.5 text-[12px] text-neutral-500">{description}</p>
+      )}
 
       <div className="mb-3 grid grid-cols-2 gap-2">
+        {dealOptions && (
+          <div className="col-span-2">
+            <FieldLabel>
+              Linked to
+              <SelectMenu
+                value={linkedDealId}
+                onChange={setLinkedDealId}
+                options={[
+                  { label: "Company-level (all opportunities)", value: "" },
+                  ...dealOptions.map((deal) => ({ label: deal.name, value: deal.id })),
+                ]}
+                buttonClassName="text-[12px] font-medium"
+              />
+            </FieldLabel>
+          </div>
+        )}
         <FieldLabel>
           Entity
           <SelectMenu
@@ -329,7 +374,7 @@ export default function DocumentsCard({
       <div className="flex flex-col gap-2">
         {documents.length === 0 && (
           <p className="text-[12px] text-neutral-400">
-            No documents yet - memos, decks, term sheets.
+            {emptyMessage}
           </p>
         )}
         {documents.map((doc) => (
@@ -349,6 +394,11 @@ export default function DocumentsCard({
               <span className="truncate">{doc.name}</span>
             </a>
             <div className="flex flex-shrink-0 items-center gap-2">
+              {doc.scopeLabel && (
+                <span className="max-w-[160px] truncate rounded-full bg-[#f0fafb] px-2 py-0.5 text-[10.5px] font-semibold text-cyan-800">
+                  {doc.scopeLabel}
+                </span>
+              )}
               <span className="text-[10.5px] text-neutral-400">
                 {doc.driveUrl ? "Drive" : formatSize(doc.sizeBytes)}
               </span>

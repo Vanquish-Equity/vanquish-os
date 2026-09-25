@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { dealHref } from "@/lib/deals/scope";
 import { deleteTaskAction, setTaskStatusAction, updateTaskAction } from "@/lib/tasks/actions";
 
 export type TaskItem = {
@@ -15,6 +16,7 @@ export type TaskItem = {
   priorityId: string | null;
   companyId: string | null;
   companyName: string | null;
+  dealId?: string | null;
   dealName: string | null;
 };
 
@@ -155,7 +157,11 @@ export default function TaskRow({ task, priorities }: { task: TaskItem; prioriti
             </Link>
           )}
           {task.owner && <span>{task.owner}</span>}
-          {task.dealName && <span>· {task.dealName}</span>}
+          {task.dealName && task.dealId && task.companyId ? (
+            <Link href={dealHref(task.companyId, task.dealId)} className="hover:text-cyan-700">
+              · {task.dealName}
+            </Link>
+          ) : task.dealName && <span>· {task.dealName}</span>}
           {task.dueAt && (
             <span className={overdue ? "font-semibold text-red-600" : undefined}>
               Due {new Date(task.dueAt).toLocaleDateString()}

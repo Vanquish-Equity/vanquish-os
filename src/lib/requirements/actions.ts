@@ -2,6 +2,7 @@
 
 import { revalidatePath, revalidateTag } from "next/cache";
 import { logActivity } from "@/lib/activity/log";
+import { activeDealInCompanyError } from "@/lib/deals/guards";
 import { createClient } from "@/lib/supabase/server";
 import { TAXONOMY_TAGS } from "@/lib/taxonomies";
 
@@ -23,9 +24,14 @@ function cleanText(value: string | FormDataEntryValue | null | undefined) {
   return String(value ?? "").trim();
 }
 
-function revalidateTargets(companyId?: string | null, extraPath?: string | null) {
+function revalidateTargets(
+  companyId?: string | null,
+  extraPath?: string | null,
+  dealId?: string | null
+) {
   revalidatePath("/overview");
   if (companyId) revalidatePath(`/companies/${companyId}`);
+  if (companyId && dealId) revalidatePath(`/companies/${companyId}/deals/${dealId}`);
   if (extraPath) revalidatePath(extraPath);
 }
 
@@ -162,6 +168,9 @@ export async function applyDealTemplateAction(input: {
   if (error) return { ok: false, message: error.message };
   if (!items?.length) return { ok: false, message: "Checklist has no items." };
 
+  const dealError = await activeDealInCompanyError(supabase, dealId, companyId);
+  if (dealError) return { ok: false, message: dealError };
+
   const { data: existing } = (await supabase
     .from("document_requirements")
     .select("document_type_id")
@@ -206,7 +215,7 @@ export async function applyDealTemplateAction(input: {
     supabase
   );
 
-  revalidateTargets(companyId);
+  revalidateTargets(companyId, null, dealId);
   return { ok: true };
 }
 
@@ -226,6 +235,9 @@ export async function addDealRequirementAction(
   }
 
   const supabase = await createClient();
+  const dealError = await activeDealInCompanyError(supabase, dealId, companyId);
+  if (dealError) return { ok: false, message: dealError };
+
   const resolvedType = await resolveDocumentType({
     documentTypeId,
     label: expectedLabel || documentTypeName,
@@ -260,7 +272,7 @@ export async function addDealRequirementAction(
     supabase
   );
 
-  revalidateTargets(companyId);
+  revalidateTargets(companyId, null, dealId);
   return { ok: true };
 }
 

@@ -23,7 +23,25 @@ type EditableDeal = {
   priorityName: string | null;
   owner: string | null;
   potentialInvestment: number | null;
+  name?: string;
+  round?: string | null;
+  raiseAmount?: number | null;
+  source?: string | null;
+  notes?: string | null;
 };
+
+type DealField =
+  | "stage_id"
+  | "priority_id"
+  | "owner"
+  | "potential_investment"
+  | "outcome_id"
+  | "relationship_state_id"
+  | "name"
+  | "round"
+  | "raise_amount"
+  | "source"
+  | "notes";
 
 type SaveResult = Promise<string | null>;
 
@@ -181,11 +199,15 @@ function EditableTextField({
   label,
   value,
   displayValue,
+  multiline = false,
+  required = false,
   onSave,
 }: {
   label: string;
   value: string | null;
   displayValue: string;
+  multiline?: boolean;
+  required?: boolean;
   onSave: (value: string | null) => SaveResult;
 }) {
   const [editing, setEditing] = useState(false);
@@ -197,6 +219,11 @@ function EditableTextField({
     if (pending) return;
 
     const normalized = draft.trim() || null;
+
+    if (required && !normalized) {
+      setError(`${label} is required.`);
+      return;
+    }
 
     if (normalized === (value?.trim() || null)) {
       setEditing(false);
@@ -227,7 +254,9 @@ function EditableTextField({
             setError(null);
             setEditing(true);
           }}
-          className="rounded-md text-left text-[13px] font-semibold text-ink outline-none transition hover:text-cyan-700 focus:ring-2 focus:ring-cyan-100"
+          className={`rounded-md text-left text-[13px] font-semibold text-ink outline-none transition hover:text-cyan-700 focus:ring-2 focus:ring-cyan-100 ${
+            multiline ? "whitespace-pre-wrap font-medium" : ""
+          }`}
         >
           {displayValue}
         </button>
@@ -235,28 +264,48 @@ function EditableTextField({
     );
   }
 
+  const inputClass =
+    "min-w-0 flex-1 rounded-xl border border-neutral-200 bg-white px-2.5 py-1.5 text-[12.5px] font-semibold text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100";
+
+  function handleKeyDown(
+    event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) {
+    if (event.key === "Enter" && (!multiline || event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      void save();
+    }
+    if (event.key === "Escape") {
+      setDraft(value ?? "");
+      setEditing(false);
+      setError(null);
+    }
+  }
+
   return (
     <FieldFrame label={label} error={error}>
-      <div className="flex items-center gap-1.5">
-        <input
-          autoFocus
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={() => void save()}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              void save();
-            }
-            if (event.key === "Escape") {
-              setDraft(value ?? "");
-              setEditing(false);
-              setError(null);
-            }
-          }}
-          className="min-w-0 flex-1 rounded-xl border border-neutral-200 bg-white px-2.5 py-1.5 text-[12.5px] font-semibold text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
-          disabled={pending}
-        />
+      <div className={`flex gap-1.5 ${multiline ? "items-start" : "items-center"}`}>
+        {multiline ? (
+          <textarea
+            autoFocus
+            rows={4}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={() => void save()}
+            onKeyDown={handleKeyDown}
+            className={inputClass}
+            disabled={pending}
+          />
+        ) : (
+          <input
+            autoFocus
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={() => void save()}
+            onKeyDown={handleKeyDown}
+            className={inputClass}
+            disabled={pending}
+          />
+        )}
         <SaveButton pending={pending} onSave={() => void save()} />
       </div>
     </FieldFrame>
@@ -366,27 +415,22 @@ export default function EditableDealOverview({
   outcomes,
   relationshipStates,
   priorities,
+  showDetails = false,
+  title = "Deal Overview",
 }: {
   deal: EditableDeal;
   stages: Option[];
   outcomes: Option[];
   relationshipStates: Option[];
   priorities: Option[];
+  showDetails?: boolean;
+  title?: string;
 }) {
   const router = useRouter();
   const [overrides, setOverrides] = useState<Partial<EditableDeal>>({});
   const currentDeal = { ...deal, ...overrides };
 
-  async function saveField(
-    field:
-      | "stage_id"
-      | "priority_id"
-      | "owner"
-      | "potential_investment"
-      | "outcome_id"
-      | "relationship_state_id",
-    value: string | null
-  ) {
+  async function saveField(field: DealField, value: string | null) {
     const result = await updateDealFieldAction({
       dealId: currentDeal.id,
       companyId: currentDeal.companyId,
@@ -437,6 +481,14 @@ export default function EditableDealOverview({
         return { ...current, owner: value };
       }
 
+      if (field === "name") return { ...current, name: value ?? currentDeal.name };
+      if (field === "round") return { ...current, round: value };
+      if (field === "source") return { ...current, source: value };
+      if (field === "notes") return { ...current, notes: value };
+      if (field === "raise_amount") {
+        return { ...current, raiseAmount: value === null ? null : Number(value) };
+      }
+
       return {
         ...current,
         potentialInvestment: value === null ? null : Number(value),
@@ -450,9 +502,26 @@ export default function EditableDealOverview({
   return (
     <div className="vq-card-static rounded-[14px] bg-white p-5">
       <h2 className="mb-3.5 text-[14.5px] font-semibold text-ink">
-        Deal Overview
+        {title}
       </h2>
       <div className="grid grid-cols-2 gap-4">
+        {showDetails && (
+          <>
+            <EditableTextField
+              label="Deal Name"
+              value={currentDeal.name ?? null}
+              displayValue={currentDeal.name || "—"}
+              required
+              onSave={(value) => saveField("name", value)}
+            />
+            <EditableTextField
+              label="Round"
+              value={currentDeal.round ?? null}
+              displayValue={currentDeal.round ?? "—"}
+              onSave={(value) => saveField("round", value)}
+            />
+          </>
+        )}
         <EditableSelectField
           label="Stage"
           value={currentDeal.stageId}
@@ -496,6 +565,31 @@ export default function EditableDealOverview({
           displayValue={formatMoney(currentDeal.potentialInvestment)}
           onSave={(value) => saveField("potential_investment", value)}
         />
+        {showDetails && (
+          <>
+            <EditableNumberField
+              label="Raise Amount"
+              value={currentDeal.raiseAmount ?? null}
+              displayValue={formatMoney(currentDeal.raiseAmount ?? null)}
+              onSave={(value) => saveField("raise_amount", value)}
+            />
+            <EditableTextField
+              label="Source"
+              value={currentDeal.source ?? null}
+              displayValue={currentDeal.source ?? "—"}
+              onSave={(value) => saveField("source", value)}
+            />
+            <div className="col-span-2">
+              <EditableTextField
+                label="Notes"
+                value={currentDeal.notes ?? null}
+                displayValue={currentDeal.notes ?? "—"}
+                multiline
+                onSave={(value) => saveField("notes", value)}
+              />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
