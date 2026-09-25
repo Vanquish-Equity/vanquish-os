@@ -18,6 +18,8 @@ export function describeActivity(eventType: string, payload: Record<string, unkn
   if (eventType === "DEAL_ARCHIVED") {
     return payload.reason === "manual" ? "Deal archived" : "Duplicate deal archived";
   }
+  if (eventType === "DEAL_RESTORED") return "Deal restored";
+  if (eventType === "DEAL_CREATED") return "Deal created";
   if (eventType === "TASK_COMPLETED") return "Task completed";
   if (eventType === "TASK_REOPENED") return "Task reopened";
   if (eventType === "TASK_ARCHIVED") return "Task archived";

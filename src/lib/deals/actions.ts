@@ -2,6 +2,7 @@
 
 import { revalidatePath, revalidateTag } from "next/cache";
 import { logActivity } from "@/lib/activity/log";
+import { normalizeCompanyName } from "@/lib/companies/matching";
 import { applyDealTemplateAction } from "@/lib/requirements/actions";
 import { createClient } from "@/lib/supabase/server";
 import { TAXONOMY_TAGS } from "@/lib/taxonomies";
@@ -17,6 +18,8 @@ type FieldErrors = Partial<
     | "owner"
     | "potentialInvestment"
     | "raiseAmount"
+    | "companyId"
+    | "round"
     | "dealId",
     string
   >
@@ -26,11 +29,16 @@ export type DealActionResult =
   | { ok: true; companyId?: string; dealId?: string }
   | { ok: false; message: string; fieldErrors?: FieldErrors };
 
+// "existing" links the deal to companyId; "new" explicitly creates the
+// company named companyName together with its first deal.
 export type CreateDealInput = {
+  companyMode: "existing" | "new";
+  companyId: string;
   companyName: string;
   industryId: string;
   newIndustryName: string;
   dealName: string;
+  round: string;
   stageId: string;
   priorityId: string;
   owner: string;
@@ -64,6 +72,8 @@ export type ArchiveDealInput = {
   dealId: string;
   companyId: string;
 };
+
+export type RestoreDealInput = ArchiveDealInput;
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -237,26 +247,30 @@ async function resolveIndustryId(
 export async function createDealAction(
   input: CreateDealInput
 ): Promise<DealActionResult> {
-  const companyName = cleanText(input.companyName);
+  const creatingCompany = input.companyMode === "new";
+  const selectedCompanyId = cleanText(input.companyId);
+  const newCompanyName = cleanText(input.companyName);
   const rawIndustryId = cleanText(input.industryId);
   const newIndustryName = cleanText(input.newIndustryName);
   const industryId = rawIndustryId === NEW_CATEGORY_VALUE ? "" : rawIndustryId;
-  const fallbackDealName = companyName ? `${companyName} — new deal` : "";
-  const dealName = cleanText(input.dealName) || fallbackDealName;
+  const round = cleanText(input.round) || null;
   const stageId = cleanText(input.stageId);
   const priorityId = cleanText(input.priorityId);
   const owner = cleanText(input.owner);
   const potentialInvestment = parseOptionalInvestment(input.potentialInvestment);
   const fieldErrors: FieldErrors = {};
 
-  if (!companyName) fieldErrors.companyName = "Company name is required.";
-  if (!industryId && !newIndustryName) {
-    fieldErrors.industryId = "Choose or create a category.";
+  if (creatingCompany) {
+    if (!newCompanyName) fieldErrors.companyName = "Company name is required.";
+    if (!industryId && !newIndustryName) {
+      fieldErrors.industryId = "Choose or create a category.";
+    }
+    if (rawIndustryId === NEW_CATEGORY_VALUE && !newIndustryName) {
+      fieldErrors.newIndustryName = "New category name is required.";
+    }
+  } else if (!selectedCompanyId) {
+    fieldErrors.companyId = "Choose a company.";
   }
-  if (rawIndustryId === NEW_CATEGORY_VALUE && !newIndustryName) {
-    fieldErrors.newIndustryName = "New category name is required.";
-  }
-  if (!dealName) fieldErrors.dealName = "Deal name is required.";
   if (!stageId) fieldErrors.stageId = "Choose a stage.";
   if (!priorityId) fieldErrors.priorityId = "Choose a priority.";
   if (!owner) fieldErrors.owner = "Owner is required.";
@@ -273,42 +287,49 @@ export async function createDealAction(
   }
 
   const supabase = await createClient();
-  const resolvedIndustry = await resolveIndustryId(
-    supabase,
-    industryId,
-    newIndustryName
-  );
+  let companyId: string;
+  let companyName: string;
 
-  if (!resolvedIndustry.ok) {
-    return { ok: false, message: resolvedIndustry.message };
-  }
-  if (resolvedIndustry.created) {
-    revalidateTag(TAXONOMY_TAGS.industries, "max");
-  }
+  if (creatingCompany) {
+    // The user chose "create new" after seeing similar companies; an exact
+    // match (ignoring case, punctuation and legal suffixes) is still refused.
+    const { data: companies, error: companyLookupError } = (await supabase
+      .from("companies")
+      .select("id,name")
+      .is("deleted_at", null)) as unknown as {
+      data: { id: string; name: string }[] | null;
+      error: { message: string } | null;
+    };
 
-  const { data: companies, error: companyLookupError } = (await supabase
-    .from("companies")
-    .select("id,name")) as unknown as {
-    data: { id: string; name: string }[] | null;
-    error: { message: string } | null;
-  };
+    if (companyLookupError) {
+      return { ok: false, message: companyLookupError.message };
+    }
 
-  if (companyLookupError) {
-    return { ok: false, message: companyLookupError.message };
-  }
+    const normalizedName = normalizeCompanyName(newCompanyName);
+    const duplicate = (companies ?? []).find(
+      (company) => normalizeCompanyName(company.name) === normalizedName
+    );
+    if (duplicate) {
+      const message = `${duplicate.name} already exists. Select it instead of creating a new company.`;
+      return { ok: false, message, fieldErrors: { companyName: message } };
+    }
 
-  const normalizedCompanyName = companyName.toLocaleLowerCase();
-  const existingCompany = (companies ?? []).find(
-    (company) => company.name.trim().toLocaleLowerCase() === normalizedCompanyName
-  );
+    const resolvedIndustry = await resolveIndustryId(
+      supabase,
+      industryId,
+      newIndustryName
+    );
 
-  let companyId = existingCompany?.id ?? null;
-  let createdCompanyForDeal = false;
+    if (!resolvedIndustry.ok) {
+      return { ok: false, message: resolvedIndustry.message };
+    }
+    if (resolvedIndustry.created) {
+      revalidateTag(TAXONOMY_TAGS.industries, "max");
+    }
 
-  if (!companyId) {
     const { data: createdCompany, error: createCompanyError } = (await supabase
       .from("companies")
-      .insert({ name: companyName, industry_id: resolvedIndustry.industryId })
+      .insert({ name: newCompanyName, industry_id: resolvedIndustry.industryId })
       .select("id")
       .single()) as unknown as {
       data: { id: string } | null;
@@ -324,14 +345,46 @@ export async function createDealAction(
     }
 
     companyId = createdCompany.id;
-    createdCompanyForDeal = true;
+    companyName = newCompanyName;
+
+    await logActivity(
+      {
+        eventType: "COMPANY_CREATED",
+        targetType: "company",
+        targetId: companyId,
+        payload: { name: companyName },
+        actor: "anonymous",
+      },
+      supabase
+    );
+  } else {
+    const { data: company, error: companyError } = (await supabase
+      .from("companies")
+      .select("id,name,deleted_at")
+      .eq("id", selectedCompanyId)
+      .maybeSingle()) as unknown as {
+      data: { id: string; name: string; deleted_at: string | null } | null;
+      error: { message: string } | null;
+    };
+
+    if (companyError) return { ok: false, message: companyError.message };
+    if (!company || company.deleted_at) {
+      const message = "Choose an active company.";
+      return { ok: false, message, fieldErrors: { companyId: message } };
+    }
+
+    companyId = company.id;
+    companyName = company.name;
   }
+
+  const dealName = cleanText(input.dealName) || companyName;
 
   const { data: createdDeal, error: createDealError } = (await supabase
     .from("deals")
     .insert({
       company_id: companyId,
       name: dealName,
+      round,
       stage_id: stageId,
       priority_id: priorityId,
       owner,
@@ -351,27 +404,14 @@ export async function createDealAction(
     return { ok: false, message: "Deal could not be created." };
   }
 
-  revalidateDealPaths(companyId);
-
-  if (createdCompanyForDeal) {
-    await logActivity(
-      {
-        eventType: "COMPANY_CREATED",
-        targetType: "company",
-        targetId: companyId,
-        payload: { name: companyName },
-        actor: "anonymous",
-      },
-      supabase
-    );
-  }
+  revalidateDealPaths(companyId, createdDeal.id);
 
   await logActivity(
     {
       eventType: "DEAL_CREATED",
       targetType: "deal",
       targetId: createdDeal.id,
-      payload: { name: dealName, companyId, stageId, priorityId },
+      payload: { name: dealName, round, companyId, stageId, priorityId },
       actor: "anonymous",
     },
     supabase
@@ -681,6 +721,72 @@ export async function archiveDealAction(
       targetType: "deal",
       targetId: dealId,
       payload: { companyId, dealId, name: deal.name, reason: "manual" },
+      actor: "anonymous",
+    },
+    supabase
+  );
+
+  revalidateDealPaths(companyId, dealId);
+  return { ok: true, companyId, dealId };
+}
+
+// Brings one archived deal back to the active lists. Other deals of the same
+// company are untouched and the stage history is kept as it was.
+export async function restoreDealAction(
+  input: RestoreDealInput
+): Promise<DealActionResult> {
+  const dealId = cleanText(input.dealId);
+  const companyId = cleanText(input.companyId);
+
+  if (!dealId || !companyId) {
+    return {
+      ok: false,
+      message: "Deal and company are required.",
+      fieldErrors: { dealId: "Deal is required." },
+    };
+  }
+
+  const supabase = await createClient();
+  const { data: deal, error: lookupError } = (await supabase
+    .from("deals")
+    .select("name,company_id,archived_at")
+    .eq("id", dealId)
+    .maybeSingle()) as unknown as {
+    data: { name: string; company_id: string; archived_at: string | null } | null;
+    error: { message: string } | null;
+  };
+
+  if (lookupError) return { ok: false, message: lookupError.message };
+  if (!deal || deal.company_id !== companyId) {
+    return { ok: false, message: "Deal not found for this company." };
+  }
+  if (!deal.archived_at) return { ok: false, message: "This deal is not archived." };
+
+  const { count, error } = (await supabase
+    .from("deals")
+    .update({ archived_at: null }, { count: "exact" })
+    .eq("id", dealId)
+    .eq("company_id", companyId)
+    .not("archived_at", "is", null)) as unknown as {
+    count: number | null;
+    error: { message: string } | null;
+  };
+
+  if (error) return { ok: false, message: error.message };
+  if (count === 0) {
+    return {
+      ok: false,
+      message:
+        "Restore was blocked by database write policy. Apply the latest migration and try again.",
+    };
+  }
+
+  await logActivity(
+    {
+      eventType: "DEAL_RESTORED",
+      targetType: "deal",
+      targetId: dealId,
+      payload: { companyId, dealId, name: deal.name, archivedAt: deal.archived_at },
       actor: "anonymous",
     },
     supabase

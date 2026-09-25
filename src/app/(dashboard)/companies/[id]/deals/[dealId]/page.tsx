@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ArchiveDealButton from "@/components/ArchiveDealButton";
+import RestoreDealButton from "@/components/RestoreDealButton";
 import DocumentsCard, { type DocumentItem } from "@/components/DocumentsCard";
 import DueDiligenceCard, {
   type RequirementItem,
@@ -11,7 +12,8 @@ import NewTaskModal from "@/components/NewTaskModal";
 import RelativeTime from "@/components/RelativeTime";
 import TaskRow, { type TaskItem } from "@/components/TaskRow";
 import { describeActivity, describeActivityDetail } from "@/lib/activity/describe";
-import { formatExactDate } from "@/lib/dates";
+import { formatExactDate, formatMonthYear } from "@/lib/dates";
+import { dealLabel, dealTitle, distinctDealName } from "@/lib/deals/display";
 import {
   dealHref,
   isDealActivity,
@@ -67,6 +69,9 @@ type DealDetail = {
 type SiblingDeal = {
   id: string;
   name: string;
+  round: string | null;
+  first_seen_at: string | null;
+  created_at: string;
   archived_at: string | null;
   stage: { name: string } | null;
 };
@@ -220,7 +225,7 @@ export default async function DealDetailPage({
       .maybeSingle() as unknown as Promise<{ data: DealDetail | null }>,
     supabase
       .from("deals")
-      .select("id,name,archived_at,stage:pipeline_stages(name)")
+      .select("id,name,round,first_seen_at,created_at,archived_at,stage:pipeline_stages(name)")
       .eq("company_id", companyId)
       .neq("id", dealId)
       .order("updated_at", { ascending: false }) as unknown as Promise<{
@@ -414,8 +419,22 @@ export default async function DealDetailPage({
     .slice(0, 40);
 
   const lastUpdateAt = deal.last_activity_at ?? deal.updated_at;
+  const displayInput = {
+    name: deal.name,
+    round: deal.round,
+    companyName: company.name,
+    firstSeenAt: deal.first_seen_at,
+    createdAt: deal.created_at,
+  };
+  const title = dealTitle(displayInput);
+  const label = dealLabel(displayInput);
+  const hasDistinctName = Boolean(distinctDealName(displayInput));
   const showRound =
-    deal.round && !deal.name.toLocaleLowerCase().includes(deal.round.toLocaleLowerCase());
+    deal.round && !title.toLocaleLowerCase().includes(deal.round.toLocaleLowerCase());
+  const archiveEvent = dealActivity
+    .filter((event) => event.event_type === "DEAL_ARCHIVED" && event.target_id === dealId)
+    .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())[0];
+  const archivedFromReview = archiveEvent?.payload?.reason === "duplicate_tracker_row";
   const requirementDocuments = [
     ...dealDocuments.map((document) => ({ id: document.id, name: document.name })),
     ...companyDocuments.map((document) => ({
@@ -428,10 +447,25 @@ export default async function DealDetailPage({
   return (
     <div className="flex flex-col gap-4 px-7 py-6">
       {isArchived && (
-        <div className="rounded-[14px] border border-amber-200 bg-amber-50 px-4 py-3 text-[12.5px] text-amber-900">
-          <span className="font-semibold">Archived deal.</span> Archived{" "}
-          {formatExactDate(deal.archived_at)}. It no longer appears as active in Pipeline;
-          its history and linked records are kept for reference.
+        <div className="flex items-start justify-between gap-4 rounded-[14px] border border-amber-200 bg-amber-50 px-4 py-3 text-[12.5px] text-amber-900">
+          <div>
+            <span className="font-semibold">Archived deal.</span> Archived{" "}
+            {formatExactDate(deal.archived_at)}
+            {archivedFromReview ? " from Review as a duplicate tracker row" : ""}. It no longer
+            appears as active in Pipeline; its history and linked records are kept.{" "}
+            <Link href="/pipeline?view=archived" className="font-semibold underline">
+              All archived deals
+            </Link>
+          </div>
+          {!company.deleted_at && (
+            <RestoreDealButton
+              companyId={company.id}
+              companyName={company.name}
+              dealId={deal.id}
+              dealLabel={label}
+              archivedFromReview={archivedFromReview}
+            />
+          )}
         </div>
       )}
       {company.deleted_at && (
@@ -454,19 +488,22 @@ export default async function DealDetailPage({
             <Link href={`/companies/${company.id}`} className="hover:text-cyan-700">
               {company.name}
             </Link>{" "}
-            / {deal.name}
+            / {label}
           </div>
           <div className="text-[12px] font-semibold text-cyan-800">
             <Link href={`/companies/${company.id}`} className="hover:text-cyan-700">
               {company.name}
             </Link>
-            <span className="text-neutral-400"> / Opportunity</span>
+            <span className="text-neutral-400"> / Deal</span>
           </div>
           <h1 className="font-[family-name:var(--font-display)] text-[25px] font-semibold tracking-tight text-ink">
-            {deal.name}
+            {title}
           </h1>
           <p className="mt-1 text-[13px] text-neutral-500">
             {showRound ? `${deal.round} / ` : ""}
+            {!hasDistinctName && !deal.round && deal.first_seen_at
+              ? `First seen ${formatMonthYear(deal.first_seen_at)} / `
+              : ""}
             {deal.stage?.name ?? "No stage"}
             {deal.outcome?.name ? ` / ${deal.outcome.name}` : ""}
             {deal.priority?.name ? ` / ${deal.priority.name} priority` : ""}
@@ -488,7 +525,7 @@ export default async function DealDetailPage({
                 companyId={company.id}
                 companyName={company.name}
                 dealId={deal.id}
-                dealName={deal.name}
+                dealName={label}
                 otherActiveDealCount={otherActiveDeals.length}
               />
             </div>
@@ -499,7 +536,7 @@ export default async function DealDetailPage({
       {(siblings ?? []).length > 0 && (
         <div className="flex flex-wrap items-center gap-2 text-[11.5px]">
           <span className="font-semibold uppercase tracking-wide text-neutral-400">
-            Other opportunities at {company.name}
+            Other deals at {company.name}
           </span>
           {(siblings ?? []).map((sibling) => (
             <Link
@@ -507,7 +544,13 @@ export default async function DealDetailPage({
               href={dealHref(company.id, sibling.id)}
               className="rounded-full border border-neutral-200 px-3 py-1 font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
             >
-              {sibling.name}
+              {dealLabel({
+                name: sibling.name,
+                round: sibling.round,
+                companyName: company.name,
+                firstSeenAt: sibling.first_seen_at,
+                createdAt: sibling.created_at,
+              })}
               <span className="font-medium text-neutral-400">
                 {" "}
                 · {sibling.archived_at ? "Archived" : sibling.stage?.name ?? "No stage"}
@@ -592,7 +635,7 @@ export default async function DealDetailPage({
 
         <div className="flex flex-col gap-3.5">
           <div className="vq-card-static rounded-[14px] bg-white p-5">
-            <h2 className="mb-3 text-[14.5px] font-semibold text-ink">Opportunity</h2>
+            <h2 className="mb-3 text-[14.5px] font-semibold text-ink">Deal details</h2>
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[12px]">
               <dt className="text-neutral-400">Company</dt>
               <dd className="font-medium text-ink">
@@ -711,7 +754,7 @@ export default async function DealDetailPage({
           <div>
             <h2 className="text-[14.5px] font-semibold text-ink">Tasks</h2>
             <p className="mt-0.5 text-[12px] text-neutral-500">
-              Follow-ups for this opportunity only. {openTasks.length} open.
+              Follow-ups for this deal only. {openTasks.length} open.
             </p>
           </div>
           {!isArchived && (
@@ -723,7 +766,7 @@ export default async function DealDetailPage({
                 companyId: company.id,
                 companyName: company.name,
                 dealId: deal.id,
-                dealName: deal.name,
+                dealName: label,
               }}
             />
           )}
@@ -788,7 +831,7 @@ export default async function DealDetailPage({
               categoryId: type.category_id,
             }))}
             title="Deal documents"
-            description={`Files added here are linked to ${deal.name} only.`}
+            description="Files added here are linked to this deal only."
             emptyMessage="No documents linked to this deal yet."
           />
         )}
@@ -796,7 +839,7 @@ export default async function DealDetailPage({
         <div className="vq-card-static rounded-[14px] bg-white p-5">
           <h2 className="text-[14.5px] font-semibold text-ink">Company documents</h2>
           <p className="mb-3 mt-0.5 text-[12px] text-neutral-500">
-            General {company.name} files shared by every opportunity.{" "}
+            General {company.name} files shared by every deal.{" "}
             <Link href={`/companies/${company.id}#documents`} className="font-semibold text-cyan-700 hover:text-cyan-800">
               Manage on company
             </Link>
@@ -845,7 +888,7 @@ export default async function DealDetailPage({
           <div id="log-update">
             <LogInteractionForm
               companyId={company.id}
-              deals={[{ id: deal.id, name: deal.name }]}
+              deals={[{ id: deal.id, name: label }]}
               initialDealId={deal.id}
               lockDeal
               title="Log update"

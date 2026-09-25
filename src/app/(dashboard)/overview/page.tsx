@@ -2,6 +2,7 @@ import Link from "next/link";
 import OverviewAttentionPanel from "@/components/OverviewAttentionPanel";
 import RelativeTime from "@/components/RelativeTime";
 import { getNeedsAttentionDeals } from "@/lib/deals/attention";
+import { dealLabel } from "@/lib/deals/display";
 import { startDevPageTimer } from "@/lib/performance";
 import { createClient } from "@/lib/supabase/server";
 
@@ -12,6 +13,8 @@ type DealRow = {
   name: string;
   updated_at: string;
   first_seen_at: string | null;
+  round: string | null;
+  created_at: string;
   last_activity_at: string | null;
   attention_snoozed_until: string | null;
   archived_at: string | null;
@@ -129,7 +132,7 @@ export default async function OverviewPage() {
     supabase
       .from("deals")
       .select(
-        "id,name,updated_at,first_seen_at,last_activity_at,attention_snoozed_until,archived_at,source_system,company:companies!inner(id,name,deleted_at),stage:pipeline_stages(name,is_terminal),priority:priorities(name),outcome:deal_outcomes(name),relationship_state:relationship_states(name)"
+        "id,name,round,created_at,updated_at,first_seen_at,last_activity_at,attention_snoozed_until,archived_at,source_system,company:companies!inner(id,name,deleted_at),stage:pipeline_stages(name,is_terminal),priority:priorities(name),outcome:deal_outcomes(name),relationship_state:relationship_states(name)"
       )
       .is("company.deleted_at", null)
       .is("archived_at", null) as unknown as Promise<{ data: DealRow[] | null }>,
@@ -247,7 +250,13 @@ export default async function OverviewPage() {
       id: deal.id,
       interactionLastAt: interactionByDeal.get(deal.id) ?? null,
       lastActivityAt: deal.last_activity_at,
-      name: deal.name,
+      name: dealLabel({
+        name: deal.name,
+        round: deal.round,
+        companyName: deal.company?.name,
+        firstSeenAt: deal.first_seen_at,
+        createdAt: deal.created_at,
+      }),
       outcomeName: deal.outcome?.name ?? null,
       priorityName: deal.priority?.name ?? null,
       relationshipStateName: deal.relationship_state?.name ?? null,

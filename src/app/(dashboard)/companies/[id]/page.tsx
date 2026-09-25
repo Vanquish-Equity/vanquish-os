@@ -4,11 +4,13 @@ import CompanyOverviewCard from "@/components/CompanyOverviewCard";
 import DocumentsCard, {
   type DocumentItem,
 } from "@/components/DocumentsCard";
+import NewDealModal from "@/components/NewDealModal";
 import LogInteractionForm from "@/components/LogInteractionForm";
 import RelativeTime from "@/components/RelativeTime";
 import TrashBanner from "@/components/TrashBanner";
 import { describeActivity, describeActivityDetail } from "@/lib/activity/describe";
-import { countByDeal, dealHref, partitionOpportunities } from "@/lib/deals/scope";
+import { dealLabel } from "@/lib/deals/display";
+import { countByDeal, dealHref, partitionDeals } from "@/lib/deals/scope";
 import { calculateRequirementProgress } from "@/lib/documents/requirements";
 import { humanizeCode, labelForInstrument } from "@/lib/labels";
 import { startDevPageTimer } from "@/lib/performance";
@@ -17,6 +19,8 @@ import {
   getDocumentCategories,
   getDocumentTypes,
   getIndustryOptions,
+  getPipelineStages,
+  getPriorityOptions,
 } from "@/lib/taxonomies";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +48,8 @@ type DealRow = {
   updated_at: string;
   last_activity_at: string | null;
   archived_at: string | null;
+  first_seen_at: string | null;
+  created_at: string;
   stage: { id: string; name: string; is_terminal: boolean } | null;
   priority: { id: string; name: string } | null;
   outcome: { id: string; name: string } | null;
@@ -115,6 +121,8 @@ export default async function CompanyDetailPage({
     industries,
     documentCategories,
     documentTypes,
+    stages,
+    priorities,
   ] = await Promise.all([
     supabase
       .from("companies")
@@ -126,7 +134,7 @@ export default async function CompanyDetailPage({
     supabase
       .from("deals")
       .select(
-        "id,name,potential_investment,round,owner,updated_at,last_activity_at,archived_at,stage:pipeline_stages(id,name,is_terminal),priority:priorities(id,name),outcome:deal_outcomes(id,name),relationship_state:relationship_states(id,name)"
+        "id,name,potential_investment,round,owner,updated_at,last_activity_at,archived_at,first_seen_at,created_at,stage:pipeline_stages(id,name,is_terminal),priority:priorities(id,name),outcome:deal_outcomes(id,name),relationship_state:relationship_states(id,name)"
       )
       .eq("company_id", id)
       .order("updated_at", { ascending: false }) as unknown as Promise<{
@@ -139,17 +147,27 @@ export default async function CompanyDetailPage({
     getDocumentTypes() as Promise<
       { id: string; name: string; category_id: string }[]
     >,
+    getPipelineStages() as Promise<Option[]>,
+    getPriorityOptions() as Promise<Option[]>,
   ]);
 
   if (!company) notFound();
 
   const allDealRows = deals ?? [];
-  // Every company-level view works across all opportunities; round-specific
-  // actions live on each deal's own page.
+  // Every company-level view works across all deals; deal-specific actions
+  // live on each deal's own page.
   const dealRows = allDealRows.filter((deal) => !deal.archived_at);
   const dealIds = allDealRows.map((deal) => deal.id);
   const activeDealIds = dealRows.map((deal) => deal.id);
-  const dealNames = new Map(allDealRows.map((deal) => [deal.id, deal.name]));
+  const dealLabelFor = (deal: DealRow) =>
+    dealLabel({
+      name: deal.name,
+      round: deal.round,
+      companyName: company.name,
+      firstSeenAt: deal.first_seen_at,
+      createdAt: deal.created_at,
+    });
+  const dealNames = new Map(allDealRows.map((deal) => [deal.id, dealLabelFor(deal)]));
 
   const [
     { data: history },
@@ -358,7 +376,7 @@ export default async function CompanyDetailPage({
   const openReviewItems = (reviewItems ?? []).filter(
     (item) => item.payload?.company_name === company.name
   );
-  const opportunities = partitionOpportunities(
+  const dealGroups = partitionDeals(
     allDealRows.map((deal) => ({
       ...deal,
       archivedAt: deal.archived_at,
@@ -375,9 +393,9 @@ export default async function CompanyDetailPage({
   });
   const lastUpdateAt = company.last_activity_at ?? dealRows[0]?.updated_at ?? company.updated_at;
   const summaryParts = [
-    `${opportunities.open.length} open ${opportunities.open.length === 1 ? "opportunity" : "opportunities"}`,
-    opportunities.closed.length ? `${opportunities.closed.length} closed` : null,
-    opportunities.archived.length ? `${opportunities.archived.length} archived` : null,
+    `${dealGroups.open.length} open ${dealGroups.open.length === 1 ? "deal" : "deals"}`,
+    dealGroups.closed.length ? `${dealGroups.closed.length} closed` : null,
+    dealGroups.archived.length ? `${dealGroups.archived.length} archived` : null,
   ].filter(Boolean);
 
   return (
@@ -403,18 +421,28 @@ export default async function CompanyDetailPage({
             {lastUpdateAt && <RelativeTime date={lastUpdateAt} />}
           </p>
         </div>
-        <a
-          href="#log-update"
-          className="flex-shrink-0 rounded-full bg-ink px-3.5 py-2 text-[11.5px] font-semibold text-white transition hover:bg-neutral-800"
-        >
-          Log update
-        </a>
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <a
+            href="#log-update"
+            className="rounded-full border border-neutral-200 px-3.5 py-2 text-[11.5px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
+          >
+            Log update
+          </a>
+          {!company.deleted_at && (
+            <NewDealModal
+              fixedCompany={{ id: company.id, name: company.name }}
+              industries={industries ?? []}
+              stages={stages ?? []}
+              priorities={priorities ?? []}
+            />
+          )}
+        </div>
       </header>
 
       <nav className="sticky top-0 z-20 flex flex-wrap gap-2 border-b border-neutral-100 bg-white/95 py-2 backdrop-blur">
         {[
           ["attention", "Needs attention"],
-          ["opportunities", "Opportunities"],
+          ["deals", "Deals"],
           ["timeline", "Timeline"],
           ["people", "People"],
           ["documents", "Documents"],
@@ -520,7 +548,7 @@ export default async function CompanyDetailPage({
         )}
       </section>
 
-      <section id="opportunities" className="grid grid-cols-2 gap-3.5 scroll-mt-16">
+      <section id="deals" className="grid grid-cols-2 gap-3.5 scroll-mt-16">
         <CompanyOverviewCard
           company={{
             id: company.id,
@@ -533,9 +561,10 @@ export default async function CompanyDetailPage({
           industries={industries ?? []}
         />
         <div className="vq-card-static rounded-[14px] bg-white p-5">
-          <h2 className="text-[14.5px] font-semibold text-ink">Opportunities</h2>
+          <h2 className="text-[14.5px] font-semibold text-ink">Deals</h2>
           <p className="mb-3 mt-0.5 text-[12px] text-neutral-500">
-            Each round is its own deal. Open one to edit its stage, tasks, documents and diligence.
+            Each deal is one opportunity or evaluation for {company.name}. Open one to edit its
+            stage, tasks, documents and diligence.
           </p>
           {dealRows.length === 0 ? (
             <p className="rounded-xl border border-dashed border-neutral-200 px-3 py-4 text-center text-[12px] text-neutral-400">
@@ -543,7 +572,7 @@ export default async function CompanyDetailPage({
             </p>
           ) : (
             <div className="vq-card-grid flex flex-col gap-2">
-              {[...opportunities.open, ...opportunities.closed].map((deal) => {
+              {[...dealGroups.open, ...dealGroups.closed].map((deal) => {
                 const dealRequirements = requirementsByDeal.get(deal.id) ?? [];
                 const progress = calculateRequirementProgress(dealRequirements);
                 const openTasks = openTaskCounts.get(deal.id) ?? 0;
@@ -557,10 +586,7 @@ export default async function CompanyDetailPage({
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="truncate text-[12.5px] font-semibold text-ink">
-                          {deal.name}
-                          {deal.round ? (
-                            <span className="font-medium text-neutral-400"> / {deal.round}</span>
-                          ) : null}
+                          {dealLabelFor(deal)}
                         </div>
                         <div className="mt-0.5 text-[11px] text-neutral-500">
                           {[
@@ -594,19 +620,19 @@ export default async function CompanyDetailPage({
               })}
             </div>
           )}
-          {opportunities.archived.length > 0 && (
+          {dealGroups.archived.length > 0 && (
             <details className="mt-3 text-[12px]">
               <summary className="cursor-pointer font-semibold text-neutral-400 hover:text-neutral-600">
-                Archived opportunities ({opportunities.archived.length})
+                Archived deals ({dealGroups.archived.length})
               </summary>
               <div className="mt-2 flex flex-col gap-1.5">
-                {opportunities.archived.map((deal) => (
+                {dealGroups.archived.map((deal) => (
                   <Link
                     key={deal.id}
                     href={dealHref(company.id, deal.id)}
                     className="flex items-center justify-between gap-2 rounded-xl border border-neutral-100 px-3 py-2 text-neutral-500 hover:text-cyan-700"
                   >
-                    <span className="truncate">{deal.name}</span>
+                    <span className="truncate">{dealLabelFor(deal)}</span>
                     <span className="flex-shrink-0 text-[10.5px] text-neutral-400">
                       Archived {deal.archived_at ? <RelativeTime date={deal.archived_at} /> : null}
                     </span>
@@ -650,7 +676,7 @@ export default async function CompanyDetailPage({
         <div id="log-update">
           <LogInteractionForm
             companyId={company.id}
-            deals={dealRows.map((deal) => ({ id: deal.id, name: deal.name }))}
+            deals={dealRows.map((deal) => ({ id: deal.id, name: dealLabelFor(deal) }))}
             title="Log update"
           />
         </div>
@@ -686,7 +712,7 @@ export default async function CompanyDetailPage({
         <DocumentsCard
           companyId={company.id}
           companyName={company.name}
-          dealOptions={dealRows.map((deal) => ({ id: deal.id, name: deal.name }))}
+          dealOptions={dealRows.map((deal) => ({ id: deal.id, name: dealLabelFor(deal) }))}
           documents={documents}
           categories={documentCategories ?? []}
           documentTypes={(documentTypes ?? []).map((type) => ({

@@ -1,5 +1,5 @@
-// Pure helpers that keep one opportunity's records separate from the other
-// rounds of the same company. Records carry company_id and an optional
+// Pure helpers that keep one deal's records separate from the other
+// deals of the same company. Records carry company_id and an optional
 // deal_id: a null deal_id means the record is company-level.
 
 export type DealScopedRecord = { dealId: string | null };
@@ -42,14 +42,14 @@ export function isDealActivity(
   return relatedIds.has(event.targetId);
 }
 
-export type OpportunitySummaryInput = {
+export type DealSummaryInput = {
   id: string;
   archivedAt: string | null;
   stageIsTerminal: boolean;
   outcomeName: string | null;
 };
 
-export function partitionOpportunities<T extends OpportunitySummaryInput>(deals: T[]) {
+export function partitionDeals<T extends DealSummaryInput>(deals: T[]) {
   const visible = deals.filter((deal) => !deal.archivedAt);
 
   return {
