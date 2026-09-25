@@ -12,6 +12,7 @@ import SelectMenu from "@/components/SelectMenu";
 
 export type DocumentItem = {
   id: string;
+  dealId: string | null;
   name: string;
   storagePath: string | null;
   driveUrl: string | null;

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { deleteTaskAction, setTaskStatusAction } from "@/lib/tasks/actions";
+import { deleteTaskAction, setTaskStatusAction, updateTaskAction } from "@/lib/tasks/actions";
 
 export type TaskItem = {
   id: string;
@@ -12,8 +12,10 @@ export type TaskItem = {
   dueAt: string | null;
   status: "open" | "done";
   priorityName: string | null;
+  priorityId: string | null;
   companyId: string | null;
   companyName: string | null;
+  dealName: string | null;
 };
 
 function isOverdue(dueAt: string | null, status: string) {
@@ -21,12 +23,17 @@ function isOverdue(dueAt: string | null, status: string) {
   return new Date(dueAt) < new Date(new Date().toDateString());
 }
 
-export default function TaskRow({ task }: { task: TaskItem }) {
+export default function TaskRow({ task, priorities }: { task: TaskItem; priorities: { id: string; name: string }[] }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState(task.status);
   const [archived, setArchived] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(task.title);
+  const [owner, setOwner] = useState(task.owner ?? "");
+  const [dueAt, setDueAt] = useState(task.dueAt ?? "");
+  const [priorityId, setPriorityId] = useState(task.priorityId ?? "");
   const done = status === "done";
   const overdue = isOverdue(task.dueAt, status);
 
@@ -69,6 +76,17 @@ export default function TaskRow({ task }: { task: TaskItem }) {
     router.refresh();
   }
 
+  async function saveEdits(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPending(true);
+    setError(null);
+    const result = await updateTaskAction({ taskId: task.id, title, owner, dueAt: dueAt || null, priorityId: priorityId || null });
+    setPending(false);
+    if (!result.ok) { setError(result.message); return; }
+    setEditing(false);
+    router.refresh();
+  }
+
   if (archived) return null;
 
   return (
@@ -98,6 +116,28 @@ export default function TaskRow({ task }: { task: TaskItem }) {
       </button>
 
       <div className="min-w-0 flex-1">
+        {editing ? (
+          <form onSubmit={(event) => void saveEdits(event)} className="flex flex-wrap items-end gap-2 text-[11px]">
+            <label className="flex min-w-[180px] flex-1 flex-col gap-1">Task
+              <input required value={title} onChange={(event) => setTitle(event.target.value)} className="rounded-md border border-neutral-200 px-2 py-1.5 text-[12px]" />
+            </label>
+            <label className="flex flex-col gap-1">Owner
+              <input value={owner} onChange={(event) => setOwner(event.target.value)} className="w-28 rounded-md border border-neutral-200 px-2 py-1.5 text-[12px]" />
+            </label>
+            <label className="flex flex-col gap-1">Due
+              <input type="date" value={dueAt} onChange={(event) => setDueAt(event.target.value)} className="rounded-md border border-neutral-200 px-2 py-1.5 text-[12px]" />
+            </label>
+            <label className="flex flex-col gap-1">Priority
+              <select value={priorityId} onChange={(event) => setPriorityId(event.target.value)} className="rounded-md border border-neutral-200 px-2 py-1.5 text-[12px]">
+                <option value="">None</option>
+                {priorities.map((priority) => <option key={priority.id} value={priority.id}>{priority.name}</option>)}
+              </select>
+            </label>
+            <button type="submit" disabled={pending} className="rounded-md bg-ink px-2 py-1.5 font-semibold text-white disabled:opacity-50">Save</button>
+            <button type="button" disabled={pending} onClick={() => setEditing(false)} className="px-1 py-1.5 text-neutral-500">Cancel</button>
+            {error && <span role="alert" className="text-red-600">{error}</span>}
+          </form>
+        ) : <>
         <div
           className={`text-[12.5px] font-medium ${
             done ? "text-neutral-400 line-through" : "text-ink"
@@ -115,6 +155,7 @@ export default function TaskRow({ task }: { task: TaskItem }) {
             </Link>
           )}
           {task.owner && <span>{task.owner}</span>}
+          {task.dealName && <span>· {task.dealName}</span>}
           {task.dueAt && (
             <span className={overdue ? "font-semibold text-red-600" : undefined}>
               Due {new Date(task.dueAt).toLocaleDateString()}
@@ -122,6 +163,7 @@ export default function TaskRow({ task }: { task: TaskItem }) {
           )}
           {error && <span className="text-red-600">{error}</span>}
         </div>
+        </>}
       </div>
 
       {task.priorityName === "High" && !done && (
@@ -130,6 +172,8 @@ export default function TaskRow({ task }: { task: TaskItem }) {
         </span>
       )}
 
+      {!editing && <button type="button" disabled={pending} onClick={() => setEditing(true)}
+        className="flex-shrink-0 text-[11px] font-semibold text-neutral-400 transition hover:text-cyan-700 disabled:opacity-50">Edit</button>}
       <button
         type="button"
         onClick={() => void handleDelete()}

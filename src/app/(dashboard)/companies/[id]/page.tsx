@@ -109,6 +109,8 @@ function describeActivity(eventType: string, payload: Record<string, unknown>) {
   if (eventType === "DOCUMENT_UPLOADED") return "Document added";
   if (eventType === "DOCUMENT_ARCHIVED") return "Document archived";
   if (eventType === "TASK_CREATED") return "Task created";
+  if (eventType === "TASK_UPDATED") return "Task updated";
+  if (eventType === "DEAL_ARCHIVED") return "Duplicate deal archived";
   if (eventType === "TASK_COMPLETED") return "Task completed";
   if (eventType === "TASK_REOPENED") return "Task reopened";
   if (eventType === "TASK_ARCHIVED") return "Task archived";
@@ -233,7 +235,7 @@ export default async function CompanyDetailPage({
       .is("archived_at", null),
     supabase
       .from("documents")
-      .select("id,name,storage_path,drive_url,size_bytes,created_at")
+      .select("id,name,deal_id,storage_path,drive_url,size_bytes,created_at")
       .eq("company_id", id)
       .is("archived_at", null)
       .order("created_at", { ascending: false }) as unknown as Promise<{
@@ -241,6 +243,7 @@ export default async function CompanyDetailPage({
         | {
             id: string;
             name: string;
+            deal_id: string | null;
             storage_path: string | null;
             drive_url: string | null;
             size_bytes: number | null;
@@ -277,7 +280,7 @@ export default async function CompanyDetailPage({
       .from("activity_events")
       .select("id,event_type,target_type,target_id,occurred_at,payload,actor")
       .order("occurred_at", { ascending: false })
-      .limit(80) as unknown as Promise<{
+      .limit(200) as unknown as Promise<{
       data:
         | {
             id: string;
@@ -329,6 +332,7 @@ export default async function CompanyDetailPage({
       return {
         id: doc.id,
         name: doc.name,
+        dealId: doc.deal_id,
         storagePath: doc.storage_path,
         driveUrl: doc.drive_url,
         sizeBytes: doc.size_bytes,
@@ -343,6 +347,8 @@ export default async function CompanyDetailPage({
     id,
     ...dealRows.map((deal) => deal.id),
     ...documents.map((document) => document.id),
+    ...(companyTasks ?? []).map((task) => task.id),
+    ...(requirements ?? []).map((requirement) => requirement.id),
   ]);
   const timeline: TimelineItem[] = [
     ...(history ?? []).map((h) => ({
@@ -362,7 +368,9 @@ export default async function CompanyDetailPage({
       detail: interaction.summary,
     })),
     ...(activity ?? [])
-      .filter((event) => relevantIds.has(event.target_id))
+      .filter((event) =>
+        relevantIds.has(event.target_id) || event.payload.companyId === id
+      )
       .map((event) => ({
         id: `activity-${event.id}`,
         at: event.occurred_at,
@@ -371,6 +379,8 @@ export default async function CompanyDetailPage({
         detail:
           typeof event.payload.title === "string"
             ? event.payload.title
+            : event.event_type === "TASK_UPDATED" && typeof event.payload.after === "object" && event.payload.after !== null && "title" in event.payload.after
+              ? String(event.payload.after.title)
             : typeof event.payload.name === "string"
               ? event.payload.name
               : null,
@@ -595,7 +605,7 @@ export default async function CompanyDetailPage({
             id: type.id,
             name: type.name,
           }))}
-          documents={documents.map((document) => ({
+          documents={documents.filter((document) => !document.dealId || document.dealId === primaryDeal.id).map((document) => ({
             id: document.id,
             name: document.name,
           }))}

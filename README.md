@@ -30,10 +30,15 @@ Run the migration files in order in the Supabase SQL Editor:
    requirements and document metadata.
 6. `0010_portfolio_vehicles.sql` - legal vehicles, investors, investments,
    positions and capital events.
+7. `0011` and `0012` - tracker date corrections and performance indexes.
+8. `0013_review_resolution_and_document_consistency.sql` - atomic duplicate
+   decisions and checklist updates when linked documents are archived.
 
 The auth gate is intentionally still disabled for now. The temporary anon
 policies are marked in the migrations and should be removed once sign-in and
 roles are wired up.
+Do not add additional confidential contact or investment data to an accessible
+deployment until the login gate and RLS restrictions replace these policies.
 
 ## 3. Environment Variables
 

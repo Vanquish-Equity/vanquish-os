@@ -35,6 +35,15 @@ export async function createTaskAction(
 
   const supabase = await createClient();
 
+  if (input.dealId) {
+    if (!input.companyId) return { ok: false, message: "Choose the deal's company." };
+    const { data: deal } = await supabase.from("deals").select("company_id")
+      .eq("id", input.dealId).is("archived_at", null).maybeSingle();
+    if (!deal || deal.company_id !== input.companyId) {
+      return { ok: false, message: "Choose a deal belonging to this company." };
+    }
+  }
+
   const { data, error } = await supabase
     .from("tasks")
     .insert({
@@ -57,7 +66,7 @@ export async function createTaskAction(
       eventType: "TASK_CREATED",
       targetType: "task",
       targetId: data.id,
-      payload: { title },
+      payload: { title, companyId: input.companyId, dealId: input.dealId },
       actor: cleanText(input.owner) || "anonymous",
     },
     supabase
@@ -65,6 +74,47 @@ export async function createTaskAction(
 
   revalidateTaskPaths(input.companyId);
   return { ok: true, taskId: data.id };
+}
+
+export async function updateTaskAction(input: {
+  taskId: string;
+  title: string;
+  owner: string;
+  dueAt: string | null;
+  priorityId: string | null;
+}): Promise<TaskActionResult> {
+  const taskId = cleanText(input.taskId);
+  const title = cleanText(input.title);
+  if (!taskId || !title) return { ok: false, message: "Title is required." };
+  if (input.dueAt && !/^\d{4}-\d{2}-\d{2}$/.test(input.dueAt)) {
+    return { ok: false, message: "Choose a valid due date." };
+  }
+  const supabase = await createClient();
+  const { data: previous, error: lookupError } = await supabase
+    .from("tasks")
+    .select("company_id,deal_id,title,owner,due_at,priority_id")
+    .eq("id", taskId).is("archived_at", null).maybeSingle();
+  if (lookupError) return { ok: false, message: lookupError.message };
+  if (!previous) return { ok: false, message: "Task not found." };
+
+  const changes = {
+    title,
+    owner: cleanText(input.owner) || null,
+    due_at: input.dueAt || null,
+    priority_id: input.priorityId || null,
+  };
+  const { count, error } = await supabase.from("tasks")
+    .update(changes, { count: "exact" }).eq("id", taskId).is("archived_at", null);
+  if (error) return { ok: false, message: error.message };
+  if (!count) return { ok: false, message: "Task could not be updated." };
+
+  await logActivity({
+    eventType: "TASK_UPDATED", targetType: "task", targetId: taskId,
+    payload: { before: previous, after: changes, companyId: previous.company_id, dealId: previous.deal_id },
+    actor: "anonymous",
+  }, supabase);
+  revalidateTaskPaths(previous.company_id);
+  return { ok: true };
 }
 
 export async function setTaskStatusAction(input: {
@@ -96,7 +146,7 @@ export async function setTaskStatusAction(input: {
       eventType: input.status === "done" ? "TASK_COMPLETED" : "TASK_REOPENED",
       targetType: "task",
       targetId: taskId,
-      payload: {},
+      payload: { companyId: input.companyId },
       actor: "anonymous",
     },
     supabase
@@ -133,7 +183,7 @@ export async function deleteTaskAction(input: {
       eventType: "TASK_ARCHIVED",
       targetType: "task",
       targetId: taskId,
-      payload: {},
+      payload: { companyId: input.companyId },
       actor: "anonymous",
     },
     supabase
