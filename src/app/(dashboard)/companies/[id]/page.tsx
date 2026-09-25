@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { hasPermission } from "@/lib/auth/access";
 import { notFound } from "next/navigation";
 import CompanyOverviewCard from "@/components/CompanyOverviewCard";
 import DocumentsCard, {
@@ -113,6 +114,10 @@ export default async function CompanyDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const [canDocuments, canPortfolio] = await Promise.all([
+    hasPermission("documents"),
+    hasPermission("portfolio"),
+  ]);
   const supabase = await createClient();
   const endTimer = startDevPageTimer(`page:data:company:${id}`);
 
@@ -229,12 +234,16 @@ export default async function CompanyDetailPage({
       .select("id,name,title,linkedin_url")
       .eq("primary_organization_id", id)
       .is("archived_at", null),
-    supabase
-      .from("documents")
-      .select("id,name,deal_id,storage_path,drive_url,size_bytes,created_at")
-      .eq("company_id", id)
-      .is("archived_at", null)
-      .order("created_at", { ascending: false }) as unknown as Promise<{
+    // Documents and checklists are only queried with the Documents
+    // permission (RLS withholds them anyway).
+    (canDocuments
+      ? supabase
+          .from("documents")
+          .select("id,name,deal_id,storage_path,drive_url,size_bytes,created_at")
+          .eq("company_id", id)
+          .is("archived_at", null)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] })) as unknown as Promise<{
       data:
         | {
             id: string;
@@ -247,7 +256,7 @@ export default async function CompanyDetailPage({
           }[]
         | null;
     }>,
-    activeDealIds.length
+    canDocuments && activeDealIds.length
       ? (supabase
           .from("document_requirements")
           .select("id,deal_id,expected_label,required,status")
@@ -275,14 +284,16 @@ export default async function CompanyDetailPage({
           }[]
         | null;
     }>,
-    supabase
-      .from("investments")
-      .select(
-        "id,external_ref,round_label,instrument,total_amount,investment_vehicles(vehicle:legal_entities(id,name))"
-      )
-      .eq("company_id", id)
-      .is("archived_at", null)
-      .order("investment_date", { ascending: false }) as unknown as Promise<{
+    (canPortfolio
+      ? supabase
+          .from("investments")
+          .select(
+            "id,external_ref,round_label,instrument,total_amount,investment_vehicles(vehicle:legal_entities(id,name))"
+          )
+          .eq("company_id", id)
+          .is("archived_at", null)
+          .order("investment_date", { ascending: false })
+      : Promise.resolve({ data: [] })) as unknown as Promise<{
       data: InvestmentRow[] | null;
     }>,
     supabase
@@ -449,8 +460,8 @@ export default async function CompanyDetailPage({
           ["deals", "Deals"],
           ["timeline", "Timeline"],
           ["people", "People"],
-          ["documents", "Documents"],
-          ["investments", "Investments"],
+          ...(canDocuments ? [["documents", "Documents"]] : []),
+          ...(canPortfolio ? [["investments", "Investments"]] : []),
         ].map(([href, label]) => (
           <a
             key={href}
@@ -473,7 +484,7 @@ export default async function CompanyDetailPage({
             No overdue tasks, open review items or missing diligence items.
           </p>
         ) : (
-          <div className="grid grid-cols-3 gap-3">
+          <div className={`grid gap-3 ${canDocuments ? "grid-cols-3" : "grid-cols-2"}`}>
             <div className="rounded-xl bg-[#f7f9fa] p-3">
               <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
                 Overdue tasks ({overdueTasks.length})
@@ -504,6 +515,7 @@ export default async function CompanyDetailPage({
                 </div>
               )}
             </div>
+            {canDocuments && (
             <div className="rounded-xl bg-[#f7f9fa] p-3">
               <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
                 Missing DD items ({missingDdItems.length})
@@ -528,6 +540,7 @@ export default async function CompanyDetailPage({
                 </div>
               )}
             </div>
+            )}
             <div className="rounded-xl bg-[#f7f9fa] p-3">
               <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
                 Review items ({openReviewItems.length})
@@ -568,7 +581,7 @@ export default async function CompanyDetailPage({
           <h2 className="text-[14.5px] font-semibold text-ink">Deals</h2>
           <p className="mb-3 mt-0.5 text-[12px] text-neutral-500">
             Each deal is one opportunity or evaluation for {company.name}. Open one to edit its
-            stage, tasks, documents and diligence.
+            stage, tasks{canDocuments ? ", documents and diligence" : " and activity"}.
           </p>
           {dealRows.length === 0 ? (
             <p className="rounded-xl border border-dashed border-neutral-200 px-3 py-4 text-center text-[12px] text-neutral-400">
@@ -610,11 +623,11 @@ export default async function CompanyDetailPage({
                       <span>
                         {openTasks} open {openTasks === 1 ? "task" : "tasks"}
                       </span>
-                      <span>
+                      {canDocuments && <span>
                         {dealRequirements.length > 0
                           ? `DD ${progress.receivedRequired}/${progress.totalRequired}`
                           : "No DD checklist"}
-                      </span>
+                      </span>}
                       <span>
                         Updated <RelativeTime date={deal.last_activity_at ?? deal.updated_at} />
                       </span>
@@ -712,7 +725,7 @@ export default async function CompanyDetailPage({
         </div>
       </section>
 
-      <section id="documents" className="scroll-mt-16">
+      {canDocuments && <section id="documents" className="scroll-mt-16">
         <DocumentsCard
           companyId={company.id}
           companyName={company.name}
@@ -725,9 +738,9 @@ export default async function CompanyDetailPage({
             categoryId: type.category_id,
           }))}
         />
-      </section>
+      </section>}
 
-      <section id="investments" className="vq-card rounded-[14px] bg-white p-5 scroll-mt-16">
+      {canPortfolio && <section id="investments" className="vq-card rounded-[14px] bg-white p-5 scroll-mt-16">
         <h2 className="mb-3 text-[14.5px] font-semibold text-ink">Investments</h2>
         {(investments ?? []).length === 0 ? (
           <p className="rounded-xl border border-dashed border-neutral-200 px-3 py-4 text-center text-[12px] text-neutral-400">
@@ -768,7 +781,7 @@ export default async function CompanyDetailPage({
             })}
           </div>
         )}
-      </section>
+      </section>}
     </div>
   );
 }

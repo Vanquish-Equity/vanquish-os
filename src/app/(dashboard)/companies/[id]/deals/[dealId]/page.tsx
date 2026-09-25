@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { hasPermission } from "@/lib/auth/access";
 import { notFound } from "next/navigation";
 import ArchiveDealButton from "@/components/ArchiveDealButton";
 import RestoreDealButton from "@/components/RestoreDealButton";
@@ -195,6 +196,10 @@ export default async function DealDetailPage({
 }) {
   const { id: companyId, dealId } = await params;
   if (!UUID_PATTERN.test(companyId) || !UUID_PATTERN.test(dealId)) notFound();
+  const [canDocuments, canPortfolio] = await Promise.all([
+    hasPermission("documents"),
+    hasPermission("portfolio"),
+  ]);
   const supabase = await createClient();
   const endTimer = startDevPageTimer(`page:data:deal:${dealId}`);
 
@@ -257,22 +262,26 @@ export default async function DealDetailPage({
       .order("due_at", { ascending: true, nullsFirst: false }) as unknown as Promise<{
       data: TaskRowData[] | null;
     }>,
-    supabase
-      .from("documents")
-      .select("id,name,deal_id,storage_path,drive_url,size_bytes,created_at,archived_at")
-      .eq("company_id", companyId)
-      .or(`deal_id.is.null,deal_id.eq.${dealId}`)
-      .order("created_at", { ascending: false }) as unknown as Promise<{
+    (canDocuments
+      ? supabase
+          .from("documents")
+          .select("id,name,deal_id,storage_path,drive_url,size_bytes,created_at,archived_at")
+          .eq("company_id", companyId)
+          .or(`deal_id.is.null,deal_id.eq.${dealId}`)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] })) as unknown as Promise<{
       data: DocumentRow[] | null;
     }>,
-    supabase
-      .from("document_requirements")
-      .select(
-        "id,expected_label,criticality,required,status,executed,notes,document_type_id,satisfied_by_document_id,archived_at"
-      )
-      .eq("scope", "deal_dd")
-      .eq("deal_id", dealId)
-      .order("criticality") as unknown as Promise<{ data: RequirementRow[] | null }>,
+    (canDocuments
+      ? supabase
+          .from("document_requirements")
+          .select(
+            "id,expected_label,criticality,required,status,executed,notes,document_type_id,satisfied_by_document_id,archived_at"
+          )
+          .eq("scope", "deal_dd")
+          .eq("deal_id", dealId)
+          .order("criticality")
+      : Promise.resolve({ data: [] })) as unknown as Promise<{ data: RequirementRow[] | null }>,
     supabase
       .from("activity_events")
       .select(ACTIVITY_SELECT)
@@ -286,13 +295,15 @@ export default async function DealDetailPage({
       .eq("payload->>dealId", dealId)
       .order("occurred_at", { ascending: false })
       .limit(100) as unknown as Promise<{ data: ActivityRow[] | null }>,
-    supabase
-      .from("investments")
-      .select(
-        "id,external_ref,round_label,instrument,investment_vehicles(vehicle:legal_entities(id,name))"
-      )
-      .eq("deal_id", dealId)
-      .is("archived_at", null) as unknown as Promise<{ data: InvestmentRow[] | null }>,
+    (canPortfolio
+      ? supabase
+          .from("investments")
+          .select(
+            "id,external_ref,round_label,instrument,investment_vehicles(vehicle:legal_entities(id,name))"
+          )
+          .eq("deal_id", dealId)
+          .is("archived_at", null)
+      : Promise.resolve({ data: [] })) as unknown as Promise<{ data: InvestmentRow[] | null }>,
     getPipelineStages() as Promise<Option[]>,
     getPriorityOptions() as Promise<Option[]>,
     getDealOutcomeOptions() as Promise<Option[]>,
@@ -566,9 +577,9 @@ export default async function DealDetailPage({
       <nav className="sticky top-0 z-20 flex flex-wrap gap-2 border-b border-neutral-100 bg-white/95 py-2 backdrop-blur">
         {[
           ["deal-overview", "Deal overview"],
-          ["due-diligence", "Due diligence"],
+          ...(canDocuments ? [["due-diligence", "Due diligence"]] : []),
           ["tasks", "Tasks"],
-          ["documents", "Documents"],
+          ...(canDocuments ? [["documents", "Documents"]] : []),
           ["activity", "Activity"],
         ].map(([href, label]) => (
           <a
@@ -653,8 +664,8 @@ export default async function DealDetailPage({
               </dd>
               <dt className="text-neutral-400">Created</dt>
               <dd className="font-medium text-ink">{formatExactDate(deal.created_at)}</dd>
-              <dt className="text-neutral-400">Investments</dt>
-              <dd className="font-medium text-ink">
+              {canPortfolio && <dt className="text-neutral-400">Investments</dt>}
+              {canPortfolio && <dd className="font-medium text-ink">
                 {(investments ?? []).length === 0
                   ? "None linked"
                   : (investments ?? []).map((investment) => {
@@ -677,7 +688,7 @@ export default async function DealDetailPage({
                         </div>
                       );
                     })}
-              </dd>
+              </dd>}
             </dl>
           </div>
 
@@ -711,7 +722,7 @@ export default async function DealDetailPage({
         </div>
       </section>
 
-      {isArchived ? (
+      {canDocuments && (isArchived ? (
         <section id="due-diligence" className="vq-card-static rounded-[14px] bg-white p-5 scroll-mt-16">
           <h2 className="text-[14.5px] font-semibold text-ink">Due Diligence</h2>
           <p className="mb-3 mt-0.5 text-[12px] text-neutral-500">
@@ -751,7 +762,7 @@ export default async function DealDetailPage({
           documentTypes={(documentTypes ?? []).map((type) => ({ id: type.id, name: type.name }))}
           documents={requirementDocuments}
         />
-      )}
+      ))}
 
       <section id="tasks" className="vq-card-static rounded-[14px] bg-white scroll-mt-16">
         <div className="flex items-center justify-between gap-3 border-b border-neutral-100 px-5 py-4">
@@ -801,7 +812,7 @@ export default async function DealDetailPage({
         )}
       </section>
 
-      <section id="documents" className="grid grid-cols-2 gap-3.5 scroll-mt-16">
+      {canDocuments && <section id="documents" className="grid grid-cols-2 gap-3.5 scroll-mt-16">
         {isArchived ? (
           <div className="vq-card-static rounded-[14px] bg-white p-5">
             <h2 className="mb-3 text-[14.5px] font-semibold text-ink">Deal documents</h2>
@@ -868,7 +879,7 @@ export default async function DealDetailPage({
             ))}
           </div>
         </div>
-      </section>
+      </section>}
 
       <section id="activity" className="grid grid-cols-[1.3fr_0.7fr] gap-3.5 scroll-mt-16">
         <div className="vq-card-static rounded-[14px] bg-white p-5">

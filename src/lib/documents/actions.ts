@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity/log";
+import { actionAccessError } from "@/lib/auth/access";
 import { activeDealInCompanyError } from "@/lib/deals/guards";
 import { createClient } from "@/lib/supabase/server";
 
@@ -44,6 +45,8 @@ function documentPayloadFromForm(formData: FormData) {
 export async function uploadDocumentAction(
   formData: FormData
 ): Promise<DocumentActionResult> {
+  const accessError = await actionAccessError("documents");
+  if (accessError) return { ok: false, message: accessError };
   const file = formData.get("file");
   const companyId = String(formData.get("companyId") ?? "").trim();
   const dealId = String(formData.get("dealId") ?? "").trim() || null;
@@ -123,6 +126,8 @@ export async function uploadDocumentAction(
 export async function addDriveLinkDocumentAction(
   formData: FormData
 ): Promise<DocumentActionResult> {
+  const accessError = await actionAccessError("documents");
+  if (accessError) return { ok: false, message: accessError };
   const companyId = cleanText(formData.get("companyId"));
   const dealId = cleanText(formData.get("dealId")) || null;
   const name = cleanText(formData.get("name"));
@@ -177,6 +182,8 @@ export async function archiveDocumentAction(input: {
   id: string;
   companyId: string;
 }): Promise<DocumentActionResult> {
+  const accessError = await actionAccessError("documents");
+  if (accessError) return { ok: false, message: accessError };
   const supabase = await createClient();
   const { error: archiveError } = await supabase
     .from("documents")

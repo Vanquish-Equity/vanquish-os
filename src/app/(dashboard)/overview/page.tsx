@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { hasPermission } from "@/lib/auth/access";
 import OverviewAttentionPanel from "@/components/OverviewAttentionPanel";
 import RelativeTime from "@/components/RelativeTime";
 import { getNeedsAttentionDeals } from "@/lib/deals/attention";
@@ -114,6 +115,12 @@ function describeEvent(event: ActivityRow) {
 }
 
 export default async function OverviewPage() {
+  const [canPortfolio, canDocuments] = await Promise.all([
+    hasPermission("portfolio"),
+    hasPermission("documents"),
+  ]);
+  // Portfolio checklists are both portfolio data and documents.
+  const showPortfolioHealth = canPortfolio && canDocuments;
   const supabase = await createClient();
   const endTimer = startDevPageTimer("page:data:overview");
 
@@ -358,6 +365,7 @@ export default async function OverviewPage() {
         </div>
       </div>
 
+      {showPortfolioHealth && (
       <div className="vq-card-static rounded-[14px] bg-white p-5">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
@@ -422,6 +430,7 @@ export default async function OverviewPage() {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

@@ -5,16 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
-const workspaceItems = [
-  { href: "/overview", label: "Overview" },
-  { href: "/pipeline", label: "Pipeline" },
-  { href: "/companies", label: "Companies" },
-  { href: "/people", label: "People" },
-  { href: "/tasks", label: "Tasks" },
-  { href: "/review", label: "Review" },
-  { href: "/portfolio", label: "Portfolio" },
-];
-
 function NavLink({
   activeHref,
   href,
@@ -42,7 +32,14 @@ function NavLink({
   );
 }
 
-export default function Sidebar({ userEmail }: { userEmail: string }) {
+export default function Sidebar({
+  userEmail,
+  navItems,
+}: {
+  userEmail: string;
+  // Already filtered by the member's permissions on the server.
+  navItems: { href: string; label: string }[];
+}) {
   const pathname = usePathname();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const activeHref = pendingHref || pathname;
@@ -69,7 +66,7 @@ export default function Sidebar({ userEmail }: { userEmail: string }) {
         Workspace
       </div>
       <nav className="flex flex-col gap-0.5">
-        {workspaceItems.map((item) => (
+        {navItems.map((item) => (
           <NavLink
             key={item.href}
             {...item}
@@ -89,9 +86,14 @@ export default function Sidebar({ userEmail }: { userEmail: string }) {
           <div className="truncate text-xs font-medium leading-tight text-neutral-200">
             {userEmail}
           </div>
-          <div className="mt-0.5 text-[10px] text-neutral-500">
-            Vanquish Equity
-          </div>
+          <form action="/auth/signout" method="post">
+            <button
+              type="submit"
+              className="mt-0.5 text-[10px] font-semibold text-neutral-500 transition hover:text-white"
+            >
+              Sign out
+            </button>
+          </form>
         </div>
       </div>
     </aside>

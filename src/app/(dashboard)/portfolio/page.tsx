@@ -1,4 +1,6 @@
 import Link from "next/link";
+import RestrictedArea from "@/components/RestrictedArea";
+import { hasPermission } from "@/lib/auth/access";
 import {
   labelForFundingStatus,
   labelForInstrument,
@@ -48,6 +50,7 @@ export default async function PortfolioPage({
     criticalMissing?: string;
   }>;
 }) {
+  if (!(await hasPermission("portfolio"))) return <RestrictedArea area="Portfolio" />;
   const filters = await searchParams;
   const healthFilter =
     filters.filter ?? (filters.criticalMissing === "1" ? "critical_missing" : "");

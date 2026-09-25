@@ -35,12 +35,15 @@ Run the migration files in order in the Supabase SQL Editor:
    decisions and checklist updates when linked documents are archived.
 9. `0014_deal_rounds.sql` - configurable round list used by the Round
    selector on deals (`deals.round` stores the chosen name).
+10. `0015_auth_members_and_rls.sql` - authorized members, explicit
+    Portfolio / Documents permissions, member-scoped RLS for every table and
+    the documents bucket, and removal of all anonymous access.
 
-The auth gate is intentionally still disabled for now. The temporary anon
-policies are marked in the migrations and should be removed once sign-in and
-roles are wired up.
-Do not add additional confidential contact or investment data to an accessible
-deployment until the login gate and RLS restrictions replace these policies.
+Sign-in (Google, email link) and member-scoped RLS are enforced from `0015`
+on; the temporary anon policies of `0003`-`0014` are dropped there. See
+[`docs/authentication.md`](docs/authentication.md) for the member list,
+permissions, required Google Cloud / Supabase / Vercel settings and the
+activation order.
 
 ## 3. Environment Variables
 
@@ -88,8 +91,9 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. With auth temporarily disabled, the dashboard is
-available without enforcing login.
+Open http://localhost:3000 and sign in. Add
+`http://localhost:3000/auth/callback**` to the Supabase Redirect URLs, and use
+an email listed in `app_members`.
 
 ## 6. Verify
 
@@ -100,7 +104,8 @@ npm run build
 ```
 
 For database verification, run `0001` through latest against a fresh local
-Supabase project. If the Supabase CLI is unavailable, use a local Postgres
+Supabase project, then run `supabase/tests/access_control.sql` (never against
+production). If the Supabase CLI is unavailable, use a local Postgres
 database with minimal `auth.role()` and `storage` schema stubs, then re-run the
 new migrations a second time to confirm they are re-runnable.
 

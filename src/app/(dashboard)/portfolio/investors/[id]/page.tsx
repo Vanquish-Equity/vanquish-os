@@ -1,4 +1,6 @@
 import Link from "next/link";
+import RestrictedArea from "@/components/RestrictedArea";
+import { hasPermission } from "@/lib/auth/access";
 import { notFound } from "next/navigation";
 import RequirementInlineControls from "@/components/RequirementInlineControls";
 import { humanizeCode, labelForCriticality } from "@/lib/labels";
@@ -55,6 +57,7 @@ export default async function InvestorPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  if (!(await hasPermission("portfolio"))) return <RestrictedArea area="Portfolio" />;
   const { id } = await params;
   const supabase = await createClient();
   const path = `/portfolio/investors/${id}`;
