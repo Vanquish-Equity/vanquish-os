@@ -331,6 +331,7 @@ export default function NewDealModal({
             </label>
             <input
               ref={firstInputRef}
+              autoFocus
               id={fieldId("companyName")}
               value={values.companyName}
               onChange={(event) => updateValue("companyName", event.target.value)}
@@ -409,6 +410,11 @@ export default function NewDealModal({
           className={inputClass}
         />
         <FieldError message={errors.companyId} />
+        {!query.trim() && (
+          <p className="mt-1.5 px-1 text-[11.5px] text-neutral-400">
+            Type the company name to search existing companies or create a new one.
+          </p>
+        )}
         {query.trim() && (
           <div className="mt-2 flex flex-col gap-1.5" role="listbox" aria-label="Matching companies">
             {searchMatches.length === 0 && (
@@ -435,7 +441,7 @@ export default function NewDealModal({
           <button
             type="button"
             onClick={startNewCompany}
-            disabled={!query.trim() || Boolean(exactSearchMatch)}
+            disabled={Boolean(exactSearchMatch)}
             className="text-[12px] font-semibold text-neutral-600 transition hover:text-cyan-800 disabled:cursor-not-allowed disabled:text-neutral-300"
           >
             + Create new company{query.trim() ? ` “${query.trim()}”` : ""} and its first deal
