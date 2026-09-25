@@ -2,35 +2,38 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { archiveDealAction } from "@/lib/deals/actions";
+import { restoreDealAction } from "@/lib/deals/actions";
 
-export default function ArchiveDealButton({
+export default function RestoreDealButton({
   companyId,
   companyName,
   dealId,
-  dealName,
-  otherActiveDealCount,
+  dealLabel,
+  archivedFromReview = false,
+  compact = false,
 }: {
   companyId: string;
   companyName: string;
   dealId: string;
-  dealName: string;
-  otherActiveDealCount: number;
+  dealLabel: string;
+  // The deal was archived by a Review duplicate decision.
+  archivedFromReview?: boolean;
+  compact?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function archive() {
+  function restore() {
     startTransition(async () => {
-      const result = await archiveDealAction({ companyId, dealId });
+      const result = await restoreDealAction({ companyId, dealId });
       if (!result.ok) {
         setError(result.message);
         return;
       }
       setError(null);
-      router.push(`/companies/${companyId}#deals`);
+      setConfirming(false);
       router.refresh();
     });
   }
@@ -40,9 +43,11 @@ export default function ArchiveDealButton({
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="flex-shrink-0 rounded-full border border-neutral-200 px-3.5 py-2 text-[11.5px] font-semibold text-neutral-500 transition hover:border-red-200 hover:text-red-600"
+        className={`flex-shrink-0 rounded-full border border-neutral-200 font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800 ${
+          compact ? "px-3 py-1 text-[11px]" : "px-3.5 py-2 text-[11.5px]"
+        }`}
       >
-        Archive deal
+        Restore
       </button>
     );
   }
@@ -50,21 +55,18 @@ export default function ArchiveDealButton({
   return (
     <div
       role="alertdialog"
-      aria-labelledby={`archive-deal-${dealId}`}
-      className="w-full max-w-[420px] rounded-xl border border-amber-200 bg-amber-50 p-3 text-[12px]"
+      aria-labelledby={`restore-deal-${dealId}`}
+      className="w-full max-w-[420px] rounded-xl border border-cyan-200 bg-[#f0fafb] p-3 text-left text-[12px]"
     >
-      <p id={`archive-deal-${dealId}`} className="font-semibold text-amber-900">
-        Archive {companyName} · {dealName}?
+      <p id={`restore-deal-${dealId}`} className="font-semibold text-ink">
+        Restore {companyName} · {dealLabel}?
       </p>
-      <p className="mt-1 text-amber-900/80">
-        It will no longer appear as active in Pipeline or Overview, and you can find it
-        under Pipeline → Archived. {companyName}
-        {otherActiveDealCount > 0
-          ? ` and its ${otherActiveDealCount} other active ${
-              otherActiveDealCount === 1 ? "deal stay" : "deals stay"
-            } unchanged.`
-          : " stays in Companies."}{" "}
-        Stage history, tasks, documents and checklist items are kept.
+      <p className="mt-1 text-neutral-600">
+        It returns to Pipeline in its current stage. Other deals of {companyName} are not
+        changed, and its stage history is kept.
+        {archivedFromReview
+          ? " It was archived as a duplicate tracker row; the Review decision stays recorded."
+          : ""}
       </p>
       {error && (
         <p role="alert" className="mt-2 text-[11px] text-red-600">
@@ -75,10 +77,10 @@ export default function ArchiveDealButton({
         <button
           type="button"
           disabled={isPending}
-          onClick={archive}
+          onClick={restore}
           className="rounded-lg bg-ink px-3 py-2 text-[11px] font-semibold text-white transition hover:bg-neutral-800 disabled:opacity-50"
         >
-          {isPending ? "Archiving..." : "Archive deal"}
+          {isPending ? "Restoring..." : "Restore deal"}
         </button>
         <button
           type="button"

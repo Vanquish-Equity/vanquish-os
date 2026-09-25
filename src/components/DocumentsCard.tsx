@@ -90,7 +90,7 @@ export default function DocumentsCard({
   companyId: string;
   // Fixed deal for new documents. Ignored when dealOptions is provided.
   dealId?: string | null;
-  // Lets the user choose company-level or one specific opportunity.
+  // Lets the user choose company-level or one specific deal.
   dealOptions?: DocumentDealOption[];
   companyName: string;
   documents: DocumentItem[];
@@ -231,7 +231,7 @@ export default function DocumentsCard({
                 value={linkedDealId}
                 onChange={setLinkedDealId}
                 options={[
-                  { label: "Company-level (all opportunities)", value: "" },
+                  { label: "Company-level (all deals)", value: "" },
                   ...dealOptions.map((deal) => ({ label: deal.name, value: deal.id })),
                 ]}
                 buttonClassName="text-[12px] font-medium"

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { hasPermission } from "@/lib/auth/access";
 import Link from "next/link";
 import CompaniesExplorer from "@/components/CompaniesExplorer";
 import {
@@ -65,7 +66,9 @@ export default async function CompaniesPage() {
   const dealIds = (companyRows ?? []).flatMap((company) =>
     (company.deals ?? []).map((deal) => deal.id)
   );
-  const { data: requirementRows } = dealIds.length
+  // Diligence progress is Documents data.
+  const canDocuments = await hasPermission("documents");
+  const { data: requirementRows } = canDocuments && dealIds.length
     ? ((await supabase
         .from("document_requirements")
         .select("deal_id,required,status")

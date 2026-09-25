@@ -2,6 +2,7 @@
 
 import { revalidatePath, revalidateTag } from "next/cache";
 import { logActivity } from "@/lib/activity/log";
+import { actionAccessError } from "@/lib/auth/access";
 import { activeDealInCompanyError } from "@/lib/deals/guards";
 import { createClient } from "@/lib/supabase/server";
 import { TAXONOMY_TAGS } from "@/lib/taxonomies";
@@ -159,6 +160,8 @@ export async function applyDealTemplateAction(input: {
   companyId: string;
   templateCode?: string;
 }): Promise<RequirementActionResult> {
+  const accessError = await actionAccessError("documents");
+  if (accessError) return { ok: false, message: accessError };
   const dealId = cleanText(input.dealId);
   const companyId = cleanText(input.companyId);
   const templateCode = cleanText(input.templateCode) || "GENERIC_DD";
@@ -222,6 +225,8 @@ export async function applyDealTemplateAction(input: {
 export async function addDealRequirementAction(
   formData: FormData
 ): Promise<RequirementActionResult> {
+  const accessError = await actionAccessError("documents");
+  if (accessError) return { ok: false, message: accessError };
   const dealId = cleanText(formData.get("dealId"));
   const companyId = cleanText(formData.get("companyId"));
   const documentTypeId = cleanText(formData.get("documentTypeId"));
@@ -284,6 +289,8 @@ export async function updateRequirementAction(input: {
   companyId?: string | null;
   revalidatePath?: string | null;
 }): Promise<RequirementActionResult> {
+  const accessError = await actionAccessError("documents");
+  if (accessError) return { ok: false, message: accessError };
   const requirementId = cleanText(input.requirementId);
   if (!requirementId) return { ok: false, message: "Missing requirement." };
 
@@ -321,6 +328,8 @@ export async function linkRequirementDocumentAction(input: {
   companyId?: string | null;
   revalidatePath?: string | null;
 }): Promise<RequirementActionResult> {
+  const accessError = await actionAccessError("documents");
+  if (accessError) return { ok: false, message: accessError };
   const requirementId = cleanText(input.requirementId);
   const documentId = cleanText(input.documentId);
   if (!requirementId || !documentId) {
@@ -372,6 +381,8 @@ export async function archiveRequirementAction(input: {
   companyId?: string | null;
   revalidatePath?: string | null;
 }): Promise<RequirementActionResult> {
+  const accessError = await actionAccessError("documents");
+  if (accessError) return { ok: false, message: accessError };
   const requirementId = cleanText(input.requirementId);
   if (!requirementId) return { ok: false, message: "Missing requirement." };
 
@@ -406,6 +417,9 @@ export async function applyPortfolioTemplateAction(input: {
   positionId?: string | null;
   revalidatePath?: string | null;
 }): Promise<RequirementActionResult> {
+  const accessError =
+    (await actionAccessError("portfolio")) ?? (await actionAccessError("documents"));
+  if (accessError) return { ok: false, message: accessError };
   const templateCode = cleanText(input.templateCode);
   if (!templateCode) return { ok: false, message: "Choose a checklist." };
 

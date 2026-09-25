@@ -3,11 +3,20 @@ import NewTaskModal from "@/components/NewTaskModal";
 import TaskRow, { type TaskItem } from "@/components/TaskRow";
 import { startDevPageTimer } from "@/lib/performance";
 import { getPriorityOptions } from "@/lib/taxonomies";
+import { dealLabel } from "@/lib/deals/display";
 
 export const dynamic = "force-dynamic";
 
 type Option = { id: string; name: string };
-type DealOption = { id: string; name: string; company_id: string };
+type DealOption = {
+  id: string;
+  name: string;
+  round: string | null;
+  first_seen_at: string | null;
+  created_at: string;
+  company_id: string;
+  company: { name: string } | null;
+};
 
 type TaskRowData = {
   id: string;
@@ -18,7 +27,12 @@ type TaskRowData = {
   priority_id: string | null;
   company_id: string | null;
   deal_id: string | null;
-  deal: { name: string } | null;
+  deal: {
+    name: string;
+    round: string | null;
+    first_seen_at: string | null;
+    created_at: string;
+  } | null;
   company: { id: string; name: string } | null;
   priority: { name: string } | null;
 };
@@ -37,7 +51,7 @@ export default async function TasksPage({
       supabase
         .from("tasks")
         .select(
-          "id,title,owner,due_at,status,company_id,deal_id,priority_id,company:companies(id,name),deal:deals(name),priority:priorities(name)"
+          "id,title,owner,due_at,status,company_id,deal_id,priority_id,company:companies(id,name),deal:deals(name,round,first_seen_at,created_at),priority:priorities(name)"
         )
         .is("archived_at", null)
         .order("due_at", { ascending: true, nullsFirst: false }) as unknown as Promise<{
@@ -48,7 +62,7 @@ export default async function TasksPage({
         .select("id,name")
         .is("deleted_at", null)
         .order("name") as unknown as Promise<{ data: Option[] }>,
-      supabase.from("deals").select("id,name,company_id")
+      supabase.from("deals").select("id,name,round,first_seen_at,created_at,company_id,company:companies(name)")
         .is("archived_at", null).order("name") as unknown as Promise<{ data: DealOption[] }>,
       getPriorityOptions() as Promise<Option[]>,
     ]);
@@ -65,7 +79,27 @@ export default async function TasksPage({
     companyId: t.company_id,
     companyName: t.company?.name ?? null,
     dealId: t.deal_id,
-    dealName: t.deal?.name ?? null,
+    dealName: t.deal
+      ? dealLabel({
+          name: t.deal.name,
+          round: t.deal.round,
+          companyName: t.company?.name,
+          firstSeenAt: t.deal.first_seen_at,
+          createdAt: t.deal.created_at,
+        })
+      : null,
+  }));
+
+  const dealOptions = (deals ?? []).map((deal) => ({
+    id: deal.id,
+    company_id: deal.company_id,
+    name: dealLabel({
+      name: deal.name,
+      round: deal.round,
+      companyName: deal.company?.name,
+      firstSeenAt: deal.first_seen_at,
+      createdAt: deal.created_at,
+    }),
   }));
 
   const openTasks = allTasks
@@ -90,7 +124,7 @@ export default async function TasksPage({
             Follow-ups and next actions, linked to a company when relevant.
           </p>
         </div>
-        <NewTaskModal companies={companies ?? []} deals={deals ?? []} priorities={priorities} />
+        <NewTaskModal companies={companies ?? []} deals={dealOptions} priorities={priorities} />
       </header>
 
       {status !== "done" && (

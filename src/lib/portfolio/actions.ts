@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity/log";
+import { actionAccessError } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/server";
 
 export type PortfolioActionResult =
@@ -22,6 +23,8 @@ function parseOptionalNumber(value: FormDataEntryValue | null) {
 export async function addCapitalEventAction(
   formData: FormData
 ): Promise<PortfolioActionResult> {
+  const accessError = await actionAccessError("portfolio");
+  if (accessError) return { ok: false, message: accessError };
   const vehicleId = cleanText(formData.get("vehicleId"));
   const investmentId = cleanText(formData.get("investmentId")) || null;
   const investorId = cleanText(formData.get("investorId")) || null;

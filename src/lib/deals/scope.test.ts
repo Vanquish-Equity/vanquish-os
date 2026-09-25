@@ -3,12 +3,12 @@ import {
   countByDeal,
   dealHref,
   isDealActivity,
-  partitionOpportunities,
+  partitionDeals,
   recordsForDeal,
   splitDocumentsForDeal,
 } from "./scope";
 
-// One company with two rounds: Seed (deal-a) and Series A (deal-b).
+// One company with two deals (deal-a and deal-b).
 const documents = [
   { id: "doc-a", dealId: "deal-a" },
   { id: "doc-b", dealId: "deal-b" },
@@ -53,14 +53,14 @@ describe("deal scoping for a company with two deals", () => {
     ).toEqual(["deal-a", "task-a", "doc-x"]);
   });
 
-  it("separates open, closed and archived opportunities", () => {
+  it("separates open, closed and archived deals", () => {
     const deals = [
       { id: "open", archivedAt: null, stageIsTerminal: false, outcomeName: null },
       { id: "declined", archivedAt: null, stageIsTerminal: true, outcomeName: null },
       { id: "outcome", archivedAt: null, stageIsTerminal: false, outcomeName: "Completed" },
       { id: "archived", archivedAt: "2026-01-01T00:00:00Z", stageIsTerminal: false, outcomeName: null },
     ];
-    const result = partitionOpportunities(deals);
+    const result = partitionDeals(deals);
 
     expect(result.open.map((deal) => deal.id)).toEqual(["open"]);
     expect(result.closed.map((deal) => deal.id)).toEqual(["declined", "outcome"]);

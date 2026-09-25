@@ -14,6 +14,10 @@ export type PipelineDeal = {
   stage_id: string;
   company: { id: string; name: string } | null;
   priority: { name: string } | null;
+  // Human identification of the deal (name, round or first-seen date).
+  label: string;
+  // Active deals the same company has on the board.
+  companyDealCount: number;
 };
 
 function formatMoney(n: number | null) {
@@ -70,7 +74,7 @@ export function DealCardBody({ deal }: { deal: PipelineDeal }) {
     <>
       <div className="mb-2 flex items-start justify-between gap-2">
         <h3 className="text-[12.5px] font-semibold text-ink">
-          {deal.company?.name ?? deal.name}
+          {deal.company?.name ?? deal.label}
         </h3>
         {deal.priority?.name === "High" && (
           <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2 py-0.5 text-[10.5px] font-semibold text-cyan-800">
@@ -79,10 +83,15 @@ export function DealCardBody({ deal }: { deal: PipelineDeal }) {
         )}
       </div>
       <div className="text-[11px] text-neutral-500">
-        {deal.name}
+        <span className="font-medium text-neutral-600">{deal.label}</span>
         {formatMoney(deal.potential_investment) &&
           ` · ${formatMoney(deal.potential_investment)}`}
       </div>
+      {deal.companyDealCount > 1 && (
+        <div className="mt-1.5 text-[10.5px] font-semibold text-neutral-400">
+          {deal.companyDealCount} active deals for this company
+        </div>
+      )}
     </>
   );
 }

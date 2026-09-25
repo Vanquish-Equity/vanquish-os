@@ -26,6 +26,15 @@ export function formatExactDate(value: string | Date | null | undefined) {
   return exactDateFormatter.format(date);
 }
 
+export function formatMonthYear(value: string | Date | null | undefined) {
+  if (!value) return "No date";
+
+  const date = toDate(value);
+  if (Number.isNaN(date.getTime())) return "Invalid date";
+
+  return monthYearFormatter.format(date);
+}
+
 export function formatRelative(
   value: string | Date | null | undefined,
   now: Date = new Date()

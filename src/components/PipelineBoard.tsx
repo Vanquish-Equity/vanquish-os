@@ -192,6 +192,7 @@ export default function PipelineBoard({
 
   return (
     <DndContext
+      id="pipeline-board"
       sensors={sensors}
       collisionDetection={pointerWithin}
       onDragStart={handleDragStart}

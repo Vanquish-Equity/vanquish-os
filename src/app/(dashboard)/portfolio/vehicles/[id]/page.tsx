@@ -1,4 +1,6 @@
 import Link from "next/link";
+import RestrictedArea from "@/components/RestrictedArea";
+import { hasPermission } from "@/lib/auth/access";
 import { notFound } from "next/navigation";
 import ApplyPortfolioTemplateButton from "@/components/ApplyPortfolioTemplateButton";
 import RequirementInlineControls from "@/components/RequirementInlineControls";
@@ -178,6 +180,7 @@ export default async function VehiclePage({
   searchParams: Promise<{ filter?: string; investment?: string }>;
   params: Promise<{ id: string }>;
 }) {
+  if (!(await hasPermission("portfolio"))) return <RestrictedArea area="Portfolio" />;
   const { id } = await params;
   const checklistFilters = await searchParams;
   const supabase = await createClient();
