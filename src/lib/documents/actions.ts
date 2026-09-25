@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity/log";
+import { activeDealInCompanyError } from "@/lib/deals/guards";
 import { createClient } from "@/lib/supabase/server";
 
 const BUCKET = "documents";
@@ -17,6 +18,11 @@ function sanitizeFileName(name: string) {
 
 function cleanText(value: FormDataEntryValue | string | null | undefined) {
   return String(value ?? "").trim();
+}
+
+function revalidateDocumentPaths(companyId: string, dealId?: string | null) {
+  revalidatePath(`/companies/${companyId}`);
+  if (dealId) revalidatePath(`/companies/${companyId}/deals/${dealId}`);
 }
 
 function documentPayloadFromForm(formData: FormData) {
@@ -56,6 +62,11 @@ export async function uploadDocumentAction(
   }
 
   const supabase = await createClient();
+
+  if (dealId) {
+    const dealError = await activeDealInCompanyError(supabase, dealId, companyId);
+    if (dealError) return { ok: false, message: dealError };
+  }
 
   const storagePath = `${companyId}/${crypto.randomUUID()}-${sanitizeFileName(
     file.name
@@ -105,7 +116,7 @@ export async function uploadDocumentAction(
     );
   }
 
-  revalidatePath(`/companies/${companyId}`);
+  revalidateDocumentPaths(companyId, dealId);
   return { ok: true };
 }
 
@@ -122,6 +133,11 @@ export async function addDriveLinkDocumentAction(
   if (!driveUrl) return { ok: false, message: "Drive link is required." };
 
   const supabase = await createClient();
+  if (dealId) {
+    const dealError = await activeDealInCompanyError(supabase, dealId, companyId);
+    if (dealError) return { ok: false, message: dealError };
+  }
+
   const { data, error } = (await supabase
     .from("documents")
     .insert({
@@ -153,7 +169,7 @@ export async function addDriveLinkDocumentAction(
     supabase
   );
 
-  revalidatePath(`/companies/${companyId}`);
+  revalidateDocumentPaths(companyId, dealId);
   return { ok: true };
 }
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import { createTaskAction } from "@/lib/tasks/actions";
 import SelectMenu, { type SelectMenuOption } from "@/components/SelectMenu";
 
@@ -29,19 +30,34 @@ function toMenuOptions(options: Option[]): SelectMenuOption[] {
   return options.map((option) => ({ value: option.id, label: option.name }));
 }
 
+export type TaskLinkContext = {
+  companyId: string;
+  companyName: string;
+  dealId: string;
+  dealName: string;
+};
+
 export default function NewTaskModal({
   companies,
   deals,
   priorities,
+  link,
+  buttonLabel = "New Task",
 }: {
   companies: Option[];
   deals: { id: string; name: string; company_id: string }[];
   priorities: Option[];
+  // When set, the task is always created for this company and deal.
+  link?: TaskLinkContext;
+  buttonLabel?: string;
 }) {
   const router = useRouter();
   const firstInputRef = useRef<HTMLInputElement | null>(null);
+  const initialForm: FormValues = link
+    ? { ...emptyForm, companyId: link.companyId, dealId: link.dealId }
+    : emptyForm;
   const [open, setOpen] = useState(false);
-  const [values, setValues] = useState<FormValues>(emptyForm);
+  const [values, setValues] = useState<FormValues>(initialForm);
   const [titleError, setTitleError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -59,7 +75,7 @@ export default function NewTaskModal({
   function closeModal() {
     if (pending) return;
     setOpen(false);
-    setValues(emptyForm);
+    setValues(initialForm);
     setTitleError(null);
     setServerError(null);
   }
@@ -92,7 +108,7 @@ export default function NewTaskModal({
     }
 
     setOpen(false);
-    setValues(emptyForm);
+    setValues(initialForm);
     router.refresh();
   }
 
@@ -103,10 +119,10 @@ export default function NewTaskModal({
         onClick={() => setOpen(true)}
         className="rounded-full bg-ink px-3.5 py-2 text-[12px] font-semibold text-white transition hover:bg-neutral-800"
       >
-        New Task
+        {buttonLabel}
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-ink/25 px-4 py-6"
           onMouseDown={(event) => {
@@ -159,6 +175,17 @@ export default function NewTaskModal({
                 {titleError && <p className="mt-1 text-xs text-red-600">{titleError}</p>}
               </div>
 
+              {link ? (
+                <div className="rounded-xl bg-[#f7f9fa] px-3 py-2 text-[12px] text-neutral-600">
+                  <div className="text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
+                    Linked to
+                  </div>
+                  <div className="mt-0.5 font-semibold text-ink">
+                    {link.companyName} / {link.dealName}
+                  </div>
+                </div>
+              ) : (
+              <>
               <div>
                 <label className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
                   Company (optional)
@@ -181,6 +208,8 @@ export default function NewTaskModal({
                     options={toMenuOptions(deals.filter((deal) => deal.company_id === values.companyId))}
                     placeholder="No deal" />
                 </div>
+              )}
+              </>
               )}
 
               <div className="grid grid-cols-2 gap-3">
@@ -244,7 +273,8 @@ export default function NewTaskModal({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

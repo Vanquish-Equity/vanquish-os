@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { useState } from "react";
 import Link from "next/link";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
+import { dealHref } from "@/lib/deals/scope";
 
 export type PipelineDeal = {
   id: string;
@@ -51,7 +52,7 @@ function DealCard({
   return (
     <Link
       ref={setNodeRef}
-      href={`/companies/${deal.company?.id}`}
+      href={deal.company ? dealHref(deal.company.id, deal.id) : "/pipeline"}
       style={style}
       className={`vq-card block rounded-xl bg-white p-3.5 ${
         pending ? "opacity-60" : ""

@@ -16,6 +16,7 @@ type FieldErrors = Partial<
     | "priorityId"
     | "owner"
     | "potentialInvestment"
+    | "raiseAmount"
     | "dealId",
     string
   >
@@ -50,8 +51,18 @@ export type UpdateDealFieldInput = {
     | "owner"
     | "potential_investment"
     | "outcome_id"
-    | "relationship_state_id";
+    | "relationship_state_id"
+    | "name"
+    | "round"
+    | "raise_amount"
+    | "source"
+    | "notes";
   value: string | null;
+};
+
+export type ArchiveDealInput = {
+  dealId: string;
+  companyId: string;
 };
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -81,13 +92,15 @@ function parseOptionalInvestment(value: string | null | undefined) {
   return { ok: true as const, value: parsed };
 }
 
-function revalidateDealPaths(companyId?: string | null) {
+function revalidateDealPaths(companyId?: string | null, dealId?: string | null) {
   revalidatePath("/overview");
   revalidatePath("/pipeline");
   revalidatePath("/companies");
+  revalidatePath("/tasks");
 
   if (companyId) {
     revalidatePath(`/companies/${companyId}`);
+    if (dealId) revalidatePath(`/companies/${companyId}/deals/${dealId}`);
   }
 }
 
@@ -129,10 +142,10 @@ async function persistDealStage(
 
   const { data: existingDeal, error: lookupError } = (await supabase
     .from("deals")
-    .select("company_id")
+    .select("company_id,archived_at")
     .eq("id", cleanDealId)
     .maybeSingle()) as unknown as {
-    data: { company_id: string | null } | null;
+    data: { company_id: string | null; archived_at: string | null } | null;
     error: { message: string } | null;
   };
 
@@ -144,10 +157,15 @@ async function persistDealStage(
     return { ok: false, message: "Deal not found." };
   }
 
+  if (existingDeal.archived_at) {
+    return { ok: false, message: "Archived deals cannot change stage." };
+  }
+
   const { count, error } = (await supabase
     .from("deals")
     .update({ stage_id: cleanStageId }, { count: "exact" })
-    .eq("id", cleanDealId)) as unknown as {
+    .eq("id", cleanDealId)
+    .is("archived_at", null)) as unknown as {
     count: number | null;
     error: { message: string } | null;
   };
@@ -372,7 +390,7 @@ export async function updateDealStageAction(
     return { ok: false, message: result.message };
   }
 
-  revalidateDealPaths(result.companyId);
+  revalidateDealPaths(result.companyId, input.dealId);
   if (result.companyId) {
     await maybeApplyDueDiligenceTemplate({
       dealId: input.dealId,
@@ -407,7 +425,7 @@ export async function updateDealFieldAction(
       return { ok: false, message: result.message };
     }
 
-    revalidateDealPaths(result.companyId ?? companyId);
+    revalidateDealPaths(result.companyId ?? companyId, dealId);
     await maybeApplyDueDiligenceTemplate({
       dealId,
       companyId: result.companyId ?? companyId,
@@ -422,15 +440,28 @@ export async function updateDealFieldAction(
     potential_investment?: number | null;
     outcome_id?: string | null;
     relationship_state_id?: string | null;
+    name?: string;
+    round?: string | null;
+    raise_amount?: number | null;
+    source?: string | null;
+    notes?: string | null;
   } = {};
 
   const { data: before } = (await supabase
     .from("deals")
-    .select(input.field)
+    .select(`${input.field},company_id,archived_at`)
     .eq("id", dealId)
     .maybeSingle()) as unknown as {
     data: Record<string, string | number | null> | null;
   };
+
+  if (!before || before.company_id !== companyId) {
+    return { ok: false, message: "Deal not found for this company." };
+  }
+
+  if (before.archived_at) {
+    return { ok: false, message: "Archived deals cannot be edited." };
+  }
 
   if (input.field === "priority_id") {
     update.priority_id = cleanText(input.value) || null;
@@ -462,10 +493,41 @@ export async function updateDealFieldAction(
     update.relationship_state_id = cleanText(input.value) || null;
   }
 
+  if (input.field === "name") {
+    const name = cleanText(input.value);
+    if (!name) {
+      return {
+        ok: false,
+        message: "Deal name is required.",
+        fieldErrors: { dealName: "Deal name is required." },
+      };
+    }
+    update.name = name;
+  }
+
+  if (input.field === "round") update.round = cleanText(input.value) || null;
+  if (input.field === "source") update.source = cleanText(input.value) || null;
+  if (input.field === "notes") update.notes = cleanText(input.value) || null;
+
+  if (input.field === "raise_amount") {
+    const parsed = parseOptionalInvestment(input.value);
+
+    if (!parsed.ok) {
+      return {
+        ok: false,
+        message: parsed.message,
+        fieldErrors: { raiseAmount: parsed.message },
+      };
+    }
+
+    update.raise_amount = parsed.value;
+  }
+
   const { count, error } = (await supabase
     .from("deals")
     .update(update, { count: "exact" })
-    .eq("id", dealId)) as unknown as {
+    .eq("id", dealId)
+    .is("archived_at", null)) as unknown as {
     count: number | null;
     error: { message: string } | null;
   };
@@ -482,7 +544,7 @@ export async function updateDealFieldAction(
     };
   }
 
-  revalidateDealPaths(companyId);
+  revalidateDealPaths(companyId, dealId);
 
   await logActivity(
     {
@@ -557,6 +619,73 @@ export async function snoozeDealAttentionAction(input: {
     supabase
   );
 
-  revalidateDealPaths(companyId);
+  revalidateDealPaths(companyId, dealId);
   return { ok: true, companyId: companyId ?? undefined, dealId };
+}
+
+// Archives one opportunity only. The company, its other deals and the
+// records linked to this deal stay untouched; archived deals drop out of
+// Pipeline, Overview and the active lists because they filter archived_at.
+export async function archiveDealAction(
+  input: ArchiveDealInput
+): Promise<DealActionResult> {
+  const dealId = cleanText(input.dealId);
+  const companyId = cleanText(input.companyId);
+
+  if (!dealId || !companyId) {
+    return {
+      ok: false,
+      message: "Deal and company are required.",
+      fieldErrors: { dealId: "Deal is required." },
+    };
+  }
+
+  const supabase = await createClient();
+  const { data: deal, error: lookupError } = (await supabase
+    .from("deals")
+    .select("name,company_id,archived_at")
+    .eq("id", dealId)
+    .maybeSingle()) as unknown as {
+    data: { name: string; company_id: string; archived_at: string | null } | null;
+    error: { message: string } | null;
+  };
+
+  if (lookupError) return { ok: false, message: lookupError.message };
+  if (!deal || deal.company_id !== companyId) {
+    return { ok: false, message: "Deal not found for this company." };
+  }
+  if (deal.archived_at) return { ok: false, message: "This deal is already archived." };
+
+  const { count, error } = (await supabase
+    .from("deals")
+    .update({ archived_at: new Date().toISOString() }, { count: "exact" })
+    .eq("id", dealId)
+    .eq("company_id", companyId)
+    .is("archived_at", null)) as unknown as {
+    count: number | null;
+    error: { message: string } | null;
+  };
+
+  if (error) return { ok: false, message: error.message };
+  if (count === 0) {
+    return {
+      ok: false,
+      message:
+        "Archive was blocked by database write policy. Apply the latest migration and try again.",
+    };
+  }
+
+  await logActivity(
+    {
+      eventType: "DEAL_ARCHIVED",
+      targetType: "deal",
+      targetId: dealId,
+      payload: { companyId, dealId, name: deal.name, reason: "manual" },
+      actor: "anonymous",
+    },
+    supabase
+  );
+
+  revalidateDealPaths(companyId, dealId);
+  return { ok: true, companyId, dealId };
 }

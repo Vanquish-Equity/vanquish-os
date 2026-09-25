@@ -12,10 +12,11 @@ function cleanText(value: string | null | undefined) {
   return (value ?? "").trim();
 }
 
-function revalidateTaskPaths(companyId?: string | null) {
+function revalidateTaskPaths(companyId?: string | null, dealId?: string | null) {
   revalidatePath("/tasks");
   revalidatePath("/overview");
   if (companyId) revalidatePath(`/companies/${companyId}`);
+  if (companyId && dealId) revalidatePath(`/companies/${companyId}/deals/${dealId}`);
 }
 
 export type CreateTaskInput = {
@@ -72,7 +73,7 @@ export async function createTaskAction(
     supabase
   );
 
-  revalidateTaskPaths(input.companyId);
+  revalidateTaskPaths(input.companyId, input.dealId);
   return { ok: true, taskId: data.id };
 }
 
@@ -113,7 +114,7 @@ export async function updateTaskAction(input: {
     payload: { before: previous, after: changes, companyId: previous.company_id, dealId: previous.deal_id },
     actor: "anonymous",
   }, supabase);
-  revalidateTaskPaths(previous.company_id);
+  revalidateTaskPaths(previous.company_id, previous.deal_id);
   return { ok: true };
 }
 

@@ -64,6 +64,7 @@ export default async function TasksPage({
     priorityId: t.priority_id,
     companyId: t.company_id,
     companyName: t.company?.name ?? null,
+    dealId: t.deal_id,
     dealName: t.deal?.name ?? null,
   }));
 

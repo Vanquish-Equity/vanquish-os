@@ -8,6 +8,7 @@ import LogInteractionForm from "@/components/LogInteractionForm";
 import type { AttentionDeal } from "@/lib/deals/attention";
 import { snoozeDealAttentionAction } from "@/lib/deals/actions";
 import { formatExactDate, formatRelative } from "@/lib/dates";
+import { dealHref } from "@/lib/deals/scope";
 
 type AttentionPanelDeal = Pick<
   AttentionDeal,
@@ -62,7 +63,7 @@ function AttentionRow({
 
   return (
     <div className="vq-card grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl bg-white px-3 py-2.5">
-      <Link href={`/companies/${deal.companyId}`} className="min-w-0">
+      <Link href={dealHref(deal.companyId, deal.id)} className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate text-[12.5px] font-semibold text-ink">
             {deal.companyName}
