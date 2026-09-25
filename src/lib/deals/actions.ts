@@ -114,6 +114,34 @@ function revalidateDealPaths(companyId?: string | null, dealId?: string | null) 
   }
 }
 
+// Rounds are picked from the deal_rounds taxonomy; an empty value means the
+// deal has no known round.
+async function resolveRound(
+  supabase: SupabaseClient,
+  value: string | null | undefined
+): Promise<{ ok: true; value: string | null } | { ok: false; message: string }> {
+  const round = cleanText(value);
+  if (!round) return { ok: true, value: null };
+
+  const { data, error } = (await supabase
+    .from("deal_rounds")
+    .select("name")
+    .eq("name", round)
+    .maybeSingle()) as unknown as {
+    data: { name: string } | null;
+    error: { message: string } | null;
+  };
+
+  if (error) {
+    return {
+      ok: false,
+      message: "The round list is unavailable. Apply migration 0014 and try again.",
+    };
+  }
+  if (!data) return { ok: false, message: "Choose a round from the list." };
+  return { ok: true, value: data.name };
+}
+
 async function maybeApplyDueDiligenceTemplate(input: {
   dealId: string;
   companyId: string;
@@ -253,7 +281,6 @@ export async function createDealAction(
   const rawIndustryId = cleanText(input.industryId);
   const newIndustryName = cleanText(input.newIndustryName);
   const industryId = rawIndustryId === NEW_CATEGORY_VALUE ? "" : rawIndustryId;
-  const round = cleanText(input.round) || null;
   const stageId = cleanText(input.stageId);
   const priorityId = cleanText(input.priorityId);
   const owner = cleanText(input.owner);
@@ -287,6 +314,15 @@ export async function createDealAction(
   }
 
   const supabase = await createClient();
+  const resolvedRound = await resolveRound(supabase, input.round);
+  if (!resolvedRound.ok) {
+    return {
+      ok: false,
+      message: resolvedRound.message,
+      fieldErrors: { round: resolvedRound.message },
+    };
+  }
+  const round = resolvedRound.value;
   let companyId: string;
   let companyName: string;
 
@@ -545,7 +581,17 @@ export async function updateDealFieldAction(
     update.name = name;
   }
 
-  if (input.field === "round") update.round = cleanText(input.value) || null;
+  if (input.field === "round") {
+    const resolvedRound = await resolveRound(supabase, input.value);
+    if (!resolvedRound.ok) {
+      return {
+        ok: false,
+        message: resolvedRound.message,
+        fieldErrors: { round: resolvedRound.message },
+      };
+    }
+    update.round = resolvedRound.value;
+  }
   if (input.field === "source") update.source = cleanText(input.value) || null;
   if (input.field === "notes") update.notes = cleanText(input.value) || null;
 

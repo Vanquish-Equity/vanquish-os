@@ -29,6 +29,7 @@ import { startDevPageTimer } from "@/lib/performance";
 import { createClient } from "@/lib/supabase/server";
 import {
   getDealOutcomeOptions,
+  getDealRoundOptions,
   getDocumentCategories,
   getDocumentTypes,
   getPipelineStages,
@@ -214,6 +215,7 @@ export default async function DealDetailPage({
     relationshipStates,
     documentCategories,
     documentTypes,
+    rounds,
   ] = await Promise.all([
     supabase
       .from("deals")
@@ -297,6 +299,7 @@ export default async function DealDetailPage({
     getRelationshipStateOptions() as Promise<Option[]>,
     getDocumentCategories() as Promise<{ id: string; code: string; name: string }[]>,
     getDocumentTypes() as Promise<{ id: string; name: string; category_id: string }[]>,
+    getDealRoundOptions() as Promise<Option[]>,
   ]);
 
   if (!deal || !deal.company) notFound();
@@ -607,6 +610,7 @@ export default async function DealDetailPage({
         ) : (
           <EditableDealOverview
             showDetails
+            rounds={rounds ?? []}
             deal={{
               id: deal.id,
               companyId: company.id,

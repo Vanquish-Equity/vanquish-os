@@ -33,6 +33,8 @@ Run the migration files in order in the Supabase SQL Editor:
 7. `0011` and `0012` - tracker date corrections and performance indexes.
 8. `0013_review_resolution_and_document_consistency.sql` - atomic duplicate
    decisions and checklist updates when linked documents are archived.
+9. `0014_deal_rounds.sql` - configurable round list used by the Round
+   selector on deals (`deals.round` stores the chosen name).
 
 The auth gate is intentionally still disabled for now. The temporary anon
 policies are marked in the migrations and should be removed once sign-in and

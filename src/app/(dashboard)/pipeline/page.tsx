@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { startDevPageTimer } from "@/lib/performance";
 import {
+  getDealRoundOptions,
   getIndustryOptions,
   getPipelineStages,
   getPriorityOptions,
@@ -78,6 +79,7 @@ export default async function PipelinePage({
     { data: companyRows },
     industries,
     priorities,
+    rounds,
   ] = await Promise.all([
     getPipelineStages() as Promise<Stage[]>,
     showArchived
@@ -115,6 +117,7 @@ export default async function PipelinePage({
       .order("name") as unknown as Promise<{ data: CompanyRow[] | null }>,
     getIndustryOptions() as Promise<Option[]>,
     getPriorityOptions() as Promise<Option[]>,
+    getDealRoundOptions() as Promise<Option[]>,
   ]);
   endTimer();
 
@@ -183,6 +186,7 @@ export default async function PipelinePage({
           industries={industries}
           stages={stages}
           priorities={priorities}
+          rounds={rounds}
         />
       </header>
 

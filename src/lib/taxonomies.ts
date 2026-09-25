@@ -3,6 +3,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 export const TAXONOMY_TAGS = {
   dealOutcomes: "taxonomy:deal_outcomes",
+  dealRounds: "taxonomy:deal_rounds",
   documentCategories: "taxonomy:document_categories",
   documentTypes: "taxonomy:document_types",
   industries: "taxonomy:industries",
@@ -100,6 +101,27 @@ export const getDealOutcomeOptions = unstable_cache(
   },
   ["taxonomy", "deal_outcomes"],
   { tags: [TAXONOMY_TAGS.dealOutcomes], revalidate: 60 * 60 }
+);
+
+// Returns an empty list instead of failing when migration 0014 has not been
+// applied yet, so pages keep working with "No round" as the only choice.
+export const getDealRoundOptions = unstable_cache(
+  async () => {
+    const supabase = createCachedSupabaseClient();
+    const { data, error } = await supabase
+      .from("deal_rounds")
+      .select("id,name")
+      .eq("is_active", true)
+      .order("sort_order");
+
+    if (error) {
+      console.warn(`deal_rounds unavailable: ${error.message}`);
+      return [] as PublicOption[];
+    }
+    return (data ?? []) as PublicOption[];
+  },
+  ["taxonomy", "deal_rounds"],
+  { tags: [TAXONOMY_TAGS.dealRounds], revalidate: 60 * 60 }
 );
 
 export const getRelationshipStateOptions = unstable_cache(

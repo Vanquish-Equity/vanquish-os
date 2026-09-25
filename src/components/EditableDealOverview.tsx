@@ -415,6 +415,7 @@ export default function EditableDealOverview({
   outcomes,
   relationshipStates,
   priorities,
+  rounds = [],
   showDetails = false,
   title = "Deal Overview",
 }: {
@@ -423,12 +424,20 @@ export default function EditableDealOverview({
   outcomes: Option[];
   relationshipStates: Option[];
   priorities: Option[];
+  // deal_rounds taxonomy, used when showDetails is on.
+  rounds?: Option[];
   showDetails?: boolean;
   title?: string;
 }) {
   const router = useRouter();
   const [overrides, setOverrides] = useState<Partial<EditableDeal>>({});
   const currentDeal = { ...deal, ...overrides };
+  // The stored round is the option name. A value saved before the list
+  // existed stays selectable so it is shown rather than silently dropped.
+  const roundOptions: Option[] = rounds.map((round) => ({ id: round.name, name: round.name }));
+  if (currentDeal.round && !roundOptions.some((option) => option.id === currentDeal.round)) {
+    roundOptions.push({ id: currentDeal.round, name: `${currentDeal.round} (not in list)` });
+  }
 
   async function saveField(field: DealField, value: string | null) {
     const result = await updateDealFieldAction({
@@ -514,10 +523,12 @@ export default function EditableDealOverview({
               required
               onSave={(value) => saveField("name", value)}
             />
-            <EditableTextField
+            <EditableSelectField
               label="Round"
               value={currentDeal.round ?? null}
-              displayValue={currentDeal.round ?? "—"}
+              displayValue={currentDeal.round ?? "None"}
+              options={roundOptions}
+              allowEmpty
               onSave={(value) => saveField("round", value)}
             />
           </>

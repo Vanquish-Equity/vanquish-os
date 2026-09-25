@@ -95,12 +95,15 @@ export default function NewDealModal({
   industries,
   stages,
   priorities,
+  rounds,
   companies = [],
   fixedCompany,
 }: {
   industries: Option[];
   stages: Option[];
   priorities: Option[];
+  // deal_rounds taxonomy; the chosen name is stored on the deal.
+  rounds: Option[];
   // Existing companies to search when no company is fixed.
   companies?: NewDealCompanyOption[];
   // Creates the deal for this company without asking for it again.
@@ -121,6 +124,10 @@ export default function NewDealModal({
   ];
   const stageOptions = toMenuOptions(stages);
   const priorityOptions = toMenuOptions(priorities);
+  const roundOptions: SelectMenuOption[] = [
+    { value: "", label: "No round / not applicable" },
+    ...rounds.map((round) => ({ value: round.name, label: round.name })),
+  ];
   const creatingCompany = !fixedCompany && values.companyMode === "new";
   const selectedCompany = fixedCompany
     ? fixedCompany
@@ -531,13 +538,14 @@ export default function NewDealModal({
                         <label htmlFor={fieldId("round")} className={labelClass}>
                           Round (optional)
                         </label>
-                        <input
+                        <SelectMenu
                           id={fieldId("round")}
                           value={values.round}
-                          onChange={(event) => updateValue("round", event.target.value)}
-                          placeholder="Only if known, e.g. Seed"
-                          className={inputClass}
+                          onChange={(value) => updateValue("round", value)}
+                          options={roundOptions}
+                          placeholder="No round / not applicable"
                         />
+                        <FieldError message={errors.round} />
                       </div>
                     </div>
 

@@ -19,6 +19,7 @@ import {
   getDocumentCategories,
   getDocumentTypes,
   getIndustryOptions,
+  getDealRoundOptions,
   getPipelineStages,
   getPriorityOptions,
 } from "@/lib/taxonomies";
@@ -123,6 +124,7 @@ export default async function CompanyDetailPage({
     documentTypes,
     stages,
     priorities,
+    rounds,
   ] = await Promise.all([
     supabase
       .from("companies")
@@ -149,6 +151,7 @@ export default async function CompanyDetailPage({
     >,
     getPipelineStages() as Promise<Option[]>,
     getPriorityOptions() as Promise<Option[]>,
+    getDealRoundOptions() as Promise<Option[]>,
   ]);
 
   if (!company) notFound();
@@ -434,6 +437,7 @@ export default async function CompanyDetailPage({
               industries={industries ?? []}
               stages={stages ?? []}
               priorities={priorities ?? []}
+              rounds={rounds ?? []}
             />
           )}
         </div>
