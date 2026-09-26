@@ -1,0 +1,131 @@
+import { createClient } from "@/lib/supabase/server";
+import {
+  canAcceptCurrent,
+  checkRecipient,
+  primaryFirst,
+  type RecipientIssue,
+} from "@/lib/communications/recipients";
+
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
+export type LpContact = {
+  personId: string;
+  name: string;
+  email: string | null;
+  title: string | null;
+  organization: string | null;
+};
+
+export type DraftRecipient = {
+  recipientId: string;
+  personId: string | null;
+  name: string;
+  emailAtSelection: string;
+  issue: RecipientIssue | null;
+  currentEmail: string | null;
+  canAcceptCurrent: boolean;
+};
+
+export type DraftDetail = {
+  id: string;
+  subject: string;
+  body: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt: string | null;
+  recipients: DraftRecipient[];
+};
+
+export async function loadLpContacts(supabase: SupabaseClient): Promise<LpContact[]> {
+  const { data } = (await supabase
+    .from("people")
+    .select("id,name,title,organization:companies(name),person_emails(email,is_primary)")
+    .eq("is_potential_lp", true)
+    .is("archived_at", null)
+    .order("name")) as unknown as {
+    data:
+      | {
+          id: string;
+          name: string;
+          title: string | null;
+          organization: { name: string } | null;
+          person_emails: { email: string; is_primary: boolean }[];
+        }[]
+      | null;
+  };
+
+  return (data ?? []).map((person) => ({
+    personId: person.id,
+    name: person.name,
+    email: primaryFirst(person.person_emails ?? [])[0] ?? null,
+    title: person.title,
+    organization: person.organization?.name ?? null,
+  }));
+}
+
+type RecipientRow = {
+  id: string;
+  person_id: string | null;
+  email_at_selection: string;
+  name_at_selection: string;
+  person: {
+    name: string;
+    archived_at: string | null;
+    is_potential_lp: boolean;
+    person_emails: { email: string; is_primary: boolean }[];
+  } | null;
+  selected_email: { email: string } | null;
+};
+
+export async function loadDraft(supabase: SupabaseClient, draftId: string): Promise<DraftDetail | null> {
+  const [{ data: draft }, { data: recipientRows }] = await Promise.all([
+    supabase
+      .from("email_drafts")
+      .select("id,subject,body,created_by,created_at,updated_at,archived_at")
+      .eq("id", draftId)
+      .maybeSingle(),
+    supabase
+      .from("email_draft_recipients")
+      .select(
+        "id,person_id,email_at_selection,name_at_selection,person:people(name,archived_at,is_potential_lp,person_emails(email,is_primary)),selected_email:person_emails(email)"
+      )
+      .eq("draft_id", draftId)
+      .order("name_at_selection") as unknown as Promise<{ data: RecipientRow[] | null }>,
+  ]);
+
+  if (!draft) return null;
+
+  return {
+    id: draft.id,
+    subject: draft.subject,
+    body: draft.body,
+    createdBy: draft.created_by,
+    createdAt: draft.created_at,
+    updatedAt: draft.updated_at,
+    archivedAt: draft.archived_at,
+    recipients: (recipientRows ?? []).map((row) => {
+      const person = row.person
+        ? {
+            archived: row.person.archived_at !== null,
+            isPotentialLp: row.person.is_potential_lp,
+            emails: primaryFirst(row.person.person_emails ?? []),
+          }
+        : null;
+      const check = checkRecipient({
+        emailAtSelection: row.email_at_selection,
+        person,
+        selectedEmail: row.selected_email?.email ?? null,
+      });
+      return {
+        recipientId: row.id,
+        personId: row.person_id,
+        name: row.person?.name ?? row.name_at_selection,
+        emailAtSelection: row.email_at_selection,
+        issue: check.issue,
+        currentEmail: check.currentEmail,
+        canAcceptCurrent: canAcceptCurrent(check, person),
+      };
+    }),
+  };
+}

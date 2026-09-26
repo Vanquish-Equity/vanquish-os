@@ -38,6 +38,10 @@ Run the migration files in order in the Supabase SQL Editor:
 10. `0015_auth_members_and_rls.sql` - authorized members, explicit
     Portfolio / Documents permissions, member-scoped RLS for every table and
     the documents bucket, and removal of all anonymous access.
+11. `0016_lp_communications.sql` - potential LP flag on People, email
+    drafts with BCC recipients (author-only edits), and the atomic
+    `import_potential_lps` / `save_email_draft` functions. Nothing sends
+    email. See [`docs/communications.md`](docs/communications.md).
 
 Sign-in (Google, email link) and member-scoped RLS are enforced from `0015`
 on; the temporary anon policies of `0003`-`0014` are dropped there. See
@@ -104,8 +108,8 @@ npm run build
 ```
 
 For database verification, run `0001` through latest against a fresh local
-Supabase project, then run `supabase/tests/access_control.sql` (never against
-production). If the Supabase CLI is unavailable, use a local Postgres
+Supabase project, then run `supabase/tests/access_control.sql` and
+`supabase/tests/lp_communications.sql` (never against production). If the Supabase CLI is unavailable, use a local Postgres
 database with minimal `auth.role()` and `storage` schema stubs, then re-run the
 new migrations a second time to confirm they are re-runnable.
 
