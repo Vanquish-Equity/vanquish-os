@@ -41,6 +41,14 @@ export type DocumentTypeOption = {
   categoryId: string;
 };
 
+export type DocumentRequirementOption = {
+  id: string;
+  documentTypeId: string;
+  expectedLabel: string;
+  status: string;
+  satisfiedByDocumentId: string | null;
+};
+
 function formatSize(bytes: number | null) {
   if (!bytes) return "";
   if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(1)} MB`;
@@ -83,6 +91,7 @@ export default function DocumentsCard({
   documents,
   categories,
   documentTypes,
+  requirements = [],
   title = "Documents",
   description,
   emptyMessage = "No documents yet - memos, decks, term sheets.",
@@ -96,6 +105,7 @@ export default function DocumentsCard({
   documents: DocumentItem[];
   categories: DocumentCategoryOption[];
   documentTypes: DocumentTypeOption[];
+  requirements?: DocumentRequirementOption[];
   title?: string;
   description?: string;
   emptyMessage?: string;
@@ -108,6 +118,7 @@ export default function DocumentsCard({
   const [entityRole, setEntityRole] = useState("TARGET");
   const [categoryId, setCategoryId] = useState("");
   const [documentTypeId, setDocumentTypeId] = useState("");
+  const [markRequirementReceived, setMarkRequirementReceived] = useState(false);
   const [documentDate, setDocumentDate] = useState("");
   const [periodLabel, setPeriodLabel] = useState("");
   const [docStatus, setDocStatus] = useState("UNKNOWN");
@@ -117,6 +128,13 @@ export default function DocumentsCard({
 
   const selectedCategory = categories.find((category) => category.id === categoryId);
   const selectedType = documentTypes.find((type) => type.id === documentTypeId);
+  const matchingRequirement = dealId && documentTypeId
+    ? requirements.find((requirement) =>
+        requirement.documentTypeId === documentTypeId &&
+        !requirement.satisfiedByDocumentId &&
+        !["received_found", "not_applicable", "waived"].includes(requirement.status)
+      )
+    : undefined;
   const suggestedName = useMemo(() => {
     if (!selectedCategory || !selectedType) return null;
     return formatCanonicalDocumentName({
@@ -156,17 +174,25 @@ export default function DocumentsCard({
       setError("Choose a file first.");
       return;
     }
+    if (file.size > 4 * 1024 * 1024) {
+      setError("File is larger than 4MB. Add a Drive link instead.");
+      return;
+    }
 
     setError(null);
     const formData = new FormData();
     formData.set("file", file);
     formData.set("companyId", companyId);
     appendMetadata(formData);
+    if (markRequirementReceived && matchingRequirement) {
+      formData.set("requirementId", matchingRequirement.id);
+    }
 
     startTransition(async () => {
       const result = await uploadDocumentAction(formData);
       if (!result.ok) setError(result.message);
-      if (inputRef.current) inputRef.current.value = "";
+      if (result.ok && inputRef.current) inputRef.current.value = "";
+      if (result.ok) setMarkRequirementReceived(false);
       if (result.ok) router.refresh();
     });
   }
@@ -229,7 +255,10 @@ export default function DocumentsCard({
               Linked to
               <SelectMenu
                 value={linkedDealId}
-                onChange={setLinkedDealId}
+                onChange={(value) => {
+                  setLinkedDealId(value);
+                  setMarkRequirementReceived(false);
+                }}
                 options={[
                   { label: "Company-level (all deals)", value: "" },
                   ...dealOptions.map((deal) => ({ label: deal.name, value: deal.id })),
@@ -280,6 +309,7 @@ export default function DocumentsCard({
             onChange={(value) => {
               setCategoryId(value);
               setDocumentTypeId("");
+              setMarkRequirementReceived(false);
             }}
             options={[
               { label: "None", value: "" },
@@ -295,7 +325,10 @@ export default function DocumentsCard({
           Type
           <SelectMenu
             value={documentTypeId}
-            onChange={setDocumentTypeId}
+            onChange={(value) => {
+              setDocumentTypeId(value);
+              setMarkRequirementReceived(false);
+            }}
             options={[
               { label: "None", value: "" },
               ...documentTypes
@@ -332,6 +365,18 @@ export default function DocumentsCard({
         <div className="mb-3 rounded-xl bg-[#f7f9fa] px-3 py-2 text-[11px] font-medium text-neutral-600">
           Suggested filename: <span className="text-ink">{suggestedName}</span>
         </div>
+      )}
+
+      {matchingRequirement && (
+        <label className="mb-3 flex items-center gap-2 text-[12px] text-ink">
+          <input
+            type="checkbox"
+            checked={markRequirementReceived}
+            onChange={(event) => setMarkRequirementReceived(event.target.checked)}
+            disabled={isPending}
+          />
+          Mark {matchingRequirement.expectedLabel} as received in this deal&apos;s checklist
+        </label>
       )}
 
       <div className="mb-3 flex gap-2">
