@@ -16,6 +16,7 @@ does **not** grant access by itself.
 | Server actions | Document, checklist and portfolio actions return an error without the permission (`actionAccessError`). |
 | Database (migration `0015`) | Every policy on `public` tables was replaced. `anon` has no table privileges. Members read and write CRM tables; `documents`, `document_requirements`, document and portfolio activity, and all portfolio tables require the permission. Members can read only their own membership rows and cannot write them. |
 | Storage | The private `documents` bucket follows the `documents` permission for select (download / signed URLs), insert, update and delete. |
+| Communications (migration `0016`) | Potential LPs and email drafts are member-only. Drafts are readable by members and changeable only by their creator and their responsible (an active member). See [`communications.md`](communications.md). |
 
 Helper functions live in the `private` schema, which the Data API does not
 expose. They are `SECURITY DEFINER` with an empty `search_path` and only

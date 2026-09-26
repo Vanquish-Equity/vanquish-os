@@ -29,6 +29,7 @@ export const WORKSPACE_NAV: NavItem[] = [
   { href: "/pipeline", label: "Pipeline" },
   { href: "/companies", label: "Companies" },
   { href: "/people", label: "People" },
+  { href: "/communications", label: "Communications" },
   { href: "/tasks", label: "Tasks" },
   { href: "/review", label: "Review" },
   { href: "/portfolio", label: "Portfolio", requires: "portfolio" },

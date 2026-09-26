@@ -13,6 +13,7 @@ type FormValues = {
   companyId: string;
   linkedinUrl: string;
   email: string;
+  isPotentialLp: boolean;
 };
 
 const emptyForm: FormValues = {
@@ -21,17 +22,28 @@ const emptyForm: FormValues = {
   companyId: "",
   linkedinUrl: "",
   email: "",
+  isPotentialLp: false,
 };
 
 function toMenuOptions(options: Option[]): SelectMenuOption[] {
   return options.map((option) => ({ value: option.id, label: option.name }));
 }
 
-export default function NewPersonModal({ companies }: { companies: Option[] }) {
+export default function NewPersonModal({
+  companies,
+  defaultPotentialLp = false,
+  label = "New Person",
+}: {
+  companies: Option[];
+  // Opened from the Potential LPs view: the new person is an LP by default.
+  defaultPotentialLp?: boolean;
+  label?: string;
+}) {
   const router = useRouter();
   const firstInputRef = useRef<HTMLInputElement | null>(null);
   const [open, setOpen] = useState(false);
-  const [values, setValues] = useState<FormValues>(emptyForm);
+  const initialForm = { ...emptyForm, isPotentialLp: defaultPotentialLp };
+  const [values, setValues] = useState<FormValues>(initialForm);
   const [nameError, setNameError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -49,7 +61,7 @@ export default function NewPersonModal({ companies }: { companies: Option[] }) {
   function closeModal() {
     if (pending) return;
     setOpen(false);
-    setValues(emptyForm);
+    setValues(initialForm);
     setNameError(null);
     setServerError(null);
   }
@@ -71,6 +83,7 @@ export default function NewPersonModal({ companies }: { companies: Option[] }) {
       companyId: values.companyId || null,
       linkedinUrl: values.linkedinUrl,
       email: values.email,
+      isPotentialLp: values.isPotentialLp,
     });
 
     setPending(false);
@@ -81,7 +94,7 @@ export default function NewPersonModal({ companies }: { companies: Option[] }) {
     }
 
     setOpen(false);
-    setValues(emptyForm);
+    setValues(initialForm);
     router.refresh();
   }
 
@@ -92,7 +105,7 @@ export default function NewPersonModal({ companies }: { companies: Option[] }) {
         onClick={() => setOpen(true)}
         className="rounded-full bg-ink px-3.5 py-2 text-[12px] font-semibold text-white transition hover:bg-neutral-800"
       >
-        New Person
+        {label}
       </button>
 
       {open && (
@@ -183,6 +196,21 @@ export default function NewPersonModal({ companies }: { companies: Option[] }) {
                   className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
                 />
               </div>
+
+              <label className="flex items-start gap-2.5 rounded-xl border border-neutral-100 bg-[#f7f9fa] px-3 py-2.5 text-[12px] text-neutral-600">
+                <input
+                  type="checkbox"
+                  checked={values.isPotentialLp}
+                  onChange={(e) => setValues((v) => ({ ...v, isPotentialLp: e.target.checked }))}
+                  className="mt-0.5 accent-cyan-700"
+                />
+                <span>
+                  <span className="font-semibold text-ink">Potential LP</span>
+                  <span className="block text-[11px] text-neutral-500">
+                    Can be selected as a recipient in Communications. Requires an email.
+                  </span>
+                </span>
+              </label>
 
               <div>
                 <label className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
