@@ -839,6 +839,13 @@ export default async function DealDetailPage({
             companyName={company.name}
             dealId={deal.id}
             documents={dealDocuments}
+            requirements={requirementItems.map((requirement) => ({
+              id: requirement.id,
+              documentTypeId: requirement.documentTypeId,
+              expectedLabel: requirement.expectedLabel,
+              status: requirement.status,
+              satisfiedByDocumentId: requirement.satisfiedByDocumentId,
+            }))}
             categories={documentCategories ?? []}
             documentTypes={(documentTypes ?? []).map((type) => ({
               id: type.id,

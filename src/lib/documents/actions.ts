@@ -7,7 +7,8 @@ import { activeDealInCompanyError } from "@/lib/deals/guards";
 import { createClient } from "@/lib/supabase/server";
 
 const BUCKET = "documents";
-const MAX_SIZE_BYTES = 25 * 1024 * 1024; // 25MB — plenty for a memo/deck PDF
+// This action receives the file through Vercel, whose function payload limit is 4.5 MB.
+const MAX_SIZE_BYTES = 4 * 1024 * 1024;
 
 export type DocumentActionResult =
   | { ok: true }
@@ -50,6 +51,7 @@ export async function uploadDocumentAction(
   const file = formData.get("file");
   const companyId = String(formData.get("companyId") ?? "").trim();
   const dealId = String(formData.get("dealId") ?? "").trim() || null;
+  const requirementId = cleanText(formData.get("requirementId"));
   const metadata = documentPayloadFromForm(formData);
 
   if (!(file instanceof File) || file.size === 0) {
@@ -61,7 +63,7 @@ export async function uploadDocumentAction(
   }
 
   if (file.size > MAX_SIZE_BYTES) {
-    return { ok: false, message: "File is larger than 25MB." };
+    return { ok: false, message: "File is larger than 4MB. Add a Drive link instead." };
   }
 
   const supabase = await createClient();
@@ -69,6 +71,26 @@ export async function uploadDocumentAction(
   if (dealId) {
     const dealError = await activeDealInCompanyError(supabase, dealId, companyId);
     if (dealError) return { ok: false, message: dealError };
+  }
+
+  if (requirementId) {
+    if (!dealId || !metadata.document_type_id) {
+      return { ok: false, message: "Choose a deal and document type to update the checklist." };
+    }
+    const { data: requirement, error } = await supabase
+      .from("document_requirements")
+      .select("id")
+      .eq("id", requirementId)
+      .eq("scope", "deal_dd")
+      .eq("deal_id", dealId)
+      .eq("document_type_id", metadata.document_type_id)
+      .is("satisfied_by_document_id", null)
+      .is("archived_at", null)
+      .in("status", ["not_searched", "requested", "missing", "needs_review"])
+      .maybeSingle();
+    if (error || !requirement) {
+      return { ok: false, message: "That checklist item is no longer available. Refresh and try again." };
+    }
   }
 
   const storagePath = `${companyId}/${crypto.randomUUID()}-${sanitizeFileName(
@@ -107,6 +129,34 @@ export async function uploadDocumentAction(
   }
 
   if (insertedDocument) {
+    if (requirementId) {
+      const { data: updated, error: requirementError } = await supabase
+        .from("document_requirements")
+        .update({ satisfied_by_document_id: insertedDocument.id, status: "received_found" })
+        .eq("id", requirementId)
+        .eq("scope", "deal_dd")
+        .eq("deal_id", dealId)
+        .eq("document_type_id", metadata.document_type_id)
+        .in("status", ["not_searched", "requested", "missing", "needs_review"])
+        .is("satisfied_by_document_id", null)
+        .is("archived_at", null)
+        .select("id")
+        .maybeSingle();
+      if (requirementError || !updated) {
+        revalidateDocumentPaths(companyId, dealId);
+        return { ok: false, message: "File saved, but the checklist was not updated. Refresh and link it manually." };
+      }
+      await logActivity(
+        {
+          eventType: "REQUIREMENT_STATUS_CHANGED",
+          targetType: "document_requirement",
+          targetId: requirementId,
+          payload: { action: "document_linked", documentId: insertedDocument.id },
+          actor: "anonymous",
+        },
+        supabase
+      );
+    }
     await logActivity(
       {
         eventType: "DOCUMENT_UPLOADED",
