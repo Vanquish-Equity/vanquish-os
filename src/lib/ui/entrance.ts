@@ -12,6 +12,34 @@ export const WELCOME_MAX_AGE_SECONDS = 120;
 // The intro only plays when the first screen is one of these.
 export const INTRO_PATHS = ["/home", "/overview"];
 
+// "Replay intro" (user menu): replays on Home/Overview, or goes to Home and
+// replays there. For reviewing the sequence without signing out.
+export const INTRO_REPLAY_EVENT = "vq-intro-replay";
+const REPLAY_KEY = "vq.replayIntro";
+
+export function requestIntroReplay(pathname: string): "here" | "home" {
+  if (INTRO_PATHS.includes(pathname)) {
+    window.dispatchEvent(new Event(INTRO_REPLAY_EVENT));
+    return "here";
+  }
+  try {
+    window.sessionStorage.setItem(REPLAY_KEY, "1");
+  } catch {
+    // Without storage the replay simply does not carry over to Home.
+  }
+  return "home";
+}
+
+export function takeReplayRequest() {
+  try {
+    if (window.sessionStorage.getItem(REPLAY_KEY) !== "1") return false;
+    window.sessionStorage.removeItem(REPLAY_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const SOUND_STORAGE_KEY = "vq.entranceSound";
 
 // One sidebar preference per member on this browser. The name is derived
@@ -54,12 +82,12 @@ export function greetingName(displayName: string | null | undefined, providerNam
 // offset (visual only — transforms, the layout never moves).
 export function introCard(index: number): CSSProperties {
   const offsets: Array<[number, number]> = [
-    [-14, 16],
-    [12, 18],
-    [0, 22],
-    [-10, 14],
-    [14, 12],
-    [-6, 20],
+    [-26, 30],
+    [24, 32],
+    [0, 38],
+    [-20, 28],
+    [26, 24],
+    [-12, 34],
   ];
   const [dx, dy] = offsets[index % offsets.length];
   return { "--vq-i": index, "--vq-dx": `${dx}px`, "--vq-dy": `${dy}px` } as CSSProperties;

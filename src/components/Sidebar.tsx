@@ -2,12 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import NavIcon from "@/components/NavIcon";
 import type { NavIcon as NavIconName } from "@/lib/auth/permissions";
-import { accountLabel, SIDEBAR_COOKIE_MAX_AGE_SECONDS } from "@/lib/ui/entrance";
-import { setEntranceSoundPref, useEntranceSoundPref } from "@/lib/ui/sound";
+import { accountLabel, requestIntroReplay, SIDEBAR_COOKIE_MAX_AGE_SECONDS } from "@/lib/ui/entrance";
+import { playEntranceChime, setEntranceSoundPref, useEntranceSoundPref } from "@/lib/ui/sound";
 
 export type SidebarNavItem = { href: string; label: string; icon: NavIconName };
 
@@ -56,6 +56,21 @@ function SidebarBody({
   closeRef?: React.RefObject<HTMLButtonElement | null>;
 }) {
   const soundOn = useEntranceSoundPref();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // One click: turn it on and hear it right away (the click allows audio).
+  function toggleSound() {
+    const next = !soundOn;
+    setEntranceSoundPref(next);
+    if (next) void playEntranceChime();
+  }
+
+  function replayIntro() {
+    onNavigate(pathname);
+    if (requestIntroReplay(pathname) === "home") router.push("/home");
+  }
+
   const label = byMode(mode, { rail: "sr-only", full: "", responsive: "sr-only md:not-sr-only" });
   const center = byMode(mode, {
     rail: "justify-center px-0",
@@ -161,18 +176,28 @@ function SidebarBody({
             <div className="truncate text-xs font-semibold leading-tight tracking-wide text-neutral-200" title={userEmail}>
               {account}
             </div>
-            <form action="/auth/signout" method="post">
+            <div className="mt-0.5 flex items-center gap-2 text-[10px] font-semibold text-neutral-500">
               <button
-                type="submit"
-                className="mt-0.5 text-[10px] font-semibold text-neutral-500 transition hover:text-white focus-visible:text-white focus-visible:outline-none"
+                type="button"
+                onClick={replayIntro}
+                className="transition hover:text-white focus-visible:text-white focus-visible:outline-none"
               >
-                Sign out
+                Replay intro
               </button>
-            </form>
+              <span aria-hidden="true">·</span>
+              <form action="/auth/signout" method="post">
+                <button
+                  type="submit"
+                  className="transition hover:text-white focus-visible:text-white focus-visible:outline-none"
+                >
+                  Sign out
+                </button>
+              </form>
+            </div>
           </div>
           <button
             type="button"
-            onClick={() => setEntranceSoundPref(!soundOn)}
+            onClick={toggleSound}
             aria-pressed={soundOn}
             aria-label={soundOn ? "Entrance sound on. Turn off" : "Entrance sound off. Turn on"}
             className="group relative rounded-lg p-1.5 text-neutral-500 transition hover:bg-[#12191c] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
@@ -180,7 +205,16 @@ function SidebarBody({
             <NavIcon name={soundOn ? "sound-on" : "sound-off"} className="h-4 w-4" />
             <Tooltip mode="rail">{soundOn ? "Entrance sound: on" : "Entrance sound: off"}</Tooltip>
           </button>
-          {/* Sign out stays one click away when only icons are shown. */}
+          {/* Replay and Sign out stay one click away when only icons are shown. */}
+          <button
+            type="button"
+            onClick={replayIntro}
+            className={`group relative rounded-lg p-1.5 text-neutral-500 transition hover:bg-[#12191c] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400 ${byMode(mode, { rail: "", full: "hidden", responsive: "md:hidden" })}`}
+          >
+            <NavIcon name="replay" className="h-4 w-4" />
+            <span className="sr-only">Replay intro</span>
+            <Tooltip mode={mode}>Replay intro</Tooltip>
+          </button>
           <form action="/auth/signout" method="post" className={byMode(mode, { rail: "", full: "hidden", responsive: "md:hidden" })}>
             <button
               type="submit"

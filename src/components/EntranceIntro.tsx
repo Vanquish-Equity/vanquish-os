@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import NavIcon from "@/components/NavIcon";
-import { INTRO_PATHS, WELCOME_COOKIE } from "@/lib/ui/entrance";
+import { INTRO_PATHS, INTRO_REPLAY_EVENT, takeReplayRequest, WELCOME_COOKIE } from "@/lib/ui/entrance";
 import {
   audioAllowedNow,
   playEntranceChime,
@@ -24,8 +24,10 @@ if(${JSON.stringify(INTRO_PATHS)}.indexOf(p)<0)return;
 d.documentElement.setAttribute("data-vq-intro","play");
 }catch(e){}})();`;
 
-const FULL_MS = 2300;
-const REDUCED_MS = 900;
+// Two moments: the logo (~2.5 s), a short pause, then the cards (~2 s).
+// Keep in sync with the timings in globals.css.
+const FULL_MS = 5300;
+const REDUCED_MS = 2300;
 
 // Vanquish "V" mark as three strokes (traced from public/vanquish-mark.png).
 const MARK_PATHS = [
@@ -44,11 +46,31 @@ export default function EntranceIntro() {
   const [active, setActive] = useState(false);
   const startPath = useRef<string | null>(null);
   const played = useRef(false);
+  const timer = useRef<number | null>(null);
 
   const end = useCallback(() => {
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = null;
     document.documentElement.removeAttribute("data-vq-intro");
     setActive(false);
   }, []);
+
+  // Starts (or restarts) the sequence on the current page.
+  const begin = useCallback(() => {
+    const root = document.documentElement;
+    if (root.getAttribute("data-vq-intro") === "play") {
+      // Restart CSS animations: remove, force a reflow, add again.
+      root.removeAttribute("data-vq-intro");
+      void root.offsetWidth;
+    }
+    root.setAttribute("data-vq-intro", "play");
+    startPath.current = window.location.pathname;
+    played.current = false;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(end, reduced ? REDUCED_MS : FULL_MS);
+    setActive(true);
+  }, [end]);
 
   const chime = useCallback(() => {
     if (played.current) return;
@@ -59,14 +81,27 @@ export default function EntranceIntro() {
   // Start: the boot script decided before hydration.
   useEffect(() => {
     if (!playing()) return;
-    startPath.current = window.location.pathname;
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    // Mount effect: mirrors the attribute set by the boot script.
+    // Syncs with the attribute set outside React by the boot script.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setActive(true);
-    const timer = window.setTimeout(end, reduced ? REDUCED_MS : FULL_MS);
-    return () => window.clearTimeout(timer);
-  }, [end]);
+    begin();
+    return () => {
+      if (timer.current) window.clearTimeout(timer.current);
+    };
+  }, [begin]);
+
+  // "Replay intro" from the user menu (same page, or after going to Home).
+  useEffect(() => {
+    const onReplay = () => begin();
+    window.addEventListener(INTRO_REPLAY_EVENT, onReplay);
+    return () => window.removeEventListener(INTRO_REPLAY_EVENT, onReplay);
+  }, [begin]);
+
+  useEffect(() => {
+    if (!INTRO_PATHS.includes(pathname) || !takeReplayRequest()) return;
+    // Syncs with the replay request stored in sessionStorage.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    begin();
+  }, [pathname, begin]);
 
   // Sound: only when enabled, and only if the browser allows it now or the
   // person interacts during the intro. Never blocks or throws.

@@ -56,20 +56,31 @@ and Home says My tasks needs the migration.
 2. A tiny inline script in the dashboard layout runs before the first paint:
    it deletes the cookie and, only if the first screen is Home or Overview,
    marks `<html data-vq-intro="play">`.
-3. CSS plays ~2 s: the Vanquish mark drawn with a cyan stroke, then the cards
-   arrive from small offsets with a light bounce, a shine crosses them and a
-   cyan line runs around their border. Only `transform` and `opacity`
-   animate, so the layout never moves; final positions are identical to a
-   load without the intro.
+3. CSS plays two distinct moments (~5 s in total):
+   - **Logo (0 → 2.6 s):** the Vanquish mark is drawn with a cyan stroke,
+     filled, the wordmark fades in, and the dark backdrop fades out.
+   - **Pause (2.6 → 2.9 s):** the page is visible, the cards are not yet.
+   - **Cards (2.9 → ~5.2 s):** the cards arrive from small offsets and
+     settle with a soft bounce; then a shine crosses each one and a cyan line
+     runs once around its border.
+   Only `transform` and `opacity` animate, so the layout never moves; final
+   positions are identical to a load without the intro. Timings live in
+   `globals.css` (`--vq-intro-*`) and `EntranceIntro.tsx` (`FULL_MS`).
 4. **Skip** (or Escape) ends it at once. Reloads, navigation and returning to
    the tab do not replay it (the cookie is gone).
-5. `prefers-reduced-motion`: the logo is shown without drawing and cards
-   only fade in, ~1 s total.
+5. `prefers-reduced-motion`: the logo is shown without drawing for ~1.7 s and
+   the cards only fade in; no bounce, shine or moving border.
+6. **Replay intro** (user menu at the bottom of the sidebar; an icon when the
+   sidebar is collapsed) replays the sequence on Home or Overview, or goes to
+   Home and replays it there. It is meant for reviewing the entrance without
+   signing out.
 
 ### Sound
 
 Optional, **off by default**. Toggle in the intro and in the sidebar user
-area; the choice is remembered in `localStorage` (`vq.entranceSound`). The
+area; one click turns it on and plays it once as a preview, and it then plays
+at the start of every entrance and every **Replay intro**. The choice is
+remembered in `localStorage` (`vq.entranceSound`). The
 tone is synthesized with Web Audio (no files). After the Google redirect
 browsers usually block audio: the sound is attempted only when the page
 already has user activation or on the first click / key press during the

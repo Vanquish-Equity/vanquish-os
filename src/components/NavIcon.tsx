@@ -1,7 +1,7 @@
 import type { NavIcon as NavIconName } from "@/lib/auth/permissions";
 
 // Line icons for the sidebar (24px grid, drawn with currentColor).
-const PATHS: Record<NavIconName | "collapse" | "expand" | "signout" | "sound-on" | "sound-off" | "menu", React.ReactNode> = {
+const PATHS: Record<NavIconName | "collapse" | "expand" | "signout" | "sound-on" | "sound-off" | "menu" | "replay", React.ReactNode> = {
   home: (
     <>
       <path d="M3.5 10.5 12 3.5l8.5 7" />
@@ -80,6 +80,13 @@ const PATHS: Record<NavIconName | "collapse" | "expand" | "signout" | "sound-on"
     </>
   ),
   menu: <path d="M4 7h16M4 12h16M4 17h16" />,
+  replay: (
+    <>
+      <path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3" />
+      <path d="M4.5 4.5v3.2h3.2" />
+      <path d="m10.5 9.2 4.3 2.8-4.3 2.8z" />
+    </>
+  ),
   signout: (
     <>
       <path d="M14 4.5h3.5A1.5 1.5 0 0 1 19 6v12a1.5 1.5 0 0 1-1.5 1.5H14" />

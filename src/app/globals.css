@@ -140,11 +140,21 @@ button:not(:disabled) { cursor: pointer; }
 }
 
 /* ---------------------------------------------------------------------
-   Entrance intro (after a fresh sign-in only; see EntranceIntro.tsx).
-   Everything is keyed on html[data-vq-intro="play"], set before the first
-   paint and removed when the ~2 s sequence ends or is skipped. Only
+   Entrance intro (after a fresh sign-in, or "Replay intro"; see
+   EntranceIntro.tsx). Keyed on html[data-vq-intro="play"], set before the
+   first paint and removed when the sequence ends or is skipped. Only
    transform and opacity move, so the layout never shifts.
+
+   Moment 1 — logo:   0 → 2.6 s (drawn in cyan, filled, then fades out)
+   Pause:             2.6 → 2.9 s (page visible, cards not yet)
+   Moment 2 — cards:  2.9 → ~5.2 s (arrive, soft bounce, shine, cyan line)
    --------------------------------------------------------------------- */
+
+:root {
+  --vq-intro-cards-at: 2900ms;
+  --vq-intro-glow-at: 3450ms;
+  --vq-intro-step: 110ms;
+}
 
 .vq-intro-layer {
   display: none;
@@ -163,7 +173,7 @@ html[data-vq-intro="play"] .vq-intro-layer {
   justify-content: center;
   background: var(--ink);
   pointer-events: none;
-  animation: vq-intro-backdrop 850ms ease-in both;
+  animation: vq-intro-backdrop 2600ms ease-in both;
 }
 
 .vq-intro-logo {
@@ -188,22 +198,22 @@ html[data-vq-intro="play"] .vq-intro-layer {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
   filter: drop-shadow(0 0 10px rgb(0 194 209 / 0.55));
-  animation: vq-intro-draw 620ms cubic-bezier(0.65, 0, 0.35, 1) forwards,
-    vq-intro-fill 260ms ease-out 420ms forwards;
+  animation: vq-intro-draw 1300ms cubic-bezier(0.65, 0, 0.35, 1) forwards,
+    vq-intro-fill 500ms ease-out 1100ms forwards;
 }
 
 .vq-intro-mark path:nth-child(2) {
-  animation-delay: 80ms, 480ms;
+  animation-delay: 150ms, 1250ms;
 }
 
 .vq-intro-mark path:nth-child(3) {
-  animation-delay: 160ms, 540ms;
+  animation-delay: 300ms, 1400ms;
 }
 
 .vq-intro-wordmark {
   text-align: center;
   opacity: 0;
-  animation: vq-intro-fade 300ms ease-out 220ms forwards;
+  animation: vq-intro-fade 600ms ease-out 700ms forwards;
 }
 
 .vq-intro-controls {
@@ -240,7 +250,7 @@ html[data-vq-intro="play"] .vq-intro-layer {
 
 @keyframes vq-intro-backdrop {
   0%,
-  76% {
+  85% {
     opacity: 1;
     visibility: visible;
   }
@@ -271,8 +281,8 @@ html[data-vq-intro="play"] .vq-intro-layer {
 /* Cards arrive from a small offset, settle with a light bounce, then a shine
    crosses them and a cyan line runs once around the border. */
 html[data-vq-intro="play"] .vq-intro-card {
-  animation: vq-card-arrive 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-delay: calc(700ms + var(--vq-i, 0) * 55ms);
+  animation: vq-card-arrive 950ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--vq-intro-cards-at) + var(--vq-i, 0) * var(--vq-intro-step));
 }
 
 html[data-vq-intro="play"] .vq-intro-card::after {
@@ -291,8 +301,8 @@ html[data-vq-intro="play"] .vq-intro-card::after {
   content: "";
   opacity: 0;
   pointer-events: none;
-  animation: vq-card-shine 700ms ease-out both;
-  animation-delay: calc(1000ms + var(--vq-i, 0) * 55ms);
+  animation: vq-card-shine 1150ms ease-out both;
+  animation-delay: calc(var(--vq-intro-glow-at) + var(--vq-i, 0) * var(--vq-intro-step));
 }
 
 html[data-vq-intro="play"] .vq-intro-card::before {
@@ -315,8 +325,8 @@ html[data-vq-intro="play"] .vq-intro-card::before {
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   mask-composite: exclude;
-  animation: vq-card-border-spin 800ms linear both, vq-card-snake 800ms ease both;
-  animation-delay: calc(1000ms + var(--vq-i, 0) * 55ms);
+  animation: vq-card-border-spin 1150ms linear both, vq-card-snake 1150ms ease both;
+  animation-delay: calc(var(--vq-intro-glow-at) + var(--vq-i, 0) * var(--vq-intro-step));
 }
 
 @keyframes vq-card-arrive {
@@ -324,9 +334,12 @@ html[data-vq-intro="play"] .vq-intro-card::before {
     opacity: 0;
     transform: translate(var(--vq-dx, 0px), var(--vq-dy, 18px)) scale(0.97);
   }
-  68% {
+  55% {
     opacity: 1;
-    transform: translate(0, -3px) scale(1.006);
+    transform: translate(0, -5px) scale(1.008);
+  }
+  78% {
+    transform: translate(0, 2px) scale(0.998);
   }
   100% {
     opacity: 1;
@@ -363,7 +376,7 @@ html[data-vq-intro="play"] .vq-intro-card::before {
 
 @media (prefers-reduced-motion: reduce) {
   .vq-intro-backdrop {
-    animation: vq-intro-backdrop 700ms linear both;
+    animation: vq-intro-backdrop 1700ms linear both;
   }
 
   .vq-intro-mark path {
@@ -379,7 +392,7 @@ html[data-vq-intro="play"] .vq-intro-card::before {
   }
 
   html[data-vq-intro="play"] .vq-intro-card {
-    animation: vq-intro-fade-in 240ms linear 450ms both;
+    animation: vq-intro-fade-in 400ms linear 1800ms both;
   }
 
   html[data-vq-intro="play"] .vq-intro-card::before,

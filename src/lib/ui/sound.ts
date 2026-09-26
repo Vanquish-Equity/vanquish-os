@@ -67,7 +67,7 @@ export function audioAllowedNow() {
 
 let context: AudioContext | null = null;
 
-// A short, soft two-note chime (~0.9 s, moderate volume). Returns whether it
+// A short, soft rising chime (~1.3 s, moderate volume). Returns whether it
 // started; failures are swallowed.
 export async function playEntranceChime(): Promise<boolean> {
   try {
@@ -79,13 +79,13 @@ export async function playEntranceChime(): Promise<boolean> {
 
     const now = context.currentTime;
     const master = context.createGain();
-    master.gain.value = 0.12;
+    master.gain.value = 0.22;
     master.connect(context.destination);
 
     const notes: Array<[number, number]> = [
       [659.25, 0], // E5
-      [987.77, 0.12], // B5
-      [1318.51, 0.24], // E6, faint
+      [987.77, 0.16], // B5
+      [1318.51, 0.32], // E6, faint
     ];
     notes.forEach(([frequency, offset], index) => {
       const osc = context!.createOscillator();
@@ -96,10 +96,10 @@ export async function playEntranceChime(): Promise<boolean> {
       const peak = index === 2 ? 0.25 : 0.6;
       gain.gain.setValueAtTime(0.0001, start);
       gain.gain.exponentialRampToValueAtTime(peak, start + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.75);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 1.0);
       osc.connect(gain).connect(master);
       osc.start(start);
-      osc.stop(start + 0.8);
+      osc.stop(start + 1.05);
     });
     return true;
   } catch {
