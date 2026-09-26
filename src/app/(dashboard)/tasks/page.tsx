@@ -1,5 +1,9 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import NewTaskModal from "@/components/NewTaskModal";
+import { requireMember } from "@/lib/auth/access";
+import { loadAssignableMembers } from "@/lib/communications/queries";
+import { selectTasksWithAssignee } from "@/lib/tasks/queries";
 import TaskRow, { type TaskItem } from "@/components/TaskRow";
 import { startDevPageTimer } from "@/lib/performance";
 import { getPriorityOptions } from "@/lib/taxonomies";
@@ -22,6 +26,7 @@ type TaskRowData = {
   id: string;
   title: string;
   owner: string | null;
+  assignee_email?: string | null;
   due_at: string | null;
   status: "open" | "done";
   priority_id: string | null;
@@ -37,26 +42,36 @@ type TaskRowData = {
   priority: { name: string } | null;
 };
 
+const TASK_COLUMNS =
+  "id,title,owner,due_at,status,company_id,deal_id,priority_id,company:companies(id,name),deal:deals(name,round,first_seen_at,created_at),priority:priorities(name)";
+
+type TaskView = "all" | "mine" | "unassigned";
+
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; view?: string; new?: string }>;
 }) {
-  const { status } = await searchParams;
+  const { status, view: viewParam, new: openNew } = await searchParams;
+  const view: TaskView = viewParam === "mine" || viewParam === "unassigned" ? viewParam : "all";
+  const access = await requireMember();
   const supabase = await createClient();
   const endTimer = startDevPageTimer("page:data:tasks");
 
-  const [{ data: tasks }, { data: companies }, { data: deals }, priorities] =
+  const [taskResult, { data: companies }, { data: deals }, priorities, members] =
     await Promise.all([
-      supabase
-        .from("tasks")
-        .select(
-          "id,title,owner,due_at,status,company_id,deal_id,priority_id,company:companies(id,name),deal:deals(name,round,first_seen_at,created_at),priority:priorities(name)"
-        )
-        .is("archived_at", null)
-        .order("due_at", { ascending: true, nullsFirst: false }) as unknown as Promise<{
-        data: TaskRowData[] | null;
-      }>,
+      selectTasksWithAssignee<TaskRowData>(
+        TASK_COLUMNS,
+        (columns) =>
+          supabase
+            .from("tasks")
+            .select(columns)
+            .is("archived_at", null)
+            .order("due_at", { ascending: true, nullsFirst: false }) as unknown as PromiseLike<{
+            data: TaskRowData[] | null;
+            error: { code?: string } | null;
+          }>
+      ),
       supabase
         .from("companies")
         .select("id,name")
@@ -65,13 +80,17 @@ export default async function TasksPage({
       supabase.from("deals").select("id,name,round,first_seen_at,created_at,company_id,company:companies(name)")
         .is("archived_at", null).order("name") as unknown as Promise<{ data: DealOption[] }>,
       getPriorityOptions() as Promise<Option[]>,
+      loadAssignableMembers(supabase),
     ]);
+  // Until migration 0017 is applied tasks show without assignment.
+  const { data: tasks, assignmentAvailable } = taskResult;
   endTimer();
 
   const allTasks: TaskItem[] = (tasks ?? []).map((t) => ({
     id: t.id,
     title: t.title,
     owner: t.owner,
+    assigneeEmail: assignmentAvailable ? t.assignee_email ?? null : undefined,
     dueAt: t.due_at,
     status: t.status,
     priorityName: t.priority?.name ?? null,
@@ -102,7 +121,22 @@ export default async function TasksPage({
     }),
   }));
 
+  const inView = (task: TaskItem) =>
+    view === "mine" ? task.assigneeEmail === access.email : view === "unassigned" ? !task.assigneeEmail : true;
+  const viewCounts = {
+    mine: allTasks.filter((t) => t.status === "open" && t.assigneeEmail === access.email).length,
+    unassigned: allTasks.filter((t) => t.status === "open" && !t.assigneeEmail).length,
+  };
+  const tabClass = (active: boolean) =>
+    `rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition ${
+      active
+        ? "bg-ink text-white"
+        : "border border-neutral-200 text-neutral-600 hover:border-cyan-300 hover:text-cyan-800"
+    }`;
+  const rowMembers = assignmentAvailable ? members : undefined;
+
   const openTasks = allTasks
+    .filter(inView)
     .filter((t) => t.status === "open")
     .sort((a, b) => {
       // Overdue/soonest due first, tasks with no due date last.
@@ -111,7 +145,7 @@ export default async function TasksPage({
       if (!b.dueAt) return -1;
       return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
     });
-  const doneTasks = allTasks.filter((t) => t.status === "done");
+  const doneTasks = allTasks.filter(inView).filter((t) => t.status === "done");
 
   return (
     <div className="flex flex-col gap-4 px-7 py-6">
@@ -124,8 +158,37 @@ export default async function TasksPage({
             Follow-ups and next actions, linked to a company when relevant.
           </p>
         </div>
-        <NewTaskModal companies={companies ?? []} deals={dealOptions} priorities={priorities} />
+        <NewTaskModal
+          companies={companies ?? []}
+          deals={dealOptions}
+          priorities={priorities}
+          members={rowMembers}
+          currentUserEmail={access.email}
+          initialOpen={openNew === "1"}
+        />
       </header>
+
+      {assignmentAvailable ? (
+        <nav aria-label="Task views" className="flex flex-wrap items-center gap-2">
+          <Link href="/tasks" className={tabClass(view === "all")} aria-current={view === "all" ? "page" : undefined}>
+            All
+          </Link>
+          <Link href="/tasks?view=mine" className={tabClass(view === "mine")} aria-current={view === "mine" ? "page" : undefined}>
+            Assigned to me ({viewCounts.mine})
+          </Link>
+          <Link
+            href="/tasks?view=unassigned"
+            className={tabClass(view === "unassigned")}
+            aria-current={view === "unassigned" ? "page" : undefined}
+          >
+            Unassigned ({viewCounts.unassigned})
+          </Link>
+        </nav>
+      ) : (
+        <p className="rounded-[14px] border border-neutral-200 bg-[#f7f9fa] px-4 py-3 text-[12.5px] text-neutral-600">
+          Assigning tasks to members needs database migration 0017. Until then, tasks show without an assignee.
+        </p>
+      )}
 
       {status !== "done" && (
         <div className="vq-card-static rounded-[14px] bg-white">
@@ -137,7 +200,9 @@ export default async function TasksPage({
               No open tasks.
             </div>
           ) : (
-            openTasks.map((task) => <TaskRow key={task.id} task={task} priorities={priorities} />)
+            openTasks.map((task) => (
+              <TaskRow key={task.id} task={task} priorities={priorities} members={rowMembers} currentUserEmail={access.email} />
+            ))
           )}
         </div>
       )}
@@ -148,7 +213,7 @@ export default async function TasksPage({
             Done ({doneTasks.length})
           </div>
           {doneTasks.map((task) => (
-            <TaskRow key={task.id} task={task} priorities={priorities} />
+            <TaskRow key={task.id} task={task} priorities={priorities} members={rowMembers} currentUserEmail={access.email} />
           ))}
         </div>
       )}

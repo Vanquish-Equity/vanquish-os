@@ -21,10 +21,15 @@ export const getAccess = cache(async (): Promise<AccessState> => {
   const email = typeof claims.email === "string" ? claims.email.trim().toLowerCase() : null;
   if (!email) return { status: "unauthorized", email: null };
 
+  const metadata = (claims.user_metadata ?? {}) as Record<string, unknown>;
+  const providerName =
+    [metadata.full_name, metadata.name].find((value): value is string => typeof value === "string" && value.trim() !== "") ??
+    null;
+
   const [{ data: member }, { data: permissionRows }] = await Promise.all([
     supabase
       .from("app_members")
-      .select("email,is_active")
+      .select("email,is_active,display_name")
       .eq("email", email)
       .maybeSingle(),
     supabase.from("member_permissions").select("permission").eq("email", email),
@@ -36,6 +41,8 @@ export const getAccess = cache(async (): Promise<AccessState> => {
     status: "member",
     email,
     permissions: toPermissionSet((permissionRows ?? []).map((row) => row.permission)),
+    displayName: member.display_name ?? null,
+    providerName,
   };
 });
 

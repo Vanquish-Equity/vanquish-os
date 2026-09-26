@@ -9,6 +9,7 @@ import type { AttentionDeal } from "@/lib/deals/attention";
 import { snoozeDealAttentionAction } from "@/lib/deals/actions";
 import { formatExactDate, formatRelative } from "@/lib/dates";
 import { dealHref } from "@/lib/deals/scope";
+import { introCard } from "@/lib/ui/entrance";
 
 type AttentionPanelDeal = Pick<
   AttentionDeal,
@@ -102,9 +103,12 @@ function AttentionRow({
 export default function OverviewAttentionPanel({
   importedDeals,
   staleDeals,
+  introIndex,
 }: {
   importedDeals: AttentionPanelDeal[];
   staleDeals: AttentionPanelDeal[];
+  // Position in the entrance intro when Overview is the first screen.
+  introIndex?: number;
 }) {
   const [loggingDeal, setLoggingDeal] = useState<AttentionPanelDeal | null>(null);
   const [importsOpen, setImportsOpen] = useState(false);
@@ -132,7 +136,10 @@ export default function OverviewAttentionPanel({
 
   return (
     <>
-      <div className="vq-card-static rounded-[14px] bg-white p-5">
+      <div
+        className={`vq-card-static rounded-[14px] bg-white p-5 ${introIndex === undefined ? "" : "vq-intro-card"}`}
+        style={introIndex === undefined ? undefined : introCard(introIndex)}
+      >
         <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
           Needs Attention
         </h2>

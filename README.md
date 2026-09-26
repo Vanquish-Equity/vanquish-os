@@ -43,6 +43,10 @@ Run the migration files in order in the Supabase SQL Editor:
     sender (both can edit; others read), and the atomic
     `import_potential_lps` / `save_email_draft` functions. Nothing sends
     email. See [`docs/communications.md`](docs/communications.md).
+12. `0017_task_assignees.sql` - explicit member assignee on tasks
+    (`assignee_email`, `assigned_by`, `assigned_at`) used by Home's
+    My tasks. `tasks.owner` stays a free-text note. See
+    [`docs/home.md`](docs/home.md).
 
 Sign-in (Google, email link) and member-scoped RLS are enforced from `0015`
 on; the temporary anon policies of `0003`-`0014` are dropped there. See
@@ -109,8 +113,9 @@ npm run build
 ```
 
 For database verification, run `0001` through latest against a fresh local
-Supabase project, then run `supabase/tests/access_control.sql` and
-`supabase/tests/lp_communications.sql` (never against production). If the Supabase CLI is unavailable, use a local Postgres
+Supabase project, then run `supabase/tests/access_control.sql`,
+`supabase/tests/lp_communications.sql` and
+`supabase/tests/task_assignees.sql` (never against production). If the Supabase CLI is unavailable, use a local Postgres
 database with minimal `auth.role()` and `storage` schema stubs, then re-run the
 new migrations a second time to confirm they are re-runnable.
 

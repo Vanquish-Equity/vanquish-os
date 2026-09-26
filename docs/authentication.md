@@ -68,7 +68,11 @@ Emails are stored in lowercase. Migration `0015` authorizes
 | `https://<production-domain>/auth/callback` (and the preview / local variants below) | **Supabase** → Authentication → URL Configuration → *Redirect URLs*. Supabase returns to Vanquish OS here. |
 
 `/auth/callback` only redirects to same-site paths from `next`; external or
-malformed values fall back to `/overview`.
+malformed values fall back to `/home`. Home is the default entry point; an explicit
+internal `next` (for example `/overview` or a deal link) is kept. After a
+successful exchange the callback also sets the one-time `vq_welcome` cookie
+that plays the entrance once (see [`home.md`](home.md)); it carries no
+identity or session data.
 
 ## Setup steps
 

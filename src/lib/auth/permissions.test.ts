@@ -40,6 +40,11 @@ describe("area permissions", () => {
     const marioNav = visibleNav(WORKSPACE_NAV, toPermissionSet(["portfolio"])).map((item) => item.label);
     expect(marioNav).toContain("Portfolio");
   });
+
+  it("starts with Home, then Overview, and gives every item an icon", () => {
+    expect(WORKSPACE_NAV.slice(0, 2).map((item) => item.href)).toEqual(["/home", "/overview"]);
+    expect(WORKSPACE_NAV.every((item) => Boolean(item.icon))).toBe(true);
+  });
 });
 
 describe("sign-in providers", () => {

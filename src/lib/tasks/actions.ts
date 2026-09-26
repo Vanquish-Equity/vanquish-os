@@ -12,9 +12,24 @@ function cleanText(value: string | null | undefined) {
   return (value ?? "").trim();
 }
 
+// Database errors are mapped to plain messages (no raw details).
+function taskWriteError(error: { code?: string; message: string }) {
+  if (error.code === "23514") return "Choose an active Vanquish member as the assignee.";
+  if (error.code === "42703" || error.code === "PGRST204") {
+    return "Task assignment is not available yet (database migration 0017 pending).";
+  }
+  return error.message;
+}
+
+function normalizeAssignee(value: string | null | undefined) {
+  if (value === undefined) return undefined;
+  return (value ?? "").trim().toLowerCase() || null;
+}
+
 function revalidateTaskPaths(companyId?: string | null, dealId?: string | null) {
   revalidatePath("/tasks");
   revalidatePath("/overview");
+  revalidatePath("/home");
   if (companyId) revalidatePath(`/companies/${companyId}`);
   if (companyId && dealId) revalidatePath(`/companies/${companyId}/deals/${dealId}`);
 }
@@ -24,6 +39,8 @@ export type CreateTaskInput = {
   companyId: string | null;
   dealId: string | null;
   owner: string;
+  // Member assignee (email of an active member). undefined: not set here.
+  assigneeEmail?: string | null;
   dueAt: string | null;
   priorityId: string | null;
 };
@@ -55,11 +72,12 @@ export async function createTaskAction(
       due_at: input.dueAt || null,
       priority_id: input.priorityId || null,
       status: "open",
+      ...(input.assigneeEmail === undefined ? {} : { assignee_email: normalizeAssignee(input.assigneeEmail) }),
     })
     .select("id")
     .single();
 
-  if (error) return { ok: false, message: error.message };
+  if (error) return { ok: false, message: taskWriteError(error) };
   if (!data) return { ok: false, message: "Task could not be created." };
 
   await logActivity(
@@ -81,6 +99,7 @@ export async function updateTaskAction(input: {
   taskId: string;
   title: string;
   owner: string;
+  assigneeEmail?: string | null;
   dueAt: string | null;
   priorityId: string | null;
 }): Promise<TaskActionResult> {
@@ -103,10 +122,11 @@ export async function updateTaskAction(input: {
     owner: cleanText(input.owner) || null,
     due_at: input.dueAt || null,
     priority_id: input.priorityId || null,
+    ...(input.assigneeEmail === undefined ? {} : { assignee_email: normalizeAssignee(input.assigneeEmail) }),
   };
   const { count, error } = await supabase.from("tasks")
     .update(changes, { count: "exact" }).eq("id", taskId).is("archived_at", null);
-  if (error) return { ok: false, message: error.message };
+  if (error) return { ok: false, message: taskWriteError(error) };
   if (!count) return { ok: false, message: "Task could not be updated." };
 
   await logActivity({

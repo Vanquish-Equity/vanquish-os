@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { createTaskAction } from "@/lib/tasks/actions";
 import SelectMenu, { type SelectMenuOption } from "@/components/SelectMenu";
+import type { Member } from "@/lib/communications/drafts";
 
 type Option = { id: string; name: string };
 
@@ -13,6 +14,7 @@ type FormValues = {
   companyId: string;
   dealId: string;
   owner: string;
+  assigneeEmail: string;
   dueAt: string;
   priorityId: string;
 };
@@ -22,6 +24,7 @@ const emptyForm: FormValues = {
   companyId: "",
   dealId: "",
   owner: "",
+  assigneeEmail: "",
   dueAt: "",
   priorityId: "",
 };
@@ -43,6 +46,9 @@ export default function NewTaskModal({
   priorities,
   link,
   buttonLabel = "New Task",
+  members,
+  currentUserEmail,
+  initialOpen = false,
 }: {
   companies: Option[];
   deals: { id: string; name: string; company_id: string }[];
@@ -50,13 +56,28 @@ export default function NewTaskModal({
   // When set, the task is always created for this company and deal.
   link?: TaskLinkContext;
   buttonLabel?: string;
+  // Active members: when given, the task gets a member assignee (defaults
+  // to the person creating it).
+  members?: Member[];
+  currentUserEmail?: string;
+  // Open right away (e.g. "New task" from Home).
+  initialOpen?: boolean;
 }) {
   const router = useRouter();
   const firstInputRef = useRef<HTMLInputElement | null>(null);
+  const defaultAssignee =
+    members && currentUserEmail && members.some((member) => member.email === currentUserEmail) ? currentUserEmail : "";
   const initialForm: FormValues = link
-    ? { ...emptyForm, companyId: link.companyId, dealId: link.dealId }
-    : emptyForm;
-  const [open, setOpen] = useState(false);
+    ? { ...emptyForm, assigneeEmail: defaultAssignee, companyId: link.companyId, dealId: link.dealId }
+    : { ...emptyForm, assigneeEmail: defaultAssignee };
+  const [open, setOpen] = useState(initialOpen);
+  // The dialog is portaled to document.body, which only exists in the
+  // browser; with initialOpen it must wait until after hydration.
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
   const [values, setValues] = useState<FormValues>(initialForm);
   const [titleError, setTitleError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -96,6 +117,7 @@ export default function NewTaskModal({
       companyId: values.companyId || null,
       dealId: values.dealId || null,
       owner: values.owner,
+      assigneeEmail: members ? values.assigneeEmail || null : undefined,
       dueAt: values.dueAt || null,
       priorityId: values.priorityId || null,
     });
@@ -122,7 +144,7 @@ export default function NewTaskModal({
         {buttonLabel}
       </button>
 
-      {open && createPortal(
+      {open && mounted && createPortal(
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-ink/25 px-4 py-6"
           onMouseDown={(event) => {
@@ -212,10 +234,32 @@ export default function NewTaskModal({
               </>
               )}
 
+              {members && (
+                <div>
+                  <label htmlFor="new-task-assignee" className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
+                    Assigned to
+                  </label>
+                  <SelectMenu
+                    id="new-task-assignee"
+                    value={values.assigneeEmail}
+                    onChange={(value) => setValues((v) => ({ ...v, assigneeEmail: value }))}
+                    options={[
+                      { value: "", label: "Unassigned" },
+                      ...members.map((member) => ({
+                        value: member.email,
+                        label: member.email === currentUserEmail ? `${member.name} (you)` : member.name,
+                      })),
+                    ]}
+                    placeholder="Unassigned"
+                  />
+                  <p className="mt-1 text-[11px] text-neutral-400">Shows in their Home under My tasks.</p>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
-                    Owner
+                    {members ? "Owner note" : "Owner"}
                   </label>
                   <input
                     value={values.owner}

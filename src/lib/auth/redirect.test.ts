@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_AFTER_LOGIN, safeNextPath } from "./redirect";
 
 describe("safeNextPath", () => {
+  it("keeps explicit internal destinations, including Overview", () => {
+    expect(safeNextPath("/overview")).toBe("/overview");
+  });
+
   it("keeps internal paths with query and hash", () => {
     expect(safeNextPath("/pipeline")).toBe("/pipeline");
     expect(safeNextPath("/companies/abc/deals/def?tab=1#tasks")).toBe(
@@ -9,7 +13,8 @@ describe("safeNextPath", () => {
     );
   });
 
-  it("falls back when missing", () => {
+  it("falls back to Home when missing", () => {
+    expect(DEFAULT_AFTER_LOGIN).toBe("/home");
     expect(safeNextPath(null)).toBe(DEFAULT_AFTER_LOGIN);
     expect(safeNextPath("")).toBe(DEFAULT_AFTER_LOGIN);
   });
