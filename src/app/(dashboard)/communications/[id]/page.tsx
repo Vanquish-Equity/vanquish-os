@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import DraftComposer from "@/components/DraftComposer";
 import { requireMember } from "@/lib/auth/access";
-import { loadDraft, loadLpContacts } from "@/lib/communications/queries";
+import { canEditDraft, memberLabel } from "@/lib/communications/drafts";
+import { loadAssignableMembers, loadDraft, loadLpContacts } from "@/lib/communications/queries";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -21,10 +22,15 @@ export default async function DraftPage({
 
   const access = await requireMember();
   const supabase = await createClient();
-  const [draft, contacts] = await Promise.all([loadDraft(supabase, id), loadLpContacts(supabase)]);
+  const [draft, contacts, members] = await Promise.all([
+    loadDraft(supabase, id),
+    loadLpContacts(supabase),
+    loadAssignableMembers(supabase),
+  ]);
   if (!draft) notFound();
 
-  const canEdit = draft.createdBy === access.email && !draft.archivedAt;
+  const canEdit = canEditDraft(draft, access.email);
+  const you = (email: string) => (email === access.email ? " (you)" : "");
 
   return (
     <div className="flex flex-col gap-4 px-7 pt-6">
@@ -40,13 +46,18 @@ export default async function DraftPage({
             {draft.archivedAt ? "Discarded draft" : "Draft · not sent"}
           </span>
         </div>
-        <p className="mt-1 text-[13px] text-neutral-500">By {draft.createdBy}</p>
+        <p className="mt-1 text-[13px] text-neutral-500">
+          Created by <span className="font-semibold text-ink">{memberLabel(members, draft.createdBy)}{you(draft.createdBy)}</span>
+          {" · "}For <span className="font-semibold text-ink">{memberLabel(members, draft.assignedTo)}{you(draft.assignedTo)}</span>
+          {" "}(responsible / planned sender)
+        </p>
       </header>
       {/* Remount after each save so the form shows exactly what was stored. */}
       <DraftComposer
         key={draft.updatedAt}
         draft={draft}
         contacts={contacts}
+        members={members}
         canEdit={canEdit}
         currentUserEmail={access.email}
         justSaved={saved === "1" && canEdit}

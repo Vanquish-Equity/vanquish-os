@@ -39,7 +39,8 @@ Run the migration files in order in the Supabase SQL Editor:
     Portfolio / Documents permissions, member-scoped RLS for every table and
     the documents bucket, and removal of all anonymous access.
 11. `0016_lp_communications.sql` - potential LP flag on People, email
-    drafts with BCC recipients (author-only edits), and the atomic
+    drafts with BCC recipients, a creator and a responsible / planned
+    sender (both can edit; others read), and the atomic
     `import_potential_lps` / `save_email_draft` functions. Nothing sends
     email. See [`docs/communications.md`](docs/communications.md).
 

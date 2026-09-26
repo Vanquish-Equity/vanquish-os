@@ -71,6 +71,9 @@ export type SaveDraftInput = {
   subject: string;
   body: string;
   recipients: DraftRecipientInput[];
+  // Responsible / planned sender (active member email). null keeps the
+  // current one; a new draft defaults to its creator.
+  assignedTo: string | null;
 };
 
 export type SaveDraftResult = { ok: true; draftId: string } | { ok: false; message: string };
@@ -95,16 +98,17 @@ export async function saveDraftAction(input: SaveDraftInput): Promise<SaveDraftR
       person_id: recipient.personId || undefined,
       accept_current: recipient.acceptCurrent === true,
     })),
+    p_assigned_to: input.assignedTo ? String(input.assignedTo) : null,
   });
 
   if (error || !data) {
-    const notEditable = error?.code === "42501";
-    return {
-      ok: false,
-      message: notEditable
-        ? "This draft can only be edited by its author, and discarded drafts cannot be changed."
-        : "The draft was not saved. A selected contact may have changed in People; reload the draft to review it.",
-    };
+    const message =
+      error?.code === "42501"
+        ? "Only the person who created this draft or its responsible can edit it, and discarded drafts cannot be changed."
+        : error?.code === "23514"
+          ? "Choose an active Vanquish member as the responsible."
+          : "The draft was not saved. A selected contact may have changed in People; reload the draft to review it.";
+    return { ok: false, message };
   }
 
   const draftId = data as string;
@@ -113,7 +117,7 @@ export async function saveDraftAction(input: SaveDraftInput): Promise<SaveDraftR
       eventType: input.draftId ? "EMAIL_DRAFT_UPDATED" : "EMAIL_DRAFT_CREATED",
       targetType: "email_draft",
       targetId: draftId,
-      payload: { recipientCount: input.recipients.length },
+      payload: { recipientCount: input.recipients.length, assigned: Boolean(input.assignedTo) },
     },
     supabase
   );
@@ -135,7 +139,7 @@ export async function discardDraftAction(draftId: string): Promise<{ ok: true } 
     .select("id");
 
   if (error || !data || data.length === 0) {
-    return { ok: false, message: "Only the author can discard this draft." };
+    return { ok: false, message: "Only the person who created this draft or its responsible can discard it." };
   }
 
   await logActivity(

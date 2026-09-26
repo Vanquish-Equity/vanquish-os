@@ -7,12 +7,16 @@
 --   chosen to receive it in BCC. Each recipient keeps the email that was
 --   selected (and a link to the person_emails row) so the draft can flag a
 --   recipient whose email later changed or was removed.
--- * Nothing here sends email. status only allows 'draft'; sending from the
---   author's Outlook mailbox is a later milestone.
+-- * A draft has two people:
+--     created_by   who prepared it (set from the signed-in email, fixed);
+--     assigned_to  the responsible / planned sender: an active member who
+--                  reviews it and, once Outlook is connected, sends it from
+--                  their own mailbox.
+-- * Nothing here sends email. status only allows 'draft'.
 --
--- Access: active members only (RLS below). Anyone can read drafts inside
--- Vanquish; only the author can change or discard a draft and its
--- recipients. anon has no privileges.
+-- Access: active members only (RLS below). Every member can read drafts;
+-- only the creator and the responsible can change or discard a draft and
+-- its recipients. anon has no privileges.
 -- Re-runnable.
 
 -- ---------------------------------------------------------------------
@@ -45,16 +49,38 @@ create table if not exists public.email_drafts (
   body text not null default '' check (char_length(body) <= 100000),
   -- Only drafts exist for now. Sending adds states in a later migration.
   status text not null default 'draft' check (status in ('draft')),
-  -- Planned delivery: the author's Outlook mailbox, recipients in BCC.
+  -- Planned delivery: the responsible member's Outlook mailbox, recipients
+  -- in BCC.
   send_via text not null default 'outlook' check (send_via in ('outlook')),
   recipient_field text not null default 'bcc' check (recipient_field in ('bcc')),
   created_by text not null,
+  assigned_to text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   archived_at timestamptz
 );
 
+-- Databases that ran an earlier version of this migration.
+alter table public.email_drafts add column if not exists assigned_to text;
+update public.email_drafts set assigned_to = created_by where assigned_to is null;
+alter table public.email_drafts alter column assigned_to set not null;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'email_drafts_assigned_to_fkey' and conrelid = 'public.email_drafts'::regclass
+  ) then
+    alter table public.email_drafts
+      add constraint email_drafts_assigned_to_fkey
+      foreign key (assigned_to) references public.app_members(email) on update cascade;
+  end if;
+end $$;
+
 create index if not exists email_drafts_updated_at_idx on public.email_drafts (updated_at desc)
+  where archived_at is null;
+create index if not exists email_drafts_assigned_to_idx on public.email_drafts (assigned_to)
+  where archived_at is null;
+create index if not exists email_drafts_created_by_idx on public.email_drafts (created_by)
   where archived_at is null;
 
 create table if not exists public.email_draft_recipients (
@@ -72,8 +98,66 @@ create table if not exists public.email_draft_recipients (
 create index if not exists email_draft_recipients_person_id_idx on public.email_draft_recipients (person_id);
 create index if not exists email_draft_recipients_person_email_id_idx on public.email_draft_recipients (person_email_id);
 
--- The author is the signed-in email and never changes.
-create or replace function public.set_email_draft_owner()
+-- ---------------------------------------------------------------------
+-- Member helpers for drafts. SECURITY DEFINER because app_members is only
+-- readable row-by-row for the member themselves; both answer narrowly
+-- (a boolean, or the email + display name of active members) and only to
+-- active members.
+-- ---------------------------------------------------------------------
+
+create or replace function private.is_active_member(p_email text)
+returns boolean
+language sql stable security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.app_members m
+    where m.email = lower(btrim(coalesce(p_email, ''))) and m.is_active
+  )
+$$;
+
+revoke all on function private.is_active_member(text) from public, anon;
+grant execute on function private.is_active_member(text) to authenticated;
+
+-- Choices for "Responsible / planned sender". Exposed through the Data API
+-- (public schema) so the app can list them; returns nothing to non-members.
+create or replace function public.assignable_members()
+returns table (email text, display_name text)
+language sql stable security definer
+set search_path = ''
+as $$
+  select m.email, m.display_name
+  from public.app_members m
+  where m.is_active and private.is_member()
+  order by coalesce(m.display_name, m.email)
+$$;
+
+revoke all on function public.assignable_members() from public, anon;
+grant execute on function public.assignable_members() to authenticated;
+
+-- True when the signed-in member may change this draft: its creator or its
+-- responsible, and the draft is not discarded.
+create or replace function private.can_edit_email_draft(p_created_by text, p_assigned_to text, p_archived_at timestamptz)
+returns boolean
+language sql stable
+set search_path = ''
+as $$
+  select p_archived_at is null
+    and private.current_email() is not null
+    and private.current_email() in (p_created_by, p_assigned_to)
+    and private.is_member()
+$$;
+
+revoke all on function private.can_edit_email_draft(text, text, timestamptz) from public, anon;
+grant execute on function private.can_edit_email_draft(text, text, timestamptz) to authenticated;
+
+-- The creator is the signed-in email and never changes. The responsible
+-- defaults to the creator and must be an active member whenever it is set
+-- or changed.
+drop trigger if exists email_drafts_set_owner on public.email_drafts;
+drop function if exists public.set_email_draft_owner();
+
+create or replace function public.guard_email_draft()
 returns trigger
 language plpgsql
 set search_path = ''
@@ -81,22 +165,30 @@ as $$
 begin
   if tg_op = 'INSERT' then
     new.created_by := coalesce(private.current_email(), new.created_by);
+    new.assigned_to := lower(btrim(coalesce(nullif(btrim(new.assigned_to), ''), new.created_by)));
     new.status := 'draft';
   else
     new.created_by := old.created_by;
     new.created_at := old.created_at;
+    new.assigned_to := lower(btrim(new.assigned_to));
   end if;
+
+  if (tg_op = 'INSERT' or new.assigned_to is distinct from old.assigned_to)
+     and not private.is_active_member(new.assigned_to) then
+    raise exception 'responsible must be an active member' using errcode = '23514';
+  end if;
+
   new.updated_at := now();
   return new;
 end;
 $$;
 
-drop trigger if exists email_drafts_set_owner on public.email_drafts;
-create trigger email_drafts_set_owner
+drop trigger if exists email_drafts_guard on public.email_drafts;
+create trigger email_drafts_guard
   before insert or update on public.email_drafts
-  for each row execute function public.set_email_draft_owner();
+  for each row execute function public.guard_email_draft();
 
-revoke execute on function public.set_email_draft_owner() from public, anon;
+revoke execute on function public.guard_email_draft() from public, anon;
 
 -- ---------------------------------------------------------------------
 -- Privileges and policies
@@ -112,63 +204,55 @@ grant select, insert, update, delete on table public.email_draft_recipients to a
 drop policy if exists email_drafts_member_select on public.email_drafts;
 drop policy if exists email_drafts_author_insert on public.email_drafts;
 drop policy if exists email_drafts_author_update on public.email_drafts;
+drop policy if exists email_drafts_creator_insert on public.email_drafts;
+drop policy if exists email_drafts_editor_update on public.email_drafts;
 drop policy if exists email_draft_recipients_member_select on public.email_draft_recipients;
 drop policy if exists email_draft_recipients_author_insert on public.email_draft_recipients;
 drop policy if exists email_draft_recipients_author_update on public.email_draft_recipients;
 drop policy if exists email_draft_recipients_author_delete on public.email_draft_recipients;
+drop policy if exists email_draft_recipients_editor_insert on public.email_draft_recipients;
+drop policy if exists email_draft_recipients_editor_update on public.email_draft_recipients;
+drop policy if exists email_draft_recipients_editor_delete on public.email_draft_recipients;
 
 create policy email_drafts_member_select on public.email_drafts
   for select to authenticated using ((select private.is_member()));
-create policy email_drafts_author_insert on public.email_drafts
+create policy email_drafts_creator_insert on public.email_drafts
   for insert to authenticated
   with check ((select private.is_member()) and created_by = (select private.current_email()));
-create policy email_drafts_author_update on public.email_drafts
+-- Only the creator or the responsible can update (including discarding or
+-- handing the draft to another active member; the trigger validates the new
+-- responsible and keeps created_by).
+create policy email_drafts_editor_update on public.email_drafts
   for update to authenticated
-  using ((select private.is_member()) and created_by = (select private.current_email()))
-  with check ((select private.is_member()) and created_by = (select private.current_email()));
+  using (private.can_edit_email_draft(created_by, assigned_to, archived_at))
+  with check ((select private.is_member()));
 
 -- Recipients follow their draft. The subquery reads email_drafts under its
 -- own (member) policy, which never refers back to this table.
 create policy email_draft_recipients_member_select on public.email_draft_recipients
   for select to authenticated using ((select private.is_member()));
-create policy email_draft_recipients_author_insert on public.email_draft_recipients
+create policy email_draft_recipients_editor_insert on public.email_draft_recipients
   for insert to authenticated
-  with check (
-    (select private.is_member())
-    and exists (
-      select 1 from public.email_drafts d
-      where d.id = draft_id and d.archived_at is null
-        and d.created_by = (select private.current_email())
-    )
-  );
-create policy email_draft_recipients_author_update on public.email_draft_recipients
+  with check (exists (
+    select 1 from public.email_drafts d
+    where d.id = draft_id and private.can_edit_email_draft(d.created_by, d.assigned_to, d.archived_at)
+  ));
+create policy email_draft_recipients_editor_update on public.email_draft_recipients
   for update to authenticated
-  using (
-    (select private.is_member())
-    and exists (
-      select 1 from public.email_drafts d
-      where d.id = draft_id and d.archived_at is null
-        and d.created_by = (select private.current_email())
-    )
-  )
-  with check (
-    (select private.is_member())
-    and exists (
-      select 1 from public.email_drafts d
-      where d.id = draft_id and d.archived_at is null
-        and d.created_by = (select private.current_email())
-    )
-  );
-create policy email_draft_recipients_author_delete on public.email_draft_recipients
+  using (exists (
+    select 1 from public.email_drafts d
+    where d.id = draft_id and private.can_edit_email_draft(d.created_by, d.assigned_to, d.archived_at)
+  ))
+  with check (exists (
+    select 1 from public.email_drafts d
+    where d.id = draft_id and private.can_edit_email_draft(d.created_by, d.assigned_to, d.archived_at)
+  ));
+create policy email_draft_recipients_editor_delete on public.email_draft_recipients
   for delete to authenticated
-  using (
-    (select private.is_member())
-    and exists (
-      select 1 from public.email_drafts d
-      where d.id = draft_id and d.archived_at is null
-        and d.created_by = (select private.current_email())
-    )
-  );
+  using (exists (
+    select 1 from public.email_drafts d
+    where d.id = draft_id and private.can_edit_email_draft(d.created_by, d.assigned_to, d.archived_at)
+  ));
 
 -- ---------------------------------------------------------------------
 -- Import potential LPs (one transaction). SECURITY INVOKER: every write
@@ -271,20 +355,27 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------
--- Save a draft and its recipient list (one transaction), as the author.
+-- Save a draft, its responsible and its recipient list (one transaction),
+-- as its creator or responsible.
 --
+-- p_assigned_to: responsible / planned sender (active member). null keeps
+--   the current one (new drafts: the creator).
 -- p_recipients: [{ "recipient_id"? , "person_id"?, "accept_current"? }]
 --   * recipient_id without accept_current -> keep that saved recipient as
 --     it is (including one flagged for review).
 --   * otherwise person_id -> select the person's current email now.
--- Saved recipients not listed are removed.
+-- Saved recipients not listed are removed. The responsible is changed last,
+-- so an editor can hand the draft to someone else in the same save.
 -- ---------------------------------------------------------------------
+
+drop function if exists public.save_email_draft(uuid, text, text, jsonb);
 
 create or replace function public.save_email_draft(
   p_draft_id uuid,
   p_subject text,
   p_body text,
-  p_recipients jsonb
+  p_recipients jsonb,
+  p_assigned_to text default null
 )
 returns uuid
 language plpgsql
@@ -300,6 +391,7 @@ declare
   v_email_id uuid;
   v_email text;
   v_keep uuid[] := '{}';
+  v_assignee text := nullif(lower(btrim(coalesce(p_assigned_to, ''))), '');
 begin
   if not private.is_member() then
     raise exception 'not authorized' using errcode = '42501';
@@ -308,12 +400,17 @@ begin
      or jsonb_array_length(coalesce(p_recipients, '[]'::jsonb)) > 5000 then
     raise exception 'invalid recipient list' using errcode = '22023';
   end if;
+  if v_assignee is not null and not private.is_active_member(v_assignee) then
+    raise exception 'responsible must be an active member' using errcode = '23514';
+  end if;
 
   if p_draft_id is null then
-    insert into public.email_drafts (subject, body, created_by)
-    values (coalesce(p_subject, ''), coalesce(p_body, ''), private.current_email())
+    insert into public.email_drafts (subject, body, created_by, assigned_to)
+    values (coalesce(p_subject, ''), coalesce(p_body, ''), private.current_email(),
+            coalesce(v_assignee, private.current_email()))
     returning id into v_id;
   else
+    -- The update policy only lets the creator or the responsible through.
     update public.email_drafts
     set subject = coalesce(p_subject, ''), body = coalesce(p_body, '')
     where id = p_draft_id and archived_at is null
@@ -366,11 +463,16 @@ begin
   delete from public.email_draft_recipients
   where draft_id = v_id and not (id = any (v_keep));
 
+  if p_draft_id is not null and v_assignee is not null then
+    update public.email_drafts set assigned_to = v_assignee
+    where id = v_id and assigned_to is distinct from v_assignee;
+  end if;
+
   return v_id;
 end;
 $$;
 
 revoke all on function public.import_potential_lps(jsonb) from public, anon;
-revoke all on function public.save_email_draft(uuid, text, text, jsonb) from public, anon;
+revoke all on function public.save_email_draft(uuid, text, text, jsonb, text) from public, anon;
 grant execute on function public.import_potential_lps(jsonb) to authenticated;
-grant execute on function public.save_email_draft(uuid, text, text, jsonb) to authenticated;
+grant execute on function public.save_email_draft(uuid, text, text, jsonb, text) to authenticated;

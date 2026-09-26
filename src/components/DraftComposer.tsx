@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { discardDraftAction, saveDraftAction } from "@/lib/communications/actions";
+import SelectMenu from "@/components/SelectMenu";
+import { isActiveMember, memberLabel, type Member } from "@/lib/communications/drafts";
 import type { DraftDetail, DraftRecipient, LpContact } from "@/lib/communications/queries";
 import { RECIPIENT_ISSUE_LABELS } from "@/lib/communications/recipients";
 import { formatExactDate } from "@/lib/dates";
@@ -60,17 +62,26 @@ function matches(contact: LpContact, query: string) {
 export default function DraftComposer({
   draft,
   contacts,
+  members,
   canEdit,
   currentUserEmail,
   justSaved = false,
 }: {
   draft: DraftDetail | null;
   contacts: LpContact[];
+  // Active members, the only valid responsibles.
+  members: Member[];
   canEdit: boolean;
   currentUserEmail: string;
   justSaved?: boolean;
 }) {
   const router = useRouter();
+  const createdBy = draft?.createdBy ?? currentUserEmail;
+  const [assignedTo, setAssignedTo] = useState(draft?.assignedTo ?? currentUserEmail);
+  const assigneeActive = isActiveMember(members, assignedTo);
+  // Handing the draft to someone else removes your edit rights unless you
+  // created it.
+  const handingOff = assignedTo !== (draft?.assignedTo ?? currentUserEmail) && assignedTo !== currentUserEmail && createdBy !== currentUserEmail;
   const [subject, setSubject] = useState(draft?.subject ?? "");
   const [body, setBody] = useState(draft?.body ?? "");
   const [selection, setSelection] = useState(() => initialSelection(draft));
@@ -206,6 +217,7 @@ export default function DraftComposer({
         draftId: draft?.id ?? null,
         subject,
         body,
+        assignedTo: draft && assignedTo === draft.assignedTo ? null : assignedTo,
         recipients: [...selection.values()].map((item) => ({
           recipientId: item.recipientId,
           personId: item.personId,
@@ -217,6 +229,11 @@ export default function DraftComposer({
         return;
       }
       setDirty(false);
+      if (handingOff) {
+        router.push("/communications");
+        router.refresh();
+        return;
+      }
       // The page reloads the draft from the database, so what is shown after
       // saving is exactly what was stored.
       router.replace(`/communications/${result.draftId}?saved=1`);
@@ -242,6 +259,15 @@ export default function DraftComposer({
     { label: "Message", ok: body.trim().length > 0 },
     { label: "At least one recipient", ok: selectedCount > 0 },
     { label: "No recipients to review", ok: reviewCount === 0 },
+    { label: "Responsible is an active member", ok: assigneeActive },
+  ];
+
+  const memberOptions = [
+    ...members.map((member) => ({
+      value: member.email,
+      label: member.email === currentUserEmail ? `${member.name} (you)` : `${member.name} · ${member.email}`,
+    })),
+    ...(assigneeActive ? [] : [{ value: assignedTo, label: `${assignedTo} (no longer active)`, disabled: true }]),
   ];
 
   return (
@@ -250,9 +276,57 @@ export default function DraftComposer({
         <div className="rounded-[14px] border border-neutral-200 bg-[#f7f9fa] px-4 py-3 text-[12.5px] text-neutral-600">
           {draft.archivedAt
             ? "This draft was discarded. It is read-only."
-            : `Read-only: only ${draft.createdBy} can edit this draft (it will be sent from their mailbox).`}
+            : `Read-only: only ${memberLabel(members, draft.createdBy)} (created it) and ${memberLabel(
+                members,
+                draft.assignedTo
+              )} (responsible) can edit this draft.`}
         </div>
       )}
+
+      <section className="vq-card-static grid grid-cols-1 gap-4 rounded-[14px] bg-white p-5 sm:grid-cols-2">
+        <div>
+          <div className={labelClass}>Created by</div>
+          <p className="py-2 text-[13px] text-ink">
+            {memberLabel(members, createdBy)}
+            {createdBy === currentUserEmail ? " (you)" : ""}
+            <span className="block text-[11.5px] text-neutral-500">Prepared the draft. Can keep editing it.</span>
+          </p>
+        </div>
+        <div>
+          <label htmlFor="draft-assignee" className={labelClass}>
+            Responsible / planned sender
+          </label>
+          {canEdit ? (
+            <SelectMenu
+              id="draft-assignee"
+              value={assignedTo}
+              options={memberOptions}
+              onChange={(value) => {
+                setAssignedTo(value);
+                markDirty();
+              }}
+            />
+          ) : (
+            <p id="draft-assignee" className="py-2 text-[13px] text-ink">
+              {memberLabel(members, assignedTo)}
+            </p>
+          )}
+          <p className="mt-1 text-[11.5px] text-neutral-500">
+            Reviews the draft and, once Outlook is connected, sends it from their own mailbox.
+          </p>
+          {!assigneeActive && (
+            <p role="alert" className="mt-1 text-[11.5px] text-amber-800">
+              This responsible is no longer an active member. Choose another one.
+            </p>
+          )}
+          {handingOff && (
+            <p className="mt-1 text-[11.5px] text-amber-800">
+              After saving, {memberLabel(members, assignedTo)} and {memberLabel(members, createdBy)} can edit it; you
+              will only be able to view it.
+            </p>
+          )}
+        </div>
+      </section>
 
       {reviewCount > 0 && (
         <div role="status" className="rounded-[14px] border border-amber-200 bg-amber-50 px-4 py-3 text-[12.5px] text-amber-900">
@@ -314,7 +388,9 @@ export default function DraftComposer({
             </div>
             <dl className="mt-2 grid grid-cols-[72px_1fr] gap-y-1">
               <dt className="text-neutral-400">From</dt>
-              <dd className="text-ink">{draft?.createdBy ?? currentUserEmail} (Outlook)</dd>
+              <dd className="text-ink">
+                {memberLabel(members, assignedTo)} · {assignedTo} (their Outlook mailbox)
+              </dd>
               <dt className="text-neutral-400">BCC</dt>
               <dd className="text-ink">
                 {selectedCount} potential LP{selectedCount === 1 ? "" : "s"} · recipients do not see each other

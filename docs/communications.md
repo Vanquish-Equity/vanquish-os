@@ -3,7 +3,19 @@
 Prepare emails for potential LPs (investment announcements, updates,
 invitations, anything else), choose recipients one by one, and keep the
 result as an editable draft. **Nothing is sent yet**: delivery from the
-author's Outlook mailbox with recipients in BCC is a later milestone.
+responsible member's Outlook mailbox with recipients in BCC is a later
+milestone.
+
+Each draft has two people:
+
+| Field | Meaning |
+| --- | --- |
+| **Created by** (`created_by`) | Who prepared the draft. Set by the database from the signed-in email; never changes. |
+| **Responsible / planned sender** (`assigned_to`) | The active Vanquish member who reviews the draft and, once Outlook is connected, sends it from their own mailbox. Defaults to the creator; chosen from active members when creating or editing. |
+
+Example: Mario prepares a draft and sets Pedro as responsible. Pedro finds it
+under **For me** in Communications, edits it, and later sends it from his
+Outlook. Mario can keep editing it too. Scott can open it but not change it.
 
 ## Where things live
 
@@ -13,7 +25,7 @@ author's Outlook mailbox with recipients in BCC is a later milestone.
 | Add one | People → **Add potential LP** (or **New Person** with “Potential LP” ticked), or **Mark potential LP** on an existing row. A potential LP needs an email. |
 | Edit name / email | **Edit** on any People row. The primary `person_emails` row is updated in place. |
 | Import a list | People → **Import potential LPs (CSV)** (`/people/import`). |
-| Drafts | **Communications** in the sidebar (`/communications`). |
+| Drafts | **Communications** in the sidebar (`/communications`). Views: **For me** (you are the responsible; default when there is any), **Created by me**, **All drafts**. Each row shows who created it and who it is for. |
 
 ## Loading the LP list when it arrives
 
@@ -64,16 +76,21 @@ address never creates a second person.
   list shows “N to review”. Choose **Use current email** or **Remove**, then
   save. Saving without deciding keeps the stored email and the warning.
 - **Discard** archives the draft (it leaves the list; the row is kept).
-- Every member can open a draft; only its author can change or discard it
-  (it will be sent from the author's mailbox).
+- **Responsible / planned sender**: choose any active member. Only the
+  creator and the responsible can edit, change the responsible or discard;
+  every other member sees the draft read-only. If the responsible hands the
+  draft to someone else, they lose edit rights (the creator keeps them).
+  If the responsible is deactivated, the draft shows it and asks for a new
+  one.
 
 ### Trying it before the list arrives
 
 1. People → Potential LPs → **Add potential LP**: add yourself (for example
    `pbp@vanquishequity.com`) and one colleague who agrees to be a test
    contact.
-2. Communications → **New draft**: write a subject and body, select both,
-   check the counter and the final list, **Save draft**.
+2. Communications → **New draft**: write a subject and body, choose the
+   responsible (for example Mario prepares it for Pedro), select both
+   contacts, check the counter and the final list, **Save draft**.
 3. Reopen the draft from the list: text and recipients are the same.
 4. In People, **Edit** one of them and change the email: the draft now asks
    for a review. **Use current email** → **Save draft** clears it.
@@ -86,9 +103,19 @@ address never creates a second person.
   read or write potential LPs and drafts; anon has no privileges and
   signed-in non-members see nothing through the API (RLS, migration
   `0016`).
-- Drafts: members read; only the author (`created_by`, set by the database
-  from the signed-in email, never from the client) updates, discards or
-  changes recipients.
+- Drafts: members read; only the creator (`created_by`, set by the
+  database from the signed-in email, never from the client) and the
+  responsible (`assigned_to`) update, discard, reassign or change
+  recipients. The rule is enforced three times: RLS on `email_drafts` and
+  `email_draft_recipients` (`private.can_edit_email_draft`), the
+  `email_drafts_guard` trigger (fixed creator; the responsible must be an
+  active member whenever it is set or changed) and `save_email_draft`
+  (runs as the caller, so the same policies apply).
+- Members are listed for the selector by `public.assignable_members()`,
+  which returns only the email and display name of active members, and
+  only to active members. `app_members` itself stays readable row-by-row.
+- A member row that is still a draft's responsible cannot be deleted
+  (foreign key); deactivate it (`is_active = false`) instead.
 - Recipient lists are never put in URLs (draft pages use the draft id; the
   search box is local state), never written to `activity_events` (payloads
   carry counts only) and never echoed in error messages. Server-function
@@ -117,10 +144,13 @@ What connecting Outlook needs:
 2. **Token storage**: the refresh token must stay server-side (encrypted
    table readable only by a server role, or Supabase Vault), never in the
    browser or in `email_drafts`.
-3. **Send path**: a server-side function that re-checks the draft (author,
-   no recipients needing review, subject and body present), then calls
-   Microsoft Graph `POST /me/sendMail` with the author as sender, the
-   author (or an agreed address) in To and the recipients in `bccRecipients`.
+3. **Send path**: a server-side function that only the **responsible**
+   (`assigned_to`) can call, and only with their own connected mailbox. It
+   re-checks the draft (responsible is the signed-in active member, no
+   recipients needing review, subject and body present), then calls
+   Microsoft Graph `POST /me/sendMail` as the responsible, with the
+   responsible (or an agreed address) in To and the recipients in
+   `bccRecipients`. The creator cannot send on the responsible's behalf.
    Graph limits recipients per message (≈500), so large lists go in batches.
 4. **Model changes**: extend `email_drafts.status` beyond `'draft'`
    (`sending`, `sent`, `failed`), add `sent_at` / `sent_by`, and freeze the
