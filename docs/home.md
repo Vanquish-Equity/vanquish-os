@@ -75,13 +75,23 @@ and Home says My tasks needs the migration.
    Home and replays it there. It is meant for reviewing the entrance without
    signing out.
 
-### Sound
+### Sounds
 
-Optional, **off by default**. Toggle in the intro and in the sidebar user
-area; one click turns it on and plays it once as a preview, and it then plays
-at the start of every entrance and every **Replay intro**. The choice is
-remembered in `localStorage` (`vq.entranceSound`). The
-tone is synthesized with Web Audio (no files). After the Google redirect
-browsers usually block audio: the sound is attempted only when the page
-already has user activation or on the first click / key press during the
-intro. If the browser refuses, nothing happens and the page is not delayed.
+One preference controls all sounds; it is **on by default** and the
+speaker button in the sidebar user area turns it off (or on, playing a short
+card riffle as a preview). The choice is remembered in `localStorage`
+(`vq.sounds`). Everything is synthesized with Web Audio (no files).
+
+| When | Sound |
+| --- | --- |
+| Entrance / Replay intro | Soft rising chime at the start of the logo moment. |
+| Mouse over a link, button, option or card | A very soft card flick (not repeated while moving inside the same element; never on touch screens). |
+| Click on a button or control | A short card tap. |
+| Opening something: links, menus, dialogs, Edit / View / Replay | A quick riffle of cards. |
+| Adding something: New / Add / Create / Save / Import / Log / Mark / Restore / Assign, and form submits | A riffle ending with a soft slap. |
+
+Elements can override the automatic choice with
+`data-sound="hover|click|open|add|off"` (the sound toggles use `off`).
+Browsers only allow audio after an interaction: after the Google redirect
+nothing plays until the first click or key press, and a blocked or missing
+audio device never causes errors or delays.

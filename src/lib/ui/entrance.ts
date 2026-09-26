@@ -40,7 +40,8 @@ export function takeReplayRequest() {
   }
 }
 
-export const SOUND_STORAGE_KEY = "vq.entranceSound";
+// One preference for the entrance chime and the interface sounds.
+export const SOUND_STORAGE_KEY = "vq.sounds";
 
 // One sidebar preference per member on this browser. The name is derived
 // from the email so the server can read it before rendering (no flicker)

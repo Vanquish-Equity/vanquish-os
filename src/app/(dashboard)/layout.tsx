@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import EntranceIntro, { ENTRANCE_BOOT_SCRIPT } from "@/components/EntranceIntro";
 import Sidebar from "@/components/Sidebar";
+import UiSounds from "@/components/UiSounds";
 import { requireMember } from "@/lib/auth/access";
 import { visibleNav, WORKSPACE_NAV } from "@/lib/auth/permissions";
 import { sidebarCookieName } from "@/lib/ui/entrance";
@@ -21,6 +22,7 @@ export default async function DashboardLayout({
       {/* Decides before the first paint whether the one-time welcome plays. */}
       <script dangerouslySetInnerHTML={{ __html: ENTRANCE_BOOT_SCRIPT }} />
       <EntranceIntro />
+      <UiSounds />
       <Sidebar
         userEmail={access.email}
         initialCollapsed={collapsed}

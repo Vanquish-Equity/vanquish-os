@@ -3,29 +3,31 @@
 import { useSyncExternalStore } from "react";
 import { SOUND_STORAGE_KEY } from "@/lib/ui/entrance";
 
-// Optional entrance sound. Off by default; the choice is remembered on this
-// browser. The tone is synthesized with Web Audio (no audio files).
+// Vanquish OS sounds: the entrance chime and small card-shuffle sounds for
+// hover, click, opening and adding. One preference controls all of them; it
+// is on by default and one click in the sidebar turns it off (remembered on
+// this browser). Everything is synthesized with Web Audio (no audio files).
 //
 // Browsers only let audio start after the person has interacted with the
 // page. After the Google sign-in redirect there usually has been no
-// interaction yet, so the sound is only attempted when the page already has
-// user activation, or on the person's next click/key press during the intro.
-// Nothing here ever throws or delays the page.
+// interaction yet, so nothing is attempted until there is (the entrance
+// waits for the first click or key press). Nothing here throws or delays
+// the page.
 
-const PREF_EVENT = "vq-entrance-sound";
+const PREF_EVENT = "vq-sounds";
 
 // Keeps the choice for this page even when localStorage is unavailable.
 let memoryPref: boolean | null = null;
 
 function readPref(): boolean {
   try {
-    return window.localStorage.getItem(SOUND_STORAGE_KEY) === "on";
+    return window.localStorage.getItem(SOUND_STORAGE_KEY) !== "off";
   } catch {
-    return false;
+    return true;
   }
 }
 
-export function setEntranceSoundPref(on: boolean) {
+export function setSoundPref(on: boolean) {
   memoryPref = on;
   try {
     window.localStorage.setItem(SOUND_STORAGE_KEY, on ? "on" : "off");
@@ -33,6 +35,10 @@ export function setEntranceSoundPref(on: boolean) {
     // Storage blocked (private mode): the toggle still works for this page.
   }
   window.dispatchEvent(new CustomEvent(PREF_EVENT, { detail: on }));
+}
+
+export function soundsEnabled() {
+  return memoryPref ?? readPref();
 }
 
 function subscribe(callback: () => void) {
@@ -50,12 +56,8 @@ function subscribe(callback: () => void) {
   };
 }
 
-function getSnapshot() {
-  return memoryPref ?? readPref();
-}
-
-export function useEntranceSoundPref() {
-  return useSyncExternalStore(subscribe, getSnapshot, () => false);
+export function useSoundPref() {
+  return useSyncExternalStore(subscribe, soundsEnabled, () => true);
 }
 
 // True when the browser will let audio start now.
@@ -66,30 +68,45 @@ export function audioAllowedNow() {
 }
 
 let context: AudioContext | null = null;
+let master: GainNode | null = null;
+let noise: AudioBuffer | null = null;
 
-// A short, soft rising chime (~1.3 s, moderate volume). Returns whether it
-// started; failures are swallowed.
-export async function playEntranceChime(): Promise<boolean> {
+// The shared context, running, or null when the browser does not allow it.
+async function runningContext(): Promise<AudioContext | null> {
   try {
     const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!Ctx) return false;
-    context = context ?? new Ctx();
+    if (!Ctx) return null;
+    if (!context) {
+      context = new Ctx();
+      master = context.createGain();
+      master.gain.value = 1;
+      master.connect(context.destination);
+    }
     if (context.state === "suspended") await context.resume();
-    if (context.state !== "running") return false;
+    return context.state === "running" ? context : null;
+  } catch {
+    return null;
+  }
+}
 
-    const now = context.currentTime;
-    const master = context.createGain();
-    master.gain.value = 0.22;
-    master.connect(context.destination);
-
+// A short, soft rising chime (~1 s, moderate volume). Returns whether it
+// started; failures are swallowed.
+export async function playEntranceChime(): Promise<boolean> {
+  const ctx = await runningContext();
+  if (!ctx || !master) return false;
+  try {
+    const now = ctx.currentTime;
+    const bus = ctx.createGain();
+    bus.gain.value = 0.22;
+    bus.connect(master);
     const notes: Array<[number, number]> = [
       [659.25, 0], // E5
       [987.77, 0.16], // B5
       [1318.51, 0.32], // E6, faint
     ];
     notes.forEach(([frequency, offset], index) => {
-      const osc = context!.createOscillator();
-      const gain = context!.createGain();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
       osc.type = index === 2 ? "sine" : "triangle";
       osc.frequency.value = frequency;
       const start = now + offset;
@@ -97,12 +114,95 @@ export async function playEntranceChime(): Promise<boolean> {
       gain.gain.setValueAtTime(0.0001, start);
       gain.gain.exponentialRampToValueAtTime(peak, start + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.0001, start + 1.0);
-      osc.connect(gain).connect(master);
+      osc.connect(gain).connect(bus);
       osc.start(start);
       osc.stop(start + 1.05);
     });
     return true;
   } catch {
     return false;
+  }
+}
+
+// ---------------------------------------------------------------------
+// Card-shuffle sounds. Each "flick" is a few milliseconds of band-passed
+// noise with a fast attack and decay, like the edge of a card; a riffle is
+// several flicks in quick succession, and "add" ends with a soft slap.
+// ---------------------------------------------------------------------
+
+export type UiSound = "hover" | "click" | "open" | "add";
+
+function noiseBuffer(ctx: AudioContext) {
+  if (noise) return noise;
+  const length = Math.floor(ctx.sampleRate * 0.5);
+  noise = ctx.createBuffer(1, length, ctx.sampleRate);
+  const data = noise.getChannelData(0);
+  for (let i = 0; i < length; i += 1) data[i] = Math.random() * 2 - 1;
+  return noise;
+}
+
+function flick(
+  ctx: AudioContext,
+  at: number,
+  { gain, frequency, duration, q = 1.1 }: { gain: number; frequency: number; duration: number; q?: number }
+) {
+  const source = ctx.createBufferSource();
+  source.buffer = noiseBuffer(ctx);
+  const band = ctx.createBiquadFilter();
+  band.type = "bandpass";
+  band.frequency.value = frequency;
+  band.Q.value = q;
+  const envelope = ctx.createGain();
+  envelope.gain.setValueAtTime(0.0001, at);
+  envelope.gain.exponentialRampToValueAtTime(gain, at + 0.003);
+  envelope.gain.exponentialRampToValueAtTime(0.0001, at + duration);
+  source.connect(band).connect(envelope).connect(master!);
+  source.start(at, Math.random() * 0.4, duration + 0.02);
+}
+
+const jitter = (value: number, spread: number) => value + (Math.random() * 2 - 1) * spread;
+
+// Separate throttles: hovers never stack (fast mouse moves) and never
+// swallow the click that usually follows them; clicks do not stack either
+// (double clicks).
+const lastPlayed = { hover: 0, press: 0 };
+
+export async function playUiSound(kind: UiSound) {
+  if (!soundsEnabled() || !audioAllowedNow()) return;
+  const nowMs = performance.now();
+  const lane = kind === "hover" ? "hover" : "press";
+  if (nowMs - lastPlayed[lane] < (lane === "hover" ? 90 : 40)) return;
+  lastPlayed[lane] = nowMs;
+
+  const ctx = await runningContext();
+  if (!ctx || !master) return;
+  try {
+    const t = ctx.currentTime + 0.005;
+    if (kind === "hover") {
+      flick(ctx, t, { gain: 0.05, frequency: jitter(4200, 500), duration: 0.028 });
+      return;
+    }
+    if (kind === "click") {
+      flick(ctx, t, { gain: 0.16, frequency: jitter(3200, 300), duration: 0.03 });
+      flick(ctx, t + 0.022, { gain: 0.1, frequency: jitter(2600, 300), duration: 0.035 });
+      return;
+    }
+    // open / add: a short riffle of cards.
+    const count = kind === "open" ? 6 : 5;
+    let at = t;
+    for (let i = 0; i < count; i += 1) {
+      flick(ctx, at, {
+        gain: 0.14 * (1 - i / (count + 2)),
+        frequency: jitter(3400, 700),
+        duration: jitter(0.026, 0.006),
+      });
+      at += jitter(0.019, 0.005);
+    }
+    if (kind === "add") {
+      // Soft slap of the deck landing.
+      flick(ctx, at + 0.01, { gain: 0.22, frequency: 700, duration: 0.07, q: 0.7 });
+    }
+  } catch {
+    // Never let a sound break the page.
   }
 }

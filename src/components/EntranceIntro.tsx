@@ -7,8 +7,8 @@ import { INTRO_PATHS, INTRO_REPLAY_EVENT, takeReplayRequest, WELCOME_COOKIE } fr
 import {
   audioAllowedNow,
   playEntranceChime,
-  setEntranceSoundPref,
-  useEntranceSoundPref,
+  setSoundPref,
+  useSoundPref,
 } from "@/lib/ui/sound";
 
 // Runs while the HTML is parsed, before the first paint, so the page never
@@ -42,7 +42,7 @@ function playing() {
 
 export default function EntranceIntro() {
   const pathname = usePathname();
-  const soundOn = useEntranceSoundPref();
+  const soundOn = useSoundPref();
   const [active, setActive] = useState(false);
   const startPath = useRef<string | null>(null);
   const played = useRef(false);
@@ -141,7 +141,7 @@ export default function EntranceIntro() {
 
   function toggleSound() {
     const next = !soundOn;
-    setEntranceSoundPref(next);
+    setSoundPref(next);
     // The click itself allows audio: play right away when turning it on.
     if (next) chime();
   }
@@ -169,6 +169,7 @@ export default function EntranceIntro() {
         <button
           type="button"
           onClick={toggleSound}
+          data-sound="off"
           aria-pressed={soundOn}
           className="vq-intro-button"
         >

@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import NavIcon from "@/components/NavIcon";
 import type { NavIcon as NavIconName } from "@/lib/auth/permissions";
 import { accountLabel, requestIntroReplay, SIDEBAR_COOKIE_MAX_AGE_SECONDS } from "@/lib/ui/entrance";
-import { playEntranceChime, setEntranceSoundPref, useEntranceSoundPref } from "@/lib/ui/sound";
+import { playUiSound, setSoundPref, useSoundPref } from "@/lib/ui/sound";
 
 export type SidebarNavItem = { href: string; label: string; icon: NavIconName };
 
@@ -55,15 +55,16 @@ function SidebarBody({
   onCloseDrawer?: () => void;
   closeRef?: React.RefObject<HTMLButtonElement | null>;
 }) {
-  const soundOn = useEntranceSoundPref();
+  const soundOn = useSoundPref();
   const router = useRouter();
   const pathname = usePathname();
 
-  // One click: turn it on and hear it right away (the click allows audio).
+  // One click: turn sounds on and hear a card riffle right away (the click
+  // allows audio), or turn them all off.
   function toggleSound() {
     const next = !soundOn;
-    setEntranceSoundPref(next);
-    if (next) void playEntranceChime();
+    setSoundPref(next);
+    if (next) void playUiSound("open");
   }
 
   function replayIntro() {
@@ -199,11 +200,12 @@ function SidebarBody({
             type="button"
             onClick={toggleSound}
             aria-pressed={soundOn}
-            aria-label={soundOn ? "Entrance sound on. Turn off" : "Entrance sound off. Turn on"}
+            aria-label={soundOn ? "Sounds on. Turn off" : "Sounds off. Turn on"}
+            data-sound="off"
             className="group relative rounded-lg p-1.5 text-neutral-500 transition hover:bg-[#12191c] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
           >
             <NavIcon name={soundOn ? "sound-on" : "sound-off"} className="h-4 w-4" />
-            <Tooltip mode="rail">{soundOn ? "Entrance sound: on" : "Entrance sound: off"}</Tooltip>
+            <Tooltip mode="rail">{soundOn ? "Sounds: on" : "Sounds: off"}</Tooltip>
           </button>
           {/* Replay and Sign out stay one click away when only icons are shown. */}
           <button
