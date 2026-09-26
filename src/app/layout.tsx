@@ -25,7 +25,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    // data-vq-intro is set on <html> by the entrance boot script before hydration.
+    <html lang="en" suppressHydrationWarning>
       <body className={`${spaceGrotesk.variable} ${plusJakarta.variable} antialiased`}>
         {children}
       </body>

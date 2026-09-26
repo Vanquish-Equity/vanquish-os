@@ -138,3 +138,291 @@ button:not(:disabled) { cursor: pointer; }
   background-color: #d4dadc;
   border-radius: 999px;
 }
+
+/* ---------------------------------------------------------------------
+   Entrance intro (after a fresh sign-in, or "Replay intro"; see
+   EntranceIntro.tsx). Keyed on html[data-vq-intro="play"], set before the
+   first paint and removed when the sequence ends or is skipped. Only
+   transform and opacity move, so the layout never shifts.
+
+   Moment 1 — logo:   0 → 2.6 s (drawn in cyan, filled, then fades out)
+   Pause:             2.6 → 2.9 s (page visible, cards not yet)
+   Moment 2 — cards:  2.9 → ~5.2 s (arrive, soft bounce, shine, cyan line)
+   --------------------------------------------------------------------- */
+
+:root {
+  --vq-intro-cards-at: 2900ms;
+  --vq-intro-glow-at: 3450ms;
+  --vq-intro-step: 110ms;
+}
+
+.vq-intro-layer {
+  display: none;
+}
+
+html[data-vq-intro="play"] .vq-intro-layer {
+  display: block;
+}
+
+.vq-intro-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ink);
+  pointer-events: none;
+  animation: vq-intro-backdrop 2600ms ease-in both;
+}
+
+.vq-intro-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.vq-intro-mark {
+  width: clamp(64px, 16vw, 104px);
+  height: auto;
+  overflow: visible;
+}
+
+.vq-intro-mark path {
+  fill: #ffffff;
+  fill-opacity: 0;
+  stroke: var(--cyan);
+  stroke-width: 22;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  filter: drop-shadow(0 0 10px rgb(0 194 209 / 0.55));
+  animation: vq-intro-draw 1300ms cubic-bezier(0.65, 0, 0.35, 1) forwards,
+    vq-intro-fill 500ms ease-out 1100ms forwards;
+}
+
+.vq-intro-mark path:nth-child(2) {
+  animation-delay: 150ms, 1250ms;
+}
+
+.vq-intro-mark path:nth-child(3) {
+  animation-delay: 300ms, 1400ms;
+}
+
+.vq-intro-wordmark {
+  text-align: center;
+  opacity: 0;
+  animation: vq-intro-fade 600ms ease-out 700ms forwards;
+}
+
+.vq-intro-controls {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 61;
+  display: flex;
+  gap: 8px;
+}
+
+.vq-intro-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.18);
+  background: rgb(10 14 16 / 0.72);
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+  backdrop-filter: blur(6px);
+}
+
+.vq-intro-button:hover {
+  border-color: var(--cyan);
+}
+
+.vq-intro-button:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+@keyframes vq-intro-backdrop {
+  0%,
+  85% {
+    opacity: 1;
+    visibility: visible;
+  }
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+@keyframes vq-intro-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes vq-intro-fill {
+  to {
+    fill-opacity: 1;
+  }
+}
+
+@keyframes vq-intro-fade {
+  to {
+    opacity: 1;
+  }
+}
+
+/* Cards arrive from a small offset, settle with a light bounce, then a shine
+   crosses them and a cyan line runs once around the border. */
+html[data-vq-intro="play"] .vq-intro-card {
+  animation: vq-card-arrive 950ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--vq-intro-cards-at) + var(--vq-i, 0) * var(--vq-intro-step));
+}
+
+html[data-vq-intro="play"] .vq-intro-card::after {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    110deg,
+    transparent 38%,
+    rgb(255 255 255 / 0.8) 48%,
+    rgb(0 194 209 / 0.14) 52%,
+    transparent 62%
+  );
+  background-size: 260% 100%;
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  animation: vq-card-shine 1150ms ease-out both;
+  animation-delay: calc(var(--vq-intro-glow-at) + var(--vq-i, 0) * var(--vq-intro-step));
+}
+
+html[data-vq-intro="play"] .vq-intro-card::before {
+  display: block;
+  position: absolute;
+  z-index: 0;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--vq-card-angle),
+    transparent 0deg 250deg,
+    rgb(0 194 209 / 0.2) 290deg,
+    var(--cyan) 340deg,
+    transparent 360deg
+  );
+  content: "";
+  pointer-events: none;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: vq-card-border-spin 1150ms linear both, vq-card-snake 1150ms ease both;
+  animation-delay: calc(var(--vq-intro-glow-at) + var(--vq-i, 0) * var(--vq-intro-step));
+}
+
+@keyframes vq-card-arrive {
+  0% {
+    opacity: 0;
+    transform: translate(var(--vq-dx, 0px), var(--vq-dy, 18px)) scale(0.97);
+  }
+  55% {
+    opacity: 1;
+    transform: translate(0, -5px) scale(1.008);
+  }
+  78% {
+    transform: translate(0, 2px) scale(0.998);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes vq-card-shine {
+  0% {
+    opacity: 1;
+    background-position: 130% 0;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    background-position: -30% 0;
+  }
+}
+
+@keyframes vq-card-snake {
+  0% {
+    opacity: 0;
+  }
+  15%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vq-intro-backdrop {
+    animation: vq-intro-backdrop 1700ms linear both;
+  }
+
+  .vq-intro-mark path {
+    stroke-dashoffset: 0;
+    fill-opacity: 1;
+    filter: none;
+    animation: none;
+  }
+
+  .vq-intro-wordmark {
+    opacity: 1;
+    animation: none;
+  }
+
+  html[data-vq-intro="play"] .vq-intro-card {
+    animation: vq-intro-fade-in 400ms linear 1800ms both;
+  }
+
+  html[data-vq-intro="play"] .vq-intro-card::before,
+  html[data-vq-intro="play"] .vq-intro-card::after {
+    display: none;
+    animation: none;
+  }
+}
+
+@keyframes vq-intro-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Task rows reached from Home (#task-<id>) are highlighted briefly. */
+.vq-task-row:target,
+.vq-task-row[data-targeted="true"] {
+  scroll-margin-top: 24px;
+  animation: vq-task-target 1.6s ease-out;
+}
+
+@keyframes vq-task-target {
+  from {
+    background-color: rgb(0 194 209 / 0.14);
+  }
+  to {
+    background-color: transparent;
+  }
+}

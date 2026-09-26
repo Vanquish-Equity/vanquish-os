@@ -2,7 +2,8 @@
 // accepted so `next` can never redirect to another site ("//evil.com",
 // "https://evil.com", "/\evil.com", encoded variants, control characters).
 
-export const DEFAULT_AFTER_LOGIN = "/overview";
+// Home is the entry point; explicit internal destinations (next=...) win.
+export const DEFAULT_AFTER_LOGIN = "/home";
 
 const AUTH_PATHS = ["/login", "/auth/", "/access-denied"];
 

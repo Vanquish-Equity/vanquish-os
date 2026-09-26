@@ -2,30 +2,12 @@ import Link from "next/link";
 import { hasPermission } from "@/lib/auth/access";
 import OverviewAttentionPanel from "@/components/OverviewAttentionPanel";
 import RelativeTime from "@/components/RelativeTime";
-import { getNeedsAttentionDeals } from "@/lib/deals/attention";
-import { dealLabel } from "@/lib/deals/display";
+import { loadAttentionDeals } from "@/lib/deals/attention-data";
+import { introCard } from "@/lib/ui/entrance";
 import { startDevPageTimer } from "@/lib/performance";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
-
-type DealRow = {
-  id: string;
-  name: string;
-  updated_at: string;
-  first_seen_at: string | null;
-  round: string | null;
-  created_at: string;
-  last_activity_at: string | null;
-  attention_snoozed_until: string | null;
-  archived_at: string | null;
-  source_system: string | null;
-  company: { id: string; name: string } | null;
-  stage: { name: string; is_terminal: boolean } | null;
-  priority: { name: string } | null;
-  outcome: { name: string } | null;
-  relationship_state: { name: string } | null;
-};
 
 type TaskRow = {
   id: string;
@@ -59,15 +41,18 @@ function StatTile({
   label,
   value,
   href,
+  index,
 }: {
   label: string;
   value: number;
   href: string;
+  index: number;
 }) {
   return (
     <Link
       href={href}
-      className="vq-card rounded-[14px] bg-white p-4"
+      className="vq-card vq-intro-card rounded-[14px] bg-white p-4"
+      style={introCard(index)}
     >
       <div className="text-[10.5px] uppercase tracking-wide text-neutral-400">
         {label}
@@ -125,24 +110,13 @@ export default async function OverviewPage() {
   const endTimer = startDevPageTimer("page:data:overview");
 
   const [
-    { data: deals },
+    { deals, importedDeals, staleDeals },
     { data: openTasks },
     { data: activity },
     { data: requirements },
     { data: investments },
-    { data: interactionSignals },
-    { data: taskSignals },
-    { data: stageSignals },
-    { data: documentSignals },
-    { data: requirementSignals },
   ] = await Promise.all([
-    supabase
-      .from("deals")
-      .select(
-        "id,name,round,created_at,updated_at,first_seen_at,last_activity_at,attention_snoozed_until,archived_at,source_system,company:companies!inner(id,name,deleted_at),stage:pipeline_stages(name,is_terminal),priority:priorities(name),outcome:deal_outcomes(name),relationship_state:relationship_states(name)"
-      )
-      .is("company.deleted_at", null)
-      .is("archived_at", null) as unknown as Promise<{ data: DealRow[] | null }>,
+    loadAttentionDeals(supabase, { canDocuments }),
     supabase
       .from("tasks")
       .select("id")
@@ -169,112 +143,12 @@ export default async function OverviewPage() {
       .is("archived_at", null) as unknown as Promise<{
       data: InvestmentLookupRow[] | null;
     }>,
-    supabase
-      .from("interactions")
-      .select("deal_id,occurred_at")
-      .not("deal_id", "is", null)
-      .is("archived_at", null) as unknown as Promise<{
-      data: { deal_id: string | null; occurred_at: string }[] | null;
-    }>,
-    supabase
-      .from("tasks")
-      .select("deal_id,created_at")
-      .not("deal_id", "is", null)
-      .is("archived_at", null) as unknown as Promise<{
-      data: { deal_id: string | null; created_at: string }[] | null;
-    }>,
-    supabase
-      .from("deal_status_history")
-      .select("deal_id,changed_at") as unknown as Promise<{
-      data: { deal_id: string; changed_at: string }[] | null;
-    }>,
-    supabase
-      .from("documents")
-      .select("deal_id,created_at")
-      .not("deal_id", "is", null)
-      .is("archived_at", null) as unknown as Promise<{
-      data: { deal_id: string | null; created_at: string }[] | null;
-    }>,
-    supabase
-      .from("document_requirements")
-      .select("deal_id,updated_at")
-      .not("deal_id", "is", null)
-      .is("archived_at", null) as unknown as Promise<{
-      data: { deal_id: string | null; updated_at: string }[] | null;
-    }>,
   ]);
   endTimer();
 
-  function latestByDeal(
-    rows: Array<{ deal_id: string | null; at: string }> | null | undefined
-  ) {
-    const latest = new Map<string, string>();
-    (rows ?? []).forEach((row) => {
-      if (!row.deal_id) return;
-      const current = latest.get(row.deal_id);
-      if (!current || new Date(row.at).getTime() > new Date(current).getTime()) {
-        latest.set(row.deal_id, row.at);
-      }
-    });
-    return latest;
-  }
-
-  const interactionByDeal = latestByDeal(
-    (interactionSignals ?? []).map((row) => ({
-      at: row.occurred_at,
-      deal_id: row.deal_id,
-    }))
-  );
-  const taskByDeal = latestByDeal(
-    (taskSignals ?? []).map((row) => ({ at: row.created_at, deal_id: row.deal_id }))
-  );
-  const stageByDeal = latestByDeal(
-    (stageSignals ?? []).map((row) => ({ at: row.changed_at, deal_id: row.deal_id }))
-  );
-  const documentByDeal = latestByDeal([
-    ...(documentSignals ?? []).map((row) => ({
-      at: row.created_at,
-      deal_id: row.deal_id,
-    })),
-    ...(requirementSignals ?? []).map((row) => ({
-      at: row.updated_at,
-      deal_id: row.deal_id,
-    })),
-  ]);
-
-  const activeDeals = (deals ?? []).filter((d) => !d.stage?.is_terminal && !d.outcome);
+  const activeDeals = deals.filter((d) => !d.stage?.is_terminal && !d.outcome);
   const dueDiligence = activeDeals.filter((d) => d.stage?.name === "Due Diligence");
   const highPriority = activeDeals.filter((d) => d.priority?.name === "High");
-  const { importedDeals, staleDeals } = getNeedsAttentionDeals(
-    (deals ?? []).map((deal) => ({
-      archivedAt: deal.archived_at,
-      attentionSnoozedUntil: deal.attention_snoozed_until,
-      companyDeletedAt: null,
-      companyId: deal.company?.id ?? "",
-      companyName: deal.company?.name ?? deal.name,
-      documentLastAt: documentByDeal.get(deal.id) ?? null,
-      firstSeenAt: deal.first_seen_at,
-      id: deal.id,
-      interactionLastAt: interactionByDeal.get(deal.id) ?? null,
-      lastActivityAt: deal.last_activity_at,
-      name: dealLabel({
-        name: deal.name,
-        round: deal.round,
-        companyName: deal.company?.name,
-        firstSeenAt: deal.first_seen_at,
-        createdAt: deal.created_at,
-      }),
-      outcomeName: deal.outcome?.name ?? null,
-      priorityName: deal.priority?.name ?? null,
-      relationshipStateName: deal.relationship_state?.name ?? null,
-      sourceSystem: deal.source_system,
-      stageChangeLastAt: stageByDeal.get(deal.id) ?? null,
-      stageIsTerminal: deal.stage?.is_terminal ?? false,
-      stageName: deal.stage?.name ?? null,
-      taskLastAt: taskByDeal.get(deal.id) ?? null,
-      updatedAt: deal.updated_at,
-    }))
-  );
 
   const portfolioRequirements = requirements ?? [];
   const criticalMissing = portfolioRequirements.filter(
@@ -314,21 +188,25 @@ export default async function OverviewPage() {
       <div className="vq-card-grid grid grid-cols-4 gap-3.5">
         <StatTile
           label="Active Deals"
+          index={0}
           value={activeDeals.length}
           href="/pipeline?filter=active"
         />
         <StatTile
           label="Due Diligence"
+          index={1}
           value={dueDiligence.length}
           href="/pipeline?stage=Due%20Diligence"
         />
         <StatTile
           label="High Priority"
+          index={2}
           value={highPriority.length}
           href="/pipeline?priority=High"
         />
         <StatTile
           label="Open Tasks"
+          index={3}
           value={(openTasks ?? []).length}
           href="/tasks?status=open"
         />
@@ -338,9 +216,10 @@ export default async function OverviewPage() {
         <OverviewAttentionPanel
           importedDeals={importedDeals}
           staleDeals={staleDeals}
+          introIndex={4}
         />
 
-        <div className="vq-card-static rounded-[14px] bg-white p-5">
+        <div className="vq-card-static vq-intro-card rounded-[14px] bg-white p-5" style={introCard(5)}>
           <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
             Recent Activity
           </h2>
@@ -366,7 +245,7 @@ export default async function OverviewPage() {
       </div>
 
       {showPortfolioHealth && (
-      <div className="vq-card-static rounded-[14px] bg-white p-5">
+      <div className="vq-card-static vq-intro-card rounded-[14px] bg-white p-5" style={introCard(6)}>
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <h2 className="text-[14.5px] font-semibold text-ink">

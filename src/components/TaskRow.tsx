@@ -1,15 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { dealHref } from "@/lib/deals/scope";
+import type { Member } from "@/lib/communications/drafts";
+import { formatExactDate } from "@/lib/dates";
+import { localToday } from "@/lib/home/buckets";
 import { deleteTaskAction, setTaskStatusAction, updateTaskAction } from "@/lib/tasks/actions";
 
 export type TaskItem = {
   id: string;
   title: string;
   owner: string | null;
+  // Member assignee (0017). undefined when not loaded on this page.
+  assigneeEmail?: string | null;
   dueAt: string | null;
   status: "open" | "done";
   priorityName: string | null;
@@ -20,12 +25,27 @@ export type TaskItem = {
   dealName: string | null;
 };
 
-function isOverdue(dueAt: string | null, status: string) {
-  if (!dueAt || status === "done") return false;
-  return new Date(dueAt) < new Date(new Date().toDateString());
+// Due dates are calendar dates: compared with the viewer's local date, and
+// only in the browser (the server does not know the viewer's time zone).
+function isOverdue(dueAt: string | null, status: string, today: string | null) {
+  if (!dueAt || status === "done" || !today) return false;
+  return dueAt.slice(0, 10) < today;
 }
 
-export default function TaskRow({ task, priorities }: { task: TaskItem; priorities: { id: string; name: string }[] }) {
+const noSubscribe = () => () => {};
+
+export default function TaskRow({
+  task,
+  priorities,
+  members,
+  currentUserEmail,
+}: {
+  task: TaskItem;
+  priorities: { id: string; name: string }[];
+  // Active members; when given, the assignee is shown and editable.
+  members?: Member[];
+  currentUserEmail?: string;
+}) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,10 +54,31 @@ export default function TaskRow({ task, priorities }: { task: TaskItem; prioriti
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(task.title);
   const [owner, setOwner] = useState(task.owner ?? "");
+  const [assignee, setAssignee] = useState(task.assigneeEmail ?? "");
+  const canAssign = Boolean(members) && task.assigneeEmail !== undefined;
+  const assigneeName = task.assigneeEmail
+    ? task.assigneeEmail === currentUserEmail
+      ? "You"
+      : members?.find((member) => member.email === task.assigneeEmail)?.name ?? task.assigneeEmail
+    : null;
   const [dueAt, setDueAt] = useState(task.dueAt ?? "");
   const [priorityId, setPriorityId] = useState(task.priorityId ?? "");
+  const rowRef = useRef<HTMLDivElement | null>(null);
   const done = status === "done";
-  const overdue = isOverdue(task.dueAt, status);
+
+  // Opened from a link to this task (e.g. Home → /tasks#task-<id>): bring it
+  // into view and highlight it briefly. Client navigation does not update
+  // CSS :target, so this is done here.
+  useEffect(() => {
+    const row = rowRef.current;
+    if (!row || window.location.hash !== `#task-${task.id}`) return;
+    row.scrollIntoView({ block: "center" });
+    row.dataset.targeted = "true";
+    const timer = window.setTimeout(() => delete row.dataset.targeted, 2000);
+    return () => window.clearTimeout(timer);
+  }, [task.id]);
+  const today = useSyncExternalStore(noSubscribe, () => localToday(), () => null);
+  const overdue = isOverdue(task.dueAt, status, today);
 
   async function toggleDone() {
     const previousStatus = status;
@@ -82,7 +123,14 @@ export default function TaskRow({ task, priorities }: { task: TaskItem; prioriti
     event.preventDefault();
     setPending(true);
     setError(null);
-    const result = await updateTaskAction({ taskId: task.id, title, owner, dueAt: dueAt || null, priorityId: priorityId || null });
+    const result = await updateTaskAction({
+      taskId: task.id,
+      title,
+      owner,
+      assigneeEmail: canAssign ? assignee || null : undefined,
+      dueAt: dueAt || null,
+      priorityId: priorityId || null,
+    });
     setPending(false);
     if (!result.ok) { setError(result.message); return; }
     setEditing(false);
@@ -92,7 +140,7 @@ export default function TaskRow({ task, priorities }: { task: TaskItem; prioriti
   if (archived) return null;
 
   return (
-    <div className="flex items-center gap-3 border-b border-neutral-50 px-4 py-3 last:border-0">
+    <div ref={rowRef} id={`task-${task.id}`} className="vq-task-row flex items-center gap-3 border-b border-neutral-50 px-4 py-3 last:border-0">
       <button
         type="button"
         onClick={() => void toggleDone()}
@@ -123,7 +171,22 @@ export default function TaskRow({ task, priorities }: { task: TaskItem; prioriti
             <label className="flex min-w-[180px] flex-1 flex-col gap-1">Task
               <input required value={title} onChange={(event) => setTitle(event.target.value)} className="rounded-md border border-neutral-200 px-2 py-1.5 text-[12px]" />
             </label>
-            <label className="flex flex-col gap-1">Owner
+            {canAssign && (
+              <label className="flex flex-col gap-1">Assigned to
+                <select value={assignee} onChange={(event) => setAssignee(event.target.value)} className="rounded-md border border-neutral-200 px-2 py-1.5 text-[12px]">
+                  <option value="">Unassigned</option>
+                  {task.assigneeEmail && !members?.some((member) => member.email === task.assigneeEmail) && (
+                    <option value={task.assigneeEmail} disabled>{task.assigneeEmail} (inactive)</option>
+                  )}
+                  {members?.map((member) => (
+                    <option key={member.email} value={member.email}>
+                      {member.email === currentUserEmail ? `${member.name} (you)` : member.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label className="flex flex-col gap-1">{canAssign ? "Owner note" : "Owner"}
               <input value={owner} onChange={(event) => setOwner(event.target.value)} className="w-28 rounded-md border border-neutral-200 px-2 py-1.5 text-[12px]" />
             </label>
             <label className="flex flex-col gap-1">Due
@@ -156,7 +219,12 @@ export default function TaskRow({ task, priorities }: { task: TaskItem; prioriti
               {task.companyName}
             </Link>
           )}
-          {task.owner && <span>{task.owner}</span>}
+          {canAssign && (
+            <span className={assigneeName ? "font-semibold text-neutral-600" : "text-neutral-400"}>
+              {assigneeName ? `Assigned: ${assigneeName}` : "Unassigned"}
+            </span>
+          )}
+          {task.owner && <span>{canAssign ? `Note: ${task.owner}` : task.owner}</span>}
           {task.dealName && task.dealId && task.companyId ? (
             <Link href={dealHref(task.companyId, task.dealId)} className="hover:text-cyan-700">
               · {task.dealName}
@@ -164,7 +232,7 @@ export default function TaskRow({ task, priorities }: { task: TaskItem; prioriti
           ) : task.dealName && <span>· {task.dealName}</span>}
           {task.dueAt && (
             <span className={overdue ? "font-semibold text-red-600" : undefined}>
-              Due {new Date(task.dueAt).toLocaleDateString()}
+              Due {formatExactDate(`${task.dueAt.slice(0, 10)}T00:00:00Z`)}
             </span>
           )}
           {error && <span className="text-red-600">{error}</span>}

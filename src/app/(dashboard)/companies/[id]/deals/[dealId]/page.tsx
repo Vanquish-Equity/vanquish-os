@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { hasPermission } from "@/lib/auth/access";
+import { getAccess, hasPermission } from "@/lib/auth/access";
+import { loadAssignableMembers } from "@/lib/communications/queries";
+import { selectTasksWithAssignee } from "@/lib/tasks/queries";
 import { notFound } from "next/navigation";
 import ArchiveDealButton from "@/components/ArchiveDealButton";
 import RestoreDealButton from "@/components/RestoreDealButton";
@@ -102,6 +104,7 @@ type TaskRowData = {
   id: string;
   title: string;
   owner: string | null;
+  assignee_email?: string | null;
   due_at: string | null;
   status: "open" | "done";
   priority_id: string | null;
@@ -196,10 +199,12 @@ export default async function DealDetailPage({
 }) {
   const { id: companyId, dealId } = await params;
   if (!UUID_PATTERN.test(companyId) || !UUID_PATTERN.test(dealId)) notFound();
-  const [canDocuments, canPortfolio] = await Promise.all([
+  const [canDocuments, canPortfolio, access] = await Promise.all([
     hasPermission("documents"),
     hasPermission("portfolio"),
+    getAccess(),
   ]);
+  const currentUserEmail = access.status === "member" ? access.email : undefined;
   const supabase = await createClient();
   const endTimer = startDevPageTimer(`page:data:deal:${dealId}`);
 
@@ -208,7 +213,7 @@ export default async function DealDetailPage({
     { data: siblings },
     { data: history },
     { data: interactions },
-    { data: taskRows },
+    taskResult,
     { data: documentRows },
     { data: requirementRows },
     { data: dealEvents },
@@ -255,13 +260,18 @@ export default async function DealDetailPage({
       .order("occurred_at", { ascending: false })
       .limit(50) as unknown as Promise<{ data: InteractionRow[] | null }>,
     // Archived rows are included so their activity stays attributable.
-    supabase
-      .from("tasks")
-      .select("id,title,owner,due_at,status,priority_id,archived_at,priority:priorities(name)")
-      .eq("deal_id", dealId)
-      .order("due_at", { ascending: true, nullsFirst: false }) as unknown as Promise<{
-      data: TaskRowData[] | null;
-    }>,
+    selectTasksWithAssignee<TaskRowData>(
+      "id,title,owner,due_at,status,priority_id,archived_at,priority:priorities(name)",
+      (columns) =>
+        supabase
+          .from("tasks")
+          .select(columns)
+          .eq("deal_id", dealId)
+          .order("due_at", { ascending: true, nullsFirst: false }) as unknown as PromiseLike<{
+          data: TaskRowData[] | null;
+          error: { code?: string } | null;
+        }>
+    ),
     (canDocuments
       ? supabase
           .from("documents")
@@ -315,6 +325,7 @@ export default async function DealDetailPage({
 
   if (!deal || !deal.company) notFound();
   const company = deal.company;
+  const taskRows = taskResult.data;
 
   // Activity on this deal's own tasks, documents and checklist items.
   const relatedIds = new Set([
@@ -372,12 +383,14 @@ export default async function DealDetailPage({
     }));
   const progress = calculateRequirementProgress(requirementItems);
 
+  const taskMembers = taskResult.assignmentAvailable ? await loadAssignableMembers(supabase) : undefined;
   const tasks: TaskItem[] = (taskRows ?? [])
     .filter((task) => !task.archived_at)
     .map((task) => ({
       id: task.id,
       title: task.title,
       owner: task.owner,
+      assigneeEmail: taskResult.assignmentAvailable ? task.assignee_email ?? null : undefined,
       dueAt: task.due_at,
       status: task.status,
       priorityName: task.priority?.name ?? null,
@@ -783,6 +796,8 @@ export default async function DealDetailPage({
                 dealId: deal.id,
                 dealName: label,
               }}
+              members={taskMembers}
+              currentUserEmail={currentUserEmail}
             />
           )}
         </div>
@@ -807,7 +822,13 @@ export default async function DealDetailPage({
           ))
         ) : (
           [...openTasks, ...doneTasks].map((task) => (
-            <TaskRow key={task.id} task={task} priorities={priorities ?? []} />
+            <TaskRow
+              key={task.id}
+              task={task}
+              priorities={priorities ?? []}
+              members={taskMembers}
+              currentUserEmail={currentUserEmail}
+            />
           ))
         )}
       </section>

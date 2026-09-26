@@ -8,7 +8,15 @@ export type AreaPermission = (typeof AREA_PERMISSIONS)[number];
 export type AccessState =
   | { status: "anonymous" }
   | { status: "unauthorized"; email: string | null }
-  | { status: "member"; email: string; permissions: ReadonlySet<AreaPermission> };
+  | {
+      status: "member";
+      email: string;
+      permissions: ReadonlySet<AreaPermission>;
+      // Name managed by Vanquish in app_members (preferred for greetings).
+      displayName?: string | null;
+      // Name from the sign-in provider (Google), when there is one.
+      providerName?: string | null;
+    };
 
 export function toPermissionSet(values: Array<string | null | undefined>) {
   return new Set(
@@ -22,17 +30,29 @@ export function can(access: AccessState, permission: AreaPermission) {
   return access.status === "member" && access.permissions.has(permission);
 }
 
-export type NavItem = { href: string; label: string; requires?: AreaPermission };
+export type NavIcon =
+  | "home"
+  | "overview"
+  | "pipeline"
+  | "companies"
+  | "people"
+  | "communications"
+  | "tasks"
+  | "review"
+  | "portfolio";
+
+export type NavItem = { href: string; label: string; icon: NavIcon; requires?: AreaPermission };
 
 export const WORKSPACE_NAV: NavItem[] = [
-  { href: "/overview", label: "Overview" },
-  { href: "/pipeline", label: "Pipeline" },
-  { href: "/companies", label: "Companies" },
-  { href: "/people", label: "People" },
-  { href: "/communications", label: "Communications" },
-  { href: "/tasks", label: "Tasks" },
-  { href: "/review", label: "Review" },
-  { href: "/portfolio", label: "Portfolio", requires: "portfolio" },
+  { href: "/home", label: "Home", icon: "home" },
+  { href: "/overview", label: "Overview", icon: "overview" },
+  { href: "/pipeline", label: "Pipeline", icon: "pipeline" },
+  { href: "/companies", label: "Companies", icon: "companies" },
+  { href: "/people", label: "People", icon: "people" },
+  { href: "/communications", label: "Communications", icon: "communications" },
+  { href: "/tasks", label: "Tasks", icon: "tasks" },
+  { href: "/review", label: "Review", icon: "review" },
+  { href: "/portfolio", label: "Portfolio", icon: "portfolio", requires: "portfolio" },
 ];
 
 export function visibleNav(items: NavItem[], permissions: ReadonlySet<AreaPermission>) {

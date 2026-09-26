@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export default async function AccessDeniedPage() {
   const access = await getAccess();
   if (access.status === "anonymous") redirect("/login");
-  if (access.status === "member") redirect("/overview");
+  if (access.status === "member") redirect("/home");
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-white px-4">
