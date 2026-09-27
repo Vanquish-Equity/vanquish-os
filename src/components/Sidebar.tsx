@@ -37,6 +37,7 @@ function SidebarBody({
   mode,
   navItems,
   userEmail,
+  avatarUrl,
   activeHref,
   onNavigate,
   collapsed,
@@ -48,6 +49,7 @@ function SidebarBody({
   mode: Mode;
   navItems: SidebarNavItem[];
   userEmail: string;
+  avatarUrl: string | null;
   activeHref: string;
   onNavigate: (href: string) => void;
   collapsed: boolean;
@@ -184,8 +186,8 @@ function SidebarBody({
 
       <div className="border-t border-[#14191b] pt-3">
         <div className={`flex items-center gap-2.5 ${byMode(mode, { rail: "flex-col", full: "px-2", responsive: "flex-col md:flex-row md:px-2" })}`}>
-          <div className="group relative flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#182022] text-[11px] font-semibold text-white" title={userEmail}>
-            {account.charAt(0)}
+          <div className="group relative flex h-7 w-7 flex-shrink-0 items-center justify-center overflow-visible rounded-full bg-[#182022] text-[11px] font-semibold text-white" title={userEmail}>
+            {avatarUrl ? <Image src={avatarUrl} alt="" width={28} height={28} unoptimized className="h-7 w-7 rounded-full object-cover" /> : account.charAt(0)}
             <Tooltip mode={mode}>{account}</Tooltip>
           </div>
           <span className={byMode(mode, { rail: "sr-only", full: "hidden", responsive: "sr-only md:hidden" })}>
@@ -253,11 +255,13 @@ function SidebarBody({
 
 export default function Sidebar({
   userEmail,
+  avatarUrl,
   navItems,
   initialCollapsed,
   preferenceCookie,
 }: {
   userEmail: string;
+  avatarUrl: string | null;
   // Already filtered by the member's permissions on the server.
   navItems: SidebarNavItem[];
   // Read from this member's cookie on the server, so there is no flash.
@@ -314,6 +318,7 @@ export default function Sidebar({
             mode={collapsed ? "rail" : "responsive"}
             navItems={navItems}
             userEmail={userEmail}
+            avatarUrl={avatarUrl}
             activeHref={activeHref}
             onNavigate={navigate}
             collapsed={collapsed}
@@ -337,6 +342,7 @@ export default function Sidebar({
               mode="full"
               navItems={navItems}
               userEmail={userEmail}
+              avatarUrl={avatarUrl}
               activeHref={activeHref}
               onNavigate={navigate}
               collapsed={false}

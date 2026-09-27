@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import EntranceIntro, { ENTRANCE_BOOT_SCRIPT } from "@/components/EntranceIntro";
+import EntranceIntro, { entranceBootScript } from "@/components/EntranceIntro";
 import Sidebar from "@/components/Sidebar";
 import UiSounds from "@/components/UiSounds";
 import UnreadCountsProvider from "@/components/UnreadCounts";
@@ -9,7 +9,7 @@ import { loadUnreadCounts } from "@/lib/chat/queries";
 import { createClient } from "@/lib/supabase/server";
 import { requireMember } from "@/lib/auth/access";
 import { visibleNav, WORKSPACE_NAV } from "@/lib/auth/permissions";
-import { sidebarCookieName } from "@/lib/ui/entrance";
+import { introCookieName, sidebarCookieName } from "@/lib/ui/entrance";
 
 // Every dashboard page requires an active member. The proxy already sent
 // visitors without a session to /login; non-members go to /access-denied.
@@ -20,20 +20,30 @@ export default async function DashboardLayout({
 }) {
   const access = await requireMember();
   const preferenceCookie = sidebarCookieName(access.email);
-  const collapsed = (await cookies()).get(preferenceCookie)?.value === "1";
+  const cookieStore = await cookies();
+  const collapsed = cookieStore.get(preferenceCookie)?.value === "1";
+  const introEnabled = cookieStore.get(introCookieName(access.email))?.value !== "0";
   // Unread chat messages and notifications (0 until migration 0018 exists).
-  const unread = await loadUnreadCounts(await createClient(), access.email);
+  const supabase = await createClient();
+  const [unread, { data: profile }] = await Promise.all([
+    loadUnreadCounts(supabase, access.email),
+    supabase.from("app_members").select("avatar_path").eq("email", access.email).maybeSingle(),
+  ]);
+  const avatarUrl = profile?.avatar_path
+    ? (await supabase.storage.from("member-avatars").createSignedUrl(profile.avatar_path, 3600)).data?.signedUrl ?? null
+    : null;
 
   return (
     <UnreadCountsProvider me={access.email} initial={unread}>
       <div className="flex h-screen overflow-hidden bg-white">
         {/* Decides before the first paint whether the one-time welcome plays. */}
-        <script dangerouslySetInnerHTML={{ __html: ENTRANCE_BOOT_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: entranceBootScript(introEnabled) }} />
         <EntranceIntro />
         <UiSounds />
         <ContextComments />
         <Sidebar
           userEmail={access.email}
+          avatarUrl={avatarUrl}
           initialCollapsed={collapsed}
           preferenceCookie={preferenceCookie}
           navItems={visibleNav(WORKSPACE_NAV, access.permissions)

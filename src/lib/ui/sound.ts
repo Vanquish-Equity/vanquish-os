@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { SOUND_STORAGE_KEY } from "@/lib/ui/entrance";
+import { SOUND_STORAGE_KEY, SOUND_VOLUME_STORAGE_KEY } from "@/lib/ui/entrance";
 
 // Vanquish OS sounds: the entrance chime and small card-shuffle sounds for
 // hover, click, opening and adding. One preference controls all of them; it
@@ -15,9 +15,47 @@ import { SOUND_STORAGE_KEY } from "@/lib/ui/entrance";
 // the page.
 
 const PREF_EVENT = "vq-sounds";
+const VOLUME_EVENT = "vq-volume";
 
 // Keeps the choice for this page even when localStorage is unavailable.
 let memoryPref: boolean | null = null;
+let memoryVolume: number | null = null;
+
+function readVolume(): number {
+  try {
+    const stored = window.localStorage.getItem(SOUND_VOLUME_STORAGE_KEY);
+    if (stored === null) return 70;
+    const volume = Number(stored);
+    return Number.isFinite(volume) ? Math.max(0, Math.min(100, volume)) : 70;
+  } catch {
+    return 70;
+  }
+}
+
+export function soundVolume() {
+  return memoryVolume ?? readVolume();
+}
+
+export function setSoundVolume(value: number) {
+  const volume = Math.max(0, Math.min(100, Math.round(value)));
+  memoryVolume = volume;
+  try { window.localStorage.setItem(SOUND_VOLUME_STORAGE_KEY, String(volume)); } catch { /* No storage */ }
+  if (master) master.gain.value = volume / 100;
+  window.dispatchEvent(new Event(VOLUME_EVENT));
+}
+
+export function useSoundVolume() {
+  return useSyncExternalStore((callback) => {
+    const changed = () => callback();
+    const stored = () => { memoryVolume = null; callback(); };
+    window.addEventListener(VOLUME_EVENT, changed);
+    window.addEventListener("storage", stored);
+    return () => {
+      window.removeEventListener(VOLUME_EVENT, changed);
+      window.removeEventListener("storage", stored);
+    };
+  }, soundVolume, () => 70);
+}
 
 function readPref(): boolean {
   try {
@@ -79,7 +117,7 @@ async function runningContext(): Promise<AudioContext | null> {
     if (!context) {
       context = new Ctx();
       master = context.createGain();
-      master.gain.value = 1;
+      master.gain.value = soundVolume() / 100;
       master.connect(context.destination);
     }
     if (context.state === "suspended") await context.resume();

@@ -42,6 +42,7 @@ export function takeReplayRequest() {
 
 // One preference for the entrance chime and the interface sounds.
 export const SOUND_STORAGE_KEY = "vq.sounds";
+export const SOUND_VOLUME_STORAGE_KEY = "vq.soundVolume";
 
 // One sidebar preference per member on this browser. The name is derived
 // from the email so the server can read it before rendering (no flicker)
@@ -52,6 +53,10 @@ export function sidebarCookieName(email: string) {
     hash = ((hash << 5) + hash + char.charCodeAt(0)) >>> 0;
   }
   return `vq_sidebar_${hash.toString(36)}`;
+}
+
+export function introCookieName(email: string) {
+  return sidebarCookieName(email).replace("vq_sidebar_", "vq_intro_");
 }
 
 export const SIDEBAR_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;

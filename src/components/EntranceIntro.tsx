@@ -15,10 +15,11 @@ import {
 // shows its final state and then jumps into the intro. It consumes the
 // one-time marker set by /auth/callback: reloads, navigations and returning
 // to the tab find no marker and show the page directly.
-export const ENTRANCE_BOOT_SCRIPT = `(function(){try{
+export const entranceBootScript = (enabled: boolean) => `(function(){try{
 var d=document,c=d.cookie;
 if(!/(?:^|;\\s*)${WELCOME_COOKIE}=1(?:;|$)/.test(c))return;
 d.cookie="${WELCOME_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax"+(location.protocol==="https:"?"; Secure":"");
+if(!${JSON.stringify(enabled)})return;
 var p=location.pathname.replace(/\\/$/,"");
 if(${JSON.stringify(INTRO_PATHS)}.indexOf(p)<0)return;
 d.documentElement.setAttribute("data-vq-intro","play");
