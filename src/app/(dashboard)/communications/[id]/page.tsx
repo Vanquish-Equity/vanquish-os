@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import DraftComposer from "@/components/DraftComposer";
+import MarkNotificationsRead from "@/components/MarkNotificationsRead";
 import { requireMember } from "@/lib/auth/access";
 import { canEditDraft, memberLabel } from "@/lib/communications/drafts";
 import { loadAssignableMembers, loadDraft, loadLpContacts } from "@/lib/communications/queries";
@@ -34,6 +35,7 @@ export default async function DraftPage({
 
   return (
     <div className="flex flex-col gap-4 px-7 pt-6">
+      <MarkNotificationsRead draftId={draft.id} />
       <header>
         <Link href="/communications" className="text-[12px] font-semibold text-neutral-500 hover:text-cyan-700">
           ← Communications

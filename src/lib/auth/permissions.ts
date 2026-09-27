@@ -32,6 +32,8 @@ export function can(access: AccessState, permission: AreaPermission) {
 
 export type NavIcon =
   | "home"
+  | "chat"
+  | "bell"
   | "overview"
   | "pipeline"
   | "companies"
@@ -41,10 +43,19 @@ export type NavIcon =
   | "review"
   | "portfolio";
 
-export type NavItem = { href: string; label: string; icon: NavIcon; requires?: AreaPermission };
+export type NavItem = {
+  href: string;
+  label: string;
+  icon: NavIcon;
+  requires?: AreaPermission;
+  // Unread indicator shown next to the item.
+  badge?: "chat" | "notifications";
+};
 
 export const WORKSPACE_NAV: NavItem[] = [
   { href: "/home", label: "Home", icon: "home" },
+  { href: "/notifications", label: "Notifications", icon: "bell", badge: "notifications" },
+  { href: "/chat", label: "Chat", icon: "chat", badge: "chat" },
   { href: "/overview", label: "Overview", icon: "overview" },
   { href: "/pipeline", label: "Pipeline", icon: "pipeline" },
   { href: "/companies", label: "Companies", icon: "companies" },

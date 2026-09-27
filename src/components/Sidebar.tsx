@@ -8,8 +8,9 @@ import NavIcon from "@/components/NavIcon";
 import type { NavIcon as NavIconName } from "@/lib/auth/permissions";
 import { accountLabel, requestIntroReplay, SIDEBAR_COOKIE_MAX_AGE_SECONDS } from "@/lib/ui/entrance";
 import { playUiSound, setSoundPref, useSoundPref } from "@/lib/ui/sound";
+import { useUnreadCounts } from "@/components/UnreadCounts";
 
-export type SidebarNavItem = { href: string; label: string; icon: NavIconName };
+export type SidebarNavItem = { href: string; label: string; icon: NavIconName; badge?: "chat" | "notifications" };
 
 // rail: icons only (collapsed). full: icons + labels (expanded, and the
 // mobile drawer). responsive: full on desktop, rail on small screens.
@@ -56,6 +57,7 @@ function SidebarBody({
   closeRef?: React.RefObject<HTMLButtonElement | null>;
 }) {
   const soundOn = useSoundPref();
+  const unread = useUnreadCounts();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -144,6 +146,7 @@ function SidebarBody({
       <nav aria-label="Workspace" className="flex flex-col gap-0.5">
         {navItems.map((item) => {
           const active = activeHref === item.href || activeHref.startsWith(item.href + "/");
+          const count = item.badge ? unread[item.badge] : 0;
           return (
             <Link
               key={item.href}
@@ -154,9 +157,24 @@ function SidebarBody({
                 active ? "bg-[#12191c] text-white" : "text-neutral-400 hover:bg-[#12191c] hover:text-white"
               }`}
             >
-              <NavIcon name={item.icon} />
+              <span className="relative flex">
+                <NavIcon name={item.icon} />
+                {count > 0 && (
+                  <span
+                    aria-hidden="true"
+                    data-badge={item.badge}
+                    className="absolute -right-2 -top-1.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-cyan-400 px-1 text-[9.5px] font-bold leading-none text-ink"
+                  >
+                    {count > 99 ? "99+" : count}
+                  </span>
+                )}
+              </span>
               <span className={label}>{item.label}</span>
-              <Tooltip mode={mode}>{item.label}</Tooltip>
+              {count > 0 && <span className="sr-only">({count} unread)</span>}
+              <Tooltip mode={mode}>
+                {item.label}
+                {count > 0 ? ` · ${count} unread` : ""}
+              </Tooltip>
             </Link>
           );
         })}
