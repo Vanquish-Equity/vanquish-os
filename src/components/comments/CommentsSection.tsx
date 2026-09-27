@@ -609,13 +609,18 @@ function Composer({
       )}
       <div className="flex flex-wrap items-center gap-2">
         {allowTask && (
-          <label className="flex cursor-pointer items-center gap-1.5 text-[12px] text-neutral-600">
+          <label className="group inline-flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] font-medium text-neutral-600 transition hover:bg-cyan-50 hover:text-cyan-900">
             <input
               type="checkbox"
               checked={withTask}
               onChange={(event) => setWithTask(event.target.checked)}
-              className="accent-cyan-700"
+              className="peer sr-only"
             />
+            <span aria-hidden="true" className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border border-neutral-300 bg-white text-white transition group-hover:border-cyan-500 peer-checked:border-cyan-700 peer-checked:bg-cyan-700 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-cyan-600">
+              <svg viewBox="0 0 16 16" fill="none" className="h-3 w-3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5">
+                <path d="m3 8 3.2 3.2L13 4.5" />
+              </svg>
+            </span>
             Also create a task
           </label>
         )}
