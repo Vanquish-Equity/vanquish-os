@@ -70,17 +70,14 @@ alter table public.notifications add column if not exists comment_id uuid
   references public.record_comments(id) on delete cascade;
 create index if not exists notifications_comment_idx on public.notifications (comment_id);
 
-do $$
-declare
-  c text;
-begin
-  for c in
-    select conname from pg_constraint
-    where conrelid = 'public.notifications'::regclass and contype = 'c'
-  loop
-    execute format('alter table public.notifications drop constraint %I', c);
-  end loop;
-end $$;
+-- Only the two CHECK constraints this migration replaces are dropped, by
+-- name: 0018's kind list (notifications_kind_check) and its unnamed target
+-- rule (named notifications_check by Postgres). notifications_target_check
+-- is this migration's own, dropped so a re-run can recreate it. Any other
+-- constraint on the table is left alone.
+alter table public.notifications drop constraint if exists notifications_kind_check;
+alter table public.notifications drop constraint if exists notifications_check;
+alter table public.notifications drop constraint if exists notifications_target_check;
 
 alter table public.notifications add constraint notifications_kind_check check (
   kind in ('chat_direct', 'chat_mention', 'chat_group', 'task_assigned', 'draft_assigned',

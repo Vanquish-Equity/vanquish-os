@@ -240,5 +240,20 @@ select pg_temp.expect(
   and not has_function_privilege('authenticated', 'private.insert_comment_task(uuid, text, text, date)', 'execute'),
   'function privileges: no anon, internal helpers not callable');
 
+-- Re-running 0019 only replaces the notification constraints it owns: an
+-- unrelated CHECK constraint survives, and the rules stay in force.
+alter table public.notifications add constraint notifications_test_extra_check check (char_length(dedupe_key) < 500);
+\ir ../migrations/0019_record_comments.sql
+select pg_temp.expect(
+  (select string_agg(conname, ',' order by conname) from pg_constraint
+   where conrelid = 'public.notifications'::regclass and contype = 'c')
+  = 'notifications_kind_check,notifications_target_check,notifications_test_extra_check',
+  're-running 0019 keeps an unrelated CHECK constraint and leaves no legacy one');
+select pg_temp.expect(
+  pg_temp.raises($q$insert into public.notifications (recipient_email, kind, dedupe_key) values ('marios@vanquishequity.com', 'comment_mention', 'no-comment')$q$)
+  and pg_temp.raises($q$insert into public.notifications (recipient_email, kind, dedupe_key) values ('marios@vanquishequity.com', 'bogus', 'x')$q$)
+  and pg_temp.raises(format($q$insert into public.notifications (recipient_email, kind, comment_id, dedupe_key) values ('marios@vanquishequity.com', 'comment_reply', %L, repeat('k', 600))$q$, (select v from t_ids where k = 'reply'))),
+  'kind, target and the extra constraint are all enforced after the re-run');
+
 select 'ALL COMMENT TESTS PASSED' as result;
 rollback;
