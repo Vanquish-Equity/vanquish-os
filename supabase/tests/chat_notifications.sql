@@ -209,6 +209,95 @@ select pg_temp.expect(
   'draft assigned: Pedro notified');
 select pg_temp.expect(not exists (select 1 from public.notifications where draft_id = (select v from t_ids where k = 'own')), 'no notification for your own draft');
 
+-- Draft assignment lifecycle: only real changes of responsible notify, and
+-- re-running 0018 creates nothing ---------------------------------------------
+insert into public.people (id, name, is_potential_lp) values
+  ('00000000-0000-0000-0000-00000000c0a1', 'Chat Test LP', true);
+insert into public.person_emails (person_id, email, is_primary) values
+  ('00000000-0000-0000-0000-00000000c0a1', 'chat.test.lp@example.com', true);
+
+create or replace function pg_temp.draft_notices(p_key text)
+returns text language sql as $$
+  select coalesce(string_agg(split_part(n.recipient_email, '@', 1) || '<-' || split_part(n.actor_email, '@', 1), ',' order by split_part(n.dedupe_key, ':', 4)::numeric), '')
+  from public.notifications n where n.draft_id = (select v from t_ids where k = p_key)
+$$;
+create temp table t_counts (label text primary key, n bigint);
+
+-- 1. Mario creates a draft for Pedro: only Pedro is told, by Mario.
+select pg_temp.act_as('authenticated', 'marios@vanquishequity.com');
+insert into t_ids select 'cycle', public.save_email_draft(null, 'LP update', 'v1', '[]'::jsonb, 'pbp@vanquishequity.com');
+reset role;
+select pg_temp.expect(pg_temp.draft_notices('cycle') = 'pbp<-marios', 'draft assigned to Pedro: one notice for Pedro from Mario');
+
+-- 2. Edits that keep the responsible: subject, body, recipients, by the
+--    creator (passing the same responsible) and by the responsible.
+select pg_temp.act_as('authenticated', 'marios@vanquishequity.com');
+select public.save_email_draft((select v from t_ids where k = 'cycle'), 'LP update (edited)', 'v2',
+  '[{"person_id":"00000000-0000-0000-0000-00000000c0a1"}]'::jsonb, 'pbp@vanquishequity.com');
+reset role;
+select pg_temp.expect(
+  (select count(*) from public.email_draft_recipients where draft_id = (select v from t_ids where k = 'cycle')) = 1
+  and pg_temp.draft_notices('cycle') = 'pbp<-marios',
+  'creator edits subject, body and adds a recipient: no new notice');
+select pg_temp.act_as('authenticated', 'pbp@vanquishequity.com');
+select public.save_email_draft((select v from t_ids where k = 'cycle'), 'LP update (Pedro)', 'v3', '[]'::jsonb);
+update public.email_drafts set assigned_to = 'pbp@vanquishequity.com', body = 'v4' where id = (select v from t_ids where k = 'cycle');
+reset role;
+select pg_temp.expect(
+  (select subject || '|' || body || '|' || assigned_to from public.email_drafts where id = (select v from t_ids where k = 'cycle'))
+    = 'LP update (Pedro)|v4|pbp@vanquishequity.com'
+  and pg_temp.draft_notices('cycle') = 'pbp<-marios',
+  'editing subject, body or recipients (same responsible) adds no notice');
+
+-- 3. Second run of 0018 after the edits: nothing new, anywhere. This test
+--    runs in one transaction (now() does not move), so the draft is first
+--    made to look edited an hour later, bypassing the 0016 trigger.
+set local session_replication_role = replica;
+update public.email_drafts set updated_at = now() + interval '1 hour' where id = (select v from t_ids where k = 'cycle');
+set local session_replication_role = origin;
+insert into t_counts select 'before rerun', count(*) from public.notifications;
+\ir ../migrations/0018_chat_notifications.sql
+select pg_temp.expect(
+  (select count(*) from public.notifications) = (select n from t_counts where label = 'before rerun')
+  and pg_temp.draft_notices('cycle') = 'pbp<-marios',
+  're-running 0018 creates no notifications (no duplicates, no draft backfill)');
+
+-- 4. Pedro hands it to Scott: Scott is told by Pedro; Pedro keeps only his.
+select pg_temp.act_as('authenticated', 'pbp@vanquishequity.com');
+select public.save_email_draft((select v from t_ids where k = 'cycle'), 'LP update (Pedro)', 'v4', '[]'::jsonb, 'scott@vanquishequity.com');
+reset role;
+select pg_temp.expect(pg_temp.draft_notices('cycle') = 'pbp<-marios,scott<-pbp', 'change of responsible: Scott notified by Pedro, Pedro not again');
+
+-- 5. Mario (creator) takes it himself: nobody is told.
+select pg_temp.act_as('authenticated', 'marios@vanquishequity.com');
+select public.save_email_draft((select v from t_ids where k = 'cycle'), 'LP update (Mario)', 'v5', '[]'::jsonb, 'marios@vanquishequity.com');
+reset role;
+select pg_temp.expect(pg_temp.draft_notices('cycle') = 'pbp<-marios,scott<-pbp', 'assigning it to yourself notifies nobody');
+select pg_temp.expect(
+  (select count(*) from public.notifications where kind = 'draft_assigned' and recipient_email = 'marios@vanquishequity.com'
+     and draft_id = (select v from t_ids where k = 'cycle')) = 0,
+  'Mario has no notice for his own draft');
+
+-- 6. Pedro gets it back (a real new assignment): one more notice for him.
+select pg_temp.act_as('authenticated', 'marios@vanquishequity.com');
+select public.save_email_draft((select v from t_ids where k = 'cycle'), 'LP update (Mario)', 'v6', '[]'::jsonb, 'pbp@vanquishequity.com');
+reset role;
+select pg_temp.expect(pg_temp.draft_notices('cycle') = 'pbp<-marios,scott<-pbp,pbp<-marios', 're-assigning back to Pedro is a new, single notice');
+
+-- 7. Third run of 0018: still nothing new; a draft notice removed by hand is
+--    not recreated (no retroactive draft notices).
+insert into t_counts select 'before third run', count(*) from public.notifications;
+delete from public.notifications where kind = 'draft_assigned' and recipient_email = 'scott@vanquishequity.com'
+  and draft_id = (select v from t_ids where k = 'cycle');
+\ir ../migrations/0018_chat_notifications.sql
+select pg_temp.expect(
+  (select count(*) from public.notifications) = (select n from t_counts where label = 'before third run') - 1
+  and pg_temp.draft_notices('cycle') = 'pbp<-marios,pbp<-marios',
+  'third run of 0018: no duplicates and no retroactive draft notices');
+select pg_temp.expect(
+  (select count(*) from public.notifications where task_id = (select v from t_ids where k = 'task')) = 1,
+  'task notice still single after re-runs (backfill key = trigger key)');
+
 -- Deactivated member --------------------------------------------------------
 update public.app_members set is_active = false where email = 'pbp@vanquishequity.com';
 select pg_temp.act_as('authenticated', 'pbp@vanquishequity.com');

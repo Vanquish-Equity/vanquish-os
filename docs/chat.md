@@ -39,9 +39,10 @@ The database re-checks that every mention is an active participant.
 - Nobody is notified of their own message, task or draft.
 - One notification per recipient and event: a unique
   `(recipient_email, dedupe_key)` (`message:<id>`, `task:<id>:<assigned_at>`,
-  `draft:<id>:<assignee>:<updated_at>`) makes retries and edits no-ops.
-  Editing a task title or re-saving a draft does not notify again; assigning
-  it to someone else does.
+  `draft:<id>:<assignee>:<time of the assignment>`) makes retries no-ops.
+  Only a real change of assignee or responsible notifies: editing a task, or
+  a draft's subject, body or recipients, does not; handing it to someone
+  else does (and handing it back is a new assignment).
 - Notifications store references, never message text. The inbox reads the
   message, task or draft under the recipient's own RLS, so a notification
   cannot show content the recipient cannot open.
@@ -49,8 +50,12 @@ The database re-checks that every mention is an active participant.
   marks all of its notifications read and moves the member's
   `last_read_at` (unread counts); opening a task link or a draft marks that
   task's or draft's notifications read, however the member got there.
-- The last 14 days of task and draft assignments made by someone else are
-  backfilled once, so Home keeps the notices it showed before `0018`.
+- Task assignments made by someone else in the last 14 days are backfilled
+  from `tasks.assigned_at` (the real assignment time, `0017`), with the same
+  key as the trigger, so re-running `0018` creates nothing. Email drafts are
+  **not** backfilled: `0016` keeps no assignment time (`updated_at` moves
+  with every edit), so draft notices start with assignments made after
+  `0018` is applied.
 
 ## History policy
 

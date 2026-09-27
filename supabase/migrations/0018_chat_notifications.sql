@@ -492,7 +492,11 @@ create trigger tasks_notify_assigned
   for each row execute function public.notify_task_assigned();
 
 -- Communications draft assigned (0016): the responsible is told, unless
--- they set themselves.
+-- they set themselves. Only a real change of responsible counts: the trigger
+-- runs on insert and on updates that list assigned_to, and ignores updates
+-- that keep the same responsible (saving the subject, body or recipients).
+-- The dedupe key uses the time of the assignment itself (clock_timestamp()
+-- when the change is written), never updated_at, which later edits move.
 create or replace function public.notify_draft_assigned()
 returns trigger
 language plpgsql security definer
@@ -508,7 +512,7 @@ begin
      and private.is_active_member(new.assigned_to) then
     insert into public.notifications (recipient_email, kind, actor_email, draft_id, dedupe_key)
     values (new.assigned_to, 'draft_assigned', v_actor, new.id,
-            'draft:' || new.id || ':' || new.assigned_to || ':' || extract(epoch from new.updated_at))
+            'draft:' || new.id || ':' || new.assigned_to || ':' || extract(epoch from clock_timestamp()))
     on conflict (recipient_email, dedupe_key) do nothing;
   end if;
   return null;
@@ -524,8 +528,14 @@ revoke execute on function public.notify_task_assigned() from public, anon, auth
 revoke execute on function public.notify_draft_assigned() from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------
--- Backfill: open tasks and drafts that someone else assigned in the last
--- 14 days (real events, same dedupe keys as the triggers).
+-- Backfill: open tasks that someone else assigned in the last 14 days.
+-- tasks.assigned_at (0017) is set only when the assignee changes, so it is
+-- the real assignment time and the key matches the trigger's: re-running
+-- this migration creates nothing new.
+--
+-- Email drafts are not backfilled: 0016 keeps no assignment time
+-- (updated_at moves with every edit), so a retroactive notice could be
+-- wrong or repeated. Draft notices start with assignments made after 0018.
 -- ---------------------------------------------------------------------
 
 insert into public.notifications (recipient_email, kind, actor_email, task_id, dedupe_key, created_at)
@@ -537,15 +547,6 @@ where t.assignee_email is not null and t.assigned_by is not null
   and t.assigned_by <> t.assignee_email
   and t.status = 'open' and t.archived_at is null
   and t.assigned_at > now() - interval '14 days'
-on conflict (recipient_email, dedupe_key) do nothing;
-
-insert into public.notifications (recipient_email, kind, actor_email, draft_id, dedupe_key, created_at)
-select d.assigned_to, 'draft_assigned', d.created_by, d.id,
-       'draft:' || d.id || ':' || d.assigned_to || ':' || extract(epoch from d.updated_at), d.updated_at
-from public.email_drafts d
-join public.app_members m on m.email = d.assigned_to and m.is_active
-where d.assigned_to <> d.created_by and d.archived_at is null
-  and d.updated_at > now() - interval '14 days'
 on conflict (recipient_email, dedupe_key) do nothing;
 
 -- ---------------------------------------------------------------------
