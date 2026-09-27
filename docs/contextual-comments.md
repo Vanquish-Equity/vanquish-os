@@ -3,6 +3,8 @@
 Migration `0021_contextual_comments.sql` extends the Company/Deal comments
 from `0019`. It does not modify existing comments and can be re-run. Apply it
 before opening the preview: without it, the custom context menu is disabled.
+If `0019` is re-run later, re-run `0021` afterwards so its expanded access
+policy and edit/delete functions remain active.
 
 ## Scope
 
