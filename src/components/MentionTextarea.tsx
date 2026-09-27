@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { activeMentionQuery, mentionToken } from "@/lib/chat/format";
 
 export type MentionCandidate = { email: string; name: string };
@@ -36,12 +37,47 @@ export default function MentionTextarea({
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [picker, setPicker] = useState<{ query: string; start: number } | null>(null);
   const [pickerIndex, setPickerIndex] = useState(0);
+  const [placement, setPlacement] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
 
   const matches = picker
     ? candidates
         .filter((member) => member.name.toLowerCase().includes(picker.query.toLowerCase()) || member.email.startsWith(picker.query.toLowerCase()))
         .slice(0, 6)
     : [];
+
+  // Render outside the card's stacking context, and keep the menu inside the
+  // viewport when the composer sits near the bottom or right edge.
+  useEffect(() => {
+    if (!picker || matches.length === 0) return;
+    let frame = 0;
+    function position() {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const rect = inputRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const width = Math.min(256, window.innerWidth - 16);
+        const below = window.innerHeight - rect.bottom - 8;
+        const above = rect.top - 8;
+        const needed = Math.min(matches.length * 42 + 8, 248);
+        const showAbove = below < needed && above > below;
+        const maxHeight = Math.max(40, Math.min(248, (showAbove ? above : below) - 4));
+        setPlacement({
+          top: showAbove ? Math.max(8, rect.top - Math.min(needed, maxHeight) - 4) : rect.bottom + 4,
+          left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)),
+          width,
+          maxHeight,
+        });
+      });
+    }
+    position();
+    window.addEventListener("resize", position);
+    window.addEventListener("scroll", position, true);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", position);
+      window.removeEventListener("scroll", position, true);
+    };
+  }, [picker, matches.length]);
 
   function update(next: string, caret: number) {
     onChange(next);
@@ -115,12 +151,13 @@ export default function MentionTextarea({
         aria-controls={picker && matches.length > 0 ? listId : undefined}
         className="w-full resize-y rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[13px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100 disabled:opacity-60"
       />
-      {picker && matches.length > 0 && (
+      {picker && matches.length > 0 && placement && createPortal(
         <ul
           id={listId}
           role="listbox"
           aria-label="Mention a member"
-          className="absolute left-0 top-full z-30 mt-1 w-64 overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-lg"
+          style={placement}
+          className="fixed z-[100] overflow-y-auto rounded-xl border border-neutral-200 bg-white py-1 shadow-lg"
         >
           {matches.map((member, index) => (
             <li key={member.email}>
@@ -128,7 +165,7 @@ export default function MentionTextarea({
                 type="button"
                 role="option"
                 aria-selected={index === pickerIndex}
-                onMouseDown={(event) => {
+                onPointerDown={(event) => {
                   event.preventDefault();
                   choose(member);
                 }}
@@ -141,7 +178,8 @@ export default function MentionTextarea({
               </button>
             </li>
           ))}
-        </ul>
+        </ul>,
+        document.body
       )}
     </div>
   );
