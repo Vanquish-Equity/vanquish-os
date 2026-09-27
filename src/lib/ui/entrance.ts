@@ -12,6 +12,18 @@ export const WELCOME_MAX_AGE_SECONDS = 120;
 // The intro only plays when the first screen is one of these.
 export const INTRO_PATHS = ["/home", "/overview"];
 
+// The dashboard server renders this script before the first paint. Keep it
+// outside the client component so it can be called during server rendering.
+export const entranceBootScript = (enabled: boolean) => `(function(){try{
+var d=document,c=d.cookie;
+if(!/(?:^|;\\s*)${WELCOME_COOKIE}=1(?:;|$)/.test(c))return;
+d.cookie="${WELCOME_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax"+(location.protocol==="https:"?"; Secure":"");
+if(!${JSON.stringify(enabled)})return;
+var p=location.pathname.replace(/\\/$/,"");
+if(${JSON.stringify(INTRO_PATHS)}.indexOf(p)<0)return;
+d.documentElement.setAttribute("data-vq-intro","play");
+}catch(e){}})();`;
+
 // "Replay intro" (user menu): replays on Home/Overview, or goes to Home and
 // replays there. For reviewing the sequence without signing out.
 export const INTRO_REPLAY_EVENT = "vq-intro-replay";

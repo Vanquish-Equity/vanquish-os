@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import EntranceIntro, { entranceBootScript } from "@/components/EntranceIntro";
+import EntranceIntro from "@/components/EntranceIntro";
 import Sidebar from "@/components/Sidebar";
 import UiSounds from "@/components/UiSounds";
 import UnreadCountsProvider from "@/components/UnreadCounts";
@@ -9,7 +9,7 @@ import { loadUnreadCounts } from "@/lib/chat/queries";
 import { createClient } from "@/lib/supabase/server";
 import { requireMember } from "@/lib/auth/access";
 import { visibleNav, WORKSPACE_NAV } from "@/lib/auth/permissions";
-import { introCookieName, sidebarCookieName } from "@/lib/ui/entrance";
+import { entranceBootScript, introCookieName, sidebarCookieName } from "@/lib/ui/entrance";
 
 // Every dashboard page requires an active member. The proxy already sent
 // visitors without a session to /login; non-members go to /access-denied.

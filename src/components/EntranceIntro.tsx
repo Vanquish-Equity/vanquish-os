@@ -3,27 +3,13 @@
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import NavIcon from "@/components/NavIcon";
-import { INTRO_PATHS, INTRO_REPLAY_EVENT, takeReplayRequest, WELCOME_COOKIE } from "@/lib/ui/entrance";
+import { INTRO_PATHS, INTRO_REPLAY_EVENT, takeReplayRequest } from "@/lib/ui/entrance";
 import {
   audioAllowedNow,
   playEntranceChime,
   setSoundPref,
   useSoundPref,
 } from "@/lib/ui/sound";
-
-// Runs while the HTML is parsed, before the first paint, so the page never
-// shows its final state and then jumps into the intro. It consumes the
-// one-time marker set by /auth/callback: reloads, navigations and returning
-// to the tab find no marker and show the page directly.
-export const entranceBootScript = (enabled: boolean) => `(function(){try{
-var d=document,c=d.cookie;
-if(!/(?:^|;\\s*)${WELCOME_COOKIE}=1(?:;|$)/.test(c))return;
-d.cookie="${WELCOME_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax"+(location.protocol==="https:"?"; Secure":"");
-if(!${JSON.stringify(enabled)})return;
-var p=location.pathname.replace(/\\/$/,"");
-if(${JSON.stringify(INTRO_PATHS)}.indexOf(p)<0)return;
-d.documentElement.setAttribute("data-vq-intro","play");
-}catch(e){}})();`;
 
 // Two moments: the logo (~2.5 s), a short pause, then the cards (~2 s).
 // Keep in sync with the timings in globals.css.
