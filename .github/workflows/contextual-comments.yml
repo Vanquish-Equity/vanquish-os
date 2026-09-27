@@ -32,7 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           psql -v ON_ERROR_STOP=1 -f supabase/tests/local_bootstrap.sql
-          for n in $(seq -w 1 21); do
+          for n in $(seq -w 1 23); do
             file=$(find supabase/migrations -maxdepth 1 -name "00${n}_*.sql" -print -quit)
             if [[ -z "$file" ]]; then echo "Missing migration 00${n}"; exit 1; fi
             psql -v ON_ERROR_STOP=1 -f "$file" > /dev/null
@@ -40,3 +40,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/0021_contextual_comments.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/contextual_comments.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/record_comments.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/0022_member_profiles.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/member_profiles.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/0023_admin_settings.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/admin_settings.sql > /dev/null

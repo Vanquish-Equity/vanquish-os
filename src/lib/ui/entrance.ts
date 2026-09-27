@@ -10,7 +10,19 @@ export const WELCOME_COOKIE = "vq_welcome";
 export const WELCOME_MAX_AGE_SECONDS = 120;
 
 // The intro only plays when the first screen is one of these.
-export const INTRO_PATHS = ["/home", "/overview"];
+export const INTRO_PATHS = ["/home", "/overview", "/pipeline"];
+
+// The dashboard server renders this script before the first paint. Keep it
+// outside the client component so it can be called during server rendering.
+export const entranceBootScript = (enabled: boolean) => `(function(){try{
+var d=document,c=d.cookie;
+if(!/(?:^|;\\s*)${WELCOME_COOKIE}=1(?:;|$)/.test(c))return;
+d.cookie="${WELCOME_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax"+(location.protocol==="https:"?"; Secure":"");
+if(!${JSON.stringify(enabled)})return;
+var p=location.pathname.replace(/\\/$/,"");
+if(${JSON.stringify(INTRO_PATHS)}.indexOf(p)<0)return;
+d.documentElement.setAttribute("data-vq-intro","play");
+}catch(e){}})();`;
 
 // "Replay intro" (user menu): replays on Home/Overview, or goes to Home and
 // replays there. For reviewing the sequence without signing out.
@@ -42,6 +54,9 @@ export function takeReplayRequest() {
 
 // One preference for the entrance chime and the interface sounds.
 export const SOUND_STORAGE_KEY = "vq.sounds";
+export const SOUND_VOLUME_STORAGE_KEY = "vq.soundVolume";
+export const WELCOME_SOUND_STORAGE_KEY = "vq.welcomeSound";
+export const INTERFACE_SOUND_STORAGE_KEY = "vq.interfaceSound";
 
 // One sidebar preference per member on this browser. The name is derived
 // from the email so the server can read it before rendering (no flicker)
@@ -54,10 +69,16 @@ export function sidebarCookieName(email: string) {
   return `vq_sidebar_${hash.toString(36)}`;
 }
 
+export function introCookieName(email: string) {
+  return sidebarCookieName(email).replace("vq_sidebar_", "vq_intro_");
+}
+
 export const SIDEBAR_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 
-// "marios@vanquishequity.com" -> "MARIOS"
-export function accountLabel(email: string) {
+// Show the saved profile name when available, with the email prefix as fallback.
+export function accountLabel(email: string, displayName?: string | null) {
+  const saved = displayName?.trim();
+  if (saved) return saved.toUpperCase();
   const local = email.split("@")[0]?.trim() ?? "";
   return (local || email).toUpperCase();
 }

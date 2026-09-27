@@ -1,11 +1,13 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { actionAccessError, getAccess } from "@/lib/auth/access";
 import { loadDirectory } from "@/lib/chat/queries";
 import type { NotificationView } from "@/lib/notifications/describe";
 import { loadNotifications } from "@/lib/notifications/queries";
 import { createClient } from "@/lib/supabase/server";
+import { noticeMask, notificationCookieName, notificationKinds } from "@/lib/settings/preferences";
 
 // Only read_at of one's own notifications can change (column grant + RLS).
 
@@ -26,6 +28,10 @@ async function markRead(filter: { id?: string; taskId?: string; draftId?: string
   if (filter.taskId) query = query.eq("task_id", filter.taskId);
   if (filter.draftId) query = query.eq("draft_id", filter.draftId);
   if (filter.commentIds?.length) query = query.in("comment_id", filter.commentIds);
+  if (filter.all) {
+    const kinds = notificationKinds(noticeMask((await cookies()).get(notificationCookieName(access.email))?.value));
+    query = query.in("kind", kinds.length ? kinds : ["__disabled__"]);
+  }
   if (!filter.id && !filter.taskId && !filter.draftId && !filter.commentIds?.length && !filter.all) {
     return { ok: false, message: "Nothing to mark." };
   }

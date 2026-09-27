@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { SOUND_STORAGE_KEY } from "@/lib/ui/entrance";
+import { INTERFACE_SOUND_STORAGE_KEY, SOUND_STORAGE_KEY, SOUND_VOLUME_STORAGE_KEY, WELCOME_SOUND_STORAGE_KEY } from "@/lib/ui/entrance";
 
 // Vanquish OS sounds: the entrance chime and small card-shuffle sounds for
 // hover, click, opening and adding. One preference controls all of them; it
@@ -15,9 +15,48 @@ import { SOUND_STORAGE_KEY } from "@/lib/ui/entrance";
 // the page.
 
 const PREF_EVENT = "vq-sounds";
+const VOLUME_EVENT = "vq-volume";
+const DETAIL_EVENT = "vq-sound-detail";
 
 // Keeps the choice for this page even when localStorage is unavailable.
 let memoryPref: boolean | null = null;
+let memoryVolume: number | null = null;
+
+function readVolume(): number {
+  try {
+    const stored = window.localStorage.getItem(SOUND_VOLUME_STORAGE_KEY);
+    if (stored === null) return 70;
+    const volume = Number(stored);
+    return Number.isFinite(volume) ? Math.max(0, Math.min(100, volume)) : 70;
+  } catch {
+    return 70;
+  }
+}
+
+export function soundVolume() {
+  return memoryVolume ?? readVolume();
+}
+
+export function setSoundVolume(value: number) {
+  const volume = Math.max(0, Math.min(100, Math.round(value)));
+  memoryVolume = volume;
+  try { window.localStorage.setItem(SOUND_VOLUME_STORAGE_KEY, String(volume)); } catch { /* No storage */ }
+  if (master) master.gain.value = volume / 100;
+  window.dispatchEvent(new Event(VOLUME_EVENT));
+}
+
+export function useSoundVolume() {
+  return useSyncExternalStore((callback) => {
+    const changed = () => callback();
+    const stored = () => { memoryVolume = null; callback(); };
+    window.addEventListener(VOLUME_EVENT, changed);
+    window.addEventListener("storage", stored);
+    return () => {
+      window.removeEventListener(VOLUME_EVENT, changed);
+      window.removeEventListener("storage", stored);
+    };
+  }, soundVolume, () => 70);
+}
 
 function readPref(): boolean {
   try {
@@ -60,6 +99,34 @@ export function useSoundPref() {
   return useSyncExternalStore(subscribe, soundsEnabled, () => true);
 }
 
+function detailEnabled(key: string) {
+  try { return window.localStorage.getItem(key) !== "off"; } catch { return true; }
+}
+
+function detailSubscribe(callback: () => void) {
+  window.addEventListener(DETAIL_EVENT, callback);
+  window.addEventListener("storage", callback);
+  return () => {
+    window.removeEventListener(DETAIL_EVENT, callback);
+    window.removeEventListener("storage", callback);
+  };
+}
+
+export function setWelcomeSound(on: boolean) {
+  try { window.localStorage.setItem(WELCOME_SOUND_STORAGE_KEY, on ? "on" : "off"); } catch { /* Browser storage blocked */ }
+  window.dispatchEvent(new Event(DETAIL_EVENT));
+}
+export function setInterfaceSound(on: boolean) {
+  try { window.localStorage.setItem(INTERFACE_SOUND_STORAGE_KEY, on ? "on" : "off"); } catch { /* Browser storage blocked */ }
+  window.dispatchEvent(new Event(DETAIL_EVENT));
+}
+export function useWelcomeSound() {
+  return useSyncExternalStore(detailSubscribe, () => detailEnabled(WELCOME_SOUND_STORAGE_KEY), () => true);
+}
+export function useInterfaceSound() {
+  return useSyncExternalStore(detailSubscribe, () => detailEnabled(INTERFACE_SOUND_STORAGE_KEY), () => true);
+}
+
 // True when the browser will let audio start now.
 export function audioAllowedNow() {
   if (typeof navigator === "undefined") return false;
@@ -79,7 +146,7 @@ async function runningContext(): Promise<AudioContext | null> {
     if (!context) {
       context = new Ctx();
       master = context.createGain();
-      master.gain.value = 1;
+      master.gain.value = soundVolume() / 100;
       master.connect(context.destination);
     }
     if (context.state === "suspended") await context.resume();
@@ -92,6 +159,7 @@ async function runningContext(): Promise<AudioContext | null> {
 // A short, soft rising chime (~1 s, moderate volume). Returns whether it
 // started; failures are swallowed.
 export async function playEntranceChime(): Promise<boolean> {
+  if (!soundsEnabled() || !detailEnabled(WELCOME_SOUND_STORAGE_KEY)) return false;
   const ctx = await runningContext();
   if (!ctx || !master) return false;
   try {
@@ -168,7 +236,7 @@ const jitter = (value: number, spread: number) => value + (Math.random() * 2 - 1
 const lastPlayed = { hover: 0, press: 0 };
 
 export async function playUiSound(kind: UiSound) {
-  if (!soundsEnabled() || !audioAllowedNow()) return;
+  if (!soundsEnabled() || !detailEnabled(INTERFACE_SOUND_STORAGE_KEY) || !audioAllowedNow()) return;
   const nowMs = performance.now();
   const lane = kind === "hover" ? "hover" : "press";
   if (nowMs - lastPlayed[lane] < (lane === "hover" ? 90 : 40)) return;

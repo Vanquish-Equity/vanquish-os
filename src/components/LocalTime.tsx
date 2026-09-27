@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { formatLocalTimestamp, useTimePreferences } from "@/lib/settings/time";
 
 const noop = () => () => {};
 
@@ -16,18 +17,21 @@ export default function LocalTime({
   className?: string;
 }) {
   const now = useSyncExternalStore(noop, () => Date.now(), () => null);
+  const { zone, style } = useTimePreferences();
   let text = "";
   if (now !== null) {
     const value = new Date(date);
-    const sameDay = new Date(now).toDateString() === value.toDateString();
+    const opts = zone === "browser" ? {} : { timeZone: zone };
+    const day = new Intl.DateTimeFormat("en-CA", { ...opts, year: "numeric", month: "2-digit", day: "2-digit" });
+    const sameDay = day.format(new Date(now)) === day.format(value);
     if (mode === "time" || (mode === "smart" && sameDay)) {
-      text = value.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      text = formatLocalTimestamp(value, zone, style, false);
     } else {
-      text = value.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      text = formatLocalTimestamp(value, zone, style, true);
     }
   }
   return (
-    <time dateTime={date} className={className} title={now !== null ? new Date(date).toLocaleString() : undefined}>
+    <time dateTime={date} className={className} title={now !== null ? formatLocalTimestamp(new Date(date), zone, style, true) : undefined}>
       {text}
     </time>
   );

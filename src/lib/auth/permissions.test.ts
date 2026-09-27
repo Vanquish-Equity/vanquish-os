@@ -29,8 +29,8 @@ describe("area permissions", () => {
     expect(can(portfolioOnly, "documents")).toBe(false);
   });
 
-  it("ignores unknown permission values", () => {
-    expect([...toPermissionSet(["admin", "portfolio", null])]).toEqual(["portfolio"]);
+  it("accepts explicit admin grants and ignores unknown values", () => {
+    expect([...toPermissionSet(["admin", "portfolio", "unknown", null])]).toEqual(["admin", "portfolio"]);
   });
 
   it("hides Portfolio from the navigation without the permission", () => {

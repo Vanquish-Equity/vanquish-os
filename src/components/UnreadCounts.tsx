@@ -20,10 +20,12 @@ export function useUnreadCounts() {
 export default function UnreadCountsProvider({
   me,
   initial,
+  noticeKinds,
   children,
 }: {
   me: string;
   initial: Counts;
+  noticeKinds: string[];
   children: React.ReactNode;
 }) {
   const [counts, setCounts] = useState<Counts>(initial);
@@ -31,7 +33,7 @@ export default function UnreadCountsProvider({
   const refresh = useCallback(() => {
     const supabase = createClient();
     void Promise.all([
-      supabase.from("notifications").select("id", { count: "exact", head: true }).eq("recipient_email", me).is("read_at", null),
+      supabase.from("notifications").select("id", { count: "exact", head: true }).eq("recipient_email", me).is("read_at", null).in("kind", noticeKinds.length ? noticeKinds : ["__disabled__"]),
       supabase.rpc("chat_unread_counts"),
     ])
       .then(([notifications, chat]) => {
@@ -44,7 +46,7 @@ export default function UnreadCountsProvider({
         });
       })
       .catch(() => {});
-  }, [me]);
+  }, [me, noticeKinds]);
 
   useLiveSignal({
     key: `notifications:${me}`,

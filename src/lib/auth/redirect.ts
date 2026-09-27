@@ -2,8 +2,9 @@
 // accepted so `next` can never redirect to another site ("//evil.com",
 // "https://evil.com", "/\evil.com", encoded variants, control characters).
 
-// Home is the entry point; explicit internal destinations (next=...) win.
-export const DEFAULT_AFTER_LOGIN = "/home";
+// The root resolves each signed-in member's preferred landing page.
+// Explicit internal destinations (next=...) still win.
+export const DEFAULT_AFTER_LOGIN = "/";
 
 const AUTH_PATHS = ["/login", "/auth/", "/access-denied"];
 

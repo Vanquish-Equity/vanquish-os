@@ -64,6 +64,11 @@ Run the migration files in order in the Supabase SQL Editor:
     on shared pages and Company/Deal sections, with existing mentions and
     notifications. Requires `0019`. See
     [`docs/contextual-comments.md`](docs/contextual-comments.md).
+17. `0022_member_profiles.sql` - member-managed display names and private
+    profile photos. Requires `0016`. See [`docs/settings.md`](docs/settings.md).
+18. `0023_admin_settings.sql` - separate Admin permission for Mario, member
+    access controls and an ignored-domain list for future email detection.
+    Requires `0022`. See [`docs/settings.md`](docs/settings.md).
 
 Sign-in (Google, email link) and member-scoped RLS are enforced from `0015`
 on; the temporary anon policies of `0003`-`0014` are dropped there. See
