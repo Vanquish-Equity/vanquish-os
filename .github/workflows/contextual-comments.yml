@@ -38,5 +38,5 @@ jobs:
             psql -v ON_ERROR_STOP=1 -f "$file" > /dev/null
           done
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/0021_contextual_comments.sql > /dev/null
-          psql -v ON_ERROR_STOP=1 -f supabase/tests/record_comments.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/contextual_comments.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/record_comments.sql > /dev/null

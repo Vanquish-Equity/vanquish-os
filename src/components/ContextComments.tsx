@@ -178,6 +178,14 @@ export default function ContextComments() {
     return () => cancelAnimationFrame(frame);
   }, [comments, pathname, scope, refreshUnread, hash]);
 
+  useEffect(() => {
+    if (!active) return;
+    const id = hash.match(/^#comment-([0-9a-f-]{36})$/i)?.[1];
+    if (!id) return;
+    const frame = requestAnimationFrame(() => document.getElementById(`context-${id}`)?.scrollIntoView({ block: "nearest" }));
+    return () => cancelAnimationFrame(frame);
+  }, [active, hash, comments]);
+
   if (!scope) return null;
 
   function open(anchor: Anchor) {
@@ -231,7 +239,7 @@ export default function ContextComments() {
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
             {shown.length === 0 && <p className="py-4 text-center text-[12px] text-neutral-400">No comments here yet.</p>}
             {shown.map((root) => (
-              <div key={root.id} id={`context-${root.id}`} className="mb-3 rounded-xl border border-neutral-100 bg-[#f8fafb] p-3 text-[12px]">
+              <div key={root.id} id={`context-${root.id}`} className={`mb-3 rounded-xl border bg-[#f8fafb] p-3 text-[12px] ${hash === `#comment-${root.id}` ? "border-cyan-300 ring-2 ring-cyan-100" : "border-neutral-100"}`}>
                 <div className="flex items-center justify-between gap-2"><span className="font-semibold text-ink">{members.find((m) => m.email === root.author_email)?.name ?? root.author_email}</span><span className="text-[10px] text-neutral-400">{new Date(root.created_at).toLocaleDateString()}</span></div>
                 <p className="mt-1 whitespace-pre-wrap break-words text-ink">{root.deleted_at ? "Comment deleted by author" : root.body}</p>
                 {root.edited_at && !root.deleted_at && <span className="text-[10px] text-neutral-400">(edited)</span>}
@@ -244,7 +252,7 @@ export default function ContextComments() {
                   <button type="button" className="text-neutral-500" onClick={() => void navigator.clipboard.writeText(new URL(contextHref(scope, root.id), window.location.origin).href)}>Copy link</button>
                 </div>
                 {comments.filter((reply) => reply.parent_id === root.id).map((reply) => (
-                  <div key={reply.id} className="mt-2 border-l-2 border-cyan-100 pl-3">
+                  <div key={reply.id} id={`context-${reply.id}`} className={`mt-2 border-l-2 pl-3 ${hash === `#comment-${reply.id}` ? "rounded-r-lg border-cyan-600 bg-cyan-50" : "border-cyan-100"}`}>
                     <span className="font-semibold">{members.find((m) => m.email === reply.author_email)?.name ?? reply.author_email}</span>
                     <p className="whitespace-pre-wrap break-words">{reply.deleted_at ? "Comment deleted by author" : reply.body}</p>
                     {reply.author_email === me && !reply.deleted_at && (
