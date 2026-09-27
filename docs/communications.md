@@ -116,6 +116,16 @@ address never creates a second person.
   only to active members. `app_members` itself stays readable row-by-row.
 - A member row that is still a draft's responsible cannot be deleted
   (foreign key); deactivate it (`is_active = false`) instead.
+- Deleting a contact never removes drafts or recipients. Its recipients stay
+  in their drafts with `person_id` / `person_email_id` set to null and the
+  name and address they had when selected, flagged for review; other
+  recipients are untouched. Deleting one of a contact's emails only clears
+  that address. Migration `0020` makes this independent of the order in
+  which Postgres runs the two referential actions on `people` (emails
+  cascade, recipients set null): the recipient foreign keys are
+  `DEFERRABLE INITIALLY DEFERRED`, so they are checked at commit, after
+  both actions. Invalid references are still rejected. Test:
+  `supabase/tests/lp_recipient_fk_order.sql` forces both orders.
 - Recipient lists are never put in URLs (draft pages use the draft id; the
   search box is local state), never written to `activity_events` (payloads
   carry counts only) and never echoed in error messages. Server-function
