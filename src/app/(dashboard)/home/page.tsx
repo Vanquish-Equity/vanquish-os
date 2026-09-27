@@ -74,7 +74,7 @@ export default async function HomePage() {
       </header>
 
       <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2 xl:grid-cols-[1.2fr_1fr]">
-        <section aria-labelledby="home-tasks" className={card} style={introCard(0)}>
+        <section aria-labelledby="home-tasks" data-comment-anchor="home-tasks" data-comment-label="My tasks" className={card} style={introCard(0)}>
           <div className="mb-3 flex items-center justify-between gap-2">
             <h2 id="home-tasks" className="text-[14.5px] font-semibold text-ink">
               My tasks
@@ -90,7 +90,7 @@ export default async function HomePage() {
           />
         </section>
 
-        <section aria-labelledby="home-attention" className={card} style={introCard(1)}>
+        <section aria-labelledby="home-attention" data-comment-anchor="home-attention" data-comment-label="Needs attention" className={card} style={introCard(1)}>
           <h2 id="home-attention" className="mb-3 text-[14.5px] font-semibold text-ink">
             Needs attention
           </h2>
@@ -123,7 +123,7 @@ export default async function HomePage() {
           )}
         </section>
 
-        <section aria-labelledby="home-notices" className={card} style={introCard(2)}>
+        <section aria-labelledby="home-notices" data-comment-anchor="home-notices" data-comment-label="Notices for you" className={card} style={introCard(2)}>
           <div className="mb-3 flex items-center justify-between gap-2">
             <h2 id="home-notices" className="text-[14.5px] font-semibold text-ink">
               Notices for you
@@ -171,7 +171,7 @@ export default async function HomePage() {
           )}
         </section>
 
-        <section aria-labelledby="home-actions" className={card} style={introCard(3)}>
+        <section aria-labelledby="home-actions" data-comment-anchor="home-actions" data-comment-label="Quick actions" className={card} style={introCard(3)}>
           <h2 id="home-actions" className="mb-3 text-[14.5px] font-semibold text-ink">
             Quick actions
           </h2>

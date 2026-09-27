@@ -4,6 +4,7 @@ import Sidebar from "@/components/Sidebar";
 import UiSounds from "@/components/UiSounds";
 import UnreadCountsProvider from "@/components/UnreadCounts";
 import WorkspaceTopBar from "@/components/WorkspaceTopBar";
+import ContextComments from "@/components/ContextComments";
 import { loadUnreadCounts } from "@/lib/chat/queries";
 import { createClient } from "@/lib/supabase/server";
 import { requireMember } from "@/lib/auth/access";
@@ -30,6 +31,7 @@ export default async function DashboardLayout({
         <script dangerouslySetInnerHTML={{ __html: ENTRANCE_BOOT_SCRIPT }} />
         <EntranceIntro />
         <UiSounds />
+        <ContextComments />
         <Sidebar
           userEmail={access.email}
           initialCollapsed={collapsed}

@@ -150,7 +150,7 @@ export default function TaskRow({
   if (archived) return null;
 
   return (
-    <div ref={rowRef} id={`task-${task.id}`} className="vq-task-row flex items-center gap-3 border-b border-neutral-50 px-4 py-3 last:border-0">
+    <div ref={rowRef} id={`task-${task.id}`} data-comment-anchor={`task:${task.id}`} data-comment-label={task.title} className="vq-task-row flex items-center gap-3 border-b border-neutral-50 px-4 py-3 last:border-0">
       <button
         type="button"
         onClick={() => void toggleDone()}

@@ -51,6 +51,8 @@ function StatTile({
   return (
     <Link
       href={href}
+      data-comment-anchor={`stat:${index}`}
+      data-comment-label={label}
       className="vq-card vq-intro-card rounded-[14px] bg-white p-4"
       style={introCard(index)}
     >
@@ -219,7 +221,7 @@ export default async function OverviewPage() {
           introIndex={4}
         />
 
-        <div className="vq-card-static vq-intro-card rounded-[14px] bg-white p-5" style={introCard(5)}>
+        <div data-comment-anchor="recent-activity" data-comment-label="Recent activity" className="vq-card-static vq-intro-card rounded-[14px] bg-white p-5" style={introCard(5)}>
           <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
             Recent Activity
           </h2>

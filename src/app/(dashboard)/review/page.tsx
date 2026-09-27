@@ -59,6 +59,8 @@ export default async function ReviewPage() {
         {openItems.map((item) => (
           <div
             key={item.id}
+            data-comment-anchor={`review:${item.id}`}
+            data-comment-label={item.payload.company_name ?? "Review item"}
             className="vq-card rounded-[14px] bg-white p-5"
           >
             <div className="mb-3 flex items-start justify-between gap-3">
