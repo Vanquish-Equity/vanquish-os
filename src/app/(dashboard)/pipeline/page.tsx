@@ -1,3 +1,6 @@
+import { cookies } from "next/headers";
+import { requireMember } from "@/lib/auth/access";
+import { pipelineCookieName, pipelineDefault } from "@/lib/settings/preferences";
 import { createClient } from "@/lib/supabase/server";
 import { startDevPageTimer } from "@/lib/performance";
 import {
@@ -68,7 +71,10 @@ export default async function PipelinePage({
 }) {
   const { filter, hideTerminal, priority, stage, view } = await searchParams;
   const showArchived = view === "archived";
-  const shouldHideTerminal = hideTerminal === "1" || filter === "active";
+  const member = await requireMember();
+  const savedPipeline = pipelineDefault((await cookies()).get(pipelineCookieName(member.email))?.value);
+  const shouldHideTerminal = hideTerminal === "1" || filter === "active" ||
+    (hideTerminal !== "0" && filter !== "all" && savedPipeline === "active");
   const supabase = await createClient();
   const endTimer = startDevPageTimer("page:data:pipeline");
 
@@ -208,7 +214,7 @@ export default async function PipelinePage({
               </span>
             </div>
             <Link
-              href={shouldHideTerminal ? "/pipeline" : "/pipeline?hideTerminal=1"}
+              href={shouldHideTerminal ? "/pipeline?hideTerminal=0" : "/pipeline?hideTerminal=1"}
               className="rounded-lg border border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
             >
               {shouldHideTerminal ? "Show terminal outcomes" : "Hide terminal outcomes"}

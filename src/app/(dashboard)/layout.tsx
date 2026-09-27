@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireMember } from "@/lib/auth/access";
 import { visibleNav, WORKSPACE_NAV } from "@/lib/auth/permissions";
 import { entranceBootScript, introCookieName, sidebarCookieName } from "@/lib/ui/entrance";
+import { noticeMask, notificationCookieName, notificationKinds } from "@/lib/settings/preferences";
 
 // Every dashboard page requires an active member. The proxy already sent
 // visitors without a session to /login; non-members go to /access-denied.
@@ -23,10 +24,12 @@ export default async function DashboardLayout({
   const cookieStore = await cookies();
   const collapsed = cookieStore.get(preferenceCookie)?.value === "1";
   const introEnabled = cookieStore.get(introCookieName(access.email))?.value !== "0";
+  const noticePreference = noticeMask(cookieStore.get(notificationCookieName(access.email))?.value);
+  const noticeKinds = notificationKinds(noticePreference);
   // Unread chat messages and notifications (0 until migration 0018 exists).
   const supabase = await createClient();
   const [unread, { data: profile }] = await Promise.all([
-    loadUnreadCounts(supabase, access.email),
+    loadUnreadCounts(supabase, access.email, noticeKinds),
     supabase.from("app_members").select("avatar_path").eq("email", access.email).maybeSingle(),
   ]);
   const avatarUrl = profile?.avatar_path
@@ -34,7 +37,7 @@ export default async function DashboardLayout({
     : null;
 
   return (
-    <UnreadCountsProvider me={access.email} initial={unread}>
+    <UnreadCountsProvider key={`${access.email}:${noticePreference}`} me={access.email} initial={unread} noticeKinds={noticeKinds}>
       <div className="flex h-screen overflow-hidden bg-white">
         {/* Decides before the first paint whether the one-time welcome plays. */}
         <script dangerouslySetInnerHTML={{ __html: entranceBootScript(introEnabled) }} />

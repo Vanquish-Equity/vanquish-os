@@ -147,13 +147,14 @@ export async function loadConversation(supabase: SupabaseClient, id: string) {
   };
 }
 
-export async function loadUnreadCounts(supabase: SupabaseClient, me: string) {
+export async function loadUnreadCounts(supabase: SupabaseClient, me: string, noticeKinds: string[]) {
   const [{ count: notifications, error }, { data: unread }] = await Promise.all([
     supabase
       .from("notifications")
       .select("id", { count: "exact", head: true })
       .eq("recipient_email", me)
-      .is("read_at", null),
+      .is("read_at", null)
+      .in("kind", noticeKinds.length ? noticeKinds : ["__disabled__"]),
     supabase.rpc("chat_unread_counts") as unknown as Promise<{ data: { unread: number }[] | null }>,
   ]);
   if (error) return { notifications: 0, chat: 0, available: false };

@@ -10,7 +10,7 @@ export const WELCOME_COOKIE = "vq_welcome";
 export const WELCOME_MAX_AGE_SECONDS = 120;
 
 // The intro only plays when the first screen is one of these.
-export const INTRO_PATHS = ["/home", "/overview"];
+export const INTRO_PATHS = ["/home", "/overview", "/pipeline"];
 
 // The dashboard server renders this script before the first paint. Keep it
 // outside the client component so it can be called during server rendering.
@@ -55,6 +55,8 @@ export function takeReplayRequest() {
 // One preference for the entrance chime and the interface sounds.
 export const SOUND_STORAGE_KEY = "vq.sounds";
 export const SOUND_VOLUME_STORAGE_KEY = "vq.soundVolume";
+export const WELCOME_SOUND_STORAGE_KEY = "vq.welcomeSound";
+export const INTERFACE_SOUND_STORAGE_KEY = "vq.interfaceSound";
 
 // One sidebar preference per member on this browser. The name is derived
 // from the email so the server can read it before rendering (no flicker)

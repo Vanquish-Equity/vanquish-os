@@ -1,8 +1,10 @@
+import { cookies } from "next/headers";
 import { conversationTitle, type Directory } from "@/lib/chat/format";
 import { commentHref } from "@/lib/comments/format";
 import { contextHref } from "@/lib/comments/context";
 import { dealLabel } from "@/lib/deals/display";
 import { createClient } from "@/lib/supabase/server";
+import { noticeMask, notificationCookieName, notificationKinds } from "@/lib/settings/preferences";
 import {
   describeNotification,
   snippet,
@@ -37,10 +39,12 @@ export async function loadNotifications(
   directory: Directory,
   { unreadOnly = false, limit = 50 }: { unreadOnly?: boolean; limit?: number } = {}
 ): Promise<NotificationView[] | null> {
+  const mask = noticeMask((await cookies()).get(notificationCookieName(me))?.value);
+  const kinds = notificationKinds(mask);
   const select = async (columns: string) => {
     let query = supabase.from("notifications").select(columns).eq("recipient_email", me);
     if (unreadOnly) query = query.is("read_at", null);
-    return (await query.order("created_at", { ascending: false }).limit(limit)) as unknown as {
+    return (await query.in("kind", kinds.length ? kinds : ["__disabled__"]).order("created_at", { ascending: false }).limit(limit)) as unknown as {
       data: NotificationRow[] | null;
       error: { code?: string } | null;
     };

@@ -25,7 +25,39 @@ or removing the photo deletes the previous file after the new path is saved.
 Welcome intro is stored as a member-specific cookie in this browser. Turning
 it off suppresses the intro at the next sign-in; **Replay intro now** still
 works. Sound on/off and volume are saved in this browser's local storage.
-These browser preferences do not sync to other devices.
+These browser preferences do not sync to other devices. All sounds, the intro
+chime and interface sounds have independent switches; volume applies to both.
+
+## Notifications
+
+Members can show or hide assigned tasks, mentions and comment replies, chat
+messages and assigned email drafts independently. The preference is a
+member-specific browser cookie, applied to the inbox, Home, floating panel
+and unread counter. Hidden notifications remain stored; re-enabling a category
+shows its prior notifications again. Chat messages still exist in Chat.
+
+## Workspace preferences
+
+The landing page after sign-in can be Home, Overview or Pipeline; an explicit
+deep link still wins. The Pipeline default can show or hide terminal outcomes;
+its page toggle overrides that default. These choices use member-specific
+browser cookies. Time zone and date order are saved in browser storage and
+currently apply to chat and notification timestamps. Date-only CRM fields keep
+their original dates. None of these preferences is synchronized between
+devices.
+
+## Admin settings
+
+`0023_admin_settings.sql` introduces an Admin permission separate from
+Portfolio and Documents and initially grants it only to Mario. RLS protects
+the member list and ignored-domain list. An admin can activate or deactivate
+other members, assign Portfolio and Documents access, and save or remove
+ignored email domains. Admin cannot deactivate their own account or grant
+the Admin permission through the UI RPC. Ingestion is not connected yet:
+ignored domains are saved for use when email detection is built, and do not
+currently filter email or create companies. All writes are checked again in
+Postgres and cannot be performed directly by regular members or anonymous
+callers.
 
 ## Connected accounts
 
@@ -43,3 +75,5 @@ Run `0001` through `0022` in order on a disposable Postgres database using
 `supabase/tests/member_profiles.sql`. The test rolls back all inserts and
 checks anonymous access, member isolation, folder policy and RPC validation.
 The SQL workflow runs these checks on pull requests.
+It also reapplies `0023` and runs `supabase/tests/admin_settings.sql` in the
+disposable database.

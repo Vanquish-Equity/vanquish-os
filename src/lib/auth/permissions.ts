@@ -2,7 +2,7 @@
 // database, where RLS enforces them; the app uses them to hide and block
 // the same areas. Nothing is granted by default.
 
-export const AREA_PERMISSIONS = ["portfolio", "documents"] as const;
+export const AREA_PERMISSIONS = ["portfolio", "documents", "admin"] as const;
 export type AreaPermission = (typeof AREA_PERMISSIONS)[number];
 
 export type AccessState =

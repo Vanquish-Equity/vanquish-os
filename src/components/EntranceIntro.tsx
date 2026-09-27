@@ -9,6 +9,7 @@ import {
   playEntranceChime,
   setSoundPref,
   useSoundPref,
+  useWelcomeSound,
 } from "@/lib/ui/sound";
 
 // Two moments: the logo (~2.5 s), a short pause, then the cards (~2 s).
@@ -30,6 +31,7 @@ function playing() {
 export default function EntranceIntro() {
   const pathname = usePathname();
   const soundOn = useSoundPref();
+  const welcomeSoundOn = useWelcomeSound();
   const [active, setActive] = useState(false);
   const startPath = useRef<string | null>(null);
   const played = useRef(false);
@@ -93,7 +95,7 @@ export default function EntranceIntro() {
   // Sound: only when enabled, and only if the browser allows it now or the
   // person interacts during the intro. Never blocks or throws.
   useEffect(() => {
-    if (!active || !soundOn || played.current) return;
+    if (!active || !soundOn || !welcomeSoundOn || played.current) return;
     if (audioAllowedNow()) {
       chime();
       return;
@@ -109,7 +111,7 @@ export default function EntranceIntro() {
       window.removeEventListener("pointerdown", onGesture);
       window.removeEventListener("keydown", onGesture);
     };
-  }, [active, soundOn, chime]);
+  }, [active, soundOn, welcomeSoundOn, chime]);
 
   // Leaving the first screen ends the intro.
   useEffect(() => {

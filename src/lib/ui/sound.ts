@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { SOUND_STORAGE_KEY, SOUND_VOLUME_STORAGE_KEY } from "@/lib/ui/entrance";
+import { INTERFACE_SOUND_STORAGE_KEY, SOUND_STORAGE_KEY, SOUND_VOLUME_STORAGE_KEY, WELCOME_SOUND_STORAGE_KEY } from "@/lib/ui/entrance";
 
 // Vanquish OS sounds: the entrance chime and small card-shuffle sounds for
 // hover, click, opening and adding. One preference controls all of them; it
@@ -16,6 +16,7 @@ import { SOUND_STORAGE_KEY, SOUND_VOLUME_STORAGE_KEY } from "@/lib/ui/entrance";
 
 const PREF_EVENT = "vq-sounds";
 const VOLUME_EVENT = "vq-volume";
+const DETAIL_EVENT = "vq-sound-detail";
 
 // Keeps the choice for this page even when localStorage is unavailable.
 let memoryPref: boolean | null = null;
@@ -98,6 +99,34 @@ export function useSoundPref() {
   return useSyncExternalStore(subscribe, soundsEnabled, () => true);
 }
 
+function detailEnabled(key: string) {
+  try { return window.localStorage.getItem(key) !== "off"; } catch { return true; }
+}
+
+function detailSubscribe(callback: () => void) {
+  window.addEventListener(DETAIL_EVENT, callback);
+  window.addEventListener("storage", callback);
+  return () => {
+    window.removeEventListener(DETAIL_EVENT, callback);
+    window.removeEventListener("storage", callback);
+  };
+}
+
+export function setWelcomeSound(on: boolean) {
+  try { window.localStorage.setItem(WELCOME_SOUND_STORAGE_KEY, on ? "on" : "off"); } catch { /* Browser storage blocked */ }
+  window.dispatchEvent(new Event(DETAIL_EVENT));
+}
+export function setInterfaceSound(on: boolean) {
+  try { window.localStorage.setItem(INTERFACE_SOUND_STORAGE_KEY, on ? "on" : "off"); } catch { /* Browser storage blocked */ }
+  window.dispatchEvent(new Event(DETAIL_EVENT));
+}
+export function useWelcomeSound() {
+  return useSyncExternalStore(detailSubscribe, () => detailEnabled(WELCOME_SOUND_STORAGE_KEY), () => true);
+}
+export function useInterfaceSound() {
+  return useSyncExternalStore(detailSubscribe, () => detailEnabled(INTERFACE_SOUND_STORAGE_KEY), () => true);
+}
+
 // True when the browser will let audio start now.
 export function audioAllowedNow() {
   if (typeof navigator === "undefined") return false;
@@ -130,6 +159,7 @@ async function runningContext(): Promise<AudioContext | null> {
 // A short, soft rising chime (~1 s, moderate volume). Returns whether it
 // started; failures are swallowed.
 export async function playEntranceChime(): Promise<boolean> {
+  if (!soundsEnabled() || !detailEnabled(WELCOME_SOUND_STORAGE_KEY)) return false;
   const ctx = await runningContext();
   if (!ctx || !master) return false;
   try {
@@ -206,7 +236,7 @@ const jitter = (value: number, spread: number) => value + (Math.random() * 2 - 1
 const lastPlayed = { hover: 0, press: 0 };
 
 export async function playUiSound(kind: UiSound) {
-  if (!soundsEnabled() || !audioAllowedNow()) return;
+  if (!soundsEnabled() || !detailEnabled(INTERFACE_SOUND_STORAGE_KEY) || !audioAllowedNow()) return;
   const nowMs = performance.now();
   const lane = kind === "hover" ? "hover" : "press";
   if (nowMs - lastPlayed[lane] < (lane === "hover" ? 90 : 40)) return;

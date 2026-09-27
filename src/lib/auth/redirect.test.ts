@@ -13,8 +13,8 @@ describe("safeNextPath", () => {
     );
   });
 
-  it("falls back to Home when missing", () => {
-    expect(DEFAULT_AFTER_LOGIN).toBe("/home");
+  it("falls back to the member's entry point when missing", () => {
+    expect(DEFAULT_AFTER_LOGIN).toBe("/");
     expect(safeNextPath(null)).toBe(DEFAULT_AFTER_LOGIN);
     expect(safeNextPath("")).toBe(DEFAULT_AFTER_LOGIN);
   });
