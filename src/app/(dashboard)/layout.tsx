@@ -3,6 +3,7 @@ import EntranceIntro, { ENTRANCE_BOOT_SCRIPT } from "@/components/EntranceIntro"
 import Sidebar from "@/components/Sidebar";
 import UiSounds from "@/components/UiSounds";
 import UnreadCountsProvider from "@/components/UnreadCounts";
+import WorkspaceTopBar from "@/components/WorkspaceTopBar";
 import { loadUnreadCounts } from "@/lib/chat/queries";
 import { createClient } from "@/lib/supabase/server";
 import { requireMember } from "@/lib/auth/access";
@@ -42,7 +43,10 @@ export default async function DashboardLayout({
               badge,
             }))}
         />
-        <main className="min-w-0 flex-1 overflow-auto">{children}</main>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <WorkspaceTopBar />
+          <main className="min-h-0 min-w-0 flex-1 overflow-auto">{children}</main>
+        </div>
       </div>
     </UnreadCountsProvider>
   );

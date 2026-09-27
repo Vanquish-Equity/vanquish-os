@@ -13,7 +13,8 @@ external contacts. Comments on Company and Deal pages are a later stage.
 | `/chat/new` | *Direct message* (one other active member; reopening returns the same conversation) or *Group* (a name and at least two other active members). |
 | `/chat/<id>` | Messages with author and local time, day separators, `@` mentions highlighted. Enter sends, Shift+Enter adds a line. Groups have a *Members* panel to add members or leave. |
 | Sidebar → **Notifications** (`/notifications`) | *Unread* and *All*. Badge on the icon = unread notifications. *Mark all as read*. |
-| Home | *Notices for you* shows the latest notifications (same inbox, no duplicates); bell and chat links with counts in the header; *New message* quick action. |
+| Home | *Notices for you* shows the latest notifications (same inbox, no duplicates); a chat link with its count in the header; *New message* quick action. |
+| Top bar (every page except Chat and Notifications) | The bell with the unread count; it opens a floating panel with recent notifications and *View all* (see [`comments.md`](comments.md#notification-bell)). |
 
 On phones the chat shows one pane at a time (list at `/chat`, the
 conversation with a back link at `/chat/<id>`).

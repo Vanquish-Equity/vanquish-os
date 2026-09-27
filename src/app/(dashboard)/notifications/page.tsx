@@ -1,5 +1,6 @@
 import Link from "next/link";
 import NotificationList from "@/components/NotificationList";
+import RefreshOnUnreadChange from "@/components/RefreshOnUnreadChange";
 import { requireMember } from "@/lib/auth/access";
 import { loadDirectory } from "@/lib/chat/queries";
 import { loadNotifications } from "@/lib/notifications/queries";
@@ -28,6 +29,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
           Direct messages, @mentions, group messages, and tasks or email drafts assigned to you.
         </p>
       </header>
+      <RefreshOnUnreadChange />
       <nav aria-label="Notification views" className="flex gap-2">
         <Link href="/notifications" className={tab(unreadOnly)} aria-current={unreadOnly ? "page" : undefined}>
           Unread

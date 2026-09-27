@@ -1,7 +1,7 @@
 import Link from "next/link";
 import HomeGreeting from "@/components/home/HomeGreeting";
 import HomeInboxLinks from "@/components/home/HomeInboxLinks";
-import HomeNotificationsRefresh from "@/components/home/HomeNotificationsRefresh";
+import RefreshOnUnreadChange from "@/components/RefreshOnUnreadChange";
 import MyTasksCard from "@/components/home/MyTasksCard";
 import NavIcon, { type IconName } from "@/components/NavIcon";
 import NotificationList from "@/components/NotificationList";
@@ -136,7 +136,7 @@ export default async function HomePage() {
           </div>
           {notifications !== null ? (
             <>
-              <HomeNotificationsRefresh />
+              <RefreshOnUnreadChange />
               {notifications.length === 0 ? (
                 <div className="text-[12.5px] text-neutral-500">
                   <p className="font-semibold text-ink">No notifications yet.</p>

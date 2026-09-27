@@ -14,6 +14,8 @@ const ICONS: Record<NotificationKind, IconName> = {
   chat_group: "chat",
   task_assigned: "tasks",
   draft_assigned: "communications",
+  comment_mention: "comment",
+  comment_reply: "comment",
 };
 
 // Opening a notification marks it read and goes to its destination (the
@@ -23,10 +25,13 @@ export default function NotificationList({
   items,
   showMarkAll = false,
   compact = false,
+  onOpen,
 }: {
   items: NotificationView[];
   showMarkAll?: boolean;
   compact?: boolean;
+  // Called after a notification was opened (the bell panel closes itself).
+  onOpen?: () => void;
 }) {
   const router = useRouter();
   const unread = useUnreadCounts();
@@ -36,7 +41,11 @@ export default function NotificationList({
     startTransition(async () => {
       if (item.unread) await markNotificationReadAction(item.id);
       unread.refresh();
+      onOpen?.();
       router.push(item.href);
+      // Client navigation does not fire hashchange; pages that react to
+      // #comment-<id> / #task-<id> listen for it.
+      if (item.href.includes("#")) window.setTimeout(() => window.dispatchEvent(new HashChangeEvent("hashchange")), 150);
     });
   }
 

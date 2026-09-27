@@ -2,9 +2,17 @@ import { memberName, type Directory } from "../chat/format";
 
 // Text and destination for an in-app notification. Everything shown comes
 // from rows the recipient can read under RLS: the message (only while they
-// are still a participant), the task or the draft. Nothing else is copied.
+// are still a participant), the task, the draft or the comment (only while
+// they can read its Company / Deal). Nothing else is copied.
 
-export type NotificationKind = "chat_direct" | "chat_mention" | "chat_group" | "task_assigned" | "draft_assigned";
+export type NotificationKind =
+  | "chat_direct"
+  | "chat_mention"
+  | "chat_group"
+  | "task_assigned"
+  | "draft_assigned"
+  | "comment_mention"
+  | "comment_reply";
 
 export type NotificationRow = {
   id: string;
@@ -14,6 +22,8 @@ export type NotificationRow = {
   message_id: string | null;
   task_id: string | null;
   draft_id: string | null;
+  // Migration 0019; absent before it.
+  comment_id?: string | null;
   created_at: string;
   read_at: string | null;
 };
@@ -24,6 +34,8 @@ export type NotificationContext = {
   messageSnippets: Map<string, string>;
   taskTitles: Map<string, string>;
   draftSubjects: Map<string, string>;
+  // Comment id -> where it lives and its text (from 0019, under RLS).
+  comments?: Map<string, { record: string; href: string; snippet: string }>;
 };
 
 export type NotificationView = {
@@ -61,6 +73,23 @@ export function describeNotification(row: NotificationRow, context: Notification
         title: `${actor} assigned you a task`,
         snippet: title ?? null,
         href: `/tasks?view=mine#task-${row.task_id}`,
+      };
+    }
+    case "comment_mention":
+    case "comment_reply": {
+      const comment = row.comment_id ? context.comments?.get(row.comment_id) : undefined;
+      const record = comment?.record ?? "a record";
+      const withTask = row.kind === "comment_mention" && row.task_id;
+      return {
+        ...base,
+        title:
+          row.kind === "comment_reply"
+            ? `${actor} replied to your comment on ${record}`
+            : withTask
+              ? `${actor} mentioned you and assigned you a task on ${record}`
+              : `${actor} mentioned you on ${record}`,
+        snippet: comment?.snippet ?? null,
+        href: comment?.href ?? "/notifications",
       };
     }
     case "draft_assigned": {

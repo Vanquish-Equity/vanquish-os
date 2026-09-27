@@ -52,6 +52,10 @@ Run the migration files in order in the Supabase SQL Editor:
     in-app notification inbox (messages, mentions, task and draft
     assignments). Requires `0016` and `0017`. See
     [`docs/chat.md`](docs/chat.md).
+14. `0019_record_comments.sql` - internal comments and replies on Company
+    and Deal pages with explicit @mentions, author-only edit and soft
+    delete, tasks created from a comment, and comment notices in the same
+    inbox. Requires `0018`. See [`docs/comments.md`](docs/comments.md).
 15. `0020_lp_recipient_fk_order.sql` - makes deleting a contact that is an
     email draft recipient independent of trigger order (the recipient
     foreign keys are checked at commit). Requires `0016`. See
@@ -125,8 +129,9 @@ For database verification, run `0001` through latest against a fresh local
 Supabase project, then run `supabase/tests/access_control.sql`,
 `supabase/tests/lp_communications.sql`,
 `supabase/tests/task_assignees.sql`,
-`supabase/tests/chat_notifications.sql` and
-`supabase/tests/lp_recipient_fk_order.sql` (never against production). If the Supabase CLI is unavailable, use a local Postgres
+`supabase/tests/chat_notifications.sql`,
+`supabase/tests/lp_recipient_fk_order.sql` and
+`supabase/tests/record_comments.sql` (never against production). If the Supabase CLI is unavailable, use a local Postgres
 database with minimal `auth.role()` and `storage` schema stubs, then re-run the
 new migrations a second time to confirm they are re-runnable.
 

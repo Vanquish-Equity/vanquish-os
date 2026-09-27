@@ -1,4 +1,6 @@
 import { conversationTitle, type Directory } from "@/lib/chat/format";
+import { commentHref } from "@/lib/comments/format";
+import { dealLabel } from "@/lib/deals/display";
 import { createClient } from "@/lib/supabase/server";
 import {
   describeNotification,
@@ -9,7 +11,18 @@ import {
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
-const COLUMNS = "id,kind,actor_email,conversation_id,message_id,task_id,draft_id,created_at,read_at";
+type CommentRow = {
+  id: string;
+  company_id: string;
+  deal_id: string | null;
+  body: string;
+  company: { name: string } | null;
+  deal: { name: string; round: string | null; first_seen_at: string | null; created_at: string } | null;
+};
+
+const BASE_COLUMNS = "id,kind,actor_email,conversation_id,message_id,task_id,draft_id,created_at,read_at";
+// comment_id exists from migration 0019 on.
+const COLUMNS = `${BASE_COLUMNS},comment_id`;
 
 // The recipient's notifications, described with data they can read now.
 // RLS hides chat notifications of conversations they no longer take part
@@ -20,12 +33,16 @@ export async function loadNotifications(
   directory: Directory,
   { unreadOnly = false, limit = 50 }: { unreadOnly?: boolean; limit?: number } = {}
 ): Promise<NotificationView[] | null> {
-  let query = supabase.from("notifications").select(COLUMNS).eq("recipient_email", me);
-  if (unreadOnly) query = query.is("read_at", null);
-  const { data, error } = (await query.order("created_at", { ascending: false }).limit(limit)) as unknown as {
-    data: NotificationRow[] | null;
-    error: { code?: string } | null;
+  const select = async (columns: string) => {
+    let query = supabase.from("notifications").select(columns).eq("recipient_email", me);
+    if (unreadOnly) query = query.is("read_at", null);
+    return (await query.order("created_at", { ascending: false }).limit(limit)) as unknown as {
+      data: NotificationRow[] | null;
+      error: { code?: string } | null;
+    };
   };
+  let { data, error } = await select(COLUMNS);
+  if (error?.code === "42703") ({ data, error } = await select(BASE_COLUMNS));
   if (error) return null;
   const rows = data ?? [];
 
@@ -34,9 +51,10 @@ export async function loadNotifications(
   const messageIds = ids("message_id");
   const taskIds = ids("task_id");
   const draftIds = ids("draft_id");
+  const commentIds = ids("comment_id");
   const none = Promise.resolve({ data: [] });
 
-  const [conversations, messages, tasks, drafts] = await Promise.all([
+  const [conversations, messages, tasks, drafts, comments] = await Promise.all([
     conversationIds.length
       ? supabase
           .from("chat_conversations")
@@ -46,11 +64,18 @@ export async function loadNotifications(
     messageIds.length ? supabase.from("chat_messages").select("id,body").in("id", messageIds) : none,
     taskIds.length ? supabase.from("tasks").select("id,title").in("id", taskIds) : none,
     draftIds.length ? supabase.from("email_drafts").select("id,subject").in("id", draftIds) : none,
+    commentIds.length
+      ? supabase
+          .from("record_comments")
+          .select("id,company_id,deal_id,body,company:companies(name),deal:deals(name,round,first_seen_at,created_at)")
+          .in("id", commentIds)
+      : none,
   ]) as unknown as [
     { data: { id: string; kind: "direct" | "group"; title: string | null; participants: { member_email: string; left_at: string | null }[] }[] | null },
     { data: { id: string; body: string }[] | null },
     { data: { id: string; title: string }[] | null },
     { data: { id: string; subject: string }[] | null },
+    { data: CommentRow[] | null },
   ];
 
   const context = {
@@ -68,6 +93,24 @@ export async function loadNotifications(
     messageSnippets: new Map((messages.data ?? []).map((m) => [m.id, snippet(m.body)])),
     taskTitles: new Map((tasks.data ?? []).map((t) => [t.id, t.title])),
     draftSubjects: new Map((drafts.data ?? []).map((d) => [d.id, d.subject])),
+    comments: new Map(
+      (comments.data ?? []).map((c) => [
+        c.id,
+        {
+          record: c.deal
+            ? dealLabel({
+                name: c.deal.name,
+                round: c.deal.round,
+                companyName: c.company?.name,
+                firstSeenAt: c.deal.first_seen_at,
+                createdAt: c.deal.created_at,
+              })
+            : c.company?.name ?? "a company",
+          href: commentHref(c.company_id, c.deal_id, c.id),
+          snippet: snippet(c.body),
+        },
+      ])
+    ),
   };
 
   return rows.map((row) => describeNotification(row, context));

@@ -9,6 +9,7 @@ const context = {
   messageSnippets: new Map([["m1", "@Pedro revisá el memo"]]),
   taskTitles: new Map([["t1", "Call LP"]]),
   draftSubjects: new Map([["d1", "Q3 update"]]),
+  comments: new Map([["k1", { record: "Acme · Seed", href: "/companies/co/deals/de#comment-k1", snippet: "@Pedro send the memo" }]]),
 };
 const row = (patch: Partial<NotificationRow>): NotificationRow => ({
   id: "n1", kind: "chat_direct", actor_email: "marios@vanquishequity.com", conversation_id: null, message_id: null,
@@ -27,7 +28,25 @@ describe("describeNotification", () => {
     expect(describeNotification(row({ kind: "draft_assigned", draft_id: "d1" }), context).href).toBe("/communications/d1");
   });
 
+  it("links comment notices to the exact comment", () => {
+    expect(describeNotification(row({ kind: "comment_mention", comment_id: "k1" }), context)).toMatchObject({
+      title: "Mario mentioned you on Acme · Seed",
+      snippet: "@Pedro send the memo",
+      href: "/companies/co/deals/de#comment-k1",
+    });
+    expect(describeNotification(row({ kind: "comment_mention", comment_id: "k1", task_id: "t9" }), context).title).toBe(
+      "Mario mentioned you and assigned you a task on Acme · Seed"
+    );
+    expect(describeNotification(row({ kind: "comment_reply", comment_id: "k1" }), context).title).toBe(
+      "Mario replied to your comment on Acme · Seed"
+    );
+  });
+
   it("shows no text it could not read", () => {
+    expect(describeNotification(row({ kind: "comment_mention", comment_id: "k2" }), context)).toMatchObject({
+      snippet: null,
+      title: "Mario mentioned you on a record",
+    });
     const view = describeNotification(row({ kind: "chat_direct", conversation_id: "c2", message_id: "m2" }), context);
     expect(view.snippet).toBeNull();
   });
