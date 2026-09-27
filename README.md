@@ -47,6 +47,11 @@ Run the migration files in order in the Supabase SQL Editor:
     (`assignee_email`, `assigned_by`, `assigned_at`) used by Home's
     My tasks. `tasks.owner` stays a free-text note. See
     [`docs/home.md`](docs/home.md).
+13. `0018_chat_notifications.sql` - internal chat (direct and group
+    conversations between members, explicit @mentions, read state) and the
+    in-app notification inbox (messages, mentions, task and draft
+    assignments). Requires `0016` and `0017`. See
+    [`docs/chat.md`](docs/chat.md).
 
 Sign-in (Google, email link) and member-scoped RLS are enforced from `0015`
 on; the temporary anon policies of `0003`-`0014` are dropped there. See
@@ -114,8 +119,9 @@ npm run build
 
 For database verification, run `0001` through latest against a fresh local
 Supabase project, then run `supabase/tests/access_control.sql`,
-`supabase/tests/lp_communications.sql` and
-`supabase/tests/task_assignees.sql` (never against production). If the Supabase CLI is unavailable, use a local Postgres
+`supabase/tests/lp_communications.sql`,
+`supabase/tests/task_assignees.sql` and
+`supabase/tests/chat_notifications.sql` (never against production). If the Supabase CLI is unavailable, use a local Postgres
 database with minimal `auth.role()` and `storage` schema stubs, then re-run the
 new migrations a second time to confirm they are re-runnable.
 

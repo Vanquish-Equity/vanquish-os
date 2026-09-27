@@ -1,11 +1,16 @@
 import Link from "next/link";
 import HomeGreeting from "@/components/home/HomeGreeting";
+import HomeInboxLinks from "@/components/home/HomeInboxLinks";
+import HomeNotificationsRefresh from "@/components/home/HomeNotificationsRefresh";
 import MyTasksCard from "@/components/home/MyTasksCard";
 import NavIcon, { type IconName } from "@/components/NavIcon";
+import NotificationList from "@/components/NotificationList";
 import RelativeTime from "@/components/RelativeTime";
 import { requireMember } from "@/lib/auth/access";
 import { can } from "@/lib/auth/permissions";
+import { loadDirectory } from "@/lib/chat/queries";
 import { loadHomeData } from "@/lib/home/data";
+import { loadNotifications } from "@/lib/notifications/queries";
 import { startDevPageTimer } from "@/lib/performance";
 import { createClient } from "@/lib/supabase/server";
 import { greetingName, introCard } from "@/lib/ui/entrance";
@@ -20,12 +25,22 @@ export default async function HomePage() {
   const canPortfolio = can(access, "portfolio");
   const supabase = await createClient();
   const endTimer = startDevPageTimer("page:data:home");
-  const data = await loadHomeData(supabase, { email: access.email, canDocuments, canPortfolio });
+  const [data, directory] = await Promise.all([
+    loadHomeData(supabase, { email: access.email, canDocuments, canPortfolio }),
+    loadDirectory(supabase),
+  ]);
+  // With migration 0018 the notices come from the notifications inbox; the
+  // notices derived from tasks and drafts are only the fallback without it,
+  // so an event never shows twice.
+  const notifications = await loadNotifications(supabase, access.email, directory, { limit: 6 });
   endTimer();
 
   const name = greetingName(access.displayName, access.providerName);
 
   const quickActions: { href: string; label: string; detail: string; icon: IconName }[] = [
+    ...(notifications !== null
+      ? [{ href: "/chat/new", label: "New message", detail: "Chat with a member or a group", icon: "chat" as IconName }]
+      : []),
     { href: "/tasks?new=1", label: "New task", detail: "Assign a follow-up", icon: "tasks" },
     { href: "/communications/new", label: "New email draft", detail: "Prepare a message to potential LPs", icon: "communications" },
     { href: "/pipeline", label: "Pipeline", detail: "Deals by stage", icon: "pipeline" },
@@ -47,12 +62,15 @@ export default async function HomePage() {
           <HomeGreeting name={name} />
           <p className="mt-1 text-[13px] text-neutral-500">What needs your attention today.</p>
         </div>
-        <Link
-          href="/overview"
-          className="rounded-full border border-neutral-200 px-3.5 py-2 text-[12px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
-        >
-          How Vanquish is doing →
-        </Link>
+        <div className="flex items-center gap-2">
+          <HomeInboxLinks />
+          <Link
+            href="/overview"
+            className="rounded-full border border-neutral-200 px-3.5 py-2 text-[12px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
+          >
+            How Vanquish is doing →
+          </Link>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2 xl:grid-cols-[1.2fr_1fr]">
@@ -106,10 +124,32 @@ export default async function HomePage() {
         </section>
 
         <section aria-labelledby="home-notices" className={card} style={introCard(2)}>
-          <h2 id="home-notices" className="mb-3 text-[14.5px] font-semibold text-ink">
-            Notices for you
-          </h2>
-          {data.notices.length === 0 ? (
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 id="home-notices" className="text-[14.5px] font-semibold text-ink">
+              Notices for you
+            </h2>
+            {notifications !== null && (
+              <Link href="/notifications" className="text-[11.5px] font-semibold text-cyan-700 hover:underline">
+                All notifications
+              </Link>
+            )}
+          </div>
+          {notifications !== null ? (
+            <>
+              <HomeNotificationsRefresh />
+              {notifications.length === 0 ? (
+                <div className="text-[12.5px] text-neutral-500">
+                  <p className="font-semibold text-ink">No notifications yet.</p>
+                  <p className="mt-1">
+                    Direct messages, @mentions, group messages, and tasks or email drafts assigned to you appear here.
+                    Only events from Vanquish OS appear; email accounts are not connected.
+                  </p>
+                </div>
+              ) : (
+                <NotificationList items={notifications} compact />
+              )}
+            </>
+          ) : data.notices.length === 0 ? (
             <div className="text-[12.5px] text-neutral-500">
               <p className="font-semibold text-ink">No new notices.</p>
               <p className="mt-1">

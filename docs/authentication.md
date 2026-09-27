@@ -17,6 +17,7 @@ does **not** grant access by itself.
 | Database (migration `0015`) | Every policy on `public` tables was replaced. `anon` has no table privileges. Members read and write CRM tables; `documents`, `document_requirements`, document and portfolio activity, and all portfolio tables require the permission. Members can read only their own membership rows and cannot write them. |
 | Storage | The private `documents` bucket follows the `documents` permission for select (download / signed URLs), insert, update and delete. |
 | Communications (migration `0016`) | Potential LPs and email drafts are member-only. Drafts are readable by members and changeable only by their creator and their responsible (an active member). See [`communications.md`](communications.md). |
+| Chat and notifications (migration `0018`) | Conversations, participants, messages and mentions are readable only by active participants; all writes go through checked `SECURITY DEFINER` functions. Notifications are readable only by their recipient (chat ones only while still a participant) and only `read_at` can change. See [`chat.md`](chat.md). |
 
 Helper functions live in the `private` schema, which the Data API does not
 expose. They are `SECURITY DEFINER` with an empty `search_path` and only

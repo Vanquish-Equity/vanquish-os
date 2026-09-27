@@ -15,7 +15,7 @@ const INTERACTIVE =
   'a[href], button:not(:disabled), [role="button"], [role="option"], [role="tab"], [role="checkbox"], [role="menuitem"], summary, select, input[type="checkbox"], input[type="radio"]';
 const HOVERABLE = `${INTERACTIVE}, .vq-card`;
 
-const ADD_WORDS = /^(\+|new\b|add\b|create\b|save\b|import\b|log\b|mark\b|restore\b|assign\b)/;
+const ADD_WORDS = /^(\+|new\b|add\b|create\b|save\b|import\b|log\b|mark\b|restore\b|assign\b|send\b)/;
 const OPEN_WORDS = /^(open\b|edit\b|view\b|replay\b|show\b|choose\b)/;
 
 function labelOf(el: Element) {

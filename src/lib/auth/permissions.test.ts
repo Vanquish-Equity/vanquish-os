@@ -41,8 +41,9 @@ describe("area permissions", () => {
     expect(marioNav).toContain("Portfolio");
   });
 
-  it("starts with Home, then Overview, and gives every item an icon", () => {
-    expect(WORKSPACE_NAV.slice(0, 2).map((item) => item.href)).toEqual(["/home", "/overview"]);
+  it("starts with Home, the inbox and Chat, then Overview, and gives every item an icon", () => {
+    expect(WORKSPACE_NAV.slice(0, 4).map((item) => item.href)).toEqual(["/home", "/notifications", "/chat", "/overview"]);
+    expect(WORKSPACE_NAV.filter((item) => item.badge).map((item) => item.badge)).toEqual(["notifications", "chat"]);
     expect(WORKSPACE_NAV.every((item) => Boolean(item.icon))).toBe(true);
   });
 });

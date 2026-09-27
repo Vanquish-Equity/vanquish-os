@@ -7,6 +7,8 @@ import { dealHref } from "@/lib/deals/scope";
 import type { Member } from "@/lib/communications/drafts";
 import { formatExactDate } from "@/lib/dates";
 import { localToday } from "@/lib/home/buckets";
+import { useUnreadCounts } from "@/components/UnreadCounts";
+import { markTaskNotificationsReadAction } from "@/lib/notifications/actions";
 import { deleteTaskAction, setTaskStatusAction, updateTaskAction } from "@/lib/tasks/actions";
 
 export type TaskItem = {
@@ -64,19 +66,27 @@ export default function TaskRow({
   const [dueAt, setDueAt] = useState(task.dueAt ?? "");
   const [priorityId, setPriorityId] = useState(task.priorityId ?? "");
   const rowRef = useRef<HTMLDivElement | null>(null);
+  const unread = useUnreadCounts();
   const done = status === "done";
 
   // Opened from a link to this task (e.g. Home → /tasks#task-<id>): bring it
   // into view and highlight it briefly. Client navigation does not update
-  // CSS :target, so this is done here.
+  // CSS :target, so this is done here. It also marks the viewer's
+  // notifications about this task as read.
+  const { available: inboxAvailable, refresh: refreshUnread } = unread;
   useEffect(() => {
     const row = rowRef.current;
     if (!row || window.location.hash !== `#task-${task.id}`) return;
     row.scrollIntoView({ block: "center" });
     row.dataset.targeted = "true";
+    if (inboxAvailable) {
+      void markTaskNotificationsReadAction(task.id).then((result) => {
+        if (result.ok) refreshUnread();
+      });
+    }
     const timer = window.setTimeout(() => delete row.dataset.targeted, 2000);
     return () => window.clearTimeout(timer);
-  }, [task.id]);
+  }, [task.id, inboxAvailable, refreshUnread]);
   const today = useSyncExternalStore(noSubscribe, () => localToday(), () => null);
   const overdue = isOverdue(task.dueAt, status, today);
 
