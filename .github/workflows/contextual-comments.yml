@@ -1,0 +1,42 @@
+name: Contextual comments database checks
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/tests/**'
+      - '.github/workflows/contextual-comments.yml'
+jobs:
+  sql:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: vanquish_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d vanquish_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: vanquish_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply migrations twice and test access
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/local_bootstrap.sql
+          for n in $(seq -w 1 21); do
+            file=$(find supabase/migrations -maxdepth 1 -name "00${n}_*.sql" -print -quit)
+            if [[ -z "$file" ]]; then echo "Missing migration 00${n}"; exit 1; fi
+            psql -v ON_ERROR_STOP=1 -f "$file" > /dev/null
+          done
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/0021_contextual_comments.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/contextual_comments.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/record_comments.sql > /dev/null

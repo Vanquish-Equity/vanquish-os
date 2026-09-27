@@ -417,6 +417,8 @@ export default function CompaniesExplorer({
               {rows.map((company) => (
                 <tr
                   key={company.id}
+                  data-comment-anchor={`company:${company.id}`}
+                  data-comment-label={company.name}
                   role="link"
                   tabIndex={0}
                   onClick={() => router.push(`/companies/${company.id}`)}
@@ -457,6 +459,8 @@ export default function CompaniesExplorer({
             <Link
               key={company.id}
               href={`/companies/${company.id}`}
+              data-comment-anchor={`company:${company.id}`}
+              data-comment-label={company.name}
               className="vq-card rounded-[14px] bg-white p-4"
             >
               <div className="mb-2 flex items-start justify-between gap-3">

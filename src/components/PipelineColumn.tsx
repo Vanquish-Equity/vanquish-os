@@ -56,6 +56,8 @@ function DealCard({
   return (
     <Link
       ref={setNodeRef}
+      data-comment-anchor={`deal:${deal.id}`}
+      data-comment-label={deal.name}
       href={deal.company ? dealHref(deal.company.id, deal.id) : "/pipeline"}
       style={style}
       className={`vq-card block rounded-xl bg-white p-3.5 ${

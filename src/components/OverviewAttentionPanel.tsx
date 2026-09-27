@@ -137,6 +137,8 @@ export default function OverviewAttentionPanel({
   return (
     <>
       <div
+        data-comment-anchor="needs-attention"
+        data-comment-label="Needs attention"
         className={`vq-card-static rounded-[14px] bg-white p-5 ${introIndex === undefined ? "" : "vq-intro-card"}`}
         style={introIndex === undefined ? undefined : introCard(introIndex)}
       >

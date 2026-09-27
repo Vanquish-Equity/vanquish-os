@@ -1,5 +1,6 @@
 import { conversationTitle, type Directory } from "@/lib/chat/format";
 import { commentHref } from "@/lib/comments/format";
+import { contextHref } from "@/lib/comments/context";
 import { dealLabel } from "@/lib/deals/display";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -13,8 +14,11 @@ type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 type CommentRow = {
   id: string;
-  company_id: string;
+  company_id: string | null;
   deal_id: string | null;
+  page_key?: string | null;
+  target_key?: string | null;
+  target_label?: string | null;
   body: string;
   company: { name: string } | null;
   deal: { name: string; round: string | null; first_seen_at: string | null; created_at: string } | null;
@@ -54,7 +58,7 @@ export async function loadNotifications(
   const commentIds = ids("comment_id");
   const none = Promise.resolve({ data: [] });
 
-  const [conversations, messages, tasks, drafts, comments] = await Promise.all([
+  const [conversations, messages, tasks, drafts, commentsResult] = await Promise.all([
     conversationIds.length
       ? supabase
           .from("chat_conversations")
@@ -67,7 +71,7 @@ export async function loadNotifications(
     commentIds.length
       ? supabase
           .from("record_comments")
-          .select("id,company_id,deal_id,body,company:companies(name),deal:deals(name,round,first_seen_at,created_at)")
+          .select("id,company_id,deal_id,page_key,target_key,target_label,body,company:companies(name),deal:deals(name,round,first_seen_at,created_at)")
           .in("id", commentIds)
       : none,
   ]) as unknown as [
@@ -75,8 +79,15 @@ export async function loadNotifications(
     { data: { id: string; body: string }[] | null },
     { data: { id: string; title: string }[] | null },
     { data: { id: string; subject: string }[] | null },
-    { data: CommentRow[] | null },
+    { data: CommentRow[] | null; error?: { code?: string } | null },
   ];
+
+  // During a rolling deploy the application can run before migration 0021.
+  const comments = commentsResult.error?.code === "42703" && commentIds.length
+    ? await supabase.from("record_comments")
+        .select("id,company_id,deal_id,body,company:companies(name),deal:deals(name,round,first_seen_at,created_at)")
+        .in("id", commentIds) as unknown as { data: CommentRow[] | null }
+    : commentsResult;
 
   const context = {
     directory,
@@ -97,7 +108,9 @@ export async function loadNotifications(
       (comments.data ?? []).map((c) => [
         c.id,
         {
-          record: c.deal
+          record: c.page_key
+            ? c.target_label || c.page_key.charAt(0).toUpperCase() + c.page_key.slice(1)
+            : c.deal
             ? dealLabel({
                 name: c.deal.name,
                 round: c.deal.round,
@@ -106,7 +119,11 @@ export async function loadNotifications(
                 createdAt: c.deal.created_at,
               })
             : c.company?.name ?? "a company",
-          href: commentHref(c.company_id, c.deal_id, c.id),
+          href: c.page_key
+            ? contextHref({ page: c.page_key, companyId: null, dealId: null }, c.id)
+            : c.target_key
+              ? contextHref({ page: null, companyId: c.company_id, dealId: c.deal_id }, c.id)
+              : commentHref(c.company_id!, c.deal_id, c.id),
           snippet: snippet(c.body),
         },
       ])
