@@ -4,10 +4,10 @@ import Link from "next/link";
 import NavIcon from "@/components/NavIcon";
 import { useUnreadCounts } from "@/components/UnreadCounts";
 
-// Bell and chat shortcuts in the Home header, with live unread counts.
-// Hidden until migration 0018 is applied.
+// Chat shortcut in the Home header, with the live unread count (the bell is
+// in the shared top bar). Hidden until migration 0018 is applied.
 export default function HomeInboxLinks() {
-  const { notifications, chat, available } = useUnreadCounts();
+  const { chat, available } = useUnreadCounts();
   if (!available) return null;
 
   const link =
@@ -22,19 +22,6 @@ export default function HomeInboxLinks() {
         {chat > 0 && (
           <span aria-hidden="true" className={badge}>
             {chat > 99 ? "99+" : chat}
-          </span>
-        )}
-      </Link>
-      <Link
-        href="/notifications"
-        className={link}
-        aria-label={`Notifications${notifications ? ` (${notifications} unread)` : ""}`}
-        data-home-link="notifications"
-      >
-        <NavIcon name="bell" className="h-4 w-4" />
-        {notifications > 0 && (
-          <span aria-hidden="true" className={badge} data-home-badge="notifications">
-            {notifications > 99 ? "99+" : notifications}
           </span>
         )}
       </Link>

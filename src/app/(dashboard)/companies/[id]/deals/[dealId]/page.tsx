@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { getAccess, hasPermission } from "@/lib/auth/access";
 import { loadAssignableMembers } from "@/lib/communications/queries";
+import CommentsSection from "@/components/comments/CommentsSection";
+import { loadDirectory } from "@/lib/chat/queries";
+import { loadComments } from "@/lib/comments/queries";
 import { selectTasksWithAssignee } from "@/lib/tasks/queries";
 import { notFound } from "next/navigation";
 import ArchiveDealButton from "@/components/ArchiveDealButton";
@@ -207,6 +210,8 @@ export default async function DealDetailPage({
   const currentUserEmail = access.status === "member" ? access.email : undefined;
   const supabase = await createClient();
   const endTimer = startDevPageTimer(`page:data:deal:${dealId}`);
+  // This deal's comments (null until migration 0019 is applied).
+  const commentsPromise = Promise.all([loadComments(supabase, companyId, dealId), loadDirectory(supabase)]);
 
   const [
     { data: deal },
@@ -325,6 +330,7 @@ export default async function DealDetailPage({
 
   if (!deal || !deal.company) notFound();
   const company = deal.company;
+  const [comments, commentDirectory] = await commentsPromise;
   const taskRows = taskResult.data;
 
   // Activity on this deal's own tasks, documents and checklist items.
@@ -592,6 +598,7 @@ export default async function DealDetailPage({
           ["deal-overview", "Deal overview"],
           ...(canDocuments ? [["due-diligence", "Due diligence"]] : []),
           ["tasks", "Tasks"],
+          ...(comments ? [["comments", "Comments"]] : []),
           ...(canDocuments ? [["documents", "Documents"]] : []),
           ["activity", "Activity"],
         ].map(([href, label]) => (
@@ -832,6 +839,20 @@ export default async function DealDetailPage({
           ))
         )}
       </section>
+
+      {comments && currentUserEmail && (
+        <section id="comments" className="vq-card-static rounded-[14px] bg-white scroll-mt-16">
+          <CommentsSection
+            companyId={company.id}
+            dealId={deal.id}
+            recordLabel={label}
+            me={currentUserEmail}
+            comments={comments}
+            directory={[...commentDirectory.values()]}
+            readOnlyReason={isArchived ? "This deal is archived. Restore it to add comments." : null}
+          />
+        </section>
+      )}
 
       {canDocuments && <section id="documents" className="grid grid-cols-2 gap-3.5 scroll-mt-16">
         {isArchived ? (

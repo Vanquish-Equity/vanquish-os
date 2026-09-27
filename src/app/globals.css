@@ -411,6 +411,26 @@ html[data-vq-intro="play"] .vq-intro-card::before {
   }
 }
 
+/* Comments reached from a notification (#comment-<id>) are highlighted.
+   The margin keeps them clear of the sticky section navigation. */
+.vq-comment {
+  scroll-margin-top: 72px;
+}
+.vq-comment[data-targeted="true"] {
+  animation: vq-comment-target 2.4s ease-out;
+}
+
+@keyframes vq-comment-target {
+  from {
+    background-color: rgb(0 194 209 / 0.16);
+    box-shadow: 0 0 0 2px rgb(0 194 209 / 0.35);
+  }
+  to {
+    background-color: transparent;
+    box-shadow: 0 0 0 2px transparent;
+  }
+}
+
 /* Task rows reached from Home (#task-<id>) are highlighted briefly. */
 .vq-task-row:target,
 .vq-task-row[data-targeted="true"] {

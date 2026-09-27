@@ -1,5 +1,8 @@
 import Link from "next/link";
-import { hasPermission } from "@/lib/auth/access";
+import { hasPermission, requireMember } from "@/lib/auth/access";
+import CommentsSection from "@/components/comments/CommentsSection";
+import { loadDirectory } from "@/lib/chat/queries";
+import { loadComments } from "@/lib/comments/queries";
 import { notFound } from "next/navigation";
 import CompanyOverviewCard from "@/components/CompanyOverviewCard";
 import DocumentsCard, {
@@ -114,11 +117,14 @@ export default async function CompanyDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [canDocuments, canPortfolio] = await Promise.all([
+  const [canDocuments, canPortfolio, access] = await Promise.all([
     hasPermission("documents"),
     hasPermission("portfolio"),
+    requireMember(),
   ]);
   const supabase = await createClient();
+  // Company-level comments (null until migration 0019 is applied).
+  const commentsPromise = Promise.all([loadComments(supabase, id, null), loadDirectory(supabase)]);
   const endTimer = startDevPageTimer(`page:data:company:${id}`);
 
   const [
@@ -160,6 +166,7 @@ export default async function CompanyDetailPage({
   ]);
 
   if (!company) notFound();
+  const [comments, commentDirectory] = await commentsPromise;
 
   const allDealRows = deals ?? [];
   // Every company-level view works across all deals; deal-specific actions
@@ -460,6 +467,7 @@ export default async function CompanyDetailPage({
           ["deals", "Deals"],
           ["timeline", "Timeline"],
           ["people", "People"],
+          ...(comments ? [["comments", "Comments"]] : []),
           ...(canDocuments ? [["documents", "Documents"]] : []),
           ...(canPortfolio ? [["investments", "Investments"]] : []),
         ].map(([href, label]) => (
@@ -724,6 +732,20 @@ export default async function CompanyDetailPage({
           ))}
         </div>
       </section>
+
+      {comments && (
+        <section id="comments" className="vq-card-static rounded-[14px] bg-white scroll-mt-16">
+          <CommentsSection
+            companyId={company.id}
+            dealId={null}
+            recordLabel={company.name}
+            me={access.email}
+            comments={comments}
+            directory={[...commentDirectory.values()]}
+            readOnlyReason={company.deleted_at ? "This company is in Trash. Restore it to add comments." : null}
+          />
+        </section>
+      )}
 
       {canDocuments && <section id="documents" className="scroll-mt-16">
         <DocumentsCard
