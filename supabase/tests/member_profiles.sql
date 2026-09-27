@@ -27,8 +27,10 @@ reset role;
 select pg_temp.as_user('authenticated','settings.a@example.com','aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
 select public.set_my_display_name('New Name');
 select pg_temp.expect((select display_name='New Name' from public.app_members where email='settings.a@example.com'),'member updates own name');
-select pg_temp.expect(pg_temp.refused($q$update public.app_members set is_active=false where email='settings.a@example.com'$q$),'member cannot deactivate self');
-select pg_temp.expect(pg_temp.refused($q$update public.app_members set display_name='No' where email='settings.b@example.com'$q$),'member cannot update other member');
+select pg_temp.refused($q$update public.app_members set is_active=false where email='settings.a@example.com'$q$);
+select pg_temp.expect((select is_active from public.app_members where email='settings.a@example.com'),'member cannot deactivate self');
+select pg_temp.refused($q$update public.app_members set display_name='No' where email='settings.b@example.com'$q$);
+select pg_temp.expect((select display_name='B' from public.app_members where email='settings.b@example.com'),'member cannot update other member');
 select pg_temp.expect(pg_temp.refused($q$select public.set_my_display_name('')$q$),'empty name refused');
 select pg_temp.expect(pg_temp.refused($q$select public.set_my_avatar('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb/avatar-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.png')$q$),'cannot claim another photo');
 insert into storage.objects(bucket_id,name) values
