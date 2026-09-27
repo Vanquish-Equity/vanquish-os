@@ -30,7 +30,7 @@ function Toggle({ label, description, enabled, onChange }: {
       <button type="button" role="switch" aria-label={label} aria-checked={enabled} onClick={onChange}
         data-sound="off"
         className={`relative h-7 w-12 flex-shrink-0 rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-500 ${enabled ? "bg-cyan-400" : "bg-neutral-200"}`}>
-        <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${enabled ? "translate-x-6" : "translate-x-1"}`} />
+        <span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${enabled ? "translate-x-5" : "translate-x-0"}`} />
       </button>
     </div>
   );
@@ -87,7 +87,7 @@ export default function SettingsPanel({ email, displayName, avatarUrl, profileAv
     <>
       <section className={card} aria-labelledby="settings-profile">
         <h2 id="settings-profile" className="text-[15px] font-semibold text-ink">Profile</h2>
-        <p className="mt-1 text-[12px] text-neutral-500">Your name appears in Home. Your sign-in email cannot be changed here.</p>
+        <p className="mt-1 text-[12px] text-neutral-500">Your name appears in Home and the account menu. Your sign-in email cannot be changed here.</p>
         {!profileAvailable && <p role="status" className="mt-3 rounded-lg bg-amber-50 p-3 text-[12px] text-amber-800">Profile editing will be available after migration 0022 is applied.</p>}
         <div className="mt-5 flex flex-wrap items-center gap-4">
           <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#182022] text-lg font-semibold text-white">

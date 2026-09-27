@@ -43,6 +43,7 @@ export default async function DashboardLayout({
         <ContextComments />
         <Sidebar
           userEmail={access.email}
+          displayName={access.displayName ?? null}
           avatarUrl={avatarUrl}
           initialCollapsed={collapsed}
           preferenceCookie={preferenceCookie}

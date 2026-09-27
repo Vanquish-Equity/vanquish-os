@@ -1,6 +1,9 @@
 # Settings
 
-Settings is available to every active member at `/settings`.
+Settings is available to every active member through the account menu at the
+bottom of the sidebar. Click the profile photo or name to find Settings,
+Replay intro and Sign out. The account label uses the saved display name in
+uppercase, falling back to the email prefix until a name is set.
 
 ## Profile
 

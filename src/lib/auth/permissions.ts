@@ -65,7 +65,6 @@ export const WORKSPACE_NAV: NavItem[] = [
   { href: "/tasks", label: "Tasks", icon: "tasks" },
   { href: "/review", label: "Review", icon: "review" },
   { href: "/portfolio", label: "Portfolio", icon: "portfolio", requires: "portfolio" },
-  { href: "/settings", label: "Settings", icon: "settings" },
 ];
 
 export function visibleNav(items: NavItem[], permissions: ReadonlySet<AreaPermission>) {

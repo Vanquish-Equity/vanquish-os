@@ -37,6 +37,7 @@ function SidebarBody({
   mode,
   navItems,
   userEmail,
+  displayName,
   avatarUrl,
   activeHref,
   onNavigate,
@@ -49,6 +50,7 @@ function SidebarBody({
   mode: Mode;
   navItems: SidebarNavItem[];
   userEmail: string;
+  displayName: string | null;
   avatarUrl: string | null;
   activeHref: string;
   onNavigate: (href: string) => void;
@@ -62,6 +64,28 @@ function SidebarBody({
   const unread = useUnreadCounts();
   const router = useRouter();
   const pathname = usePathname();
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!profileOpen) return;
+    const outside = (event: PointerEvent) => {
+      if (!profileRef.current?.contains(event.target as Node)) setProfileOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setProfileOpen(false);
+        profileButtonRef.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [profileOpen]);
 
   // One click: turn sounds on and hear a card riffle right away (the click
   // allows audio), or turn them all off.
@@ -82,7 +106,7 @@ function SidebarBody({
     full: "justify-start px-3",
     responsive: "justify-center px-0 md:justify-start md:px-3",
   });
-  const account = accountLabel(userEmail);
+  const account = accountLabel(userEmail, displayName);
 
   return (
     <>
@@ -186,35 +210,39 @@ function SidebarBody({
 
       <div className="border-t border-[#14191b] pt-3">
         <div className={`flex items-center gap-2.5 ${byMode(mode, { rail: "flex-col", full: "px-2", responsive: "flex-col md:flex-row md:px-2" })}`}>
-          <div className="group relative flex h-7 w-7 flex-shrink-0 items-center justify-center overflow-visible rounded-full bg-[#182022] text-[11px] font-semibold text-white" title={userEmail}>
-            {avatarUrl ? <Image src={avatarUrl} alt="" width={28} height={28} unoptimized className="h-7 w-7 rounded-full object-cover" /> : account.charAt(0)}
-            <Tooltip mode={mode}>{account}</Tooltip>
-          </div>
-          <span className={byMode(mode, { rail: "sr-only", full: "hidden", responsive: "sr-only md:hidden" })}>
-            Signed in as {account}
-          </span>
-          <div className={`min-w-0 flex-1 ${byMode(mode, { rail: "hidden", full: "", responsive: "hidden md:block" })}`}>
-            <div className="truncate text-xs font-semibold leading-tight tracking-wide text-neutral-200" title={userEmail}>
-              {account}
-            </div>
-            <div className="mt-0.5 flex items-center gap-2 text-[10px] font-semibold text-neutral-500">
-              <button
-                type="button"
-                onClick={replayIntro}
-                className="transition hover:text-white focus-visible:text-white focus-visible:outline-none"
-              >
-                Replay intro
-              </button>
-              <span aria-hidden="true">·</span>
-              <form action="/auth/signout" method="post">
-                <button
-                  type="submit"
-                  className="transition hover:text-white focus-visible:text-white focus-visible:outline-none"
-                >
-                  Sign out
+          <div ref={profileRef} className="relative min-w-0 flex-1">
+            <button
+              ref={profileButtonRef}
+              type="button"
+              title={userEmail}
+              aria-label={`Account: ${account}`}
+              aria-haspopup="true"
+              aria-expanded={profileOpen}
+              onClick={() => setProfileOpen((open) => !open)}
+              className={`group flex w-full min-w-0 items-center gap-2.5 rounded-lg py-1 text-left transition hover:bg-[#12191c] focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400 ${byMode(mode, { rail: "justify-center", full: "", responsive: "justify-center md:justify-start" })}`}
+            >
+              <span className="relative flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#182022] text-[11px] font-semibold text-white">
+                {avatarUrl ? <Image src={avatarUrl} alt="" width={28} height={28} unoptimized className="h-7 w-7 rounded-full object-cover" /> : account.charAt(0)}
+                {!profileOpen && <Tooltip mode={mode}>{account}</Tooltip>}
+              </span>
+              <span className={`min-w-0 truncate text-xs font-semibold leading-tight tracking-wide text-neutral-200 ${byMode(mode, { rail: "sr-only", full: "", responsive: "sr-only md:not-sr-only" })}`}>{account}</span>
+            </button>
+            {profileOpen && (
+              <div aria-label="Account options" className="absolute bottom-full left-0 z-50 mb-2 w-[218px] rounded-xl border border-white/10 bg-[#1b2427] p-1.5 shadow-2xl">
+                <div className="truncate border-b border-white/10 px-2.5 py-2 text-[11px] text-neutral-400" title={userEmail}>{userEmail}</div>
+                <Link href="/settings" onClick={() => { setProfileOpen(false); onNavigate("/settings"); }} className="mt-1 flex items-center gap-2 rounded-lg px-2.5 py-2 text-[12px] font-medium text-white hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400">
+                  <NavIcon name="settings" className="h-4 w-4" /> Settings
+                </Link>
+                <button type="button" onClick={() => { setProfileOpen(false); replayIntro(); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12px] text-neutral-200 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400">
+                  <NavIcon name="replay" className="h-4 w-4" /> Replay intro
                 </button>
-              </form>
-            </div>
+                <form action="/auth/signout" method="post" className="mt-1 border-t border-white/10 pt-1">
+                  <button type="submit" className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12px] text-neutral-200 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400">
+                    <NavIcon name="signout" className="h-4 w-4" /> Sign out
+                  </button>
+                </form>
+              </div>
+            )}
           </div>
           <button
             type="button"
@@ -227,26 +255,6 @@ function SidebarBody({
             <NavIcon name={soundOn ? "sound-on" : "sound-off"} className="h-4 w-4" />
             <Tooltip mode="rail">{soundOn ? "Sounds: on" : "Sounds: off"}</Tooltip>
           </button>
-          {/* Replay and Sign out stay one click away when only icons are shown. */}
-          <button
-            type="button"
-            onClick={replayIntro}
-            className={`group relative rounded-lg p-1.5 text-neutral-500 transition hover:bg-[#12191c] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400 ${byMode(mode, { rail: "", full: "hidden", responsive: "md:hidden" })}`}
-          >
-            <NavIcon name="replay" className="h-4 w-4" />
-            <span className="sr-only">Replay intro</span>
-            <Tooltip mode={mode}>Replay intro</Tooltip>
-          </button>
-          <form action="/auth/signout" method="post" className={byMode(mode, { rail: "", full: "hidden", responsive: "md:hidden" })}>
-            <button
-              type="submit"
-              className="group relative rounded-lg p-1.5 text-neutral-500 transition hover:bg-[#12191c] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
-            >
-              <NavIcon name="signout" className="h-4 w-4" />
-              <span className="sr-only">Sign out</span>
-              <Tooltip mode={mode}>Sign out</Tooltip>
-            </button>
-          </form>
         </div>
       </div>
     </>
@@ -255,12 +263,14 @@ function SidebarBody({
 
 export default function Sidebar({
   userEmail,
+  displayName,
   avatarUrl,
   navItems,
   initialCollapsed,
   preferenceCookie,
 }: {
   userEmail: string;
+  displayName: string | null;
   avatarUrl: string | null;
   // Already filtered by the member's permissions on the server.
   navItems: SidebarNavItem[];
@@ -318,6 +328,7 @@ export default function Sidebar({
             mode={collapsed ? "rail" : "responsive"}
             navItems={navItems}
             userEmail={userEmail}
+            displayName={displayName}
             avatarUrl={avatarUrl}
             activeHref={activeHref}
             onNavigate={navigate}
@@ -342,6 +353,7 @@ export default function Sidebar({
               mode="full"
               navItems={navItems}
               userEmail={userEmail}
+              displayName={displayName}
               avatarUrl={avatarUrl}
               activeHref={activeHref}
               onNavigate={navigate}

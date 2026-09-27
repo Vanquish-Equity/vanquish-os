@@ -73,8 +73,10 @@ export function introCookieName(email: string) {
 
 export const SIDEBAR_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 
-// "marios@vanquishequity.com" -> "MARIOS"
-export function accountLabel(email: string) {
+// Show the saved profile name when available, with the email prefix as fallback.
+export function accountLabel(email: string, displayName?: string | null) {
+  const saved = displayName?.trim();
+  if (saved) return saved.toUpperCase();
   const local = email.split("@")[0]?.trim() ?? "";
   return (local || email).toUpperCase();
 }

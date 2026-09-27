@@ -6,6 +6,10 @@ describe("accountLabel", () => {
     expect(accountLabel("marios@vanquishequity.com")).toBe("MARIOS");
     expect(accountLabel("pbp@vanquishequity.com")).toBe("PBP");
   });
+  it("uses an edited profile name in the account menu", () => {
+    expect(accountLabel("marios@vanquishequity.com", "Mario Salas")).toBe("MARIO SALAS");
+    expect(accountLabel("marios@vanquishequity.com", "  ")).toBe("MARIOS");
+  });
 });
 
 describe("greetingFor", () => {
