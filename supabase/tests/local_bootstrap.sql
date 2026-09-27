@@ -15,3 +15,7 @@ create table storage.objects(id uuid primary key default gen_random_uuid(),bucke
 alter table storage.objects enable row level security;
 grant usage on schema public,auth,storage to anon,authenticated;
 grant execute on function auth.jwt(),auth.role() to anon,authenticated;
+-- Supabase grants authenticated table access by default; RLS and later
+-- migrations narrow it per object. Plain PostgreSQL needs that baseline.
+alter default privileges in schema public grant all on tables to authenticated;
+alter default privileges in schema public grant usage on sequences to authenticated;
