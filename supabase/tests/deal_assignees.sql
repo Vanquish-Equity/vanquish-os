@@ -8,6 +8,7 @@ begin if not coalesce(ok,false) then raise exception 'ASSIGNEE TEST FAILED: %',l
 grant execute on function pg_temp.as_user(text,text),pg_temp.denied(text),pg_temp.expect(boolean,text) to anon,authenticated;
 insert into public.app_members(email,display_name) values ('deal-teammate@example.com','Team Member');
 create temporary table assignee_test_deal as select id, owner from public.deals limit 1;
+grant select on assignee_test_deal to authenticated;
 select pg_temp.as_user('anon','anon@example.com');
 select pg_temp.expect(pg_temp.denied('select * from public.deal_assignees'),'anon cannot read assignments');
 select pg_temp.expect(pg_temp.denied('select * from public.deal_assignee_directory()'),'anon cannot list members');
