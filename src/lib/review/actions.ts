@@ -2,11 +2,38 @@
 
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity/log";
+import { actionAccessError } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/server";
 
 export type ReviewActionResult =
   | { ok: true }
   | { ok: false; message: string };
+
+export async function resolveManualInteractionAction(input: {
+  reviewItemId: string;
+  action: "link" | "create" | "ignore";
+  companyId?: string;
+  dealId?: string;
+  learnDomain?: string;
+}): Promise<ReviewActionResult> {
+  const denied = await actionAccessError();
+  if (denied) return { ok: false, message: denied };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("resolve_manual_interaction", {
+    p_review_id: input.reviewItemId,
+    p_action: input.action,
+    p_company_id: input.companyId || null,
+    p_deal_id: input.dealId || null,
+    p_learn_domain: input.learnDomain || null,
+  });
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/review");
+  revalidatePath("/companies");
+  revalidatePath("/pipeline");
+  revalidatePath("/overview");
+  if (input.companyId) revalidatePath(`/companies/${input.companyId}`);
+  return { ok: true };
+}
 
 export async function resolveReviewItemAction(input: {
   reviewItemId: string;

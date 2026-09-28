@@ -351,6 +351,11 @@ export default async function CompanyDetailPage({
     ...(companyTasks ?? []).map((task) => task.id),
     ...(requirements ?? []).map((requirement) => requirement.id),
   ]);
+  const { data: participantRows } = (interactions?.length
+    ? await supabase.from("interaction_participants").select("interaction_id,email").in("interaction_id", interactions.map(i => i.id))
+    : { data: [] as { interaction_id: string; email: string }[] });
+  const participants = new Map<string, string[]>();
+  for (const row of participantRows ?? []) participants.set(row.interaction_id, [...(participants.get(row.interaction_id) ?? []), row.email]);
   const timeline: TimelineItem[] = [
     ...(history ?? []).map((h) => ({
       id: `history-${h.id}`,
@@ -368,7 +373,7 @@ export default async function CompanyDetailPage({
         ? `${interaction.type} / ${dealNames.get(interaction.deal_id) ?? "Deal"}`
         : interaction.type,
       label: interaction.subject ?? "Interaction logged",
-      detail: interaction.summary,
+      detail: [interaction.summary, participants.get(interaction.id)?.length ? `Participants: ${participants.get(interaction.id)?.join(", ")}` : null].filter(Boolean).join(" · "),
     })),
     ...(activity ?? [])
       .filter((event) =>
