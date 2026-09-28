@@ -2,9 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { useState } from "react";
-import Link from "next/link";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { dealHref } from "@/lib/deals/scope";
 
 export type PipelineDeal = {
   id: string;
@@ -14,6 +12,9 @@ export type PipelineDeal = {
   stage_id: string;
   company: { id: string; name: string } | null;
   priority: { name: string } | null;
+  owner?: string | null;
+  last_activity_at?: string | null;
+  nextAction?: { title: string; due_at: string | null } | null;
   // Human identification of the deal (name, round or first-seen date).
   label: string;
   // Active deals the same company has on the board.
@@ -33,10 +34,12 @@ function DealCard({
   deal,
   activeDealId,
   pending,
+  onOpen,
 }: {
   deal: PipelineDeal;
   activeDealId: string | null;
   pending: boolean;
+  onOpen: (deal: PipelineDeal) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
@@ -54,20 +57,21 @@ function DealCard({
   };
 
   return (
-    <Link
+    <button
       ref={setNodeRef}
+      type="button"
       data-comment-anchor={`deal:${deal.id}`}
       data-comment-label={deal.name}
-      href={deal.company ? dealHref(deal.company.id, deal.id) : "/pipeline"}
+      onClick={() => onOpen(deal)}
       style={style}
-      className={`vq-card block rounded-xl bg-white p-3.5 ${
+      className={`vq-card block w-full rounded-xl bg-white p-3.5 text-left ${
         pending ? "opacity-60" : ""
       }`}
       {...attributes}
       {...listeners}
     >
       <DealCardBody deal={deal} />
-    </Link>
+    </button>
   );
 }
 
@@ -104,12 +108,14 @@ export default function PipelineColumn({
   deals,
   activeDealId,
   pendingDealIds,
+  onOpen,
 }: {
   stageId: string;
   stageName: string;
   deals: PipelineDeal[];
   activeDealId: string | null;
   pendingDealIds: Set<string>;
+  onOpen: (deal: PipelineDeal) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const { isOver, setNodeRef } = useDroppable({ id: stageId });
@@ -171,6 +177,7 @@ export default function PipelineColumn({
             deal={deal}
             activeDealId={activeDealId}
             pending={pendingDealIds.has(deal.id)}
+            onOpen={onOpen}
           />
         ))}
         {deals.length === 0 && (

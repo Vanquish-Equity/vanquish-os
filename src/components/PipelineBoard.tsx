@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -17,6 +17,7 @@ import PipelineColumn, {
   type PipelineDeal,
 } from "@/components/PipelineColumn";
 import { updateDealStageAction } from "@/lib/deals/actions";
+import DealPreview from "@/components/DealPreview";
 
 export type PipelineStage = {
   id: string;
@@ -120,6 +121,8 @@ export default function PipelineBoard({
     groupDeals(stages, deals)
   );
   const [activeDeal, setActiveDeal] = useState<PipelineDeal | null>(null);
+  const [previewDeal, setPreviewDeal] = useState<PipelineDeal | null>(null);
+  const closePreview = useCallback(() => setPreviewDeal(null), []);
   const [pendingDealIds, setPendingDealIds] = useState<Set<string>>(
     () => new Set()
   );
@@ -219,6 +222,7 @@ export default function PipelineBoard({
             deals={dealsByStage[stage.id] ?? []}
             activeDealId={activeDeal?.id ?? null}
             pendingDealIds={pendingDealIds}
+            onOpen={setPreviewDeal}
           />
         ))}
       </div>
@@ -230,6 +234,9 @@ export default function PipelineBoard({
           </div>
         ) : null}
       </DragOverlay>
+      {previewDeal && (
+        <DealPreview deal={previewDeal} stageName={stages.find((stage) => stage.id === previewDeal.stage_id)?.name ?? "Unknown stage"} onClose={closePreview} />
+      )}
     </DndContext>
   );
 }

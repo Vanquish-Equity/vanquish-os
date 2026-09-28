@@ -44,3 +44,5 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/tests/member_profiles.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/0023_admin_settings.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/admin_settings.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260928200209_crm_boards.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/crm_boards.sql > /dev/null

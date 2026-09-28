@@ -30,6 +30,8 @@ type Deal = {
   created_at: string;
   potential_investment: number | null;
   updated_at: string;
+  owner: string | null;
+  last_activity_at: string | null;
   stage_id: string;
   stage: { name: string; is_terminal: boolean } | null;
   company: { id: string; name: string } | null;
@@ -56,7 +58,7 @@ type CompanyRow = {
 };
 
 const PIPELINE_DEAL_SELECT =
-  "id,name,round,first_seen_at,created_at,potential_investment,updated_at,stage_id,stage:pipeline_stages(name,is_terminal),outcome:deal_outcomes(name),company:companies!inner(id,name,deleted_at),priority:priorities(name)";
+  "id,name,round,first_seen_at,created_at,potential_investment,updated_at,owner,last_activity_at,stage_id,stage:pipeline_stages(name,is_terminal),outcome:deal_outcomes(name),company:companies!inner(id,name,deleted_at),priority:priorities(name)";
 
 export default async function PipelinePage({
   searchParams,
@@ -83,6 +85,7 @@ export default async function PipelinePage({
     { data: deals },
     { data: archivedDeals, count: archivedCount },
     { data: companyRows },
+    { data: openTasks },
     industries,
     priorities,
     rounds,
@@ -121,6 +124,10 @@ export default async function PipelinePage({
       .select("id,name,company_aliases(alias)")
       .is("deleted_at", null)
       .order("name") as unknown as Promise<{ data: CompanyRow[] | null }>,
+    supabase.from("tasks").select("deal_id,title,due_at").eq("status", "open").is("archived_at", null)
+      .not("deal_id", "is", null).order("due_at", { ascending: true, nullsFirst: false }) as unknown as Promise<{
+      data: { deal_id: string; title: string; due_at: string | null }[] | null;
+    }>,
     getIndustryOptions() as Promise<Option[]>,
     getPriorityOptions() as Promise<Option[]>,
     getDealRoundOptions() as Promise<Option[]>,
@@ -133,6 +140,8 @@ export default async function PipelinePage({
     aliases: (company.company_aliases ?? []).map((alias) => alias.alias),
   }));
   const activeDealsPerCompany = new Map<string, number>();
+  const nextActionByDeal = new Map<string, { title: string; due_at: string | null }>();
+  (openTasks ?? []).forEach((task) => { if (!nextActionByDeal.has(task.deal_id)) nextActionByDeal.set(task.deal_id, task); });
   (deals ?? []).forEach((deal) => {
     if (!deal.company) return;
     activeDealsPerCompany.set(
@@ -158,6 +167,7 @@ export default async function PipelinePage({
         createdAt: deal.created_at,
       }),
       companyDealCount: deal.company ? activeDealsPerCompany.get(deal.company.id) ?? 1 : 1,
+      nextAction: nextActionByDeal.get(deal.id) ?? null,
     }));
   const totalDeals = visibleDeals.length;
   const boardKey = [

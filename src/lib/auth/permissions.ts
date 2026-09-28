@@ -59,6 +59,7 @@ export const WORKSPACE_NAV: NavItem[] = [
   { href: "/chat", label: "Chat", icon: "chat", badge: "chat" },
   { href: "/overview", label: "Overview", icon: "overview" },
   { href: "/pipeline", label: "Pipeline", icon: "pipeline" },
+  { href: "/boards", label: "Boards", icon: "pipeline" },
   { href: "/companies", label: "Companies", icon: "companies" },
   { href: "/people", label: "People", icon: "people" },
   { href: "/communications", label: "Communications", icon: "communications" },
