@@ -18,6 +18,7 @@ import PipelineColumn, {
 } from "@/components/PipelineColumn";
 import { updateDealStageAction } from "@/lib/deals/actions";
 import DealPreview from "@/components/DealPreview";
+import type { DealMember } from "@/lib/deals/assignee-types";
 
 export type PipelineStage = {
   id: string;
@@ -103,9 +104,13 @@ function moveDealToStage(
 export default function PipelineBoard({
   stages,
   deals,
+  members,
+  me,
 }: {
   stages: PipelineStage[];
   deals: PipelineDeal[];
+  members: DealMember[];
+  me: string;
 }) {
   const router = useRouter();
   const stageIds = useMemo(
@@ -127,6 +132,32 @@ export default function PipelineBoard({
     () => new Set()
   );
   const [moveError, setMoveError] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [memberEmails, setMemberEmails] = useState<string[]>([]);
+  const [priorities, setPriorities] = useState<string[]>([]);
+  const [stageFilter, setStageFilter] = useState<string[]>([]);
+  const [unassigned, setUnassigned] = useState(false);
+  const [overdue, setOverdue] = useState(false);
+  const [noNextAction, setNoNextAction] = useState(false);
+  const priorityOptions = useMemo(() => [...new Set(deals.map((deal) => deal.priority?.name).filter((value): value is string => !!value))].sort(), [deals]);
+  const activeFilterCount = Number(!!query) + memberEmails.length + priorities.length + stageFilter.length + Number(unassigned) + Number(overdue) + Number(noNextAction);
+  const filteredByStage = useMemo(() => Object.fromEntries(stages.map((stage) => [stage.id, (dealsByStage[stage.id] ?? []).filter((deal) => {
+    const search = `${deal.company?.name ?? ""} ${deal.label} ${deal.owner ?? ""}`.toLowerCase();
+    if (query && !search.includes(query.toLowerCase())) return false;
+    if (stageFilter.length && !stageFilter.includes(deal.stage_id)) return false;
+    if (priorities.length && !priorities.includes(deal.priority?.name ?? "")) return false;
+    if (memberEmails.length || unassigned) {
+      const assigned = deal.assignees ?? [];
+      if (!((unassigned && assigned.length === 0) || assigned.some((person) => memberEmails.includes(person.email)))) return false;
+    }
+    if (noNextAction && deal.nextAction) return false;
+    if (overdue && (!deal.nextAction?.due_at || new Date(deal.nextAction.due_at).getTime() >= Date.now())) return false;
+    return true;
+  })])), [stages, dealsByStage, query, stageFilter, priorities, memberEmails, unassigned, overdue, noNextAction]);
+  function toggle(value: string, selected: string[], setter: (next: string[]) => void) {
+    setter(selected.includes(value) ? selected.filter((item) => item !== value) : [...selected, value]);
+  }
 
   function markPending(dealId: string, pending: boolean) {
     setPendingDealIds((current) => {
@@ -208,6 +239,19 @@ export default function PipelineBoard({
         </p>
       )}
 
+      <div className="relative mb-3 flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => setFiltersOpen((open) => !open)} aria-expanded={filtersOpen} className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-ink hover:border-cyan-300">☷ Filter{activeFilterCount ? ` (${activeFilterCount})` : ""}</button>
+        {activeFilterCount > 0 && <><span className="text-xs text-neutral-500">{Object.values(filteredByStage).reduce((n, group) => n + group.length, 0)} matching Deals</span><button type="button" onClick={() => { setQuery(""); setMemberEmails([]); setPriorities([]); setStageFilter([]); setUnassigned(false); setOverdue(false); setNoNextAction(false); }} className="text-xs font-semibold text-cyan-800">Clear filters</button></>}
+        {filtersOpen && <div className="absolute left-0 top-full z-30 mt-2 max-h-[min(70vh,600px)] w-[min(360px,90vw)] overflow-y-auto rounded-xl border border-neutral-200 bg-white p-4 shadow-xl">
+          <div className="flex items-center justify-between"><h2 className="text-sm font-semibold text-ink">Filter cards</h2><button type="button" onClick={() => setFiltersOpen(false)} aria-label="Close filters" className="text-lg text-neutral-500">×</button></div>
+          <label className="mt-4 block text-xs font-semibold text-neutral-600" htmlFor="pipeline-search">Search</label><input id="pipeline-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Company, Deal or legacy owner" className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm" />
+          <fieldset className="mt-4"><legend className="text-xs font-semibold text-neutral-600">Members</legend><label className="mt-2 flex gap-2 text-sm"><input type="checkbox" className="h-4 w-4 shrink-0 accent-cyan-700" checked={memberEmails.includes(me)} onChange={() => toggle(me, memberEmails, setMemberEmails)} /> Assigned to me</label><label className="mt-2 flex gap-2 text-sm"><input type="checkbox" className="h-4 w-4 shrink-0 accent-cyan-700" checked={unassigned} onChange={(event) => setUnassigned(event.target.checked)} /> No team member</label><div className="mt-2 max-h-36 space-y-2 overflow-y-auto">{members.filter((member) => member.email !== me).map((member) => <label key={member.email} className="flex gap-2 text-sm"><input type="checkbox" className="h-4 w-4 shrink-0 accent-cyan-700" checked={memberEmails.includes(member.email)} onChange={() => toggle(member.email, memberEmails, setMemberEmails)} /> {member.name}</label>)}</div></fieldset>
+          <fieldset className="mt-4"><legend className="text-xs font-semibold text-neutral-600">Priority</legend><div className="mt-2 space-y-2">{priorityOptions.map((value) => <label key={value} className="flex gap-2 text-sm"><input type="checkbox" className="h-4 w-4 shrink-0 accent-cyan-700" checked={priorities.includes(value)} onChange={() => toggle(value, priorities, setPriorities)} /> {value}</label>)}</div></fieldset>
+          <fieldset className="mt-4"><legend className="text-xs font-semibold text-neutral-600">Stage</legend><div className="mt-2 space-y-2">{stages.map((stage) => <label key={stage.id} className="flex gap-2 text-sm"><input type="checkbox" className="h-4 w-4 shrink-0 accent-cyan-700" checked={stageFilter.includes(stage.id)} onChange={() => toggle(stage.id, stageFilter, setStageFilter)} /> {stage.name}</label>)}</div></fieldset>
+          <fieldset className="mt-4"><legend className="text-xs font-semibold text-neutral-600">Follow-up</legend><label className="mt-2 flex gap-2 text-sm"><input type="checkbox" className="h-4 w-4 shrink-0 accent-cyan-700" checked={overdue} onChange={(event) => setOverdue(event.target.checked)} /> Next action overdue</label><label className="mt-2 flex gap-2 text-sm"><input type="checkbox" className="h-4 w-4 shrink-0 accent-cyan-700" checked={noNextAction} onChange={(event) => setNoNextAction(event.target.checked)} /> No next action</label></fieldset>
+        </div>}
+      </div>
+
       <div
         className="vq-card-grid grid gap-3"
         style={{
@@ -219,7 +263,7 @@ export default function PipelineBoard({
             key={stage.id}
             stageId={stage.id}
             stageName={stage.name}
-            deals={dealsByStage[stage.id] ?? []}
+            deals={filteredByStage[stage.id] ?? []}
             activeDealId={activeDeal?.id ?? null}
             pendingDealIds={pendingDealIds}
             onOpen={setPreviewDeal}
@@ -235,7 +279,7 @@ export default function PipelineBoard({
         ) : null}
       </DragOverlay>
       {previewDeal && (
-        <DealPreview deal={previewDeal} stageName={stages.find((stage) => stage.id === previewDeal.stage_id)?.name ?? "Unknown stage"} onClose={closePreview} />
+        <DealPreview deal={previewDeal} stageName={stages.find((stage) => stage.id === previewDeal.stage_id)?.name ?? "Unknown stage"} onClose={closePreview} members={members} />
       )}
     </DndContext>
   );

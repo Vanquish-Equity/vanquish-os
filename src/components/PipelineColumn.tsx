@@ -3,6 +3,8 @@
 import type { CSSProperties } from "react";
 import { useState } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
+import DealAssigneeAvatars from "@/components/DealAssigneeAvatars";
+import type { DealMember } from "@/lib/deals/assignee-types";
 
 export type PipelineDeal = {
   id: string;
@@ -13,6 +15,7 @@ export type PipelineDeal = {
   company: { id: string; name: string } | null;
   priority: { name: string } | null;
   owner?: string | null;
+  assignees?: DealMember[];
   last_activity_at?: string | null;
   nextAction?: { title: string; due_at: string | null } | null;
   // Human identification of the deal (name, round or first-seen date).
@@ -98,6 +101,7 @@ export function DealCardBody({ deal }: { deal: PipelineDeal }) {
           {deal.companyDealCount} active deals for this company
         </div>
       )}
+      {!!deal.assignees?.length && <div className="mt-2 flex justify-end"><DealAssigneeAvatars members={deal.assignees} /></div>}
     </>
   );
 }

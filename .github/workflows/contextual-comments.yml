@@ -48,3 +48,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/tests/crm_boards.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260928202810_board_customization.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/board_customization.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260928203809_deal_assignees.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/deal_assignees.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260928204419_flexible_boards.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/flexible_boards.sql > /dev/null

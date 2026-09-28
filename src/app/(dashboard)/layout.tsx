@@ -55,7 +55,7 @@ export default async function DashboardLayout({
             .filter((item) => unread.available || !item.badge)
             .flatMap(({ href, label, icon, badge }) => [
               { href, label, icon, badge },
-              ...(href === "/boards" ? (boards ?? []).map((board) => ({ href: `/boards/${board.id}`, label: board.name, icon: "pipeline" as const, child: true })) : []),
+              ...(href === "/boards" ? (boards ?? []).map((board) => ({ href: `/boards/${board.id}`, label: board.name, icon: "board_item" as const, child: true })) : []),
             ])}
         />
         <div className="flex min-w-0 flex-1 flex-col">

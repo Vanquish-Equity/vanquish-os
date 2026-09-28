@@ -16,6 +16,7 @@ import RestoreDealButton from "@/components/RestoreDealButton";
 import { formatExactDate } from "@/lib/dates";
 import { dealLabel } from "@/lib/deals/display";
 import { dealHref } from "@/lib/deals/scope";
+import { loadDealAssignees } from "@/lib/deals/assignee-queries";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -133,6 +134,7 @@ export default async function PipelinePage({
     getDealRoundOptions() as Promise<Option[]>,
   ]);
   endTimer();
+  const { members, byDeal: assigneesByDeal } = await loadDealAssignees(supabase, (deals ?? []).map((deal) => deal.id));
 
   const companies: NewDealCompanyOption[] = (companyRows ?? []).map((company) => ({
     id: company.id,
@@ -168,11 +170,12 @@ export default async function PipelinePage({
       }),
       companyDealCount: deal.company ? activeDealsPerCompany.get(deal.company.id) ?? 1 : 1,
       nextAction: nextActionByDeal.get(deal.id) ?? null,
+      assignees: assigneesByDeal.get(deal.id) ?? [],
     }));
   const totalDeals = visibleDeals.length;
   const boardKey = [
     ...(stages ?? []).map((stage) => stage.id),
-    ...visibleDeals.map((deal) => `${deal.id}:${deal.stage_id}:${deal.updated_at}`),
+    ...visibleDeals.map((deal) => `${deal.id}:${deal.stage_id}:${deal.updated_at}:${deal.assignees.map((person) => person.email).join(",")}`),
   ].join("|");
 
   const tabClass = (active: boolean) =>
@@ -300,7 +303,7 @@ export default async function PipelinePage({
           No pipeline stages found. Run the M1 migration in Supabase first.
         </div>
       ) : (
-        <PipelineBoard key={boardKey} stages={stages} deals={visibleDeals} />
+        <PipelineBoard key={boardKey} stages={stages} deals={visibleDeals} members={members} me={member.email} />
       )}
     </div>
   );

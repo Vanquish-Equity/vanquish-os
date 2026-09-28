@@ -2,104 +2,93 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
+import { DndContext, DragOverlay, PointerSensor, pointerWithin, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import DealPreview from "@/components/DealPreview";
+import SelectMenu from "@/components/SelectMenu";
 import { DealCardBody, type PipelineDeal } from "@/components/PipelineColumn";
-import { addColumnAction, archiveBoardAction, moveBoardCardAction, removeBoardCardAction, removeEmptyColumnAction, renameColumnAction, reorderColumnsAction, updateBoardAction } from "@/lib/boards/actions";
-import { BOARD_BACKGROUNDS, boardBackground, type BoardBackground } from "@/lib/boards/appearance";
+import { addBoardItemAction, addColumnAction, archiveBoardAction, moveBoardCardAction, moveBoardItemAction, removeBoardCardAction, removeBoardItemAction, removeEmptyColumnAction, renameColumnAction, reorderColumnsAction, saveBoardItemAction, updateBoardAction } from "@/lib/boards/actions";
+import type { DealMember } from "@/lib/deals/assignee-types";
 
 type Column = { id: string; name: string; sort_order: number };
 type Card = { deal_id: string; column_id: string };
+type BoardItem = { id: string; column_id: string; title: string; description: string; due_at: string | null; sort_order: number };
 type Deal = PipelineDeal & { stage: { name: string } | null };
+type Drag = { type: "column" | "item" | "deal"; id: string; columnId: string };
 
-export default function CustomDealBoard({ boardId, boardName, background, initialColumns, initialCards, deals, admin }: {
-  boardId: string; boardName: string; background: string; initialColumns: Column[]; initialCards: Card[]; deals: Deal[]; admin: boolean;
+function NativeCard({ item, onOpen, active }: { item: BoardItem; onOpen: () => void; active: boolean }) {
+  const { setNodeRef: setDragNodeRef, attributes, listeners } = useDraggable({ id: `item:${item.id}`, data: { type: "item", id: item.id, columnId: item.column_id } satisfies Drag });
+  const { setNodeRef: setDropNodeRef, isOver } = useDroppable({ id: `item-target:${item.id}`, data: { type: "item", id: item.id, columnId: item.column_id } satisfies Drag });
+  return <div ref={(node) => { setDragNodeRef(node); setDropNodeRef(node); }} {...attributes} {...listeners} className={`vq-card rounded-xl bg-white p-3.5 ${active ? "opacity-30" : ""} ${isOver ? "ring-2 ring-cyan-300" : ""}`} style={{ touchAction: "none" }}>
+    <button type="button" onClick={onOpen} className="w-full text-left"><span className="block text-[12.5px] font-semibold text-ink">{item.title}</span>{item.due_at && <span className="mt-2 block text-[11px] text-neutral-500">Due {new Date(item.due_at).toLocaleDateString()}</span>}</button>
+  </div>;
+}
+
+function LinkedDealCard({ deal, columnId, onOpen, onRemove, active }: { deal: Deal; columnId: string; onOpen: () => void; onRemove: () => void; active: boolean }) {
+  const { setNodeRef, attributes, listeners } = useDraggable({ id: `deal:${deal.id}`, data: { type: "deal", id: deal.id, columnId } satisfies Drag });
+  return <div ref={setNodeRef} {...attributes} {...listeners} className={`vq-card rounded-xl bg-white p-3.5 ${active ? "opacity-30" : ""}`} style={{ touchAction: "none" }}><button type="button" onClick={onOpen} className="w-full text-left"><DealCardBody deal={deal} /></button><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={onRemove} className="mt-2 text-[11px] text-neutral-500 hover:text-red-700">Unlink Deal</button></div>;
+}
+
+function BoardColumn({ column, items, cards, deals, admin, activeDrag, onOpenItem, onOpenDeal, onRemoveDeal, onRename, onDelete, onAddItem }: {
+  column: Column; items: BoardItem[]; cards: Card[]; deals: Deal[]; admin: boolean; activeDrag: Drag | null;
+  onOpenItem: (item: BoardItem) => void; onOpenDeal: (deal: Deal) => void; onRemoveDeal: (deal: Deal) => void; onRename: (value: string) => Promise<void>; onDelete: () => void; onAddItem: (title: string) => Promise<void>;
 }) {
-  const router = useRouter();
-  const [columns, setColumns] = useState(initialColumns);
-  const [cards, setCards] = useState(initialCards);
-  const [preview, setPreview] = useState<Deal | null>(null);
-  const closePreview = useCallback(() => setPreview(null), []);
-  const [selectedDeal, setSelectedDeal] = useState("");
-  const [newColumn, setNewColumn] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [addingList, setAddingList] = useState(false);
-  const [editingList, setEditingList] = useState<string | null>(null);
-  const [listName, setListName] = useState("");
-  const [settings, setSettings] = useState(false);
-  const [title, setTitle] = useState(boardName);
-  const [color, setColor] = useState<BoardBackground>(boardBackground(background));
-  const availableDeals = deals.filter((deal) => !cards.some((card) => card.deal_id === deal.id));
-
-  async function move(dealId: string, columnId: string) {
-    const previous = cards;
-    setCards((current) => [...current.filter((card) => card.deal_id !== dealId), { deal_id: dealId, column_id: columnId }]);
-    const result = await moveBoardCardAction(boardId, dealId, columnId);
-    if (!result.ok) { setCards(previous); setError(result.message); }
-    else { setError(""); router.refresh(); }
-  }
-  async function reorder(source: string, target: string) {
-    const from = columns.findIndex((column) => column.id === source);
-    const to = columns.findIndex((column) => column.id === target);
-    if (from < 0 || to < 0 || from === to) return;
-    const next = [...columns]; next.splice(to, 0, next.splice(from, 1)[0]); setColumns(next);
-    const result = await reorderColumnsAction(boardId, next.map((column) => column.id));
-    if (!result.ok) { setColumns(columns); setError(result.message); }
-    else { setError(""); router.refresh(); }
-  }
-  return <div className="min-h-[70vh] rounded-2xl p-4 sm:p-6" style={{ backgroundColor: BOARD_BACKGROUNDS[color].color }}>
-    <div className="mb-5 flex flex-wrap items-center justify-between gap-3 text-white"><div><p className="text-xs font-semibold uppercase tracking-widest text-white/75">CRM / Deal board</p><h1 className="mt-1 text-2xl font-semibold">{title}</h1><p className="mt-1 text-xs text-white/80">Board movement does not change the Investment Pipeline stage.</p></div>{admin && <button type="button" onClick={() => setSettings((value) => !value)} className="rounded-lg bg-white/20 px-3 py-2 text-sm font-semibold hover:bg-white/30">Board settings</button>}</div>
-    {settings && admin && <div className="mb-5 max-w-md rounded-xl bg-white p-4 shadow-lg"><form onSubmit={async (event) => {
-      event.preventDefault(); setBusy(true); const result = await updateBoardAction(boardId, title, color); setBusy(false);
-      if (!result.ok) setError(result.message); else { setError(""); setSettings(false); router.refresh(); }
-    }}><label htmlFor="edit-board-name" className="text-xs font-semibold text-neutral-700">Board title</label><input id="edit-board-name" required maxLength={80} value={title} onChange={(event) => setTitle(event.target.value)} className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm" />
-      <fieldset className="mt-4"><legend className="text-xs font-semibold text-neutral-700">Background</legend><div className="mt-2 flex flex-wrap gap-2">{(Object.entries(BOARD_BACKGROUNDS) as [BoardBackground, { label: string; color: string }][]).map(([value, option]) => <button key={value} type="button" onClick={() => setColor(value)} aria-label={`${option.label} background`} aria-pressed={color === value} className={`h-9 w-11 rounded-lg border-2 ${color === value ? "border-ink ring-2 ring-cyan-300" : "border-transparent"}`} style={{ backgroundColor: option.color }} />)}</div></fieldset>
-      <button disabled={busy} className="mt-4 rounded-lg bg-ink px-4 py-2 text-xs font-semibold text-white disabled:opacity-40">Save changes</button></form>
-      <button type="button" onClick={async () => { if (!window.confirm(`Archive “${title}”? Its cards and lists will remain stored, but the board will disappear from navigation.`)) return; const result = await archiveBoardAction(boardId); if (!result.ok) setError(result.message); else { router.push("/boards"); router.refresh(); } }} className="mt-4 text-xs text-red-700">Archive board</button>
-    </div>}
-    {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-xs text-red-700">{error}</p>}
-    {!!columns.length && <div className="mb-4 flex flex-wrap gap-3 rounded-xl border border-neutral-100 bg-white p-4">
-      <label htmlFor="board-add-deal" className="self-center text-xs font-semibold text-neutral-700">Add existing Deal</label>
-      <select id="board-add-deal" value={selectedDeal} onChange={(e) => setSelectedDeal(e.target.value)} className="min-w-48 rounded-lg border border-neutral-200 px-3 py-2 text-sm">
-        <option value="">Choose a Deal…</option>{availableDeals.map((deal) => <option key={deal.id} value={deal.id}>{deal.company?.name} · {deal.label}</option>)}
-      </select>
-      <button type="button" disabled={!selectedDeal || !columns.length} onClick={() => { void move(selectedDeal, columns[0].id); setSelectedDeal(""); }} className="rounded-lg bg-ink px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Add card</button>
-    </div>}
-    <div className="flex items-start gap-3 overflow-x-auto pb-4">{columns.map((column) => <section key={column.id} onDragOver={(event) => event.preventDefault()} onDrop={(event) => {
-      event.preventDefault(); const dealId = event.dataTransfer.getData("application/x-vq-deal"); const columnId = event.dataTransfer.getData("application/x-vq-column");
-      if (dealId && cards.some((card) => card.deal_id === dealId)) void move(dealId, column.id);
-      else if (admin && columnId) void reorder(columnId, column.id);
-    }} className="min-h-72 w-[265px] flex-shrink-0 rounded-xl bg-[#f7f9fa] p-3">
-      <div className="mb-3 flex items-center justify-between gap-2"><div className="flex min-w-0 items-center gap-2">
-        {admin && <span draggable onDragStart={(event) => event.dataTransfer.setData("application/x-vq-column", column.id)} title="Drag to reorder column" aria-label={`Drag ${column.name} column`} className="cursor-grab select-none text-neutral-400">⠿</span>}
-        {editingList === column.id ? <form onSubmit={async (event) => { event.preventDefault(); const result = await renameColumnAction(boardId, column.id, listName); if (!result.ok) setError(result.message); else { setColumns((current) => current.map((item) => item.id === column.id ? { ...item, name: listName.trim() } : item)); setEditingList(null); setError(""); router.refresh(); } }} className="min-w-0"><input aria-label="List name" autoFocus required maxLength={60} value={listName} onChange={(event) => setListName(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setEditingList(null); }} onBlur={() => setEditingList(null)} className="w-full rounded border border-cyan-600 px-2 py-1 text-sm" /></form> : <h2 className="truncate text-sm font-semibold text-ink">{column.name}</h2>}</div>
-        <span className="rounded-full bg-white px-2 text-xs text-neutral-500">{cards.filter((card) => card.column_id === column.id).length}</span></div>
-      {admin && <div className="mb-3 flex gap-3 text-xs"><button type="button" onClick={() => { setEditingList(column.id); setListName(column.name); }} className="text-neutral-500 hover:text-cyan-800">Rename list</button><button type="button" onClick={async () => { if (cards.some((card) => card.column_id === column.id)) { setError("Move or remove this list's cards before deleting it."); return; } const result = await removeEmptyColumnAction(boardId, column.id); if (!result.ok) setError(result.message); else { setColumns((current) => current.filter((item) => item.id !== column.id)); setError(""); router.refresh(); } }} className="text-neutral-500 hover:text-red-700">Delete empty list</button></div>}
-      <div className="space-y-2">{cards.filter((card) => card.column_id === column.id).map((card) => {
-        const deal = deals.find((candidate) => candidate.id === card.deal_id); if (!deal) return null;
-        return <div key={card.deal_id} draggable onDragStart={(event) => event.dataTransfer.setData("application/x-vq-deal", card.deal_id)} className="vq-card rounded-xl bg-white p-3">
-          <button type="button" onClick={() => setPreview(deal)} className="w-full text-left"><DealCardBody deal={deal} /></button>
-          <div className="mt-2 flex items-center justify-between gap-2 text-xs">
-            <label className="sr-only" htmlFor={`card-${card.deal_id}`}>Move {deal.label}</label>
-            <select id={`card-${card.deal_id}`} value={card.column_id} onChange={(event) => void move(card.deal_id, event.target.value)} className="min-w-0 rounded border border-neutral-200 bg-white px-1.5 py-1 text-neutral-600">{columns.map((choice) => <option key={choice.id} value={choice.id}>{choice.name}</option>)}</select>
-            <button type="button" aria-label={`Remove ${deal.label} from board`} onClick={async () => {
-              const result = await removeBoardCardAction(boardId, card.deal_id);
-              if (!result.ok) setError(result.message);
-              else { setCards((current) => current.filter((item) => item.deal_id !== card.deal_id)); router.refresh(); }
-            }} className="text-neutral-400 hover:text-red-600">Remove</button>
-          </div>
-        </div>;
-      })}{!cards.some((card) => card.column_id === column.id) && <p className="rounded-lg border border-dashed border-neutral-200 p-4 text-center text-xs text-neutral-400">Drop a Deal here</p>}</div>
-    </section>)}
-      {admin && (addingList ? <form onSubmit={async (event) => {
-        event.preventDefault(); setBusy(true); const result = await addColumnAction(boardId, newColumn, columns.length); setBusy(false);
-        if (!result.ok) setError(result.message); else { setNewColumn(""); setAddingList(false); setError(""); router.refresh(); }
-      }} className="w-[265px] flex-shrink-0 self-start rounded-xl border border-dashed border-neutral-300 bg-white p-3">
-        <label htmlFor="new-board-column" className="text-xs font-semibold text-neutral-600">List title</label>
-        <input id="new-board-column" autoFocus required maxLength={60} value={newColumn} onChange={(e) => setNewColumn(e.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setAddingList(false); }} placeholder="Enter a list title…" className="mt-2 w-full rounded-lg border border-neutral-200 px-2 py-1.5 text-sm" />
-        <div className="flex items-center gap-3"><button disabled={busy} className="mt-2 rounded-lg bg-ink px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">Add list</button><button type="button" onClick={() => setAddingList(false)} className="mt-2 text-xs text-neutral-600">Cancel</button></div>
-      </form> : <button type="button" onClick={() => setAddingList(true)} className="w-[265px] flex-shrink-0 rounded-xl bg-white/25 p-4 text-left text-sm font-semibold text-white hover:bg-white/35">+ Add a list</button>)}
+  const { setNodeRef: setDragNodeRef, attributes, listeners } = useDraggable({ id: `column:${column.id}`, data: { type: "column", id: column.id, columnId: column.id } satisfies Drag, disabled: !admin });
+  const { setNodeRef: setDropNodeRef, isOver } = useDroppable({ id: `column-target:${column.id}`, data: { type: "column", id: column.id, columnId: column.id } satisfies Drag });
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(column.name);
+  const [adding, setAdding] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const linked = cards.map((card) => deals.find((deal) => deal.id === card.deal_id)).filter((deal): deal is Deal => !!deal);
+  return <section ref={setDropNodeRef} className={`flex min-h-72 w-[265px] flex-shrink-0 flex-col self-start rounded-[14px] bg-[#f7f9fa] p-3 transition ${isOver ? "ring-2 ring-cyan-300" : ""} ${activeDrag?.type === "column" && activeDrag.id === column.id ? "opacity-30" : ""}`}>
+    <div className="mb-3 flex items-center gap-2 px-1 pt-0.5">
+      {admin && <button type="button" ref={setDragNodeRef} {...attributes} {...listeners} aria-label={`Drag ${column.name} list`} className="cursor-grab touch-none text-neutral-400 active:cursor-grabbing" title="Drag list">⠿</button>}
+      {editing ? <form onSubmit={async (event) => { event.preventDefault(); await onRename(name); setEditing(false); }} className="min-w-0 flex-1"><input autoFocus required maxLength={60} aria-label="List title" value={name} onChange={(event) => setName(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { setName(column.name); setEditing(false); } }} className="w-full rounded-lg border border-cyan-400 px-2 py-1 text-xs font-semibold outline-none" /></form> : <h2 className="min-w-0 flex-1 truncate text-xs font-semibold text-neutral-700">{column.name}</h2>}
+      <span className="rounded-full bg-[#eef1f2] px-1.5 py-0.5 text-[11px] text-neutral-500">{items.length + linked.length}</span>
+      {admin && <details className="relative"><summary aria-label={`Actions for ${column.name}`} className="cursor-pointer list-none rounded px-1 text-neutral-500 hover:bg-white">⋯</summary><div className="absolute right-0 top-6 z-20 w-40 rounded-xl border border-neutral-200 bg-white p-1 shadow-lg"><button type="button" onClick={(event) => { setEditing(true); event.currentTarget.closest("details")?.removeAttribute("open"); }} className="block w-full rounded px-3 py-2 text-left text-xs hover:bg-neutral-50">Rename list</button><button type="button" onClick={onDelete} className="block w-full rounded px-3 py-2 text-left text-xs text-red-700 hover:bg-red-50">Delete empty list</button></div></details>}
     </div>
-    {preview && <DealPreview deal={preview} stageName={preview.stage?.name ?? "Unknown"} onClose={closePreview} />}
+    <div className="pipeline-scroll flex max-h-[560px] flex-col gap-2.5 overflow-y-auto pr-0.5">{items.map((item) => <NativeCard key={item.id} item={item} active={activeDrag?.type === "item" && activeDrag.id === item.id} onOpen={() => onOpenItem(item)} />)}{linked.map((deal) => <LinkedDealCard key={deal.id} deal={deal} columnId={column.id} active={activeDrag?.type === "deal" && activeDrag.id === deal.id} onOpen={() => onOpenDeal(deal)} onRemove={() => onRemoveDeal(deal)} />)}{!items.length && !linked.length && <div className="rounded-xl border border-dashed border-neutral-200 p-3.5 text-center text-[11px] text-neutral-400">No cards</div>}</div>
+    {adding ? <form onSubmit={async (event) => { event.preventDefault(); await onAddItem(newTitle); setNewTitle(""); setAdding(false); }} className="mt-3"><input autoFocus required maxLength={200} value={newTitle} onChange={(event) => setNewTitle(event.target.value)} placeholder="Enter a card title…" className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs outline-none focus:border-cyan-400" /><div className="mt-2 flex items-center gap-3"><button className="rounded-lg bg-ink px-3 py-1.5 text-xs font-semibold text-white">Add card</button><button type="button" onClick={() => setAdding(false)} className="text-xs text-neutral-500">Cancel</button></div></form> : <button type="button" onClick={() => setAdding(true)} className="mt-3 rounded-lg px-2 py-1.5 text-left text-xs font-medium text-neutral-500 hover:bg-white hover:text-ink">+ Add a card</button>}
+  </section>;
+}
+
+function ItemEditor({ item, columns, onClose, onSave, onMove, onDelete }: { item: BoardItem; columns: Column[]; onClose: () => void; onSave: (title: string, description: string, dueAt: string | null) => Promise<boolean>; onMove: (columnId: string) => Promise<void>; onDelete: () => Promise<void> }) {
+  const [title, setTitle] = useState(item.title); const [description, setDescription] = useState(item.description); const [due, setDue] = useState(item.due_at?.slice(0,16) ?? "");
+  const [saving, setSaving] = useState(false);
+  return <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-8"><button type="button" aria-label="Close card" onClick={onClose} className="absolute inset-0 bg-ink/55" /><section role="dialog" aria-modal="true" aria-labelledby="item-dialog-title" className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl sm:p-8">
+    <div className="flex justify-between gap-3"><p className="text-xs font-semibold uppercase tracking-widest text-cyan-700">Board card</p><button type="button" onClick={onClose} aria-label="Close" className="text-lg text-neutral-500">×</button></div>
+    <form onSubmit={async (event) => { event.preventDefault(); setSaving(true); const okay = await onSave(title, description, due ? new Date(due).toISOString() : null); setSaving(false); if (okay) onClose(); }}><label id="item-dialog-title" htmlFor="item-title" className="mt-5 block text-xs font-semibold text-neutral-600">Title</label><input id="item-title" required maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm" /><label htmlFor="item-description" className="mt-5 block text-xs font-semibold text-neutral-600">Description</label><textarea id="item-description" maxLength={10000} rows={5} value={description} onChange={(event) => setDescription(event.target.value)} className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm" /><label htmlFor="item-due" className="mt-5 block text-xs font-semibold text-neutral-600">Due date</label><input id="item-due" type="datetime-local" value={due} onChange={(event) => setDue(event.target.value)} className="mt-1 block rounded-lg border border-neutral-200 px-3 py-2 text-sm" /><button disabled={saving} className="mt-5 rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">Save card</button></form>
+    <div className="mt-5 border-t border-neutral-100 pt-4"><p className="mb-2 text-xs font-semibold text-neutral-600">Move to list</p><SelectMenu value={item.column_id} options={columns.map((column) => ({ value: column.id, label: column.name }))} onChange={(value) => void onMove(value)} rootClassName="max-w-xs" /><button type="button" onClick={() => { if (window.confirm(`Delete “${item.title}”?`)) void onDelete(); }} className="mt-5 text-xs font-semibold text-red-700">Delete card</button></div>
+  </section></div>;
+}
+
+export default function CustomDealBoard({ boardId, boardName, includeDeals, initialColumns, initialCards, initialItems, deals, members, admin }: { boardId: string; boardName: string; includeDeals: boolean; initialColumns: Column[]; initialCards: Card[]; initialItems: BoardItem[]; deals: Deal[]; members: DealMember[]; admin: boolean }) {
+  const router = useRouter(); const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const [columns, setColumns] = useState(initialColumns); const [cards, setCards] = useState(initialCards); const [items, setItems] = useState(initialItems);
+  const [preview, setPreview] = useState<Deal | null>(null); const closePreview = useCallback(() => setPreview(null), []);
+  const [editingItem, setEditingItem] = useState<BoardItem | null>(null); const [dragging, setDragging] = useState<Drag | null>(null);
+  const [newColumn, setNewColumn] = useState(""); const [addingList, setAddingList] = useState(false);
+  const [selectedDeal, setSelectedDeal] = useState(""); const [query, setQuery] = useState(""); const [settings, setSettings] = useState(false); const [title, setTitle] = useState(boardName);
+  const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
+  const availableDeals = deals.filter((deal) => !cards.some((card) => card.deal_id === deal.id));
+  const shownItems = items.filter((item) => !query || `${item.title} ${item.description}`.toLowerCase().includes(query.toLowerCase()));
+  const shownCards = cards.filter((card) => !query || deals.some((deal) => deal.id === card.deal_id && `${deal.label} ${deal.company?.name ?? ""}`.toLowerCase().includes(query.toLowerCase())));
+  async function moveDeal(dealId: string, columnId: string) { const before = cards; setCards((current) => [...current.filter((card) => card.deal_id !== dealId), { deal_id: dealId, column_id: columnId }]); const result = await moveBoardCardAction(boardId, dealId, columnId); if (!result.ok) { setCards(before); setError(result.message); } else { setError(""); router.refresh(); } }
+  async function moveItem(itemId: string, columnId: string, order: number) { const before = items; setItems((current) => current.map((item) => item.id === itemId ? { ...item, column_id: columnId, sort_order: order } : item)); const result = await moveBoardItemAction(boardId, itemId, columnId, order); if (!result.ok) { setItems(before); setError(result.message); } else { setError(""); router.refresh(); } }
+  async function reorder(source: string, target: string) { const from = columns.findIndex((column) => column.id === source); const to = columns.findIndex((column) => column.id === target); if (from < 0 || to < 0 || from === to) return; const next = [...columns]; next.splice(to, 0, next.splice(from, 1)[0]); setColumns(next); const result = await reorderColumnsAction(boardId, next.map((column) => column.id)); if (!result.ok) { setColumns(columns); setError(result.message); } else { setError(""); router.refresh(); } }
+  function dragStart(event: DragStartEvent) { setDragging(event.active.data.current as Drag); }
+  function dragEnd(event: DragEndEvent) { const source = event.active.data.current as Drag | undefined; const target = event.over?.data.current as Drag | undefined; setDragging(null); if (!source || !target) return;
+    if (source.type === "column" && source.columnId !== target.columnId) void reorder(source.columnId, target.columnId);
+    else if (source.type === "item") { const targetItems = items.filter((item) => item.column_id === target.columnId && item.id !== source.id).sort((a,b) => a.sort_order - b.sort_order); const index = target.type === "item" ? Math.max(0,targetItems.findIndex((item) => item.id === target.id)) : targetItems.length; if (source.columnId !== target.columnId || target.type === "item" && source.id !== target.id) void moveItem(source.id,target.columnId,index); }
+    else if (source.type === "deal" && source.columnId !== target.columnId) void moveDeal(source.id,target.columnId);
+  }
+  return <div className="space-y-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-widest text-cyan-700">CRM / Board</p><h1 className="mt-1 text-2xl font-semibold text-ink">{title}</h1><p className="mt-1 text-xs text-neutral-500">{includeDeals ? "Board cards and linked Deals · Pipeline stages stay unchanged" : "Team board · lists and cards"}</p></div>{admin && <button type="button" onClick={() => setSettings((value) => !value)} className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-700">Board settings</button>}</div>
+    {settings && admin && <div className="vq-card-static max-w-md rounded-xl bg-white p-4"><form onSubmit={async (event) => { event.preventDefault(); setBusy(true); const result = await updateBoardAction(boardId,title); setBusy(false); if (!result.ok) setError(result.message); else { setSettings(false); router.refresh(); } }}><label htmlFor="edit-board-name" className="text-xs font-semibold text-neutral-700">Board title</label><input id="edit-board-name" required maxLength={80} value={title} onChange={(event) => setTitle(event.target.value)} className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm" /><button disabled={busy} className="mt-3 rounded-lg bg-ink px-4 py-2 text-xs font-semibold text-white">Save name</button></form><button type="button" onClick={async () => { if (!window.confirm(`Archive “${title}”? Its lists and cards remain stored.`)) return; const result = await archiveBoardAction(boardId); if (!result.ok) setError(result.message); else { router.push("/boards"); router.refresh(); } }} className="mt-4 text-xs text-red-700">Archive board</button></div>}
+    {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-xs text-red-700">{error}</p>}
+    <div className="flex flex-wrap items-center gap-3"><label htmlFor="board-filter" className="text-xs font-semibold text-neutral-600">Filter cards</label><input id="board-filter" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search this board" className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs" />{query && <button type="button" onClick={() => setQuery("")} className="text-xs text-cyan-800">Clear</button>}{includeDeals && !!columns.length && <div className="ml-auto flex items-center gap-2"><span className="text-xs font-semibold text-neutral-600">Link Deal</span><SelectMenu value={selectedDeal} onChange={setSelectedDeal} options={availableDeals.map((deal) => ({ value: deal.id, label: `${deal.company?.name ?? "Company"} · ${deal.label}` }))} placeholder="Choose a Deal" rootClassName="w-56" /><button type="button" disabled={!selectedDeal} onClick={() => { void moveDeal(selectedDeal,columns[0].id); setSelectedDeal(""); }} className="rounded-lg bg-ink px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">Add</button></div>}</div>
+    <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={dragStart} onDragCancel={() => setDragging(null)} onDragEnd={dragEnd}><div className="vq-card-grid flex min-h-[65vh] items-start gap-3 overflow-x-auto pb-4">{columns.map((column) => <BoardColumn key={column.id} column={column} items={shownItems.filter((item) => item.column_id === column.id).sort((a,b) => a.sort_order-b.sort_order)} cards={shownCards.filter((card) => card.column_id === column.id)} deals={deals} admin={admin} activeDrag={dragging} onOpenItem={setEditingItem} onOpenDeal={setPreview} onRemoveDeal={(deal) => { if (!window.confirm(`Unlink “${deal.label}” from this board? The Deal remains in Pipeline.`)) return; void removeBoardCardAction(boardId,deal.id).then((result) => { if (!result.ok) setError(result.message); else { setCards((current) => current.filter((card) => card.deal_id !== deal.id)); router.refresh(); } }); }} onRename={async (value) => { const result = await renameColumnAction(boardId,column.id,value); if (!result.ok) setError(result.message); else { setColumns((current) => current.map((item) => item.id === column.id ? { ...item, name: value.trim() } : item)); router.refresh(); } }} onDelete={() => { if (items.some((item) => item.column_id === column.id) || cards.some((card) => card.column_id === column.id)) { setError("Move or remove this list's cards before deleting it."); return; } void removeEmptyColumnAction(boardId,column.id).then((result) => { if (!result.ok) setError(result.message); else { setColumns((current) => current.filter((item) => item.id !== column.id)); router.refresh(); } }); }} onAddItem={async (value) => { const result = await addBoardItemAction(boardId,column.id,value); if (!result.ok) setError(result.message); else { setItems((current) => [...current,{ id: result.id!, column_id: column.id, title: value.trim(), description: "", due_at: null, sort_order: Math.max(0,...current.filter((item) => item.column_id === column.id).map((item) => item.sort_order)) + 1 }]); router.refresh(); } }} />)}
+      {admin && (addingList ? <form onSubmit={async (event) => { event.preventDefault(); setBusy(true); const result = await addColumnAction(boardId,newColumn,columns.length); setBusy(false); if (!result.ok) setError(result.message); else { setNewColumn(""); setAddingList(false); router.refresh(); } }} className="w-[265px] flex-shrink-0 rounded-[14px] bg-[#f7f9fa] p-3"><input autoFocus required maxLength={60} value={newColumn} onChange={(event) => setNewColumn(event.target.value)} placeholder="Enter a list title…" className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs" /><div className="mt-2 flex gap-3"><button disabled={busy} className="rounded-lg bg-ink px-3 py-1.5 text-xs font-semibold text-white">Add list</button><button type="button" onClick={() => setAddingList(false)} className="text-xs text-neutral-500">Cancel</button></div></form> : <button type="button" onClick={() => setAddingList(true)} className="w-[265px] flex-shrink-0 rounded-[14px] border border-dashed border-neutral-300 bg-[#f7f9fa] p-4 text-left text-xs font-semibold text-neutral-600 hover:border-cyan-300">+ Add a list</button>)}
+    </div><DragOverlay>{dragging?.type === "column" ? <div className="max-h-[75vh] w-[265px] rotate-2 overflow-y-auto rounded-[14px] bg-[#f7f9fa] p-3 shadow-2xl ring-2 ring-cyan-300"><div className="mb-3 text-xs font-semibold text-ink">{columns.find((column) => column.id === dragging.id)?.name}</div>{items.filter((item) => item.column_id === dragging.columnId).map((item) => <div key={item.id} className="mb-2 rounded-xl bg-white p-3 text-xs shadow-sm">{item.title}</div>)}{cards.filter((card) => card.column_id === dragging.columnId).map((card) => <div key={card.deal_id} className="mb-2 rounded-xl bg-white p-3 text-xs shadow-sm">{deals.find((deal) => deal.id === card.deal_id)?.label}</div>)}</div> : dragging?.type === "item" ? <div className="w-[250px] rotate-2 rounded-xl bg-white p-3 shadow-2xl ring-2 ring-cyan-300 text-xs font-semibold">{items.find((item) => item.id === dragging.id)?.title}</div> : dragging?.type === "deal" ? <div className="w-[250px] rotate-2 rounded-xl bg-white p-3 shadow-2xl ring-2 ring-cyan-300"><DealCardBody deal={deals.find((deal) => deal.id === dragging.id)!} /></div> : null}</DragOverlay></DndContext>
+    {editingItem && <ItemEditor key={editingItem.id} item={editingItem} columns={columns} onClose={() => setEditingItem(null)} onSave={async (value,description,dueAt) => { const result = await saveBoardItemAction(boardId,editingItem.id,value,description,dueAt); if (!result.ok) { setError(result.message); return false; } setItems((current) => current.map((item) => item.id === editingItem.id ? { ...item,title:value.trim(),description,due_at:dueAt } : item)); router.refresh(); return true; }} onMove={async (columnId) => { await moveItem(editingItem.id,columnId,items.filter((item) => item.column_id === columnId).length); setEditingItem(null); }} onDelete={async () => { const result = await removeBoardItemAction(boardId,editingItem.id); if (!result.ok) setError(result.message); else { setItems((current) => current.filter((item) => item.id !== editingItem.id)); setEditingItem(null); router.refresh(); } }} />}
+    {preview && <DealPreview deal={preview} stageName={preview.stage?.name ?? "Unknown"} onClose={closePreview} members={members} />}
   </div>;
 }

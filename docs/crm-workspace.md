@@ -4,7 +4,7 @@ Product direction discussed with Mario on 2026-09-28. This extends the Product C
 
 ## Navigation and board types
 
-The sidebar groups Investment Pipeline, Boards, Companies and People under CRM. **+ Create board** lets an authorized user choose a name, record type and columns. Investment Pipeline remains the principal process for investment Deals. Other boards can track committee preparation, founder follow-up, LP outreach or tasks, with behavior appropriate to their records.
+The sidebar groups Investment Pipeline, Boards, Companies and People under CRM. **+ Create board** lets an authorized user choose a name and whether the board can link Deals; lists are added inside the board. Investment Pipeline remains the principal process for investment Deals. Other boards can track committee preparation, founder follow-up, LP outreach or tasks, with behavior appropriate to their records.
 
 Three behaviors must remain explicit:
 
@@ -14,11 +14,11 @@ Three behaviors must remain explicit:
 | Independent board | Changes only this board's card membership/column. The investment stage is unchanged. A Deal can appear on multiple boards. |
 | Field-grouped saved view | Groups existing records by a named field (such as priority). Dragging edits that field only when editable; otherwise dragging is disabled. A filtered view like “My Deals” is not another copy of Deals. |
 
-Users can create, rename, archive and reorder boards; create, rename, color and reorder whole columns with their displayed cards; add/remove existing records without deleting them; and drag cards across columns. Reordering a column does not change card status. Removing a populated column must require reassignment or an explicit safe archive. Card fields, filters, sorting and counts should be configurable. Provide a select/dropdown alternative to dragging for keyboard and touch use. Personal and shared views require explicit permissions on the underlying records.
+Users can create, rename, archive and reorder boards; create, rename and reorder whole columns with their displayed cards; add/remove existing records without deleting them; and drag cards across columns. Reordering a column does not change card status. Removing a populated column must require reassignment or an explicit safe archive. Card fields, filters, sorting and counts should be configurable. Provide a select/dropdown alternative to dragging for keyboard and touch use. Personal and shared views require explicit permissions on the underlying records.
 
-The current migration introduces **shared independent Deal boards** first. Their columns are not investment stages. The principal Pipeline remains backed by `pipeline_stages` and `deals.stage_id`. Task boards (To do / Doing / Done) need a richer task status model than today's open/done. LP outreach should use People/LP relationships, not investment Deals. Additional genuine investment pipelines with distinct stage sets require an explicit process model. Scott and Francis must confirm final stages, including `IC Review`, `Closing`, and the meaning of `Completed`.
+The current implementation includes shared general boards with native cards and optional Deal links. Their columns are not investment stages. The principal Pipeline remains backed by `pipeline_stages` and `deals.stage_id`. Task boards (To do / Doing / Done) need a richer task status model than today's open/done. LP outreach should use People/LP relationships, not investment Deals. Additional genuine investment pipelines with distinct stage sets require an explicit process model. Scott and Francis must confirm final stages, including `IC Review`, `Closing`, and the meaning of `Completed`.
 
-Board creation follows the in-board workflow: choose a title and color in a short dialog, create an empty board, then add lists one at a time in the board. Admins can later rename the board, change its color, archive it, rename/reorder lists, and delete only empty lists; populated lists require moving or removing their cards first. All current boards are shared with the team; private visibility is a future permission model, not a selectable setting yet. Card moves do not alter the Deal's investment stage.
+Board creation follows the in-board workflow: choose a title and whether to link existing Deals, create an empty board, then add lists and native cards one at a time. Admins can later rename/archive the board, rename/reorder whole lists, and delete only empty lists; populated lists require moving or removing their cards first. Native cards have a title, description, due date and persistent list/order, and can be dragged across lists. Boards that opt into Deal links may contain both native cards and existing Deals; those Deal cards retain their own investment stage. All current boards are shared with the team; private visibility is a future permission model, not a selectable setting yet. The background is the existing neutral workspace design, without user color configuration.
 
 ## Deal preview
 
@@ -29,6 +29,7 @@ Clicking a Pipeline or Deal-board card opens a large accessible overlay while th
 | Capability | Intended behavior | Current position |
 | --- | --- | --- |
 | Next action | Assigned follow-up with due date visible on Deal/board and overdue in Overview. | Tasks exist; surface them consistently. |
+| Deal team | Assign multiple active members to a Deal, show team avatars on Pipeline cards, and filter by member. Preserve the old free-text `deals.owner` for historical records; migrate only unambiguous member names. | Membership and avatar profiles exist; join-table assignments are added in the Deal team migration. |
 | Saved views and custom fields | Personal/shared filters, table/Kanban layouts, card fields and business fields. | Basic Pipeline filters exist; durable views remain. |
 | Relationship history | Consolidate activity by Person and Company, relationship owner and possible warm introductions. | People and manual activity exist; sync and graph remain. |
 | Stage rules | Show required inputs and optionally create tasks or notifications on stage entry. | Stage history and some diligence requirements exist; reusable rules remain. |
@@ -46,4 +47,6 @@ Clicking a Pipeline or Deal-board card opens a large accessible overlay while th
 4. Next-action surfaces, LP and Task boards, stage requirements.
 5. Relationship intelligence, search, templates and reporting.
 
-Decide who can create shared versus personal boards; whether another Deal board is an independent workflow or a genuine additional investment pipeline; final stage taxonomy; who edits stage rules; and LP outreach stages. Initially, Admin creates shared boards and active members can move their cards. The pending manual-interaction PR #12 and migration 0024 remain a separate integration; do not assume they are on `main`.
+Pipeline's board filter supports text, team member (including "me" or unassigned), priority, stage, overdue next action and no next action. It filters displayed cards only and keeps each Deal's underlying stage intact. Team avatars are visible to active Vanquish members, including other members' profile photos; the Storage read policy is scoped to authenticated active members.
+
+Decide who can create shared versus personal boards; whether another Deal board is an independent workflow or a genuine additional investment pipeline; final stage taxonomy; who edits stage rules; and LP outreach stages. Initially, Admin creates shared boards and active members can move their cards. The manual-interaction PR #12 and migration 0024 remain a separate integration; verify their merge state before relying on them.
