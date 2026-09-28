@@ -3,18 +3,37 @@
 import { revalidatePath } from "next/cache";
 import { actionAccessError, requireMember } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/server";
+import { BOARD_BACKGROUNDS, type BoardBackground } from "@/lib/boards/appearance";
 
 type Result = { ok: true; id?: string } | { ok: false; message: string };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const fail = (message: string): Result => ({ ok: false, message });
 
-export async function createBoardAction(name: string, columns: string[]): Promise<Result> {
+export async function createBoardAction(name: string, background: BoardBackground): Promise<Result> {
   const access = await actionAccessError("admin"); if (access) return fail(access);
-  if (!name.trim() || name.length > 80 || columns.length < 1 || columns.length > 20 || columns.some((s) => !s.trim() || s.length > 60)) return fail("Enter a board name and 1–20 column names.");
+  if (!name.trim() || name.length > 80 || !(background in BOARD_BACKGROUNDS)) return fail("Enter a board name and choose a background.");
   const db = await createClient();
-  const { data, error } = await db.rpc("crm_create_board", { p_name: name.trim(), p_columns: columns.map((s) => s.trim()) });
+  const { data, error } = await db.rpc("crm_create_empty_board", { p_name: name.trim(), p_background: background });
   if (error || !data) return fail(error?.message ?? "Could not create board.");
-  revalidatePath("/boards"); return { ok: true, id: data as string };
+  revalidatePath("/", "layout"); return { ok: true, id: data as string };
+}
+
+export async function updateBoardAction(boardId: string, name: string, background: BoardBackground): Promise<Result> {
+  const access = await actionAccessError("admin"); if (access) return fail(access);
+  if (!uuid.test(boardId) || !name.trim() || name.length > 80 || !(background in BOARD_BACKGROUNDS)) return fail("Invalid board settings.");
+  const db = await createClient();
+  const { data, error } = await db.from("crm_boards").update({ name: name.trim(), background }).eq("id", boardId).is("archived_at", null).select("id").maybeSingle();
+  if (error || !data) return fail(error?.message ?? "Board not found.");
+  revalidatePath("/", "layout"); return { ok: true };
+}
+
+export async function archiveBoardAction(boardId: string): Promise<Result> {
+  const access = await actionAccessError("admin"); if (access) return fail(access);
+  if (!uuid.test(boardId)) return fail("Invalid board.");
+  const db = await createClient();
+  const { data, error } = await db.from("crm_boards").update({ archived_at: new Date().toISOString() }).eq("id", boardId).is("archived_at", null).select("id").maybeSingle();
+  if (error || !data) return fail(error?.message ?? "Board not found.");
+  revalidatePath("/", "layout"); return { ok: true };
 }
 
 export async function addColumnAction(boardId: string, name: string, order: number): Promise<Result> {
@@ -31,6 +50,18 @@ export async function renameColumnAction(boardId: string, columnId: string, name
   const db = await createClient();
   const { data, error } = await db.from("crm_board_columns").update({ name: name.trim() }).eq("board_id", boardId).eq("id", columnId).select("id").maybeSingle();
   if (error || !data) return fail(error?.message ?? "Column not found."); revalidatePath(`/boards/${boardId}`); return { ok: true };
+}
+
+export async function removeEmptyColumnAction(boardId: string, columnId: string): Promise<Result> {
+  const access = await actionAccessError("admin"); if (access) return fail(access);
+  if (!uuid.test(boardId) || !uuid.test(columnId)) return fail("Invalid list.");
+  const db = await createClient();
+  const { count, error: countError } = await db.from("crm_board_cards").select("deal_id", { count: "exact", head: true }).eq("board_id", boardId).eq("column_id", columnId);
+  if (countError) return fail(countError.message);
+  if (count) return fail("Move or remove this list's cards before deleting it.");
+  const { error } = await db.from("crm_board_columns").delete().eq("board_id", boardId).eq("id", columnId);
+  if (error) return fail(error.message);
+  revalidatePath(`/boards/${boardId}`); return { ok: true };
 }
 
 export async function reorderColumnsAction(boardId: string, ids: string[]): Promise<Result> {

@@ -18,6 +18,8 @@ Users can create, rename, archive and reorder boards; create, rename, color and 
 
 The current migration introduces **shared independent Deal boards** first. Their columns are not investment stages. The principal Pipeline remains backed by `pipeline_stages` and `deals.stage_id`. Task boards (To do / Doing / Done) need a richer task status model than today's open/done. LP outreach should use People/LP relationships, not investment Deals. Additional genuine investment pipelines with distinct stage sets require an explicit process model. Scott and Francis must confirm final stages, including `IC Review`, `Closing`, and the meaning of `Completed`.
 
+Board creation follows the in-board workflow: choose a title and color in a short dialog, create an empty board, then add lists one at a time in the board. Admins can later rename the board, change its color, archive it, rename/reorder lists, and delete only empty lists; populated lists require moving or removing their cards first. All current boards are shared with the team; private visibility is a future permission model, not a selectable setting yet. Card moves do not alter the Deal's investment stage.
+
 ## Deal preview
 
 Clicking a Pipeline or Deal-board card opens a large accessible overlay while the board remains visible behind it. Show Deal name, Company, stage, owner, priority, potential investment, last activity and next action. **Open full deal** goes to the existing shareable `/companies/{companyId}/deals/{dealId}` page; **View company** goes to its Company record. Escape, close button and backdrop return to the board. Never include restricted documents or portfolio details in a preview for a member lacking access.
