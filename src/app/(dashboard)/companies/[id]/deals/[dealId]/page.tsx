@@ -424,6 +424,11 @@ export default async function DealDetailPage({
     }
   );
   const dealActivity = [...eventsById.values()];
+  const { data: participantRows } = (interactions?.length
+    ? await supabase.from("interaction_participants").select("interaction_id,email").in("interaction_id", interactions.map(i => i.id))
+    : { data: [] as { interaction_id: string; email: string }[] });
+  const participants = new Map<string, string[]>();
+  for (const row of participantRows ?? []) participants.set(row.interaction_id, [...(participants.get(row.interaction_id) ?? []), row.email]);
   const checklistCreatedAutomatically = dealActivity.some(
     (event) => event.target_id === dealId && event.payload?.createdAutomatically === true
   );
@@ -436,7 +441,7 @@ export default async function DealDetailPage({
       at: interaction.occurred_at,
       eyebrow: interaction.type,
       label: interaction.subject ?? "Interaction logged",
-      detail: interaction.summary,
+      detail: [interaction.summary, participants.get(interaction.id)?.length ? `Participants: ${participants.get(interaction.id)?.join(", ")}` : null].filter(Boolean).join(" · "),
     })),
     ...dealActivity
       .filter((event) => event.event_type !== "STATUS_CHANGED")

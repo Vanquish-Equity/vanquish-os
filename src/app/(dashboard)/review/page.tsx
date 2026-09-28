@@ -1,4 +1,6 @@
 import ReviewItemActions from "@/components/ReviewItemActions";
+import ManualInteractionIntake from "@/components/ManualInteractionIntake";
+import ManualInteractionDecision from "@/components/ManualInteractionDecision";
 import { createClient } from "@/lib/supabase/server";
 import { startDevPageTimer } from "@/lib/performance";
 
@@ -9,6 +11,12 @@ type ReviewItem = {
   review_type: string;
   payload: {
     company_name?: string;
+    type?: string;
+    occurred_at?: string;
+    subject?: string;
+    summary?: string;
+    emails?: string[];
+    candidates?: { id: string; name: string }[];
     deals?: {
       row?: string | number;
       deal_id?: string;
@@ -38,6 +46,13 @@ export default async function ReviewPage() {
   endTimer();
   const openItems = (items ?? []).filter((item) => item.status === "open");
   const closedItems = (items ?? []).filter((item) => item.status !== "open");
+  const hasManualItems = openItems.some((item) => item.review_type === "manual_interaction_match");
+  const [{ data: companies }, { data: deals }] = hasManualItems
+    ? await Promise.all([
+        supabase.from("companies").select("id,name").is("deleted_at", null).order("name"),
+        supabase.from("deals").select("id,name,company_id").is("archived_at", null).order("name"),
+      ])
+    : [{ data: [] }, { data: [] }];
 
   return (
     <div className="flex flex-col gap-4 px-7 py-6">
@@ -46,9 +61,11 @@ export default async function ReviewPage() {
           Review
         </h1>
         <p className="mt-1 text-[13px] text-neutral-500">
-          Human decisions for ambiguous tracker and reconciliation items.
+          Human decisions for tracker, reconciliation, and manually captured interactions.
         </p>
       </header>
+
+      <ManualInteractionIntake />
 
       <div className="vq-card-grid flex flex-col gap-3">
         {openItems.length === 0 && (
@@ -69,7 +86,7 @@ export default async function ReviewPage() {
                   {item.review_type.replaceAll("_", " ")}
                 </div>
                 <h2 className="mt-1 text-[15px] font-semibold text-ink">
-                  {item.payload.company_name ?? "Review item"}
+                  {item.payload.company_name ?? (item.review_type === "manual_interaction_match" ? item.payload.subject : null) ?? "Review item"}
                 </h2>
               </div>
               <div className="text-[11px] text-neutral-400">
@@ -77,7 +94,12 @@ export default async function ReviewPage() {
               </div>
             </div>
 
-            <div className="mb-4 grid grid-cols-2 gap-3">
+            {item.review_type === "manual_interaction_match" && <div className="space-y-1 text-[12px] text-neutral-600">
+              <p>{item.payload.type} · {item.payload.occurred_at ? new Date(item.payload.occurred_at).toLocaleString() : ""} · {item.payload.subject}</p>
+              <p>{item.payload.summary}</p>
+              <p>Participants: {(item.payload.emails ?? []).join(", ")}</p>
+            </div>}
+            {item.review_type !== "manual_interaction_match" && <div className="mb-4 grid grid-cols-2 gap-3">
               {(item.payload.deals ?? []).map((deal, index) => (
                 <div
                   key={`${deal.deal_id ?? index}`}
@@ -104,9 +126,11 @@ export default async function ReviewPage() {
                   </dl>
                 </div>
               ))}
-            </div>
+            </div>}
 
-            <ReviewItemActions itemId={item.id} deals={item.payload.deals ?? []} reviewType={item.review_type} />
+            {item.review_type === "manual_interaction_match"
+              ? <ManualInteractionDecision reviewItemId={item.id} companyName={item.payload.company_name} emails={item.payload.emails ?? []} candidates={item.payload.candidates ?? []} companies={companies ?? []} deals={deals ?? []} />
+              : <ReviewItemActions itemId={item.id} deals={item.payload.deals ?? []} reviewType={item.review_type} />}
           </div>
         ))}
       </div>
@@ -116,7 +140,9 @@ export default async function ReviewPage() {
           <div className="divide-y divide-neutral-100">
             {closedItems.map((item) => {
               const archivedRow = item.payload.deals?.find((deal) => deal.deal_id === item.resolution?.archived_deal_id)?.row;
-              const action = item.resolution?.action === "duplicate_archive_one"
+              const action = item.review_type === "manual_interaction_match"
+                ? item.resolution?.action === "link" ? "Linked to existing company" : item.resolution?.action === "create" ? "Created company" : "Ignored"
+                : item.resolution?.action === "duplicate_archive_one"
                 ? `Duplicate archived${archivedRow ? ` (tracker row ${archivedRow})` : ""}`
                 : item.resolution?.action === "separate" ? "Kept both opportunities" : "Ignored";
               return (

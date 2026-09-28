@@ -1,72 +1,71 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { logActivity } from "@/lib/activity/log";
-import { activeDealInCompanyError } from "@/lib/deals/guards";
+import { actionAccessError } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/server";
 
 export type InteractionActionResult =
-  | { ok: true; interactionId?: string }
+  | { ok: true; interactionId?: string; outcome?: "attached" | "review" | "ignored"; companyId?: string }
   | { ok: false; message: string };
 
 function cleanText(value: FormDataEntryValue | string | null | undefined) {
   return String(value ?? "").trim();
 }
 
+function commonFields(formData: FormData) {
+  const entered = cleanText(formData.get("occurredAt"));
+  const when = entered ? new Date(entered) : new Date();
+  return {
+    p_type: cleanText(formData.get("type")) || "note",
+    p_occurred_at: Number.isFinite(when.getTime()) ? when.toISOString() : null,
+    p_subject: cleanText(formData.get("subject")),
+    p_summary: cleanText(formData.get("summary")),
+    p_emails: cleanText(formData.get("participants")).split(/[\s,;]+/).map((value) => value.toLowerCase()).filter(Boolean),
+  };
+}
+
 export async function logInteractionAction(
   formData: FormData
 ): Promise<InteractionActionResult> {
+  const denied = await actionAccessError();
+  if (denied) return { ok: false, message: denied };
   const companyId = cleanText(formData.get("companyId"));
   const dealId = cleanText(formData.get("dealId")) || null;
-  const type = cleanText(formData.get("type")) || "note";
-  const occurredAt = cleanText(formData.get("occurredAt"));
-  const subject = cleanText(formData.get("subject"));
-  const summary = cleanText(formData.get("summary"));
-
-  if (!companyId) return { ok: false, message: "Missing company." };
-  if (!subject && !summary) {
-    return { ok: false, message: "Add a subject or summary." };
-  }
-
+  const fields = commonFields(formData);
+  if (!companyId || !fields.p_occurred_at) return { ok: false, message: "Choose a company and valid date." };
   const supabase = await createClient();
-  if (dealId) {
-    const dealError = await activeDealInCompanyError(supabase, dealId, companyId);
-    if (dealError) return { ok: false, message: dealError };
-  }
-
-  const { data, error } = (await supabase
-    .from("interactions")
-    .insert({
-      company_id: companyId,
-      deal_id: dealId,
-      type,
-      occurred_at: occurredAt ? new Date(occurredAt).toISOString() : new Date().toISOString(),
-      subject: subject || null,
-      summary: summary || null,
-      created_by: "anonymous",
-    })
-    .select("id")
-    .single()) as unknown as {
-    data: { id: string } | null;
-    error: { message: string } | null;
-  };
-
-  if (error) return { ok: false, message: error.message };
-  if (!data) return { ok: false, message: "Interaction could not be logged." };
-
-  await logActivity(
-    {
-      eventType: "INTERACTION_LOGGED",
-      targetType: "interaction",
-      targetId: data.id,
-      payload: { companyId, dealId, type, subject },
-      actor: "anonymous",
-    },
-    supabase
-  );
+  const { data, error } = await supabase.rpc("log_manual_interaction", {
+    p_company_id: companyId, p_deal_id: dealId, ...fields,
+  });
+  if (error || !data) return { ok: false, message: error?.message ?? "Could not save interaction." };
 
   revalidatePath(`/companies/${companyId}`);
   if (dealId) revalidatePath(`/companies/${companyId}/deals/${dealId}`);
   revalidatePath("/overview");
-  return { ok: true, interactionId: data.id };
+  return { ok: true, interactionId: data as string };
+}
+
+export async function proposeInteractionAction(formData: FormData): Promise<InteractionActionResult> {
+  const denied = await actionAccessError();
+  if (denied) return { ok: false, message: denied };
+  const fields = commonFields(formData);
+  if (!fields.p_occurred_at || fields.p_emails.length === 0) {
+    return { ok: false, message: "Add participant email addresses and a valid date." };
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("propose_manual_interaction", {
+    p_company_name: cleanText(formData.get("companyName")), ...fields,
+  });
+  if (error) return { ok: false, message: error.message };
+  const result = data as { status?: string; company_id?: string; interaction_id?: string } | null;
+  if (!result || !["attached", "review", "ignored"].includes(result.status ?? "")) {
+    return { ok: false, message: "Could not classify interaction." };
+  }
+  revalidatePath("/review");
+  revalidatePath("/overview");
+  if (result.company_id) revalidatePath(`/companies/${result.company_id}`);
+  return {
+    ok: true, outcome: result.status as "attached" | "review" | "ignored",
+    companyId: result.company_id, interactionId: result.interaction_id,
+  };
 }

@@ -69,6 +69,10 @@ Run the migration files in order in the Supabase SQL Editor:
 18. `0023_admin_settings.sql` - separate Admin permission for Mario, member
     access controls and an ignored-domain list for future email detection.
     Requires `0022`. See [`docs/settings.md`](docs/settings.md).
+19. `0024_manual_interaction_review.sql` - attributed manual interactions and
+    participant emails, conservative company matching, and an atomic Review
+    decision that can link, create, or ignore. No mailbox integration.
+    Requires `0023`. See [`docs/manual-interactions.md`](docs/manual-interactions.md).
 
 Sign-in (Google, email link) and member-scoped RLS are enforced from `0015`
 on; the temporary anon policies of `0003`-`0014` are dropped there. See

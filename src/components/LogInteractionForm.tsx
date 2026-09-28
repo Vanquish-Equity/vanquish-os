@@ -106,6 +106,13 @@ export default function LogInteractionForm({
           placeholder="Subject"
           className={inputClass}
         />
+        <input
+          name="participants"
+          type="text"
+          placeholder="Participant emails (separate with commas)"
+          aria-label="Participant email addresses"
+          className={inputClass}
+        />
         <textarea
           name="summary"
           placeholder="Summary"
