@@ -28,9 +28,10 @@ export default async function DashboardLayout({
   const noticeKinds = notificationKinds(noticePreference);
   // Unread chat messages and notifications (0 until migration 0018 exists).
   const supabase = await createClient();
-  const [unread, { data: profile }] = await Promise.all([
+  const [unread, { data: profile }, { data: boards }] = await Promise.all([
     loadUnreadCounts(supabase, access.email, noticeKinds),
     supabase.from("app_members").select("avatar_path").eq("email", access.email).maybeSingle(),
+    supabase.from("crm_boards").select("id,name").is("archived_at", null).order("created_at"),
   ]);
   const avatarUrl = profile?.avatar_path
     ? (await supabase.storage.from("member-avatars").createSignedUrl(profile.avatar_path, 3600)).data?.signedUrl ?? null
@@ -52,12 +53,10 @@ export default async function DashboardLayout({
           preferenceCookie={preferenceCookie}
           navItems={visibleNav(WORKSPACE_NAV, access.permissions)
             .filter((item) => unread.available || !item.badge)
-            .map(({ href, label, icon, badge }) => ({
-              href,
-              label,
-              icon,
-              badge,
-            }))}
+            .flatMap(({ href, label, icon, badge }) => [
+              { href, label, icon, badge },
+              ...(href === "/boards" ? (boards ?? []).map((board) => ({ href: `/boards/${board.id}`, label: board.name, icon: "board_item" as const, child: true })) : []),
+            ])}
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <WorkspaceTopBar />

@@ -1,5 +1,9 @@
 # Open Decisions
 
+## CRM workspace expansion
+
+See [CRM workspace](crm-workspace.md) for configurable boards, Deal preview, saved views, next actions, LP outreach, relationship history and reporting. Confirm shared/personal board creation rights, additional pipeline semantics, stage labels and LP stages before implementing those specific workflows.
+
 ## Tracker taxonomy
 
 - `IC Review` and `Closing` are active pipeline stages in Vanquish OS but were not source statuses in the 2025 tracker. Scott and Francis should confirm whether they remain active stages, become templates, or move into another workflow.

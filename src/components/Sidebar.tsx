@@ -3,14 +3,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import NavIcon from "@/components/NavIcon";
 import type { NavIcon as NavIconName } from "@/lib/auth/permissions";
 import { accountLabel, requestIntroReplay, SIDEBAR_COOKIE_MAX_AGE_SECONDS } from "@/lib/ui/entrance";
 import { playUiSound, setSoundPref, useSoundPref } from "@/lib/ui/sound";
 import { useUnreadCounts } from "@/components/UnreadCounts";
 
-export type SidebarNavItem = { href: string; label: string; icon: NavIconName; badge?: "chat" | "notifications" };
+export type SidebarNavItem = { href: string; label: string; icon: NavIconName; badge?: "chat" | "notifications"; child?: boolean };
 
 // rail: icons only (collapsed). full: icons + labels (expanded, and the
 // mobile drawer). responsive: full on desktop, rail on small screens.
@@ -65,6 +65,7 @@ function SidebarBody({
   const router = useRouter();
   const pathname = usePathname();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [crmOpen, setCrmOpen] = useState(true);
   const profileRef = useRef<HTMLDivElement>(null);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -171,15 +172,18 @@ function SidebarBody({
       <div className={`mb-1.5 mt-1 px-3 text-[10px] uppercase tracking-[1.4px] text-neutral-600 ${label}`}>Workspace</div>
       <nav aria-label="Workspace" className="flex flex-col gap-0.5">
         {navItems.map((item) => {
-          const active = activeHref === item.href || activeHref.startsWith(item.href + "/");
+          const active = activeHref === item.href || (item.href !== "/boards" && activeHref.startsWith(item.href + "/"));
           const count = item.badge ? unread[item.badge] : 0;
+          const inCrm = ["/pipeline", "/boards", "/companies", "/people"].includes(item.href) || item.href.startsWith("/boards/");
           return (
+            <Fragment key={item.href}>
+            {item.href === "/pipeline" && <button type="button" onClick={() => setCrmOpen((value) => !value)} aria-expanded={crmOpen} className={`group relative mt-3 flex items-center py-2 text-left text-[10px] font-semibold uppercase tracking-[1.4px] text-neutral-500 hover:text-white ${center}`}><span className={label}>CRM {crmOpen ? "▾" : "▸"}</span><span className={byMode(mode, { rail: "", full: "hidden", responsive: "md:hidden" })}><NavIcon name="boards" /></span><Tooltip mode={mode}>CRM · {crmOpen ? "Collapse" : "Expand"}</Tooltip></button>}
+            {(!inCrm || crmOpen) && (
             <Link
-              key={item.href}
               href={item.href}
               onClick={() => onNavigate(item.href)}
               aria-current={active ? "page" : undefined}
-              className={`group relative flex items-center gap-2.5 rounded-[9px] py-2.5 text-[13px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400 ${center} ${
+              className={`group relative flex items-center gap-2.5 rounded-[9px] py-2.5 text-[13px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400 ${center} ${item.child ? "md:ml-3" : ""} ${
                 active ? "bg-[#12191c] text-white" : "text-neutral-400 hover:bg-[#12191c] hover:text-white"
               }`}
             >
@@ -202,6 +206,8 @@ function SidebarBody({
                 {count > 0 ? ` · ${count} unread` : ""}
               </Tooltip>
             </Link>
+            )}
+            </Fragment>
           );
         })}
       </nav>

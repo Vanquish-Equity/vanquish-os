@@ -2,9 +2,10 @@
 
 import type { CSSProperties } from "react";
 import { useState } from "react";
-import Link from "next/link";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { dealHref } from "@/lib/deals/scope";
+import DealAssigneeAvatars from "@/components/DealAssigneeAvatars";
+import MemberAssignMenu from "@/components/MemberAssignMenu";
+import type { DealMember } from "@/lib/deals/assignee-types";
 
 export type PipelineDeal = {
   id: string;
@@ -14,6 +15,10 @@ export type PipelineDeal = {
   stage_id: string;
   company: { id: string; name: string } | null;
   priority: { name: string } | null;
+  owner?: string | null;
+  assignees?: DealMember[];
+  last_activity_at?: string | null;
+  nextAction?: { title: string; due_at: string | null } | null;
   // Human identification of the deal (name, round or first-seen date).
   label: string;
   // Active deals the same company has on the board.
@@ -33,10 +38,16 @@ function DealCard({
   deal,
   activeDealId,
   pending,
+  members,
+  onOpen,
+  onToggleAssignee,
 }: {
   deal: PipelineDeal;
   activeDealId: string | null;
   pending: boolean;
+  members?: DealMember[];
+  onOpen: (deal: PipelineDeal) => void;
+  onToggleAssignee?: (deal: PipelineDeal, email: string, next: boolean) => void | Promise<unknown>;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
@@ -54,24 +65,34 @@ function DealCard({
   };
 
   return (
-    <Link
+    <div
       ref={setNodeRef}
       data-comment-anchor={`deal:${deal.id}`}
       data-comment-label={deal.name}
-      href={deal.company ? dealHref(deal.company.id, deal.id) : "/pipeline"}
       style={style}
-      className={`vq-card block rounded-xl bg-white p-3.5 ${
+      className={`vq-card group block w-full rounded-xl bg-white p-3.5 text-left ${
         pending ? "opacity-60" : ""
       }`}
       {...attributes}
       {...listeners}
     >
-      <DealCardBody deal={deal} />
-    </Link>
+      <button type="button" onClick={() => onOpen(deal)} className="block w-full text-left">
+        <DealCardBody deal={deal} hideAssignees={!!members} />
+      </button>
+      {members && (
+        <div className="mt-2 flex justify-end">
+          <MemberAssignMenu
+            members={members}
+            assigned={deal.assignees ?? []}
+            onToggle={(email, next) => onToggleAssignee?.(deal, email, next)}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 
-export function DealCardBody({ deal }: { deal: PipelineDeal }) {
+export function DealCardBody({ deal, hideAssignees = false }: { deal: PipelineDeal; hideAssignees?: boolean }) {
   return (
     <>
       <div className="mb-2 flex items-start justify-between gap-2">
@@ -94,6 +115,7 @@ export function DealCardBody({ deal }: { deal: PipelineDeal }) {
           {deal.companyDealCount} active deals for this company
         </div>
       )}
+      {!hideAssignees && !!deal.assignees?.length && <div className="mt-2 flex justify-end"><DealAssigneeAvatars members={deal.assignees} /></div>}
     </>
   );
 }
@@ -104,12 +126,18 @@ export default function PipelineColumn({
   deals,
   activeDealId,
   pendingDealIds,
+  members,
+  onOpen,
+  onToggleAssignee,
 }: {
   stageId: string;
   stageName: string;
   deals: PipelineDeal[];
   activeDealId: string | null;
   pendingDealIds: Set<string>;
+  members?: DealMember[];
+  onOpen: (deal: PipelineDeal) => void;
+  onToggleAssignee?: (deal: PipelineDeal, email: string, next: boolean) => void | Promise<unknown>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const { isOver, setNodeRef } = useDroppable({ id: stageId });
@@ -160,7 +188,7 @@ export default function PipelineColumn({
       </div>
 
       <div
-        className="pipeline-scroll flex flex-col gap-2.5 overflow-y-auto pr-0.5 transition-[max-height] duration-200"
+        className="pipeline-scroll vq-card-scroll flex flex-col gap-2.5 overflow-y-auto transition-[max-height] duration-200"
         style={{
           maxHeight: expanded ? "none" : `${COLLAPSED_MAX_HEIGHT}px`,
         }}
@@ -171,6 +199,9 @@ export default function PipelineColumn({
             deal={deal}
             activeDealId={activeDealId}
             pending={pendingDealIds.has(deal.id)}
+            members={members}
+            onOpen={onOpen}
+            onToggleAssignee={onToggleAssignee}
           />
         ))}
         {deals.length === 0 && (

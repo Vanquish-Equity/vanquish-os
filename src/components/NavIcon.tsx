@@ -48,6 +48,8 @@ const PATHS: Record<NavIconName | "collapse" | "expand" | "signout" | "sound-on"
       <rect x="16" y="4" width="4.5" height="7" rx="1.2" />
     </>
   ),
+  boards: <><rect x="4" y="5" width="16" height="14" rx="2" /><path d="M8 9h8M8 13h6" /></>,
+  board_item: <path d="M8 12h8" />,
   companies: (
     <>
       <path d="M4 20.5V5.5a1.5 1.5 0 0 1 1.5-1.5h7A1.5 1.5 0 0 1 14 5.5v15" />

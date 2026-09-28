@@ -13,6 +13,8 @@ import DueDiligenceCard, {
   type RequirementItem,
 } from "@/components/DueDiligenceCard";
 import EditableDealOverview from "@/components/EditableDealOverview";
+import DealAssigneePicker from "@/components/DealAssigneePicker";
+import { loadDealAssignees } from "@/lib/deals/assignee-queries";
 import LogInteractionForm from "@/components/LogInteractionForm";
 import NewTaskModal from "@/components/NewTaskModal";
 import RelativeTime from "@/components/RelativeTime";
@@ -329,6 +331,7 @@ export default async function DealDetailPage({
   ]);
 
   if (!deal || !deal.company) notFound();
+  const { members: assignmentMembers, byDeal: assignmentsByDeal } = await loadDealAssignees(supabase, [deal.id]);
   const company = deal.company;
   const [comments, commentDirectory] = await commentsPromise;
   const taskRows = taskResult.data;
@@ -669,6 +672,7 @@ export default async function DealDetailPage({
         )}
 
         <div className="flex flex-col gap-3.5">
+          <DealAssigneePicker dealId={deal.id} members={assignmentMembers} initial={assignmentsByDeal.get(deal.id) ?? []} readOnly={isArchived} />
           <div className="vq-card-static rounded-[14px] bg-white p-5">
             <h2 className="mb-3 text-[14.5px] font-semibold text-ink">Deal details</h2>
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[12px]">
