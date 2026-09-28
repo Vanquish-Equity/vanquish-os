@@ -18,4 +18,13 @@ describe("contextual comments routing", () => {
     expect(safeTargetKey("task:11111111-1111-1111-1111-111111111111")).toBe(true);
     expect(safeTargetKey("../documents/secret")).toBe(false);
   });
+
+  it("gives every board page one flat scope, keyed back to its own board via target_key", () => {
+    const board = "33333333-3333-3333-3333-333333333333";
+    expect(contextScope("/boards")?.page).toBe("boards");
+    expect(contextScope(`/boards/${board}`)?.page).toBe("boards");
+    expect(contextHref({ page: "boards", companyId: null, dealId: null }, "abc", `board:${board}:item:44444444-4444-4444-4444-444444444444`))
+      .toBe(`/boards/${board}#comment-abc`);
+    expect(contextHref({ page: "boards", companyId: null, dealId: null }, "abc", null)).toBe("/boards#comment-abc");
+  });
 });

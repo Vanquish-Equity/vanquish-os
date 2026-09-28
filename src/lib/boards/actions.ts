@@ -132,3 +132,43 @@ export async function setBoardItemAssigneeAction(boardId: string, itemId: string
   revalidatePath(`/boards/${boardId}`);
   return { ok: true };
 }
+
+export async function addChecklistItemAction(boardId: string, itemId: string, text: string): Promise<Result> {
+  const access = await actionAccessError(); if (access) return fail(access);
+  if (!uuid.test(boardId) || !uuid.test(itemId) || !text.trim() || text.length > 300) return fail("Enter a checklist item.");
+  const db = await createClient();
+  const { data, error } = await db.rpc("add_board_checklist_item", { p_item: itemId, p_text: text.trim() });
+  if (error || !data) return fail(error?.message ?? "Could not add checklist item.");
+  revalidatePath(`/boards/${boardId}`);
+  return { ok: true, id: data as string };
+}
+
+export async function setChecklistItemDoneAction(boardId: string, checklistItemId: string, done: boolean): Promise<Result> {
+  const access = await actionAccessError(); if (access) return fail(access);
+  if (!uuid.test(boardId) || !uuid.test(checklistItemId) || typeof done !== "boolean") return fail("Invalid checklist item.");
+  const db = await createClient();
+  const { error } = await db.rpc("set_board_checklist_item_done", { p_id: checklistItemId, p_done: done });
+  if (error) return fail(error.message);
+  revalidatePath(`/boards/${boardId}`);
+  return { ok: true };
+}
+
+export async function deleteChecklistItemAction(boardId: string, checklistItemId: string): Promise<Result> {
+  const access = await actionAccessError(); if (access) return fail(access);
+  if (!uuid.test(boardId) || !uuid.test(checklistItemId)) return fail("Invalid checklist item.");
+  const db = await createClient();
+  const { error } = await db.rpc("delete_board_checklist_item", { p_id: checklistItemId });
+  if (error) return fail(error.message);
+  revalidatePath(`/boards/${boardId}`);
+  return { ok: true };
+}
+
+export async function clearChecklistAction(boardId: string, itemId: string): Promise<Result> {
+  const access = await actionAccessError(); if (access) return fail(access);
+  if (!uuid.test(boardId) || !uuid.test(itemId)) return fail("Invalid card.");
+  const db = await createClient();
+  const { error } = await db.rpc("clear_board_checklist", { p_item: itemId });
+  if (error) return fail(error.message);
+  revalidatePath(`/boards/${boardId}`);
+  return { ok: true };
+}
