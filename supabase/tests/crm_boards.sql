@@ -21,10 +21,13 @@ reset role;
 select pg_temp.as_user('authenticated','marios@vanquishequity.com');
 create temporary table board_ids(id uuid,first_column uuid,second_column uuid,deal_id uuid,original_stage uuid) on commit drop;
 insert into board_ids(id,first_column,second_column,deal_id,original_stage)
- select b.id,(select id from public.crm_board_columns where board_id=b.id order by sort_order limit 1),
- (select id from public.crm_board_columns where board_id=b.id order by sort_order desc limit 1),d.id,d.stage_id
+ select b.id,null,null,d.id,d.stage_id
  from (select public.crm_create_board('Committee',array['Prepare','Review']) as id) b
  cross join lateral (select id,stage_id from public.deals limit 1) d;
+-- Read columns in a new statement: writes inside the RPC are not visible to
+-- other expressions in the same INSERT statement's snapshot.
+update board_ids b set first_column=(select id from public.crm_board_columns where board_id=b.id order by sort_order limit 1),
+ second_column=(select id from public.crm_board_columns where board_id=b.id order by sort_order desc limit 1);
 select pg_temp.expect((select count(*) from public.crm_board_columns where board_id=(select id from board_ids))=2,'atomic board creation');
 select public.crm_reorder_columns((select id from board_ids),array[(select second_column from board_ids),(select first_column from board_ids)]);
 select pg_temp.expect((select sort_order from public.crm_board_columns where id=(select second_column from board_ids))=0,'column reorder persists');
