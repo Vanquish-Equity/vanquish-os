@@ -70,7 +70,7 @@ function DealCard({
       data-comment-anchor={`deal:${deal.id}`}
       data-comment-label={deal.name}
       style={style}
-      className={`vq-card block w-full rounded-xl bg-white p-3.5 text-left ${
+      className={`vq-card group block w-full rounded-xl bg-white p-3.5 text-left ${
         pending ? "opacity-60" : ""
       }`}
       {...attributes}
