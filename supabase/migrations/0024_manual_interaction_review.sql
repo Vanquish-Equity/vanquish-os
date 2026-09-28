@@ -1,5 +1,8 @@
 -- Manually captured correspondence and conservative company resolution.
 -- No mailbox access, outbound email, or automatic company creation.
+-- The legacy activity trigger uses unqualified table names; a hardened RPC
+-- with an empty search_path must not cause it to inherit that empty path.
+alter function public.update_last_activity_from_interaction() set search_path to public, pg_catalog;
 create table if not exists public.interaction_participants (
   interaction_id uuid not null references public.interactions(id) on delete cascade,
   email text not null,
