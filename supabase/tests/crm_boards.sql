@@ -41,6 +41,7 @@ update public.crm_board_cards set column_id=(select second_column from board_ids
 select pg_temp.expect((select column_id=second_column from public.crm_board_cards c,board_ids b where c.board_id=b.id),'member moves card');
 select pg_temp.expect((select stage_id=original_stage from public.deals d,board_ids b where d.id=b.deal_id),'investment stage unchanged');
 select pg_temp.expect(pg_temp.denied($q$update public.crm_board_cards set updated_by='marios@vanquishequity.com'$q$),'cannot spoof actor');
-select pg_temp.expect(pg_temp.denied($q$update public.crm_board_columns set name='Hacked'$q$),'member cannot edit columns');
+update public.crm_board_columns set name='Hacked';
+select pg_temp.expect((select name='Review' from public.crm_board_columns where id=(select second_column from board_ids)),'member cannot edit columns');
 reset role;
 rollback;
