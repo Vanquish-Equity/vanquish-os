@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Checkbox from "@/components/Checkbox";
 import DealAssigneeAvatars from "@/components/DealAssigneeAvatars";
 import type { DealMember } from "@/lib/deals/assignee-types";
 
@@ -130,8 +131,7 @@ export default function MemberAssignMenu({
                 const selected = assigned.some((person) => person.email === member.email);
                 return (
                   <label key={member.email} className="flex cursor-pointer items-center gap-2 rounded-lg px-1.5 py-1.5 text-xs hover:bg-neutral-50">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={selected}
                       disabled={busyEmail !== null}
                       onChange={async (event) => {
@@ -140,7 +140,6 @@ export default function MemberAssignMenu({
                         await onToggle(member.email, !selected);
                         setBusyEmail(null);
                       }}
-                      className="h-3.5 w-3.5 accent-cyan-700"
                     />
                     <span className="truncate">{member.name}</span>
                   </label>
