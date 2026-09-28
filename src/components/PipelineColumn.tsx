@@ -70,15 +70,15 @@ function DealCard({
       data-comment-anchor={`deal:${deal.id}`}
       data-comment-label={deal.name}
       style={style}
-      className={`vq-card group block w-full rounded-xl bg-white p-3.5 text-left ${
+      onClick={() => onOpen(deal)}
+      onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(deal); } }}
+      className={`vq-card group block w-full cursor-pointer rounded-xl bg-white p-3.5 text-left ${
         pending ? "opacity-60" : ""
       }`}
       {...attributes}
       {...listeners}
     >
-      <button type="button" onClick={() => onOpen(deal)} className="block w-full text-left">
-        <DealCardBody deal={deal} hideAssignees={!!members} />
-      </button>
+      <DealCardBody deal={deal} hideAssignees={!!members} />
       {members && (
         <div className="mt-2 flex justify-end">
           <MemberAssignMenu

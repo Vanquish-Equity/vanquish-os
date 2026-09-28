@@ -124,7 +124,7 @@ export async function loadNotifications(
               })
             : c.company?.name ?? "a company",
           href: c.page_key
-            ? contextHref({ page: c.page_key, companyId: null, dealId: null }, c.id)
+            ? contextHref({ page: c.page_key, companyId: null, dealId: null }, c.id, c.target_key)
             : c.target_key
               ? contextHref({ page: null, companyId: c.company_id, dealId: c.deal_id }, c.id)
               : commentHref(c.company_id!, c.deal_id, c.id),

@@ -5,6 +5,7 @@ import { dealLabel } from "@/lib/deals/display";
 import { createClient } from "@/lib/supabase/server";
 import { loadDealAssignees } from "@/lib/deals/assignee-queries";
 import { loadBoardItemAssignees } from "@/lib/boards/assignee-queries";
+import { loadBoardItemChecklists } from "@/lib/boards/checklist-queries";
 
 export const dynamic = "force-dynamic";
 type Deal = { id: string; name: string; round: string | null; first_seen_at: string | null; created_at: string; potential_investment: number | null; updated_at: string; stage_id: string; stage: { name: string } | null; company: { id: string; name: string } | null; priority: { name: string } | null };
@@ -22,8 +23,9 @@ export default async function BoardDetailPage({ params }: { params: Promise<{ id
   if (columns.error || cards.error || items.error || deals.error) throw new Error("Could not load board data.");
   const { members, byDeal } = await loadDealAssignees(db, (deals.data ?? []).map((deal) => deal.id));
   const byItem = await loadBoardItemAssignees(db, members, (items.data ?? []).map((item) => item.id));
+  const byChecklist = await loadBoardItemChecklists(db, (items.data ?? []).map((item) => item.id));
   const labeled = (deals.data ?? []).map((deal) => ({ ...deal, assignees: byDeal.get(deal.id) ?? [], label: dealLabel({ name: deal.name, round: deal.round, companyName: deal.company?.name, firstSeenAt: deal.first_seen_at, createdAt: deal.created_at }), companyDealCount: 1 }));
-  const itemsWithAssignees = (items.data ?? []).map((item) => ({ ...item, assignees: byItem.get(item.id) ?? [] }));
+  const itemsWithAssignees = (items.data ?? []).map((item) => ({ ...item, assignees: byItem.get(item.id) ?? [], checklist: byChecklist.get(item.id) ?? [] }));
   return <div className="space-y-5 px-7 py-6">
     {/* board/columns/cards still force a remount when their own identity
        changes (a new list, a moved card); assignees no longer do — that used
