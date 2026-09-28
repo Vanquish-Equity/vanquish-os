@@ -122,3 +122,13 @@ export async function removeBoardCardAction(boardId: string, dealId: string): Pr
   const db = await createClient(); const { error } = await db.from("crm_board_cards").delete().eq("board_id", boardId).eq("deal_id", dealId);
   if (error) return fail(error.message); revalidatePath(`/boards/${boardId}`); return { ok: true };
 }
+
+export async function setBoardItemAssigneeAction(boardId: string, itemId: string, email: string, assigned: boolean): Promise<Result> {
+  const access = await actionAccessError(); if (access) return fail(access);
+  if (!uuid.test(boardId) || !uuid.test(itemId) || !email.includes("@") || typeof assigned !== "boolean") return fail("Invalid assignee.");
+  const db = await createClient();
+  const { error } = await db.rpc("set_board_item_assignee", { p_item: itemId, p_email: email.toLowerCase().trim(), p_assigned: assigned });
+  if (error) return fail(error.message);
+  revalidatePath(`/boards/${boardId}`);
+  return { ok: true };
+}

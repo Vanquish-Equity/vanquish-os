@@ -173,9 +173,14 @@ export default async function PipelinePage({
       assignees: assigneesByDeal.get(deal.id) ?? [],
     }));
   const totalDeals = visibleDeals.length;
+  // Only what changes a card's column membership belongs here. Assignees
+  // (and anything else PipelineBoard already re-renders from fresh props)
+  // must stay out: remounting on every assignee toggle would reset the
+  // board's own state, closing whatever Deal preview the member had open
+  // mid-click — exactly when they're trying to add themselves as an owner.
   const boardKey = [
     ...(stages ?? []).map((stage) => stage.id),
-    ...visibleDeals.map((deal) => `${deal.id}:${deal.stage_id}:${deal.updated_at}:${deal.assignees.map((person) => person.email).join(",")}`),
+    ...visibleDeals.map((deal) => `${deal.id}:${deal.stage_id}:${deal.updated_at}`),
   ].join("|");
 
   const tabClass = (active: boolean) =>

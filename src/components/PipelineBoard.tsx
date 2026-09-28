@@ -18,6 +18,7 @@ import PipelineColumn, {
 } from "@/components/PipelineColumn";
 import { updateDealStageAction } from "@/lib/deals/actions";
 import DealPreview from "@/components/DealPreview";
+import { setDealAssigneeAction } from "@/lib/deals/assignee-actions";
 import type { DealMember } from "@/lib/deals/assignee-types";
 
 export type PipelineStage = {
@@ -125,6 +126,20 @@ export default function PipelineBoard({
   const [dealsByStage, setDealsByStage] = useState(() =>
     groupDeals(stages, deals)
   );
+  // boardKey no longer changes on assignee edits (that used to remount this
+  // whole component, closing the Deal preview the moment someone checked an
+  // owner). Re-derive from fresh props instead, so a card's avatars catch up
+  // after router.refresh() without losing the board's own local (optimistic
+  // drag) state. Done during render, not in an effect, per React's "adjust
+  // state when props change" pattern — this bails out before painting the
+  // stale version instead of flashing it then correcting a tick later.
+  const [prevStages, setPrevStages] = useState(stages);
+  const [prevDeals, setPrevDeals] = useState(deals);
+  if (stages !== prevStages || deals !== prevDeals) {
+    setPrevStages(stages);
+    setPrevDeals(deals);
+    setDealsByStage(groupDeals(stages, deals));
+  }
   const [activeDeal, setActiveDeal] = useState<PipelineDeal | null>(null);
   const [previewDeal, setPreviewDeal] = useState<PipelineDeal | null>(null);
   const closePreview = useCallback(() => setPreviewDeal(null), []);
@@ -205,6 +220,36 @@ export default function PipelineBoard({
     router.refresh();
   }
 
+  async function toggleAssignee(deal: PipelineDeal, email: string, next: boolean) {
+    const member = members.find((person) => person.email === email);
+    if (!member) return;
+    const before = dealsByStage;
+    // Optimistic: update the card immediately, MemberAssignMenu's own
+    // checkbox state already reflects the click. Reconciled for real by the
+    // resync effect once router.refresh() brings fresh assignees back.
+    setDealsByStage((current) => ({
+      ...current,
+      [deal.stage_id]: current[deal.stage_id].map((candidate) =>
+        candidate.id === deal.id
+          ? {
+              ...candidate,
+              assignees: next
+                ? [...(candidate.assignees ?? []), member]
+                : (candidate.assignees ?? []).filter((person) => person.email !== email),
+            }
+          : candidate
+      ),
+    }));
+    const result = await setDealAssigneeAction(deal.id, email, next);
+    if (!result.ok) {
+      setDealsByStage(before);
+      setMoveError(result.message);
+      return;
+    }
+    setMoveError(null);
+    router.refresh();
+  }
+
   function handleDragEnd(event: DragEndEvent) {
     setActiveDeal(null);
 
@@ -266,7 +311,9 @@ export default function PipelineBoard({
             deals={filteredByStage[stage.id] ?? []}
             activeDealId={activeDeal?.id ?? null}
             pendingDealIds={pendingDealIds}
+            members={members}
             onOpen={setPreviewDeal}
+            onToggleAssignee={toggleAssignee}
           />
         ))}
       </div>

@@ -126,6 +126,15 @@ button:not(:disabled) { cursor: pointer; }
   scrollbar-color: #d4dadc transparent;
 }
 
+/* overflow-y:auto clips anything that paints past its own box, including a
+   .vq-card's box-shadow and hover lift. Padding gives the shadow room to
+   render before the scroll container's edge; the matching negative margin
+   cancels it back out so cards still land in the same place. */
+.vq-card-scroll {
+  padding: 10px;
+  margin: -10px;
+}
+
 .pipeline-scroll::-webkit-scrollbar {
   width: 5px;
 }

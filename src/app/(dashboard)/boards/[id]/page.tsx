@@ -4,6 +4,7 @@ import { requireMember } from "@/lib/auth/access";
 import { dealLabel } from "@/lib/deals/display";
 import { createClient } from "@/lib/supabase/server";
 import { loadDealAssignees } from "@/lib/deals/assignee-queries";
+import { loadBoardItemAssignees } from "@/lib/boards/assignee-queries";
 
 export const dynamic = "force-dynamic";
 type Deal = { id: string; name: string; round: string | null; first_seen_at: string | null; created_at: string; potential_investment: number | null; updated_at: string; stage_id: string; stage: { name: string } | null; company: { id: string; name: string } | null; priority: { name: string } | null };
@@ -20,8 +21,15 @@ export default async function BoardDetailPage({ params }: { params: Promise<{ id
   if (!board.data) notFound();
   if (columns.error || cards.error || items.error || deals.error) throw new Error("Could not load board data.");
   const { members, byDeal } = await loadDealAssignees(db, (deals.data ?? []).map((deal) => deal.id));
+  const byItem = await loadBoardItemAssignees(db, members, (items.data ?? []).map((item) => item.id));
   const labeled = (deals.data ?? []).map((deal) => ({ ...deal, assignees: byDeal.get(deal.id) ?? [], label: dealLabel({ name: deal.name, round: deal.round, companyName: deal.company?.name, firstSeenAt: deal.first_seen_at, createdAt: deal.created_at }), companyDealCount: 1 }));
+  const itemsWithAssignees = (items.data ?? []).map((item) => ({ ...item, assignees: byItem.get(item.id) ?? [] }));
   return <div className="space-y-5 px-7 py-6">
-    <CustomDealBoard key={JSON.stringify({ board: board.data, columns: columns.data, cards: cards.data, items: items.data, assignees: [...byDeal].map(([dealId, people]) => [dealId, people.map((person) => person.email)]) })} boardId={id} boardName={board.data.name} includeDeals={board.data.record_type === "deal"} initialColumns={columns.data ?? []} initialCards={cards.data ?? []} initialItems={items.data ?? []} deals={labeled} members={members} admin={member.permissions.has("admin")} />
+    {/* board/columns/cards still force a remount when their own identity
+       changes (a new list, a moved card); assignees no longer do — that used
+       to close whatever card or Deal preview the member had open the instant
+       they checked an owner. CustomDealBoard re-syncs those from fresh props
+       on its own. */}
+    <CustomDealBoard key={JSON.stringify({ board: board.data, columns: columns.data, cards: cards.data, itemIds: (items.data ?? []).map((item) => item.id) })} boardId={id} boardName={board.data.name} includeDeals={board.data.record_type === "deal"} initialColumns={columns.data ?? []} initialCards={cards.data ?? []} initialItems={itemsWithAssignees} deals={labeled} members={members} admin={member.permissions.has("admin")} />
   </div>;
 }

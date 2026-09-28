@@ -52,3 +52,5 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/tests/deal_assignees.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260928204419_flexible_boards.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/flexible_boards.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260928205500_board_item_assignees.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/board_item_assignees.sql > /dev/null
