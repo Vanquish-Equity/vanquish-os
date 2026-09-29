@@ -45,9 +45,14 @@ jobs:
             -H 'Accept: application/vnd.github+json' \
             "https://api.github.com/repos/${{ github.repository }}/git/trees/$HEAD_SHA?recursive=1" \
             -o "$RUNNER_TEMP/source-tree.json"
-          psql "$SUPABASE_SCHEMA_READONLY_URL" -X -A -t -v ON_ERROR_STOP=1 \
+          # libpq may echo fragments of a malformed URL, including its password.
+          # Keep its diagnostics off the public Actions log.
+          if ! psql "$SUPABASE_SCHEMA_READONLY_URL" -X -A -t -v ON_ERROR_STOP=1 \
             -c 'select name from supabase_migrations.schema_migrations' \
-            > "$RUNNER_TEMP/applied-migrations.txt"
+            > "$RUNNER_TEMP/applied-migrations.txt" 2> "$RUNNER_TEMP/psql-error.txt"; then
+            echo 'Schema readiness could not connect or read migration history. Check the read-only URL, URL-encoded password, role permissions, and TLS settings.' >&2
+            exit 1
+          fi
           python3 scripts/check_schema_drift.py \
             --tree "$RUNNER_TEMP/source-tree.json" \
             --applied "$RUNNER_TEMP/applied-migrations.txt"
