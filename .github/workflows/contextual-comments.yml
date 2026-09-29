@@ -58,3 +58,6 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/tests/board_item_checklists.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260929000200_boards_context_comments.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/boards_context_comments.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260929162736_people_groups.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260929163000_protect_potential_lp_group.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/people_groups.sql > /dev/null
