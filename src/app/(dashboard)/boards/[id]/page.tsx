@@ -12,14 +12,19 @@ type Deal = { id: string; name: string; round: string | null; first_seen_at: str
 export default async function BoardDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params; if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const member = await requireMember(); const db = await createClient();
-  const [board, columns, cards, items, deals] = await Promise.all([
-    db.from("crm_boards").select("id,name,record_type").eq("id", id).is("archived_at", null).maybeSingle(),
-    db.from("crm_board_columns").select("id,name,sort_order").eq("board_id", id).order("sort_order").order("id"),
-    db.from("crm_board_cards").select("deal_id,column_id").eq("board_id", id),
-    db.from("crm_board_items").select("id,column_id,title,description,due_at,sort_order").eq("board_id", id).order("sort_order").order("id"),
-    db.from("deals").select("id,name,round,first_seen_at,created_at,potential_investment,updated_at,stage_id,stage:pipeline_stages(name),company:companies!inner(id,name,deleted_at),priority:priorities(name)").is("archived_at", null).is("company.deleted_at", null).order("updated_at", { ascending: false }) as unknown as Promise<{ data: Deal[] | null; error: { message: string } | null }>,
-  ]);
+  const board = await db.from("crm_boards").select("id,name,record_type").eq("id", id).is("archived_at", null).maybeSingle();
+  if (board.error) throw new Error("Could not load board data.");
   if (!board.data) notFound();
+
+  const includeDeals = board.data.record_type === "deal";
+  const [columns, cards, items, deals] = await Promise.all([
+    db.from("crm_board_columns").select("id,name,sort_order").eq("board_id", id).order("sort_order").order("id"),
+    includeDeals ? db.from("crm_board_cards").select("deal_id,column_id").eq("board_id", id) : Promise.resolve({ data: [], error: null }),
+    db.from("crm_board_items").select("id,column_id,title,description,due_at,sort_order").eq("board_id", id).order("sort_order").order("id"),
+    includeDeals
+      ? db.from("deals").select("id,name,round,first_seen_at,created_at,potential_investment,updated_at,stage_id,stage:pipeline_stages(name),company:companies!inner(id,name,deleted_at),priority:priorities(name)").is("archived_at", null).is("company.deleted_at", null).order("updated_at", { ascending: false }) as unknown as Promise<{ data: Deal[] | null; error: { message: string } | null }>
+      : Promise.resolve({ data: [] as Deal[], error: null }),
+  ]);
   if (columns.error || cards.error || items.error || deals.error) throw new Error("Could not load board data.");
   const { members, byDeal } = await loadDealAssignees(db, (deals.data ?? []).map((deal) => deal.id));
   const byItem = await loadBoardItemAssignees(db, members, (items.data ?? []).map((item) => item.id));
@@ -32,6 +37,6 @@ export default async function BoardDetailPage({ params }: { params: Promise<{ id
        to close whatever card or Deal preview the member had open the instant
        they checked an owner. CustomDealBoard re-syncs those from fresh props
        on its own. */}
-    <CustomDealBoard key={JSON.stringify({ board: board.data, columns: columns.data, cards: cards.data, itemIds: (items.data ?? []).map((item) => item.id) })} boardId={id} boardName={board.data.name} includeDeals={board.data.record_type === "deal"} initialColumns={columns.data ?? []} initialCards={cards.data ?? []} initialItems={itemsWithAssignees} deals={labeled} members={members} admin={member.permissions.has("admin")} />
+    <CustomDealBoard key={JSON.stringify({ board: board.data, columns: columns.data, cards: cards.data, itemIds: (items.data ?? []).map((item) => item.id) })} boardId={id} boardName={board.data.name} includeDeals={includeDeals} initialColumns={columns.data ?? []} initialCards={cards.data ?? []} initialItems={itemsWithAssignees} deals={labeled} members={members} admin={member.permissions.has("admin")} />
   </div>;
 }
