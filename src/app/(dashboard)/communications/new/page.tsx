@@ -1,7 +1,7 @@
 import Link from "next/link";
 import DraftComposer from "@/components/DraftComposer";
 import { requireMember } from "@/lib/auth/access";
-import { loadAssignableMembers, loadLpContacts } from "@/lib/communications/queries";
+import { loadAssignableMembers, loadContactGroups, loadLpContacts } from "@/lib/communications/queries";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function NewDraftPage() {
   const access = await requireMember();
   const supabase = await createClient();
-  const [contacts, members] = await Promise.all([loadLpContacts(supabase), loadAssignableMembers(supabase)]);
+  const [contacts, members, groups] = await Promise.all([loadLpContacts(supabase), loadAssignableMembers(supabase), loadContactGroups(supabase)]);
 
   return (
     <div className="flex flex-col gap-4 px-7 pt-6">
@@ -25,7 +25,7 @@ export default async function NewDraftPage() {
           from their own Outlook. Everything stays a draft until sending is connected.
         </p>
       </header>
-      <DraftComposer draft={null} contacts={contacts} members={members} canEdit currentUserEmail={access.email} />
+      <DraftComposer draft={null} contacts={contacts} groups={groups} members={members} canEdit currentUserEmail={access.email} />
     </div>
   );
 }

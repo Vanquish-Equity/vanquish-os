@@ -4,7 +4,7 @@ import DraftComposer from "@/components/DraftComposer";
 import MarkNotificationsRead from "@/components/MarkNotificationsRead";
 import { requireMember } from "@/lib/auth/access";
 import { canEditDraft, memberLabel } from "@/lib/communications/drafts";
-import { loadAssignableMembers, loadDraft, loadLpContacts } from "@/lib/communications/queries";
+import { loadAssignableMembers, loadContactGroups, loadDraft, loadLpContacts } from "@/lib/communications/queries";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -23,10 +23,11 @@ export default async function DraftPage({
 
   const access = await requireMember();
   const supabase = await createClient();
-  const [draft, contacts, members] = await Promise.all([
+  const [draft, contacts, members, groups] = await Promise.all([
     loadDraft(supabase, id),
     loadLpContacts(supabase),
     loadAssignableMembers(supabase),
+    loadContactGroups(supabase),
   ]);
   if (!draft) notFound();
 
@@ -59,6 +60,7 @@ export default async function DraftPage({
         key={draft.updatedAt}
         draft={draft}
         contacts={contacts}
+        groups={groups}
         members={members}
         canEdit={canEdit}
         currentUserEmail={access.email}

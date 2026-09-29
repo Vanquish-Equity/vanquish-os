@@ -1,10 +1,6 @@
-# Communications to potential LPs
+# Communications and email
 
-Prepare emails for potential LPs (investment announcements, updates,
-invitations, anything else), choose recipients one by one, and keep the
-result as an editable draft. **Nothing is sent yet**: delivery from the
-responsible member's Outlook mailbox with recipients in BCC is a later
-milestone.
+Prepare emails to any Person in the CRM. Choose a People group or all People, select recipients individually or in bulk, and assign each address to **To, CC or BCC**. The Potential LPs group is selected by default and can be renamed in People. **Nothing is sent yet**: actual inbox, sent mail, sending and replies require a connected Outlook mailbox.
 
 Each draft has two people:
 
@@ -22,6 +18,7 @@ Outlook. Mario can keep editing it too. Scott can open it but not change it.
 | What | Where |
 | --- | --- |
 | Potential LPs | People → **Potential LPs** tab (`/people?view=lps`). They are regular People rows with `people.is_potential_lp = true`; emails stay in `person_emails`. There is no second contact list. |
+| People groups | People → **Manage groups** (`/people/groups`). Shared groups can be created, renamed and deleted, with explicit membership. The starter Potential LPs group is seeded from the existing flag and picks up newly marked LPs; its name can be changed. Deleting a group does not delete People. |
 | Add one | People → **Add potential LP** (or **New Person** with “Potential LP” ticked), or **Mark potential LP** on an existing row. A potential LP needs an email. |
 | Edit name / email | **Edit** on any People row. The primary `person_emails` row is updated in place. |
 | Import a list | People → **Import potential LPs (CSV)** (`/people/import`). |
@@ -59,11 +56,11 @@ address never creates a second person.
 
 ## Drafts
 
-- **New draft** → subject, plain-text body, and the potential LP list with
+- **New draft** → subject, plain-text body, People group (Potential LPs by default), To/CC/BCC selection, and a contact list with
   search (name, email, company, title) and filters (All / Selected / Not
   selected). One click selects or deselects a person; “Select shown” /
   “Clear shown” act on the current search.
-- The counter and the **Final recipient list · BCC** show exactly who the
+- The counter and the **Final recipient list** show exactly who the
   draft is addressed to before saving. Contacts without an email cannot be
   selected.
 - **Save draft** stores the text and the selection (`save_email_draft`, one
@@ -71,7 +68,7 @@ address never creates a second person.
   saving is what was stored. Each recipient keeps the email that was
   selected.
 - If a selected contact later changes in People (email edited or removed,
-  unmarked as potential LP, archived or deleted) the draft shows
+  archived or deleted) the draft shows
   “N recipients need review”, the list marks them, and the Communications
   list shows “N to review”. Choose **Use current email** or **Remove**, then
   save. Saving without deciding keeps the stored email and the warning.
@@ -127,7 +124,7 @@ address never creates a second person.
   both actions. Invalid references are still rejected. Test:
   `supabase/tests/lp_recipient_fk_order.sql` forces both orders.
 - Recipient lists are never put in URLs (draft pages use the draft id; the
-  search box is local state), never written to `activity_events` (payloads
+  search box and group choice are local state), never written to `activity_events` (payloads
   carry counts only) and never echoed in error messages. Server-function
   argument logging is off in `next.config.ts` so `next dev` does not print
   addresses either.
@@ -159,13 +156,20 @@ What connecting Outlook needs:
    re-checks the draft (responsible is the signed-in active member, no
    recipients needing review, subject and body present), then calls
    Microsoft Graph `POST /me/sendMail` as the responsible, with the
-   responsible (or an agreed address) in To and the recipients in
+   recipients in the saved `toRecipients`, `ccRecipients` and
    `bccRecipients`. The creator cannot send on the responsible's behalf.
-   Graph limits recipients per message (≈500), so large lists go in batches.
 4. **Model changes**: extend `email_drafts.status` beyond `'draft'`
    (`sending`, `sent`, `failed`), add `sent_at` / `sent_by`, and freeze the
    recipient list when sending (store per-recipient delivery results).
-5. **UI**: a confirmation step that shows the final BCC list and count, a
+5. **UI**: a confirmation step that shows the final To/CC/BCC list and count, a
    clear “Sent on …” state, and no edits after sending.
 6. **Compliance**: unsubscribe/opt-out handling and a record of consent for
    each LP, if required for the audience.
+
+## Mailbox phase (planned)
+
+Communications must become a second view of each connected user's mailbox, with Inbox, Sent, Drafts, Archive, search, message reading, reply/forward, and compose. These folders must show real provider messages, scoped to the connected user; the shared CRM drafts stay distinct until a responsible person sends them. Never present an empty local table as an Outlook inbox.
+
+For Outlook use Microsoft Graph delegated mailbox access: `Mail.Read` for message bodies and folders, `Mail.ReadWrite` when moving or marking messages, `Mail.Send` for sending, `offline_access` for refresh. Token storage stays encrypted server-side and isolated per member. Folder pagination, delta sync, attachment handling, retry/idempotency and sent-message reconciliation need separate implementation and tests. The first connected mailbox should be an explicit opt-in with revocation in Settings. Group expansion happens at draft selection time; preserve the exact selected people and recipient field on save, and re-check addresses before sending.
+
+Sources: [Microsoft Graph mail overview](https://learn.microsoft.com/en-us/graph/api/resources/mail-api-overview?view=graph-rest-1.0), [list folder messages](https://learn.microsoft.com/en-us/graph/api/mailfolder-list-messages?view=graph-rest-1.0), [sendMail](https://learn.microsoft.com/en-us/graph/api/user-sendmail?view=graph-rest-1.0).
