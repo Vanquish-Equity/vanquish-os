@@ -84,6 +84,8 @@ Run the migration files in order in the Supabase SQL Editor:
     board pages.
 26. `20260929160308_personal_lp_board.sql` - private LP follow-up boards per
     member, editable stages and prospect cards, with owner-controlled sharing.
+27. `20260929162121_lp_board_card_fk_index.sql` - covering index for LP board
+    card foreign keys and ordered list reads.
 
 These timestamps are part of the migration filenames. For the schema readiness
 check, the recorded history uses their descriptive suffix; see
