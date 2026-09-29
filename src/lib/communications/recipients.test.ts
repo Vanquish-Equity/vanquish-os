@@ -26,7 +26,7 @@ describe("checkRecipient", () => {
     expect(canAcceptCurrent(without, noEmail)).toBe(false);
   });
 
-  it("flags deleted, archived and unmarked contacts", () => {
+  it("flags deleted and archived contacts, but permits ordinary People", () => {
     expect(checkRecipient({ emailAtSelection: "x@example.com", person: null, selectedEmail: null }).issue).toBe(
       "contact_removed"
     );
@@ -36,7 +36,7 @@ describe("checkRecipient", () => {
     expect(canAcceptCurrent(archivedCheck, archived)).toBe(false);
     const unmarked = { ...person, isPotentialLp: false };
     const unmarkedCheck = checkRecipient({ emailAtSelection: "lp@example.com", person: unmarked, selectedEmail: "lp@example.com" });
-    expect(unmarkedCheck.issue).toBe("no_longer_lp");
+    expect(unmarkedCheck.issue).toBe(null);
     expect(canAcceptCurrent(unmarkedCheck, unmarked)).toBe(false);
   });
 });

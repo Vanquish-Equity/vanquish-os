@@ -64,6 +64,7 @@ export type DraftRecipientInput = {
   personId: string | null;
   // Re-select using the contact's current email (after a change).
   acceptCurrent: boolean;
+  field: "to" | "cc" | "bcc";
 };
 
 export type SaveDraftInput = {
@@ -87,6 +88,7 @@ export async function saveDraftAction(input: SaveDraftInput): Promise<SaveDraftR
   if (subject.length > 500) return { ok: false, message: "Subject is too long (500 characters max)." };
   if (body.length > 100000) return { ok: false, message: "Message is too long." };
   if (!Array.isArray(input.recipients)) return { ok: false, message: "Invalid recipient list." };
+  if (input.recipients.some((r) => !["to", "cc", "bcc"].includes(r.field))) return { ok: false, message: "Invalid recipient field." };
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("save_email_draft", {
@@ -97,6 +99,7 @@ export async function saveDraftAction(input: SaveDraftInput): Promise<SaveDraftR
       recipient_id: recipient.recipientId || undefined,
       person_id: recipient.personId || undefined,
       accept_current: recipient.acceptCurrent === true,
+      field: recipient.field,
     })),
     p_assigned_to: input.assignedTo ? String(input.assignedTo) : null,
   });

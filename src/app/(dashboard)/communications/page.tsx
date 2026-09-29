@@ -118,7 +118,7 @@ export default async function CommunicationsPage({
           <p className="mt-1 max-w-[680px] text-[13px] text-neutral-500">
             Prepare emails to potential LPs (announcements, updates, invitations) and choose who receives each one.
             Each draft has a responsible who reviews it and, once Outlook is connected, sends it from their own mailbox with
-            recipients in BCC. Sending is not connected yet, so nothing is sent.
+            recipients in To, CC or BCC. Sending is not connected yet, so nothing is sent.
           </p>
         </div>
         <Link
@@ -168,7 +168,7 @@ export default async function CommunicationsPage({
               <th className="px-4 py-3 font-semibold">Draft</th>
               <th className="px-4 py-3 font-semibold">Created by</th>
               <th className="px-4 py-3 font-semibold">For (responsible)</th>
-              <th className="px-4 py-3 font-semibold">Recipients (BCC)</th>
+              <th className="px-4 py-3 font-semibold">Recipients</th>
               <th className="px-4 py-3 font-semibold">Status</th>
               <th className="px-4 py-3 font-semibold">Last change</th>
             </tr>

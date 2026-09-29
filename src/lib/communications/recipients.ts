@@ -5,7 +5,6 @@
 export type RecipientIssue =
   | "contact_removed"
   | "contact_archived"
-  | "no_longer_lp"
   | "email_removed"
   | "email_changed";
 
@@ -13,7 +12,7 @@ export type SavedRecipientSource = {
   emailAtSelection: string;
   person: {
     archived: boolean;
-    isPotentialLp: boolean;
+    isPotentialLp?: boolean;
     // All current emails, primary first.
     emails: string[];
   } | null;
@@ -37,21 +36,19 @@ export function checkRecipient(source: SavedRecipientSource): RecipientCheck {
   if (source.selectedEmail.trim().toLowerCase() !== source.emailAtSelection.trim().toLowerCase()) {
     return { issue: "email_changed", currentEmail: source.selectedEmail };
   }
-  if (!person.isPotentialLp) return { issue: "no_longer_lp", currentEmail: source.selectedEmail };
   return { issue: null, currentEmail: source.selectedEmail };
 }
 
 // Whether "Use current email" can resolve the issue (the database only
-// accepts active potential LPs that have an email).
+// accepts active People with an email).
 export function canAcceptCurrent(check: RecipientCheck, person: SavedRecipientSource["person"]) {
-  if (!check.issue || !person || person.archived || !person.isPotentialLp) return false;
+  if (!check.issue || !person || person.archived) return false;
   return check.currentEmail !== null;
 }
 
 export const RECIPIENT_ISSUE_LABELS: Record<RecipientIssue, string> = {
   contact_removed: "Contact was deleted from People",
   contact_archived: "Contact is archived in People",
-  no_longer_lp: "No longer marked as a potential LP",
   email_removed: "The selected email was removed",
   email_changed: "Email changed since it was selected",
 };
