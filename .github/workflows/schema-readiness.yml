@@ -1,0 +1,53 @@
+name: Preview schema readiness
+
+on:
+  workflow_run:
+    workflows: [Application checks]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# This workflow runs from main's trusted code. It reads only the PR commit's
+# tree; it never checks out or executes code from a PR with a database secret.
+jobs:
+  schema:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_SCHEMA_READONLY_URL: ${{ secrets.SUPABASE_SCHEMA_READONLY_URL }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Compare required and applied migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$SUPABASE_SCHEMA_READONLY_URL" ]]; then
+            echo 'Set SUPABASE_SCHEMA_READONLY_URL to a read-only database connection URL.' >&2
+            exit 1
+          fi
+          if ! command -v psql > /dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/${{ github.repository }}/git/trees/$HEAD_SHA?recursive=1" \
+            -o "$RUNNER_TEMP/source-tree.json"
+          psql "$SUPABASE_SCHEMA_READONLY_URL" -X -A -t -v ON_ERROR_STOP=1 \
+            -c 'select name from supabase_migrations.schema_migrations' \
+            > "$RUNNER_TEMP/applied-migrations.txt"
+          python3 scripts/check_schema_drift.py \
+            --tree "$RUNNER_TEMP/source-tree.json" \
+            --applied "$RUNNER_TEMP/applied-migrations.txt"

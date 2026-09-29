@@ -128,8 +128,13 @@ an email listed in `app_members`.
 
 ## 6. Verify
 
+Pull requests run the application checks automatically. Schema readiness
+against the connected preview database has a separate read-only check and a
+one-time credential setup; see [`docs/ci-and-schema.md`](docs/ci-and-schema.md).
+
 ```bash
 npm run lint
+npx tsc --noEmit
 npm test
 npm run build
 ```
