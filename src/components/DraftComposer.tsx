@@ -5,10 +5,22 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { discardDraftAction, saveDraftAction } from "@/lib/communications/actions";
 import SelectMenu from "@/components/SelectMenu";
+import RichTextEditor from "@/components/RichTextEditor";
 import { isActiveMember, memberLabel, type Member } from "@/lib/communications/drafts";
 import type { ContactGroup, DraftDetail, DraftRecipient, LpContact } from "@/lib/communications/queries";
 import { RECIPIENT_ISSUE_LABELS } from "@/lib/communications/recipients";
-import { formatExactDate } from "@/lib/dates";
+import { isPlainTextBody, plainTextToHtml } from "@/lib/communications/rich-text";
+import { formatExactDate, formatExactDateTime } from "@/lib/dates";
+
+// datetime-local wants "YYYY-MM-DDTHH:mm" in local time, with no timezone
+// suffix, so this can't reuse the display formatters above.
+function toDateTimeLocalValue(iso: string | null): string {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 
 // One selected recipient. Saved recipients keep their recipientId; they are
 // re-selected with the contact's current email only when acceptCurrent is
@@ -87,7 +99,10 @@ export default function DraftComposer({
   // created it.
   const handingOff = assignedTo !== (draft?.assignedTo ?? currentUserEmail) && assignedTo !== currentUserEmail && createdBy !== currentUserEmail;
   const [subject, setSubject] = useState(draft?.subject ?? "");
-  const [body, setBody] = useState(draft?.body ?? "");
+  const [body, setBody] = useState(() => (draft && isPlainTextBody(draft.body) ? plainTextToHtml(draft.body) : draft?.body ?? ""));
+  const bodyText = useMemo(() => body.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(), [body]);
+  const [scheduleEnabled, setScheduleEnabled] = useState(Boolean(draft?.scheduledAt));
+  const [scheduledAt, setScheduledAt] = useState(() => toDateTimeLocalValue(draft?.scheduledAt ?? null));
   const [selection, setSelection] = useState(() => initialSelection(draft));
   const [query, setQuery] = useState("");
   const [groupId, setGroupId] = useState(groups.find((g) => g.kind === "potential_lp")?.id ?? "all");
@@ -231,12 +246,23 @@ export default function DraftComposer({
 
   function save() {
     setMessage(null);
+    if (scheduleEnabled) {
+      if (!scheduledAt) {
+        setMessage({ tone: "error", text: "Choose a date and time to schedule this draft, or turn scheduling off." });
+        return;
+      }
+      if (new Date(scheduledAt).getTime() <= Date.now()) {
+        setMessage({ tone: "error", text: "Scheduled send time must be in the future." });
+        return;
+      }
+    }
     startTransition(async () => {
       const result = await saveDraftAction({
         draftId: draft?.id ?? null,
         subject,
         body,
         assignedTo: draft && assignedTo === draft.assignedTo ? null : assignedTo,
+        scheduledAt: scheduleEnabled && scheduledAt ? new Date(scheduledAt).toISOString() : null,
         recipients: [...selection.values()].map((item) => ({
           recipientId: item.recipientId,
           personId: item.personId,
@@ -276,7 +302,7 @@ export default function DraftComposer({
 
   const readiness = [
     { label: "Subject", ok: subject.trim().length > 0 },
-    { label: "Message", ok: body.trim().length > 0 },
+    { label: "Message", ok: bodyText.length > 0 },
     { label: "At least one recipient", ok: selectedCount > 0 },
     { label: "No recipients to review", ok: reviewCount === 0 },
     { label: "Responsible is an active member", ok: assigneeActive },
@@ -380,21 +406,60 @@ export default function DraftComposer({
             />
           </div>
           <div className="flex flex-1 flex-col">
-            <label htmlFor="draft-body" className={labelClass}>
+            <span id="draft-body-label" className={labelClass}>
               Body
-            </label>
-            <textarea
+            </span>
+            <RichTextEditor
+              key={draft?.id ?? "new"}
               id="draft-body"
-              value={body}
+              labelledBy="draft-body-label"
+              initialHtml={body}
               disabled={!canEdit}
-              onChange={(event) => {
-                setBody(event.target.value);
+              placeholder="Write the email…"
+              onChange={(html) => {
+                setBody(html);
                 markDirty();
               }}
-              rows={16}
-              placeholder="Write the email. Plain text; line breaks are kept."
-              className={`${inputClass} min-h-[280px] flex-1 resize-y leading-relaxed`}
             />
+          </div>
+
+          <div className="rounded-xl border border-neutral-100 bg-[#f7f9fa] p-3.5 text-[12px] text-neutral-600">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">Schedule send</span>
+              <span className="rounded-full bg-white px-2 py-0.5 text-[10.5px] font-semibold text-neutral-500 ring-1 ring-neutral-200">
+                Not connected yet
+              </span>
+            </div>
+            <label className="mt-2 flex items-center gap-2 text-[12.5px] text-ink">
+              <input
+                type="checkbox"
+                checked={scheduleEnabled}
+                disabled={!canEdit}
+                onChange={(event) => {
+                  setScheduleEnabled(event.target.checked);
+                  markDirty();
+                }}
+                className="h-4 w-4 rounded border-neutral-300 accent-cyan-600 disabled:opacity-50"
+              />
+              Send at a specific date and time
+            </label>
+            {scheduleEnabled && (
+              <input
+                type="datetime-local"
+                value={scheduledAt}
+                disabled={!canEdit}
+                onChange={(event) => {
+                  setScheduledAt(event.target.value);
+                  markDirty();
+                }}
+                className={`${inputClass} mt-2 max-w-[260px]`}
+              />
+            )}
+            <p className="mt-2 text-neutral-500">
+              {scheduleEnabled && scheduledAt && !Number.isNaN(new Date(scheduledAt).getTime())
+                ? `Planned for ${formatExactDateTime(new Date(scheduledAt).toISOString())}. Sending isn't connected yet, so this is only recorded — nothing goes out automatically.`
+                : "Once Gmail is connected, a scheduled draft will send itself at this time instead of waiting for the responsible to send it by hand."}
+            </p>
           </div>
 
           <div className="rounded-xl border border-neutral-100 bg-[#f7f9fa] p-3.5 text-[12px] text-neutral-600">

@@ -78,7 +78,7 @@ Clicking a Pipeline or Deal-board card opens a large accessible overlay while th
 | Search/quick actions | Find People, Companies and Deals globally; add notes/tasks in context. | Dedicated pages exist; universal search remains. |
 | Analytics | Time per stage, stale Deals, movement, outcomes, owner and investment potential. | Overview exists; process metrics remain. |
 | Templates | Start from Investment Deal, LP Outreach or Tasks, then customize. | Later, once each record workflow exists. |
-| Connected activity | Authorized Gmail/Outlook and calendars attach activity and update last interaction. | Provider connections and sync remain separate roadmap work. |
+| Connected activity | An authorized Gmail mailbox and calendar attach activity and update last interaction. | Provider connections and sync remain separate roadmap work. |
 
 ## Delivery order and open decisions
 

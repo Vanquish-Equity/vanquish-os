@@ -206,9 +206,7 @@ export default function SettingsPanel({ email, displayName, avatarUrl, profileAv
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {[
             ["Gmail", "Email activity and sending from your Gmail account"],
-            ["Outlook", "Email activity and sending from your Microsoft mailbox"],
             ["Google Calendar", "Meetings linked to companies and deals"],
-            ["Microsoft Calendar", "Meetings from your Microsoft calendar"],
           ].map(([title, detail]) => (
             <div key={title} className="rounded-xl border border-neutral-200 bg-[#f8fafb] p-4">
               <div className="flex items-center justify-between gap-2"><h3 className="text-[13px] font-semibold text-ink">{title}</h3><span className="rounded-full bg-neutral-200 px-2 py-1 text-[10px] font-semibold text-neutral-600">Not available yet</span></div>

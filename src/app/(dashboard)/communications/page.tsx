@@ -4,6 +4,7 @@ import { requireMember } from "@/lib/auth/access";
 import { inDraftView, memberLabel, parseDraftView, type DraftListView } from "@/lib/communications/drafts";
 import { loadAssignableMembers } from "@/lib/communications/queries";
 import { checkRecipient, primaryFirst } from "@/lib/communications/recipients";
+import { formatExactDate } from "@/lib/dates";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,7 @@ type DraftRow = {
   created_by: string;
   assigned_to: string;
   updated_at: string;
+  scheduled_at: string | null;
 };
 
 type RecipientRow = {
@@ -59,7 +61,7 @@ export default async function CommunicationsPage({
   const [{ data: allDrafts }, { count: lpCount }, members] = await Promise.all([
     supabase
       .from("email_drafts")
-      .select("id,subject,created_by,assigned_to,updated_at")
+      .select("id,subject,created_by,assigned_to,updated_at,scheduled_at")
       .is("archived_at", null)
       .order("updated_at", { ascending: false }) as unknown as Promise<{ data: DraftRow[] | null }>,
     supabase
@@ -237,6 +239,11 @@ export default async function CommunicationsPage({
                     {entry.review > 0 && (
                       <span className="ml-1.5 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200">
                         {entry.review} to review
+                      </span>
+                    )}
+                    {draft.scheduled_at && (
+                      <span className="ml-1.5 rounded-full bg-cyan-50 px-2 py-0.5 text-[11px] font-semibold text-cyan-800 ring-1 ring-cyan-200">
+                        Scheduled · {formatExactDate(draft.scheduled_at)}
                       </span>
                     )}
                   </td>

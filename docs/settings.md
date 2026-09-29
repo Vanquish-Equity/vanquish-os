@@ -61,12 +61,14 @@ callers.
 
 ## Connected accounts
 
-Gmail, Outlook, Google Calendar and Microsoft Calendar cards currently show
-**Not available yet**. Google sign-in only authenticates the user; it does not
-grant mailbox or calendar access. None of the four cards attempts OAuth or
-stores access tokens. A later integration must implement provider-specific
-authorization, secure token handling, disconnect/revocation, status, and sync
-before showing a Connect button.
+Gmail and Google Calendar cards currently show **Not available yet**. Vanquish
+member mailboxes are Google Workspace accounts, so Gmail (not Outlook) is the
+integration target — see [`communications.md`](communications.md#sending-later-not-implemented)
+for why. Google sign-in only authenticates the user; it does not grant
+mailbox or calendar access. Neither card attempts OAuth or stores access
+tokens. A later integration must implement provider-specific authorization,
+secure token handling, disconnect/revocation, status, and sync before showing
+a Connect button.
 
 ## Verification
 

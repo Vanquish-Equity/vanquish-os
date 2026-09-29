@@ -58,10 +58,17 @@ address never creates a second person.
 
 ## Drafts
 
-- **New draft** → subject, plain-text body, People group (Potential LPs by default), To/CC/BCC selection, and a contact list with
-  search (name, email, company, title) and filters (All / Selected / Not
-  selected). One click selects or deselects a person; “Select shown” /
-  “Clear shown” act on the current search.
+- **New draft** → subject, a rich text body (Bold, Italic, Underline,
+  Strikethrough, bulleted/numbered lists, links — the same shapes Gmail's own
+  compose toolbar offers), People group (Potential LPs by default), To/CC/BCC
+  selection, and a contact list with search (name, email, company, title) and
+  filters (All / Selected / Not selected). One click selects or deselects a
+  person; “Select shown” / “Clear shown” act on the current search.
+- **Schedule send**: optionally pick a future date and time. This is recorded
+  on the draft (`scheduled_at`) but not acted on — nothing sends automatically
+  yet, since sending itself needs the Gmail connection below. It exists now so
+  a scheduled draft is ready to send itself the moment that connection lands,
+  instead of requiring the responsible to send it by hand at the right time.
 - The counter and the **Final recipient list** show exactly who the
   draft is addressed to before saving. Contacts without an email cannot be
   selected.
@@ -133,6 +140,15 @@ address never creates a second person.
 - Potential LPs follow the same visibility as the rest of People (every
   member). If they should be restricted, add an area permission like
   `portfolio` / `documents` in a later migration.
+- The draft body is stored as HTML produced by the composer's own formatting
+  toolbar. `saveDraftAction` (`src/lib/communications/actions.ts`) runs it
+  through `sanitizeDraftHtml` (`src/lib/communications/rich-text.ts`) before
+  it reaches the database: an allowlist of formatting tags only (bold,
+  italic, underline, strikethrough, lists, links, line breaks), every
+  attribute stripped except a validated `http(s)`/`mailto` `href` on links,
+  and `script`/`style` removed outright. A draft saved before the rich text
+  editor existed has no markup at all; the composer treats that as plain
+  text and converts line breaks to `<br>` the first time it is opened.
 
 ## Tests
 
@@ -141,6 +157,9 @@ address never creates a second person.
 - Database: `supabase/tests/lp_communications.sql` — anon, non-member,
   author and another member against people, emails, drafts, recipients and
   both functions. Run only on a disposable database with `0001`–`0016`.
+  `supabase/tests/draft_formatting_and_schedule.sql` covers `scheduled_at`
+  (rejects a past time, accepts and clears a future one) and the widened
+  HTML body length limit.
 
 ## Sending later (not implemented)
 

@@ -94,6 +94,9 @@ Run the migration files in order in the Supabase SQL Editor:
     including People outside the Potential LPs group.
 31. `20260929173000_board_directory_import.sql` - add People, Companies and
     group members as linked board cards, with the board's access rules.
+32. `20260929180000_draft_formatting_and_schedule.sql` - draft bodies store
+    sanitized rich text (bold/italic/lists/links), and a `scheduled_at` field
+    records a planned send time (informational only; nothing sends yet).
 
 These timestamps are part of the migration filenames. For the schema readiness
 check, the recorded history uses their descriptive suffix; see
