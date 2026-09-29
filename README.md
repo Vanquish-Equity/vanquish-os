@@ -84,6 +84,8 @@ Run the migration files in order in the Supabase SQL Editor:
     board pages.
 26. `20260929162736_people_groups.sql` - editable shared People groups and
     a starter Potential LPs group. Group membership does not duplicate contacts.
+27. `20260929170500_email_recipient_fields.sql` - To/CC/BCC on draft recipients,
+    including People outside the Potential LPs group.
 
 These timestamps are part of the migration filenames. For the schema readiness
 check, the recorded history uses their descriptive suffix; see

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { discardDraftAction, saveDraftAction } from "@/lib/communications/actions";
 import SelectMenu from "@/components/SelectMenu";
 import { isActiveMember, memberLabel, type Member } from "@/lib/communications/drafts";
-import type { DraftDetail, DraftRecipient, LpContact } from "@/lib/communications/queries";
+import type { ContactGroup, DraftDetail, DraftRecipient, LpContact } from "@/lib/communications/queries";
 import { RECIPIENT_ISSUE_LABELS } from "@/lib/communications/recipients";
 import { formatExactDate } from "@/lib/dates";
 
@@ -18,6 +18,7 @@ type Selection = {
   personId: string | null;
   recipientId: string | null;
   acceptCurrent: boolean;
+  field: "to" | "cc" | "bcc";
 };
 
 type Filter = "all" | "selected" | "not_selected";
@@ -38,6 +39,7 @@ function initialSelection(draft: DraftDetail | null) {
       personId: recipient.personId,
       recipientId: recipient.recipientId,
       acceptCurrent: false,
+      field: recipient.field,
     });
   }
   return map;
@@ -62,6 +64,7 @@ function matches(contact: LpContact, query: string) {
 export default function DraftComposer({
   draft,
   contacts,
+  groups,
   members,
   canEdit,
   currentUserEmail,
@@ -69,6 +72,7 @@ export default function DraftComposer({
 }: {
   draft: DraftDetail | null;
   contacts: LpContact[];
+  groups: ContactGroup[];
   // Active members, the only valid responsibles.
   members: Member[];
   canEdit: boolean;
@@ -86,6 +90,8 @@ export default function DraftComposer({
   const [body, setBody] = useState(draft?.body ?? "");
   const [selection, setSelection] = useState(() => initialSelection(draft));
   const [query, setQuery] = useState("");
+  const [groupId, setGroupId] = useState(groups.find((g) => g.kind === "potential_lp")?.id ?? "all");
+  const [addField, setAddField] = useState<"to" | "cc" | "bcc">("bcc");
   const [filter, setFilter] = useState<Filter>("all");
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(
@@ -137,7 +143,8 @@ export default function DraftComposer({
   const selectedCount = selection.size;
   const selectableContacts = contacts.filter((contact) => contact.email);
 
-  const visibleContacts = contacts.filter((contact) => {
+  const inGroup = groupId === "all" ? contacts : contacts.filter((contact) => groups.find((g) => g.id === groupId)?.personIds.includes(contact.personId));
+  const visibleContacts = inGroup.filter((contact) => {
     if (!matches(contact, query.trim())) return false;
     const isSelected = selection.has(contact.personId);
     if (filter === "selected") return isSelected;
@@ -163,6 +170,7 @@ export default function DraftComposer({
           recipientId: saved?.recipientId ?? null,
           // Re-adding a flagged recipient means choosing the current email.
           acceptCurrent: Boolean(saved?.issue),
+          field: addField,
         });
       }
       return next;
@@ -182,6 +190,7 @@ export default function DraftComposer({
             personId: contact.personId,
             recipientId: saved?.recipientId ?? null,
             acceptCurrent: Boolean(saved?.issue),
+            field: addField,
           });
         }
         if (!selected) next.delete(contact.personId);
@@ -195,6 +204,16 @@ export default function DraftComposer({
     setSelection((current) => {
       const next = new Map(current);
       next.delete(key);
+      return next;
+    });
+    markDirty();
+  }
+
+  function changeField(key: string, field: "to" | "cc" | "bcc") {
+    setSelection((current) => {
+      const next = new Map(current);
+      const item = next.get(key);
+      if (item) next.set(key, { ...item, field });
       return next;
     });
     markDirty();
@@ -222,6 +241,7 @@ export default function DraftComposer({
           recipientId: item.recipientId,
           personId: item.personId,
           acceptCurrent: item.acceptCurrent || !item.recipientId,
+          field: item.field,
         })),
       });
       if (!result.ok) {
@@ -391,9 +411,9 @@ export default function DraftComposer({
               <dd className="text-ink">
                 {memberLabel(members, assignedTo)} · {assignedTo} (their Outlook mailbox)
               </dd>
-              <dt className="text-neutral-400">BCC</dt>
+              <dt className="text-neutral-400">Recipients</dt>
               <dd className="text-ink">
-                {selectedCount} potential LP{selectedCount === 1 ? "" : "s"} · recipients do not see each other
+                {selectedCount} person{selectedCount === 1 ? "" : "s"} · To, CC and BCC
               </dd>
             </dl>
             <p className="mt-2 text-neutral-500">
@@ -413,26 +433,36 @@ export default function DraftComposer({
         <section className="vq-card-static flex min-h-0 flex-col rounded-[14px] bg-white">
           <div className="border-b border-neutral-100 p-5 pb-3.5">
             <div className="flex items-center justify-between gap-2">
-              <h2 className="text-[13px] font-semibold text-ink">Potential LPs</h2>
+              <h2 className="text-[13px] font-semibold text-ink">People</h2>
               <span className="rounded-full bg-ink px-2.5 py-1 text-[11.5px] font-semibold text-white" aria-live="polite">
                 {selectedCount} selected
               </span>
             </div>
             {contacts.length > 0 && (
               <>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div><label className={labelClass} htmlFor="draft-group">Choose a group</label>
+                    <SelectMenu id="draft-group" value={groupId} onChange={setGroupId}
+                      options={[{ value: "all", label: "All People" }, ...groups.map((g) => ({ value: g.id, label: g.name }))]} />
+                  </div>
+                  <div><label className={labelClass} htmlFor="draft-add-field">Add selected contacts to</label>
+                    <SelectMenu id="draft-add-field" value={addField} onChange={(v) => setAddField(v as "to" | "cc" | "bcc")}
+                      options={[{ value: "to", label: "To" }, { value: "cc", label: "CC" }, { value: "bcc", label: "BCC" }]} />
+                  </div>
+                </div>
                 <input
                   type="search"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search name, email, company or title"
-                  aria-label="Search potential LPs"
+                  aria-label="Search People"
                   className={`${inputClass} mt-3`}
                 />
                 <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex gap-1.5" role="group" aria-label="Filter potential LPs">
+                  <div className="flex gap-1.5" role="group" aria-label="Filter People">
                     {(
                       [
-                        ["all", `All (${contacts.length})`],
+                        ["all", `All (${inGroup.length})`],
                         ["selected", `Selected (${[...selection.keys()].filter((k) => contactById.has(k)).length})`],
                         ["not_selected", "Not selected"],
                       ] as [Filter, string][]
@@ -478,17 +508,17 @@ export default function DraftComposer({
           <div className="max-h-[440px] min-h-[160px] flex-1 overflow-auto p-2">
             {contacts.length === 0 ? (
               <div className="px-4 py-8 text-center text-[12.5px] text-neutral-500">
-                <p className="font-semibold text-ink">No potential LPs yet.</p>
+                <p className="font-semibold text-ink">No People yet.</p>
                 <p className="mt-1">
-                  Add one or import the list in{" "}
-                  <Link href="/people?view=lps" className="font-semibold text-cyan-700 hover:underline">
-                    People → Potential LPs
+                  Add one in{" "}
+                  <Link href="/people" className="font-semibold text-cyan-700 hover:underline">
+                    People
                   </Link>
                   . You can still write and save the message now.
                 </p>
               </div>
             ) : visibleContacts.length === 0 ? (
-              <p className="px-4 py-8 text-center text-[12.5px] text-neutral-400">No potential LPs match.</p>
+              <p className="px-4 py-8 text-center text-[12.5px] text-neutral-400">No People match.</p>
             ) : (
               <ul className="flex flex-col gap-0.5">
                 {visibleContacts.map((contact) => {
@@ -536,7 +566,7 @@ export default function DraftComposer({
           </div>
           {contacts.length > 0 && selectableContacts.length < contacts.length && (
             <p className="border-t border-neutral-100 px-5 py-2 text-[11px] text-neutral-500">
-              {contacts.length - selectableContacts.length} potential LP
+              {contacts.length - selectableContacts.length} person
               {contacts.length - selectableContacts.length === 1 ? " has" : "s have"} no email and cannot be selected.
             </p>
           )}
@@ -548,7 +578,7 @@ export default function DraftComposer({
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-100 px-5 py-3.5">
           <div>
             <h2 className="text-[13px] font-semibold text-ink">
-              Final recipient list · BCC · {selectedCount} recipient{selectedCount === 1 ? "" : "s"}
+              Recipients · {selectedCount} person{selectedCount === 1 ? "" : "s"}
             </h2>
             <p className="mt-0.5 text-[11.5px] text-neutral-500">
               Exactly who this draft will be addressed to once sending is connected.
@@ -557,7 +587,7 @@ export default function DraftComposer({
         </div>
         {finalList.length === 0 ? (
           <p className="px-5 py-6 text-[12.5px] text-neutral-400">
-            No recipients selected. Click potential LPs above to add them.
+            No recipients selected. Choose People above to add them.
           </p>
         ) : (
           <ul className="max-h-[360px] divide-y divide-neutral-50 overflow-auto">
@@ -580,6 +610,9 @@ export default function DraftComposer({
                 </div>
                 {canEdit && (
                   <div className="flex items-center gap-1.5">
+                    <div className="w-24"><label htmlFor={`recipient-field-${item.key}`} className="sr-only">Address field for {name}</label><SelectMenu id={`recipient-field-${item.key}`} value={item.field}
+                      onChange={(v) => changeField(item.key, v as "to" | "cc" | "bcc")}
+                      options={[{ value: "to", label: "To" }, { value: "cc", label: "CC" }, { value: "bcc", label: "BCC" }]} /></div>
                     {unresolved && saved?.canAcceptCurrent && (
                       <button
                         type="button"
