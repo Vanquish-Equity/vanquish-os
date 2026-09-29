@@ -19,6 +19,16 @@ database used by the preview. It must be a TLS connection URL for a database
 user with only CONNECT, USAGE on `supabase_migrations` and SELECT on
 `supabase_migrations.schema_migrations`. Do not use the service role key or
 commit a database URL. The workflow fails clearly if the secret is missing.
+Use a dedicated login role and the Supabase Session pooler host on port 5432;
+the username for a custom role has the form `role.project-ref`. Replace the
+`[YOUR-PASSWORD]` placeholder *including its brackets*. Percent-encode
+reserved characters in a password used in a URI (or generate a long random
+alphanumeric password). Include `?sslmode=require` in the URL.
+
+The workflow keeps raw `psql` errors out of public logs because a malformed
+connection URI can cause libpq to print part of the password. It reports only
+the error category. If a credential ever appears in a log, rotate the affected
+role's password, update this secret and delete the exposed run logs.
 
 The first ten migrations predate recorded Supabase migration history. The
 checker deliberately starts with `0011`. Migration files named with a
