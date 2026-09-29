@@ -21,7 +21,11 @@ export async function setMemberActive(email: string, active: boolean): Promise<R
   return { ok: true };
 }
 
-export async function setMemberPermission(email: string, permission: "portfolio" | "documents", enabled: boolean): Promise<Result> {
+export async function setMemberPermission(
+  email: string,
+  permission: "portfolio" | "documents" | "email_scouting",
+  enabled: boolean
+): Promise<Result> {
   const supabase = await adminClient();
   if (!supabase) return { ok: false, message: "Admin access required." };
   const { error } = await supabase.rpc("admin_set_member_permission", { p_email: email, p_permission: permission, p_enabled: enabled });

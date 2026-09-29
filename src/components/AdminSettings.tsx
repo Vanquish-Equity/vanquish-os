@@ -44,11 +44,18 @@ export default function AdminSettings({ me, members, domains }: { me: string; me
             <div className="min-w-[190px] flex-1"><div className="font-semibold text-ink">{member.name || member.email.split("@")[0]}</div><div className="truncate text-neutral-500">{member.email}</div></div>
             <PermissionToggle label="Portfolio" enabled={member.permissions.includes("portfolio")} disabled={pending} onToggle={() => run(() => setMemberPermission(member.email, "portfolio", !member.permissions.includes("portfolio")), "Permission saved.")} />
             <PermissionToggle label="Documents" enabled={member.permissions.includes("documents")} disabled={pending} onToggle={() => run(() => setMemberPermission(member.email, "documents", !member.permissions.includes("documents")), "Permission saved.")} />
+            <PermissionToggle label="Email scouting" enabled={member.permissions.includes("email_scouting")} disabled={pending} onToggle={() => run(() => setMemberPermission(member.email, "email_scouting", !member.permissions.includes("email_scouting")), "Permission saved.")} />
             <button type="button" disabled={pending || member.email === me} onClick={() => run(() => setMemberActive(member.email, !member.active), member.active ? "Member deactivated." : "Member activated.")}
               className="rounded-lg border border-neutral-200 px-2.5 py-1.5 text-[11px] font-semibold text-ink hover:border-cyan-300 disabled:opacity-40">{member.active ? "Deactivate" : "Activate"}</button>
           </div>
         ))}
       </div>
+      <p className="mt-2 text-[11px] text-neutral-500">
+        <span className="font-semibold text-ink">Email scouting</span>: once a member connects Gmail, their mailbox is
+        scanned to detect and suggest new Companies from their email activity only if this is on. It has no effect yet —
+        no mailbox is connected — but it is decided per member now so scouting only ever covers the members who actually
+        do deal sourcing by email.
+      </p>
       <h3 className="mt-6 text-[13px] font-semibold text-ink">Ignored email domains</h3>
       <p className="mt-1 text-[11px] text-neutral-500">This list is ready for company detection when email sync is connected. It does not currently filter any emails.</p>
       <form className="mt-3 flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); run(() => saveIgnoredDomain(domain, reason), "Domain saved."); setDomain(""); setReason(""); }}>

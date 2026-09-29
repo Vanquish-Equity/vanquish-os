@@ -39,6 +39,18 @@ const inputClass =
   "w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[13px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100 disabled:bg-neutral-50";
 const labelClass = "mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400";
 
+// Shown so the composer reads like a real mailbox (matching Gmail's own
+// compose bar), but none of these have a backend yet: no attachment
+// storage, no Drive connection, no confidential mode, no signatures. They
+// stay visibly disabled rather than pretending to work.
+const COMPOSER_PLACEHOLDER_ICONS = [
+  { key: "attach", glyph: "📎", label: "Attach files" },
+  { key: "photo", glyph: "🖼️", label: "Insert photo" },
+  { key: "drive", glyph: "🗂️", label: "Insert files using Drive" },
+  { key: "confidential", glyph: "🔒", label: "Toggle confidential mode" },
+  { key: "signature", glyph: "✍️", label: "Insert signature" },
+] as const;
+
 function recipientKey(recipient: DraftRecipient) {
   return recipient.personId ?? `saved:${recipient.recipientId}`;
 }
@@ -421,6 +433,21 @@ export default function DraftComposer({
                 markDirty();
               }}
             />
+            <div className="mt-1.5 flex items-center gap-0.5 rounded-lg border border-neutral-200 bg-[#f7f9fa] px-1.5 py-1" role="group" aria-label="More composing options (not available yet)">
+              {COMPOSER_PLACEHOLDER_ICONS.map((icon) => (
+                <button
+                  key={icon.key}
+                  type="button"
+                  disabled
+                  title={`${icon.label} — not available yet`}
+                  className="flex h-7 w-7 flex-shrink-0 cursor-not-allowed items-center justify-center rounded-md text-[13px] text-neutral-400"
+                >
+                  <span aria-hidden>{icon.glyph}</span>
+                  <span className="sr-only">{icon.label} — not available yet</span>
+                </button>
+              ))}
+              <span className="ml-auto flex-shrink-0 pr-1 text-[10.5px] font-semibold text-neutral-400">Not available yet</span>
+            </div>
           </div>
 
           <div className="rounded-xl border border-neutral-100 bg-[#f7f9fa] p-3.5 text-[12px] text-neutral-600">

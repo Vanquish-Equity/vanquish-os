@@ -97,6 +97,9 @@ Run the migration files in order in the Supabase SQL Editor:
 32. `20260929180000_draft_formatting_and_schedule.sql` - draft bodies store
     sanitized rich text (bold/italic/lists/links), and a `scheduled_at` field
     records a planned send time (informational only; nothing sends yet).
+33. `20260929190000_email_scouting_permission.sql` - `email_scouting` member
+    permission distinguishing members whose future connected Gmail may be
+    scanned to detect Companies from those whose mailbox never is.
 
 These timestamps are part of the migration filenames. For the schema readiness
 check, the recorded history uses their descriptive suffix; see
