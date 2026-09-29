@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 type Board = { id: string; owner_email: string; name: string; share_scope: "private" | "selected" | "team" };
 type Column = { id: string; name: string; sort_order: number };
-type Card = { id: string; column_id: string; name: string; email: string; organization: string; note: string; sort_order: number };
+type Card = { id: string; column_id: string; name: string; email: string; organization: string; note: string; sort_order: number; source_person_id: string | null; source_company_id: string | null };
 
 export default async function LpBoardPage({ searchParams }: { searchParams: Promise<{ board?: string }> }) {
   const member = await requireMember();
@@ -20,7 +20,7 @@ export default async function LpBoardPage({ searchParams }: { searchParams: Prom
   if (!board) throw new Error("Could not load your LP board.");
   const [columns, cards, shares, directory] = await Promise.all([
     db.from("lp_board_columns").select("id,name,sort_order").eq("board_id", board.id).order("sort_order").order("id"),
-    db.from("lp_board_cards").select("id,column_id,name,email,organization,note,sort_order").eq("board_id", board.id).order("sort_order").order("id"),
+    db.from("lp_board_cards").select("id,column_id,name,email,organization,note,sort_order,source_person_id,source_company_id").eq("board_id", board.id).order("sort_order").order("id"),
     db.from("lp_board_shares").select("member_email").eq("board_id", board.id),
     db.rpc("assignable_members"),
   ]);

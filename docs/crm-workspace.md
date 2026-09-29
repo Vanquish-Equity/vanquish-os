@@ -44,6 +44,21 @@ from the shared People directory; adding an LP here never publishes a Person
 or registers an investment. Linking or promoting a prospect to the global
 directory requires a separate deliberate feature.
 
+### Add from CRM directory
+
+Any independent shared board and the personal LP board can add existing
+individual People, Companies, or the current members of a People group to a
+chosen list. Search and select individual records or select all shown. The
+import stores one board card per selected source and retains its source ID;
+reimporting the same Person or Company to that board skips the existing card.
+It does not create or modify People, Companies, group membership or Deals.
+Names and email/organization on the LP card are snapshots that can be edited
+for that board; later directory edits do not silently overwrite private
+follow-up notes. Group membership is expanded at import time, so later group
+changes do not move cards. Private LP board RLS also protects imported card
+metadata and notes. Deleting a source record leaves its board card intact
+and clears the source link.
+
 Board creation follows the in-board workflow: choose a title and whether to link existing Deals, create an empty board, then add lists and native cards one at a time. Admins can later rename/archive the board, rename/reorder whole lists, and delete only empty lists; populated lists require moving or removing their cards first. Native cards have a title, description, due date and persistent list/order, and can be dragged across lists. Boards that opt into Deal links may contain both native cards and existing Deals; those Deal cards retain their own investment stage. All current boards are shared with the team; private visibility is a future permission model, not a selectable setting yet. The background is the existing neutral workspace design, without user color configuration.
 
 ## Deal preview

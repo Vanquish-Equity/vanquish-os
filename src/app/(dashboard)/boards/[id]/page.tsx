@@ -20,7 +20,7 @@ export default async function BoardDetailPage({ params }: { params: Promise<{ id
   const [columns, cards, items, deals] = await Promise.all([
     db.from("crm_board_columns").select("id,name,sort_order").eq("board_id", id).order("sort_order").order("id"),
     includeDeals ? db.from("crm_board_cards").select("deal_id,column_id").eq("board_id", id) : Promise.resolve({ data: [], error: null }),
-    db.from("crm_board_items").select("id,column_id,title,description,due_at,sort_order").eq("board_id", id).order("sort_order").order("id"),
+    db.from("crm_board_items").select("id,column_id,title,description,due_at,sort_order,source_person_id,source_company_id").eq("board_id", id).order("sort_order").order("id"),
     includeDeals
       ? db.from("deals").select("id,name,round,first_seen_at,created_at,potential_investment,updated_at,stage_id,stage:pipeline_stages(name),company:companies!inner(id,name,deleted_at),priority:priorities(name)").is("archived_at", null).is("company.deleted_at", null).order("updated_at", { ascending: false }) as unknown as Promise<{ data: Deal[] | null; error: { message: string } | null }>
       : Promise.resolve({ data: [] as Deal[], error: null }),
