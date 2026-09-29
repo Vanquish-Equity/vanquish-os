@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { discardDraftAction, saveDraftAction } from "@/lib/communications/actions";
 import SelectMenu from "@/components/SelectMenu";
 import RichTextEditor from "@/components/RichTextEditor";
+import ComposerIcon, { type ComposerIconName } from "@/components/ComposerIcon";
 import { isActiveMember, memberLabel, type Member } from "@/lib/communications/drafts";
 import type { ContactGroup, DraftDetail, DraftRecipient, LpContact } from "@/lib/communications/queries";
 import { RECIPIENT_ISSUE_LABELS } from "@/lib/communications/recipients";
@@ -43,13 +44,13 @@ const labelClass = "mb-1 block text-[10.5px] font-semibold uppercase tracking-wi
 // compose bar), but none of these have a backend yet: no attachment
 // storage, no Drive connection, no confidential mode, no signatures. They
 // stay visibly disabled rather than pretending to work.
-const COMPOSER_PLACEHOLDER_ICONS = [
-  { key: "attach", glyph: "📎", label: "Attach files" },
-  { key: "photo", glyph: "🖼️", label: "Insert photo" },
-  { key: "drive", glyph: "🗂️", label: "Insert files using Drive" },
-  { key: "confidential", glyph: "🔒", label: "Toggle confidential mode" },
-  { key: "signature", glyph: "✍️", label: "Insert signature" },
-] as const;
+const COMPOSER_PLACEHOLDER_ICONS: { key: string; icon: ComposerIconName; label: string }[] = [
+  { key: "attach", icon: "attach", label: "Attach files" },
+  { key: "photo", icon: "photo", label: "Insert photo" },
+  { key: "drive", icon: "drive", label: "Insert files using Drive" },
+  { key: "confidential", icon: "lock", label: "Toggle confidential mode" },
+  { key: "signature", icon: "signature", label: "Insert signature" },
+];
 
 function recipientKey(recipient: DraftRecipient) {
   return recipient.personId ?? `saved:${recipient.recipientId}`;
@@ -114,6 +115,7 @@ export default function DraftComposer({
   const [body, setBody] = useState(() => (draft && isPlainTextBody(draft.body) ? plainTextToHtml(draft.body) : draft?.body ?? ""));
   const bodyText = useMemo(() => body.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(), [body]);
   const [scheduleEnabled, setScheduleEnabled] = useState(Boolean(draft?.scheduledAt));
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduledAt, setScheduledAt] = useState(() => toDateTimeLocalValue(draft?.scheduledAt ?? null));
   const [selection, setSelection] = useState(() => initialSelection(draft));
   const [query, setQuery] = useState("");
@@ -433,60 +435,86 @@ export default function DraftComposer({
                 markDirty();
               }}
             />
-            <div className="mt-1.5 flex items-center gap-0.5 rounded-lg border border-neutral-200 bg-[#f7f9fa] px-1.5 py-1" role="group" aria-label="More composing options (not available yet)">
+            <div className="mt-1.5 flex items-center gap-0.5 rounded-lg border border-neutral-200 bg-[#f7f9fa] px-1.5 py-1" role="group" aria-label="More composing options">
               {COMPOSER_PLACEHOLDER_ICONS.map((icon) => (
                 <button
                   key={icon.key}
                   type="button"
                   disabled
                   title={`${icon.label} — not available yet`}
-                  className="flex h-7 w-7 flex-shrink-0 cursor-not-allowed items-center justify-center rounded-md text-[13px] text-neutral-400"
+                  className="flex h-7 w-7 flex-shrink-0 cursor-not-allowed items-center justify-center rounded-md text-neutral-400"
                 >
-                  <span aria-hidden>{icon.glyph}</span>
+                  <ComposerIcon name={icon.icon} />
                   <span className="sr-only">{icon.label} — not available yet</span>
                 </button>
               ))}
-              <span className="ml-auto flex-shrink-0 pr-1 text-[10.5px] font-semibold text-neutral-400">Not available yet</span>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-neutral-100 bg-[#f7f9fa] p-3.5 text-[12px] text-neutral-600">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">Schedule send</span>
-              <span className="rounded-full bg-white px-2 py-0.5 text-[10.5px] font-semibold text-neutral-500 ring-1 ring-neutral-200">
-                Not connected yet
+              <span className="mx-1 h-4 w-px flex-shrink-0 bg-neutral-200" aria-hidden />
+              <button
+                type="button"
+                disabled={!canEdit}
+                title={scheduleEnabled ? "Edit scheduled send time" : "Schedule send"}
+                aria-pressed={scheduleEnabled}
+                onClick={() => setScheduleOpen((open) => !open)}
+                className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                  scheduleEnabled ? "bg-ink text-white" : "text-neutral-600 hover:bg-neutral-100"
+                }`}
+              >
+                <ComposerIcon name="clock" />
+              </button>
+              {scheduleEnabled && scheduledAt && !Number.isNaN(new Date(scheduledAt).getTime()) && (
+                <span className="ml-1 flex items-center gap-1 truncate text-[11px] font-semibold text-cyan-800">
+                  Scheduled · {formatExactDateTime(new Date(scheduledAt).toISOString())}
+                  {canEdit && (
+                    <button
+                      type="button"
+                      title="Remove scheduled send"
+                      onClick={() => {
+                        setScheduleEnabled(false);
+                        setScheduleOpen(false);
+                        markDirty();
+                      }}
+                      className="text-neutral-400 hover:text-neutral-700"
+                    >
+                      <ComposerIcon name="clear" className="h-3 w-3" />
+                    </button>
+                  )}
+                </span>
+              )}
+              <span className="ml-auto flex-shrink-0 pr-1 text-[10.5px] font-semibold text-neutral-400">
+                Attach/Drive/confidential/signature not available yet
               </span>
             </div>
-            <label className="mt-2 flex items-center gap-2 text-[12.5px] text-ink">
-              <input
-                type="checkbox"
-                checked={scheduleEnabled}
-                disabled={!canEdit}
-                onChange={(event) => {
-                  setScheduleEnabled(event.target.checked);
-                  markDirty();
-                }}
-                className="h-4 w-4 rounded border-neutral-300 accent-cyan-600 disabled:opacity-50"
-              />
-              Send at a specific date and time
-            </label>
-            {scheduleEnabled && (
-              <input
-                type="datetime-local"
-                value={scheduledAt}
-                disabled={!canEdit}
-                onChange={(event) => {
-                  setScheduledAt(event.target.value);
-                  markDirty();
-                }}
-                className={`${inputClass} mt-2 max-w-[260px]`}
-              />
+            {scheduleOpen && (
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5 rounded-lg border border-cyan-200 bg-[#f0fafb] p-2">
+                <input
+                  type="datetime-local"
+                  autoFocus
+                  value={scheduledAt}
+                  disabled={!canEdit}
+                  onChange={(event) => setScheduledAt(event.target.value)}
+                  className="min-w-0 flex-1 rounded-md border border-neutral-200 bg-white px-2.5 py-1.5 text-[12.5px] outline-none focus:border-cyan-300"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!scheduledAt) return;
+                    setScheduleEnabled(true);
+                    setScheduleOpen(false);
+                    markDirty();
+                  }}
+                  disabled={!scheduledAt}
+                  className="flex-shrink-0 rounded-md bg-ink px-2.5 py-1.5 text-[11.5px] font-semibold text-white disabled:opacity-40"
+                >
+                  Schedule
+                </button>
+                <button type="button" onClick={() => setScheduleOpen(false)} className="flex-shrink-0 rounded-md border border-neutral-200 px-2.5 py-1.5 text-[11.5px] font-semibold text-neutral-600">
+                  Cancel
+                </button>
+                <p className="w-full text-[11px] text-neutral-500">
+                  Not connected yet: this only records the time on the draft — nothing sends automatically until Gmail is connected.
+                </p>
+              </div>
             )}
-            <p className="mt-2 text-neutral-500">
-              {scheduleEnabled && scheduledAt && !Number.isNaN(new Date(scheduledAt).getTime())
-                ? `Planned for ${formatExactDateTime(new Date(scheduledAt).toISOString())}. Sending isn't connected yet, so this is only recorded — nothing goes out automatically.`
-                : "Once Gmail is connected, a scheduled draft will send itself at this time instead of waiting for the responsible to send it by hand."}
-            </p>
           </div>
 
           <div className="rounded-xl border border-neutral-100 bg-[#f7f9fa] p-3.5 text-[12px] text-neutral-600">

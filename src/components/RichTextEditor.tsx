@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import ComposerIcon, { type ComposerIconName } from "@/components/ComposerIcon";
 
 type Command = "bold" | "italic" | "underline" | "strikeThrough" | "insertUnorderedList" | "insertOrderedList" | "removeFormat";
 
-const BUTTONS: { command: Command; icon: string; className?: string; title: string }[] = [
-  { command: "bold", icon: "B", className: "font-bold", title: "Bold (Ctrl+B)" },
-  { command: "italic", icon: "I", className: "italic", title: "Italic (Ctrl+I)" },
-  { command: "underline", icon: "U", className: "underline", title: "Underline (Ctrl+U)" },
-  { command: "strikeThrough", icon: "S", className: "line-through", title: "Strikethrough" },
-  { command: "insertUnorderedList", icon: "•≡", title: "Bulleted list" },
-  { command: "insertOrderedList", icon: "1≡", title: "Numbered list" },
+const BUTTONS: { command: Command; letter?: string; icon?: ComposerIconName; className?: string; title: string }[] = [
+  { command: "bold", letter: "B", className: "font-bold", title: "Bold (Ctrl+B)" },
+  { command: "italic", letter: "I", className: "italic", title: "Italic (Ctrl+I)" },
+  { command: "underline", letter: "U", className: "underline", title: "Underline (Ctrl+U)" },
+  { command: "strikeThrough", letter: "S", className: "line-through", title: "Strikethrough" },
+  { command: "insertUnorderedList", icon: "bulletList", title: "Bulleted list" },
+  { command: "insertOrderedList", icon: "numberList", title: "Numbered list" },
 ];
 
 // A contentEditable rich text editor with a small Gmail-style formatting
@@ -133,12 +134,12 @@ export default function RichTextEditor({
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => run(button.command)}
             >
-              <span className={button.className}>{button.icon}</span>
+              {button.icon ? <ComposerIcon name={button.icon} /> : <span className={button.className}>{button.letter}</span>}
             </button>
           ))}
           <span className="mx-1 h-4 w-px bg-neutral-200" aria-hidden />
           <button type="button" title="Insert link" aria-pressed={linkOpen} className={buttonClass(linkOpen)} onMouseDown={(event) => event.preventDefault()} onClick={openLink}>
-            🔗
+            <ComposerIcon name="link" />
           </button>
           <button
             type="button"
@@ -147,7 +148,7 @@ export default function RichTextEditor({
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => run("removeFormat")}
           >
-            Tx
+            <ComposerIcon name="clear" />
           </button>
         </div>
       )}
