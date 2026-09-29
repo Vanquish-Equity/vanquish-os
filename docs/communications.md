@@ -22,6 +22,7 @@ Outlook. Mario can keep editing it too. Scott can open it but not change it.
 | What | Where |
 | --- | --- |
 | Potential LPs | People → **Potential LPs** tab (`/people?view=lps`). They are regular People rows with `people.is_potential_lp = true`; emails stay in `person_emails`. There is no second contact list. |
+| People groups | People → **Manage groups** (`/people/groups`). Shared groups can be created, renamed and deleted, with explicit membership. The starter Potential LPs group is seeded from the existing flag and picks up newly marked LPs; its name can be changed. Deleting a group does not delete People. |
 | Add one | People → **Add potential LP** (or **New Person** with “Potential LP” ticked), or **Mark potential LP** on an existing row. A potential LP needs an email. |
 | Edit name / email | **Edit** on any People row. The primary `person_emails` row is updated in place. |
 | Import a list | People → **Import potential LPs (CSV)** (`/people/import`). |
