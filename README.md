@@ -88,7 +88,11 @@ Run the migration files in order in the Supabase SQL Editor:
     card foreign keys and ordered list reads.
 28. `20260929162736_people_groups.sql` - editable shared People groups and
     a starter Potential LPs group. Group membership does not duplicate contacts.
-29. `20260929173000_board_directory_import.sql` - add People, Companies and
+29. `20260929163000_protect_potential_lp_group.sql` - the starter Potential
+    LPs group can be renamed and edited but not deleted.
+30. `20260929170500_email_recipient_fields.sql` - To/CC/BCC on draft recipients,
+    including People outside the Potential LPs group.
+31. `20260929173000_board_directory_import.sql` - add People, Companies and
     group members as linked board cards, with the board's access rules.
 
 These timestamps are part of the migration filenames. For the schema readiness

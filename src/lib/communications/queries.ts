@@ -16,6 +16,21 @@ export type LpContact = {
   title: string | null;
   organization: string | null;
 };
+export type ContactGroup = { id: string; name: string; kind: string; personIds: string[] };
+
+export async function loadContactGroups(supabase: SupabaseClient): Promise<ContactGroup[]> {
+  const [groups, members] = await Promise.all([
+    supabase.from("person_groups").select("id,name,kind").order("name"),
+    supabase.from("person_group_members").select("group_id,person_id"),
+  ]);
+  if (groups.error || members.error) throw new Error("Could not load contact groups.");
+  return (groups.data ?? []).map((group) => ({
+    id: group.id,
+    name: group.name,
+    kind: group.kind,
+    personIds: (members.data ?? []).filter((m) => m.group_id === group.id).map((m) => m.person_id),
+  }));
+}
 
 export type DraftRecipient = {
   recipientId: string;
@@ -25,6 +40,7 @@ export type DraftRecipient = {
   issue: RecipientIssue | null;
   currentEmail: string | null;
   canAcceptCurrent: boolean;
+  field: "to" | "cc" | "bcc";
 };
 
 export type DraftDetail = {
@@ -43,7 +59,6 @@ export async function loadLpContacts(supabase: SupabaseClient): Promise<LpContac
   const { data } = (await supabase
     .from("people")
     .select("id,name,title,organization:companies(name),person_emails(email,is_primary)")
-    .eq("is_potential_lp", true)
     .is("archived_at", null)
     .order("name")) as unknown as {
     data:
@@ -71,6 +86,7 @@ type RecipientRow = {
   person_id: string | null;
   email_at_selection: string;
   name_at_selection: string;
+  field: "to" | "cc" | "bcc";
   person: {
     name: string;
     archived_at: string | null;
@@ -90,7 +106,7 @@ export async function loadDraft(supabase: SupabaseClient, draftId: string): Prom
     supabase
       .from("email_draft_recipients")
       .select(
-        "id,person_id,email_at_selection,name_at_selection,person:people(name,archived_at,is_potential_lp,person_emails(email,is_primary)),selected_email:person_emails(email)"
+        "id,person_id,email_at_selection,name_at_selection,field,person:people(name,archived_at,is_potential_lp,person_emails(email,is_primary)),selected_email:person_emails(email)"
       )
       .eq("draft_id", draftId)
       .order("name_at_selection") as unknown as Promise<{ data: RecipientRow[] | null }>,
@@ -111,7 +127,6 @@ export async function loadDraft(supabase: SupabaseClient, draftId: string): Prom
       const person = row.person
         ? {
             archived: row.person.archived_at !== null,
-            isPotentialLp: row.person.is_potential_lp,
             emails: primaryFirst(row.person.person_emails ?? []),
           }
         : null;
@@ -128,6 +143,7 @@ export async function loadDraft(supabase: SupabaseClient, draftId: string): Prom
         issue: check.issue,
         currentEmail: check.currentEmail,
         canAcceptCurrent: canAcceptCurrent(check, person),
+        field: row.field,
       };
     }),
   };
