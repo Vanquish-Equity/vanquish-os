@@ -50,7 +50,21 @@ jobs:
           if ! psql "$SUPABASE_SCHEMA_READONLY_URL" -X -A -t -v ON_ERROR_STOP=1 \
             -c 'select name from supabase_migrations.schema_migrations' \
             > "$RUNNER_TEMP/applied-migrations.txt" 2> "$RUNNER_TEMP/psql-error.txt"; then
-            echo 'Schema readiness could not connect or read migration history. Check the read-only URL, URL-encoded password, role permissions, and TLS settings.' >&2
+            # Classify errors without printing libpq's raw stderr: it can
+            # contain a password fragment from a malformed connection URL.
+            if grep -Eqi 'invalid percent-encoded|invalid URI|invalid connection option' "$RUNNER_TEMP/psql-error.txt"; then
+              echo 'Schema readiness: malformed database URL. Remove placeholder brackets and percent-encode reserved password characters.' >&2
+            elif grep -Eqi 'password authentication failed|no password supplied' "$RUNNER_TEMP/psql-error.txt"; then
+              echo 'Schema readiness: database password authentication failed. Check the role name and rotated password.' >&2
+            elif grep -Eqi 'tenant or user not found|role .* does not exist' "$RUNNER_TEMP/psql-error.txt"; then
+              echo 'Schema readiness: database role or pooler project reference was not found.' >&2
+            elif grep -Eqi 'permission denied' "$RUNNER_TEMP/psql-error.txt"; then
+              echo 'Schema readiness: role lacks access to the migration history.' >&2
+            elif grep -Eqi 'could not translate host name|connection refused|timed out|network is unreachable' "$RUNNER_TEMP/psql-error.txt"; then
+              echo 'Schema readiness: database host or network connection failed.' >&2
+            else
+              echo 'Schema readiness: database query failed. Check the session pooler URL and TLS settings.' >&2
+            fi
             exit 1
           fi
           python3 scripts/check_schema_drift.py \
