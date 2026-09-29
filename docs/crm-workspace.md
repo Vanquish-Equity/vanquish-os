@@ -18,6 +18,12 @@ Users can create, rename, archive and reorder boards; create, rename and reorder
 
 The current implementation includes shared general boards with native cards and optional Deal links. Their columns are not investment stages. The principal Pipeline remains backed by `pipeline_stages` and `deals.stage_id`. Task boards (To do / Doing / Done) need a richer task status model than today's open/done. LP outreach should use People/LP relationships, not investment Deals. Additional genuine investment pipelines with distinct stage sets require an explicit process model. Scott and Francis must confirm final stages, including `IC Review`, `Closing`, and the meaning of `Completed`.
 
+As of the current board implementation, native cards support team assignees,
+due dates, descriptions and checklists. Linked Deals support multiple team
+assignees with avatars. Pipeline supports on-board filters. Board pages support
+contextual comments. Saved views, custom fields, task/LP record workflows and
+personal boards are still planned rather than available.
+
 Board creation follows the in-board workflow: choose a title and whether to link existing Deals, create an empty board, then add lists and native cards one at a time. Admins can later rename/archive the board, rename/reorder whole lists, and delete only empty lists; populated lists require moving or removing their cards first. Native cards have a title, description, due date and persistent list/order, and can be dragged across lists. Boards that opt into Deal links may contain both native cards and existing Deals; those Deal cards retain their own investment stage. All current boards are shared with the team; private visibility is a future permission model, not a selectable setting yet. The background is the existing neutral workspace design, without user color configuration.
 
 ## Deal preview

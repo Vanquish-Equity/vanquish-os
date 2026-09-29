@@ -6,13 +6,12 @@ documents, tasks and portfolio legal structure build on that source of truth.
 
 Stack: Next.js 16 App Router, Supabase Postgres/Auth/Storage and Tailwind v4.
 
-## 1. GitHub
+## 1. Project guide
 
-`origin` points at `github.com/Vanquish-Equity/vanquish-os`.
-
-```bash
-git push -u origin main
-```
+Read [`AGENTS.md`](AGENTS.md) before editing and use the
+[`docs/README.md`](docs/README.md) map to find the relevant feature and design
+notes. Work from current `main` on a focused branch and review CI and schema
+readiness before using a preview.
 
 ## 2. Supabase Migrations
 
@@ -69,6 +68,24 @@ Run the migration files in order in the Supabase SQL Editor:
 18. `0023_admin_settings.sql` - separate Admin permission for Mario, member
     access controls and an ignored-domain list for future email detection.
     Requires `0022`. See [`docs/settings.md`](docs/settings.md).
+19. `20260928200209_crm_boards.sql` - independent Deal boards, columns and
+    links to existing Deals; moving them does not change Pipeline stages.
+20. `20260928202810_board_customization.sql` - empty-board creation and list
+    customization. Its background setting is superseded by the current neutral
+    board UI.
+21. `20260928203809_deal_assignees.sql` - multiple member assignments per Deal.
+22. `20260928204419_flexible_boards.sql` - general boards with their own cards
+    and optional links to Deals. See [`docs/crm-workspace.md`](docs/crm-workspace.md).
+23. `20260928205500_board_item_assignees.sql` - assignments for native board
+    cards.
+24. `20260929000100_board_item_checklists.sql` - checklist items on native
+    board cards.
+25. `20260929000200_boards_context_comments.sql` - contextual comments on
+    board pages.
+
+These timestamps are part of the migration filenames. For the schema readiness
+check, the recorded history uses their descriptive suffix; see
+[`docs/ci-and-schema.md`](docs/ci-and-schema.md).
 
 Sign-in (Google, email link) and member-scoped RLS are enforced from `0015`
 on; the temporary anon policies of `0003`-`0014` are dropped there. See
