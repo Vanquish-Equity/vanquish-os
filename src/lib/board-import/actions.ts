@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { actionAccessError } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/server";
+import { isUuid } from "@/lib/validation/uuid";
 
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export type ImportEntry = { id: string; name: string; detail: string };
 export type ImportGroup = { id: string; name: string; kind: string; personIds: string[] };
 export type ImportOptions = { people: ImportEntry[]; companies: ImportEntry[]; groups: ImportGroup[] };
@@ -43,7 +43,7 @@ export async function loadBoardImportOptions(): Promise<OptionsResult> {
 export async function importDirectoryToBoard(input: { boardId: string; columnId: string; kind: "person" | "company"; ids: string[]; privateBoard: boolean }): Promise<{ ok: true; added: number } | { ok: false; message: string }> {
   const access = await actionAccessError();
   if (access) return { ok: false, message: access };
-  if (!uuid.test(input.boardId) || !uuid.test(input.columnId) || !["person", "company"].includes(input.kind) || typeof input.privateBoard !== "boolean" || !Array.isArray(input.ids) || input.ids.length < 1 || input.ids.length > 500 || input.ids.some((id) => !uuid.test(id)) || new Set(input.ids).size !== input.ids.length) return { ok: false, message: "Choose up to 500 distinct CRM records." };
+  if (!isUuid(input.boardId) || !isUuid(input.columnId) || !["person", "company"].includes(input.kind) || typeof input.privateBoard !== "boolean" || !Array.isArray(input.ids) || input.ids.length < 1 || input.ids.length > 500 || input.ids.some((id) => !isUuid(id)) || new Set(input.ids).size !== input.ids.length) return { ok: false, message: "Choose up to 500 distinct CRM records." };
   const db = await createClient();
   const { data, error } = await db.rpc("import_directory_to_board", { p_board: input.boardId, p_column: input.columnId, p_kind: input.kind, p_ids: input.ids, p_private: input.privateBoard });
   if (error) return { ok: false, message: "Import failed. Review the selected records and board access." };
