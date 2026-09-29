@@ -84,6 +84,8 @@ Run the migration files in order in the Supabase SQL Editor:
     board pages.
 26. `20260929162736_people_groups.sql` - editable shared People groups and
     a starter Potential LPs group. Group membership does not duplicate contacts.
+27. `20260929163000_protect_potential_lp_group.sql` - the starter Potential
+    LPs group can be renamed and edited but not deleted.
 
 These timestamps are part of the migration filenames. For the schema readiness
 check, the recorded history uses their descriptive suffix; see
