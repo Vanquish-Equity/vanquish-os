@@ -1,19 +1,19 @@
 # Communications and email
 
-Prepare emails to any Person in the CRM. Choose a People group or all People, select recipients individually or in bulk, and assign each address to **To, CC or BCC**. The Potential LPs group is selected by default and can be renamed in People. **Nothing is sent yet**: actual inbox, sent mail, sending and replies require a connected Outlook mailbox.
+Prepare emails to any Person in the CRM. Choose a People group or all People, select recipients individually or in bulk, and assign each address to **To, CC or BCC**. The Potential LPs group is selected by default and can be renamed in People. **Nothing is sent yet**: actual inbox, sent mail, sending and replies require a connected Gmail mailbox (Vanquish member accounts are Google Workspace; see "Sending later" below for why Gmail rather than Outlook is the integration target).
 
-The page has four folder tabs — Inbox, Sent, Drafts, Archive — matching a real mailbox's shape ahead of the Outlook connection. Drafts is the one with working content (this CRM's own drafts, described below); Inbox, Sent and Archive show a fixed "not connected yet" panel linking to Settings until a mailbox is connected and populates them with real provider messages.
+The page has four folder tabs — Inbox, Sent, Drafts, Archive — matching a real mailbox's shape ahead of the Gmail connection. Drafts is the one with working content (this CRM's own drafts, described below); Inbox, Sent and Archive show a fixed "not connected yet" panel linking to Settings until a mailbox is connected and populates them with real provider messages.
 
 Each draft has two people:
 
 | Field | Meaning |
 | --- | --- |
 | **Created by** (`created_by`) | Who prepared the draft. Set by the database from the signed-in email; never changes. |
-| **Responsible / planned sender** (`assigned_to`) | The active Vanquish member who reviews the draft and, once Outlook is connected, sends it from their own mailbox. Defaults to the creator; chosen from active members when creating or editing. |
+| **Responsible / planned sender** (`assigned_to`) | The active Vanquish member who reviews the draft and, once Gmail is connected, sends it from their own mailbox. Defaults to the creator; chosen from active members when creating or editing. |
 
 Example: Mario prepares a draft and sets Pedro as responsible. Pedro finds it
 under **For me** in Communications, edits it, and later sends it from his
-Outlook. Mario can keep editing it too. Scott can open it but not change it.
+Gmail. Mario can keep editing it too. Scott can open it but not change it.
 
 ## Where things live
 
@@ -144,22 +144,32 @@ address never creates a second person.
 
 ## Sending later (not implemented)
 
-What connecting Outlook needs:
+Vanquish member mailboxes are Google Workspace accounts on `vanquishequity.com`
+(seen through Outlook as a client for some members, but the mailbox itself is
+Gmail). Delivery, Sent items and any Outlook view of that same account all
+reconcile through Gmail, so the integration target is the Gmail API, not
+Microsoft Graph — connecting Outlook directly would talk to the wrong mailbox.
 
-1. **Microsoft Entra app** (single tenant, Vanquish) with delegated
-   `Mail.Send` (and `offline_access`). Admin consent per the company's
-   policy. This is separate from sign-in and only asked when a user chooses
-   to connect their mailbox.
+What connecting Gmail needs:
+
+1. **Google Cloud OAuth client** (Vanquish's own project) with the
+   `gmail.send` scope (and `gmail.readonly` / `gmail.modify` once the mailbox
+   phase below reads Inbox/Sent). Google verification per its policy for
+   sensitive scopes. This is separate from sign-in (`google` is already a
+   sign-in provider; a mailbox connection is its own consent, asked only
+   when a user chooses to connect it, typically with `access_type=offline`
+   for a refresh token).
 2. **Token storage**: the refresh token must stay server-side (encrypted
    table readable only by a server role, or Supabase Vault), never in the
    browser or in `email_drafts`.
 3. **Send path**: a server-side function that only the **responsible**
    (`assigned_to`) can call, and only with their own connected mailbox. It
    re-checks the draft (responsible is the signed-in active member, no
-   recipients needing review, subject and body present), then calls
-   Microsoft Graph `POST /me/sendMail` as the responsible, with the
-   recipients in the saved `toRecipients`, `ccRecipients` and
-   `bccRecipients`. The creator cannot send on the responsible's behalf.
+   recipients needing review, subject and body present), then calls the
+   Gmail API `users.messages.send` as the responsible, with the recipients
+   in the saved `toRecipients`, `ccRecipients` and `bccRecipients` (Gmail
+   takes a raw RFC 2822 MIME message, so headers are built before sending).
+   The creator cannot send on the responsible's behalf.
 4. **Model changes**: extend `email_drafts.status` beyond `'draft'`
    (`sending`, `sent`, `failed`), add `sent_at` / `sent_by`, and freeze the
    recipient list when sending (store per-recipient delivery results).
@@ -170,8 +180,8 @@ What connecting Outlook needs:
 
 ## Mailbox phase (planned)
 
-Communications must become a second view of each connected user's mailbox, with Inbox, Sent, Drafts, Archive, search, message reading, reply/forward, and compose. These folders must show real provider messages, scoped to the connected user; the shared CRM drafts stay distinct until a responsible person sends them. Never present an empty local table as an Outlook inbox.
+Communications must become a second view of each connected user's mailbox, with Inbox, Sent, Drafts, Archive, search, message reading, reply/forward, and compose. These folders must show real provider messages, scoped to the connected user; the shared CRM drafts stay distinct until a responsible person sends them. Never present an empty local table as a Gmail inbox.
 
-For Outlook use Microsoft Graph delegated mailbox access: `Mail.Read` for message bodies and folders, `Mail.ReadWrite` when moving or marking messages, `Mail.Send` for sending, `offline_access` for refresh. Token storage stays encrypted server-side and isolated per member. Folder pagination, delta sync, attachment handling, retry/idempotency and sent-message reconciliation need separate implementation and tests. The first connected mailbox should be an explicit opt-in with revocation in Settings. Group expansion happens at draft selection time; preserve the exact selected people and recipient field on save, and re-check addresses before sending.
+Use the Gmail API's delegated mailbox access: `gmail.readonly` for reading messages and labels, `gmail.modify` for archiving or moving messages (Gmail uses labels, not folders — Inbox/Sent/Archive map to the `INBOX`, `SENT` labels and the absence of `INBOX`, respectively), `gmail.send` for sending, and `access_type=offline` for a refresh token. Token storage stays encrypted server-side and isolated per member. Label-based pagination, `historyId`-based incremental sync, attachment handling, retry/idempotency and sent-message reconciliation need separate implementation and tests. The first connected mailbox should be an explicit opt-in with revocation in Settings. Group expansion happens at draft selection time; preserve the exact selected people and recipient field on save, and re-check addresses before sending.
 
-Sources: [Microsoft Graph mail overview](https://learn.microsoft.com/en-us/graph/api/resources/mail-api-overview?view=graph-rest-1.0), [list folder messages](https://learn.microsoft.com/en-us/graph/api/mailfolder-list-messages?view=graph-rest-1.0), [sendMail](https://learn.microsoft.com/en-us/graph/api/user-sendmail?view=graph-rest-1.0).
+Sources: [Gmail API overview](https://developers.google.com/workspace/gmail/api/guides), [users.messages.list](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/list), [users.messages.send](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/send), [Gmail API scopes](https://developers.google.com/workspace/gmail/api/auth/scopes).

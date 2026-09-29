@@ -131,7 +131,7 @@ export default async function CommunicationsPage({
           </h1>
           <p className="mt-1 max-w-[680px] text-[13px] text-neutral-500">
             Prepare emails to potential LPs (announcements, updates, invitations) and choose who receives each one.
-            Each draft has a responsible who reviews it and, once Outlook is connected, sends it from their own mailbox with
+            Each draft has a responsible who reviews it and, once Gmail is connected, sends it from their own mailbox with
             recipients in To, CC or BCC. Sending is not connected yet, so nothing is sent.
           </p>
         </div>
@@ -164,7 +164,7 @@ export default async function CommunicationsPage({
             href="/settings#settings-connections"
             className="mt-4 inline-block rounded-full border border-neutral-200 px-3.5 py-2 text-[12px] font-semibold text-neutral-700 transition hover:border-cyan-300 hover:text-cyan-800"
           >
-            Connect Outlook in Settings
+            Connect Gmail in Settings
           </Link>
         </div>
       ) : (
@@ -189,7 +189,7 @@ export default async function CommunicationsPage({
             {preparedForMe} draft{preparedForMe === 1 ? " was" : "s were"} prepared for you
           </span>{" "}
           by other members. You are the responsible: review, edit and (later) send {preparedForMe === 1 ? "it" : "them"} from
-          your Outlook.
+          your Gmail.
         </div>
       )}
 
