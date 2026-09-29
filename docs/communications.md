@@ -2,6 +2,8 @@
 
 Prepare emails to any Person in the CRM. Choose a People group or all People, select recipients individually or in bulk, and assign each address to **To, CC or BCC**. The Potential LPs group is selected by default and can be renamed in People. **Nothing is sent yet**: actual inbox, sent mail, sending and replies require a connected Outlook mailbox.
 
+The page has four folder tabs — Inbox, Sent, Drafts, Archive — matching a real mailbox's shape ahead of the Outlook connection. Drafts is the one with working content (this CRM's own drafts, described below); Inbox, Sent and Archive show a fixed "not connected yet" panel linking to Settings until a mailbox is connected and populates them with real provider messages.
+
 Each draft has two people:
 
 | Field | Meaning |

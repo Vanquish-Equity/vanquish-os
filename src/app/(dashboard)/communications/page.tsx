@@ -33,12 +33,26 @@ const VIEW_LABELS: Record<DraftListView, string> = {
   all: "All drafts",
 };
 
+type Folder = "inbox" | "sent" | "drafts" | "archive";
+const FOLDERS: { key: Folder; label: string }[] = [
+  { key: "inbox", label: "Inbox" },
+  { key: "sent", label: "Sent" },
+  { key: "drafts", label: "Drafts" },
+  { key: "archive", label: "Archive" },
+];
+const FOLDER_COPY: Record<Exclude<Folder, "drafts">, string> = {
+  inbox: "Messages sent to your connected mailbox will show up here.",
+  sent: "Messages you've sent from your connected mailbox will show up here.",
+  archive: "Messages you archive in your connected mailbox will show up here.",
+};
+
 export default async function CommunicationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; folder?: string }>;
 }) {
-  const { view: viewParam } = await searchParams;
+  const { view: viewParam, folder: folderParam } = await searchParams;
+  const folder: Folder = FOLDERS.some((item) => item.key === folderParam) ? (folderParam as Folder) : "drafts";
   const access = await requireMember();
   const supabase = await createClient();
 
@@ -129,6 +143,32 @@ export default async function CommunicationsPage({
         </Link>
       </header>
 
+      <nav className="flex flex-wrap items-center gap-2" aria-label="Mailbox folders">
+        {FOLDERS.map((item) => (
+          <Link
+            key={item.key}
+            href={item.key === "drafts" ? "/communications" : `/communications?folder=${item.key}`}
+            className={tabClass(folder === item.key)}
+            aria-current={folder === item.key ? "page" : undefined}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
+
+      {folder !== "drafts" ? (
+        <div className="vq-card-static rounded-[14px] bg-white px-6 py-14 text-center">
+          <p className="text-sm font-semibold text-ink">{FOLDERS.find((item) => item.key === folder)?.label} isn&rsquo;t connected yet</p>
+          <p className="mx-auto mt-1.5 max-w-[440px] text-[12.5px] text-neutral-500">{FOLDER_COPY[folder]}</p>
+          <Link
+            href="/settings#settings-connections"
+            className="mt-4 inline-block rounded-full border border-neutral-200 px-3.5 py-2 text-[12px] font-semibold text-neutral-700 transition hover:border-cyan-300 hover:text-cyan-800"
+          >
+            Connect Outlook in Settings
+          </Link>
+        </div>
+      ) : (
+        <>
       <div className="vq-card-static flex flex-wrap items-center justify-between gap-2 rounded-[14px] bg-white px-4 py-3 text-[12.5px]">
         <span className="text-neutral-600">
           <span className="font-semibold text-ink">{lpCount ?? 0}</span> potential LP{lpCount === 1 ? "" : "s"} in People
@@ -237,6 +277,8 @@ export default async function CommunicationsPage({
           </tbody>
         </table>
       </div>
+        </>
+      )}
     </div>
   );
 }
