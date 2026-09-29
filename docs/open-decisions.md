@@ -2,7 +2,7 @@
 
 ## CRM workspace expansion
 
-See [CRM workspace](crm-workspace.md) for configurable boards, Deal preview, saved views, next actions, LP outreach, relationship history and reporting. Confirm shared/personal board creation rights, additional pipeline semantics, stage labels and LP stages before implementing those specific workflows.
+See [CRM workspace](crm-workspace.md) for configurable boards, Deal preview, saved views, next actions, LP outreach, relationship history and reporting. Personal LP follow-up now has private per-member boards and editable starter lists; confirm any firm-wide LP taxonomy and how prospects should be promoted to the shared People directory. Shared/general board creation rights and additional investment pipeline semantics remain open.
 
 ## Tracker taxonomy
 

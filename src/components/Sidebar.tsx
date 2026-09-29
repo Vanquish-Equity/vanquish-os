@@ -174,7 +174,7 @@ function SidebarBody({
         {navItems.map((item) => {
           const active = activeHref === item.href || (item.href !== "/boards" && activeHref.startsWith(item.href + "/"));
           const count = item.badge ? unread[item.badge] : 0;
-          const inCrm = ["/pipeline", "/boards", "/companies", "/people"].includes(item.href) || item.href.startsWith("/boards/");
+          const inCrm = ["/pipeline", "/boards", "/lp-board", "/companies", "/people"].includes(item.href) || item.href.startsWith("/boards/");
           return (
             <Fragment key={item.href}>
             {item.href === "/pipeline" && <button type="button" onClick={() => setCrmOpen((value) => !value)} aria-expanded={crmOpen} className={`group relative mt-3 flex items-center py-2 text-left text-[10px] font-semibold uppercase tracking-[1.4px] text-neutral-500 hover:text-white ${center}`}><span className={label}>CRM {crmOpen ? "▾" : "▸"}</span><span className={byMode(mode, { rail: "", full: "hidden", responsive: "md:hidden" })}><NavIcon name="boards" /></span><Tooltip mode={mode}>CRM · {crmOpen ? "Collapse" : "Expand"}</Tooltip></button>}

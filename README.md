@@ -82,6 +82,8 @@ Run the migration files in order in the Supabase SQL Editor:
     board cards.
 25. `20260929000200_boards_context_comments.sql` - contextual comments on
     board pages.
+26. `20260929160308_personal_lp_board.sql` - private LP follow-up boards per
+    member, editable stages and prospect cards, with owner-controlled sharing.
 
 These timestamps are part of the migration filenames. For the schema readiness
 check, the recorded history uses their descriptive suffix; see
