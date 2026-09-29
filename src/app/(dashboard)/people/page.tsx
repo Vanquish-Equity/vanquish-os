@@ -85,6 +85,7 @@ export default async function PeoplePage({
           </p>
         </div>
         <div className="flex flex-shrink-0 items-center gap-2">
+          <Link href="/people/groups" className="rounded-full border border-neutral-200 px-3.5 py-2 text-[12px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800">Manage groups</Link>
           <Link
             href="/people/import"
             className="rounded-full border border-neutral-200 px-3.5 py-2 text-[12px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
