@@ -22,7 +22,27 @@ As of the current board implementation, native cards support team assignees,
 due dates, descriptions and checklists. Linked Deals support multiple team
 assignees with avatars. Pipeline supports on-board filters. Board pages support
 contextual comments. Saved views, custom fields, task/LP record workflows and
-personal boards are still planned rather than available.
+personal boards for general purposes are still planned rather than available.
+
+## Personal LP follow-up
+
+Every active member gets one independent **LP follow-up** board on first visit.
+It starts private with editable/removable lists: Potential, Researching,
+Contacted, In conversation, Awaiting response, Invested and Declined. The
+member may add and reorder lists, add LP cards, edit contact information and
+follow-up notes, and drag cards between lists. The list describes that person's
+follow-up workflow; it is not the Deal stage or a global LP investment status.
+
+The board owner can rename the board and set its access in **Board settings**:
+only me (default), named active teammates, or everyone on the team. Sharing
+permits those members to view and edit lists and LP cards. Only the owner can
+change sharing. Revoking access takes effect at the database RLS layer.
+Other members' private board IDs, stages, LP details and notes do not appear
+in board queries or direct table reads. A shared board can be selected from
+the LP follow-up page. This module stores its prospect details separately
+from the shared People directory; adding an LP here never publishes a Person
+or registers an investment. Linking or promoting a prospect to the global
+directory requires a separate deliberate feature.
 
 Board creation follows the in-board workflow: choose a title and whether to link existing Deals, create an empty board, then add lists and native cards one at a time. Admins can later rename/archive the board, rename/reorder whole lists, and delete only empty lists; populated lists require moving or removing their cards first. Native cards have a title, description, due date and persistent list/order, and can be dragged across lists. Boards that opt into Deal links may contain both native cards and existing Deals; those Deal cards retain their own investment stage. All current boards are shared with the team; private visibility is a future permission model, not a selectable setting yet. The background is the existing neutral workspace design, without user color configuration.
 
@@ -39,7 +59,7 @@ Clicking a Pipeline or Deal-board card opens a large accessible overlay while th
 | Saved views and custom fields | Personal/shared filters, table/Kanban layouts, card fields and business fields. | Basic Pipeline filters exist; durable views remain. |
 | Relationship history | Consolidate activity by Person and Company, relationship owner and possible warm introductions. | People and manual activity exist; sync and graph remain. |
 | Stage rules | Show required inputs and optionally create tasks or notifications on stage entry. | Stage history and some diligence requirements exist; reusable rules remain. |
-| LP outreach | Own workflow for prospects linked to People, communications and investments. | LP flag/drafts exist; workflow remains. |
+| LP outreach | Own workflow for prospects, communications and investments. | Private per-member LP follow-up boards and shared People LP flags exist; explicit linking, communication history and investment status remain. |
 | Search/quick actions | Find People, Companies and Deals globally; add notes/tasks in context. | Dedicated pages exist; universal search remains. |
 | Analytics | Time per stage, stale Deals, movement, outcomes, owner and investment potential. | Overview exists; process metrics remain. |
 | Templates | Start from Investment Deal, LP Outreach or Tasks, then customize. | Later, once each record workflow exists. |
