@@ -8,6 +8,7 @@ begin if not coalesce(ok,false) then raise exception 'PERSONAL LP BOARD TEST FAI
 grant execute on function pg_temp.as_user(text,text),pg_temp.denied(text),pg_temp.expect(boolean,text) to anon,authenticated;
 insert into public.app_members(email,display_name) values ('lp-invite@example.com','Invited LP member'),('lp-other@example.com','Other LP member');
 create temporary table lp_test(board_id uuid,first_id uuid,second_id uuid,card_id uuid) on commit drop;
+grant all on lp_test to authenticated;
 
 select pg_temp.as_user('authenticated','marios@vanquishequity.com');
 insert into lp_test(board_id) values (public.lp_ensure_board());
