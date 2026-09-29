@@ -1,5 +1,5 @@
 // Who a draft belongs to. created_by prepared it; assigned_to is the
-// responsible / planned sender, who will send it from their own Outlook
+// responsible / planned sender, who will send it from their own Gmail
 // mailbox once that is connected. Both may edit it; the database enforces
 // the same rule (RLS + save_email_draft).
 

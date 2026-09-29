@@ -332,7 +332,7 @@ export default function DraftComposer({
             </p>
           )}
           <p className="mt-1 text-[11.5px] text-neutral-500">
-            Reviews the draft and, once Outlook is connected, sends it from their own mailbox.
+            Reviews the draft and, once Gmail is connected, sends it from their own mailbox.
           </p>
           {!assigneeActive && (
             <p role="alert" className="mt-1 text-[11.5px] text-amber-800">
@@ -403,13 +403,13 @@ export default function DraftComposer({
                 Delivery · planned
               </span>
               <span className="rounded-full bg-white px-2 py-0.5 text-[10.5px] font-semibold text-neutral-500 ring-1 ring-neutral-200">
-                Outlook not connected
+                Gmail not connected
               </span>
             </div>
             <dl className="mt-2 grid grid-cols-[72px_1fr] gap-y-1">
               <dt className="text-neutral-400">From</dt>
               <dd className="text-ink">
-                {memberLabel(members, assignedTo)} · {assignedTo} (their Outlook mailbox)
+                {memberLabel(members, assignedTo)} · {assignedTo} (their Gmail mailbox)
               </dd>
               <dt className="text-neutral-400">Recipients</dt>
               <dd className="text-ink">
