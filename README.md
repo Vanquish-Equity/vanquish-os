@@ -100,6 +100,10 @@ Run the migration files in order in the Supabase SQL Editor:
 33. `20260929190000_email_scouting_permission.sql` - `email_scouting` member
     permission distinguishing members whose future connected Gmail may be
     scanned to detect Companies from those whose mailbox never is.
+34. `20260929200000_google_mailbox_connections.sql` - stores each member's
+    own Google (Gmail + Calendar) OAuth connection, application-encrypted,
+    accessible only to that member through narrow functions (no direct
+    table access, not even for admins).
 
 These timestamps are part of the migration filenames. For the schema readiness
 check, the recorded history uses their descriptive suffix; see

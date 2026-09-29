@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { requireMember } from "@/lib/auth/access";
 import { can } from "@/lib/auth/permissions";
+import { loadMailboxConnection } from "@/lib/connections/queries";
 import { createClient } from "@/lib/supabase/server";
 import { introCookieName } from "@/lib/ui/entrance";
 import { landingCookieName, landingPage, noticeMask, notificationCookieName, pipelineCookieName, pipelineDefault } from "@/lib/settings/preferences";
@@ -9,11 +10,14 @@ import AdminSettings from "@/components/AdminSettings";
 
 export const dynamic = "force-dynamic";
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ connect?: string }> }) {
+  const { connect } = await searchParams;
   const access = await requireMember();
   const supabase = await createClient();
-  const { data: profile, error } = await supabase.from("app_members")
-    .select("display_name,avatar_path").eq("email", access.email).maybeSingle();
+  const [{ data: profile, error }, mailbox] = await Promise.all([
+    supabase.from("app_members").select("display_name,avatar_path").eq("email", access.email).maybeSingle(),
+    loadMailboxConnection(supabase),
+  ]);
   const avatarUrl = profile?.avatar_path
     ? (await supabase.storage.from("member-avatars").createSignedUrl(profile.avatar_path, 3600)).data?.signedUrl ?? null
     : null;
@@ -47,6 +51,8 @@ export default async function SettingsPage() {
         initialNoticeMask={noticePreference}
         initialLanding={landing}
         initialPipeline={pipeline}
+        mailbox={mailbox}
+        connectStatus={connect ?? null}
       />
       {isAdmin && !membersResult.error && !permissionsResult.error && !domainsResult.error && (
         <AdminSettings

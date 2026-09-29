@@ -81,68 +81,90 @@ rather than defaulting everyone in.
 
 ## Connected accounts
 
-Gmail and Google Calendar cards currently show **Not available yet**. Vanquish
-member mailboxes are Google Workspace accounts, so Gmail (not Outlook) is the
-integration target — see [`communications.md`](communications.md#sending-later-not-implemented)
-for why. Google sign-in only authenticates the user; it does not grant
-mailbox or calendar access. Neither card attempts OAuth or stores access
-tokens. A later integration must implement provider-specific authorization,
-secure token handling, disconnect/revocation, status, and sync before showing
-a Connect button.
+Each member can connect their own Google account — one connection covers
+both Gmail and Calendar — from a single **Google (Gmail + Calendar)** card.
+Vanquish member mailboxes are Google Workspace accounts, so Gmail (not
+Outlook) is the integration target — see
+[`communications.md`](communications.md#sending-later-not-implemented) for
+why. Google sign-in only authenticates the user; it does not grant mailbox
+or calendar access — connecting is its own, separate consent, started only
+when a member clicks **Connect Google**.
 
-### Building the actual connection
+**What connecting actually does today:** stores the grant
+(`20260929200000_google_mailbox_connections.sql`). **What it does not do
+yet:** send drafts, show a real Inbox/Sent, or sync a calendar — those are
+still separate follow-up work (`communications.md`'s "Mailbox phase") that
+reads the same stored connection.
 
-This is what has to happen, in order, once we're ready to make Connect real.
-Steps 1–2 need a human with access to Google Cloud and this repo's hosting;
-nothing here can be done from inside this codebase.
+### How it works
 
-1. **Google Cloud project.** Create (or reuse) a Google Cloud project owned by
-   the `vanquishequity.com` Workspace, at [console.cloud.google.com](https://console.cloud.google.com).
-   In **APIs & Services → Library**, enable the **Gmail API** and the
-   **Google Calendar API**.
-2. **OAuth consent screen.** In **APIs & Services → OAuth consent screen**,
-   choose **Internal** user type (available because every account that will
-   ever connect is a `vanquishequity.com` Workspace account) — this skips
-   Google's sensitive-scope verification review entirely, which otherwise
-   applies to `gmail.readonly`/`gmail.modify` and can take weeks. Internal
-   apps are limited to the Workspace's own users, which is exactly the
-   audience here.
-3. **OAuth client.** In **APIs & Services → Credentials**, create an
-   **OAuth client ID** of type **Web application**. Add an authorized
-   redirect URI matching wherever the callback route ends up living, e.g.
-   `https://vanquish-os.vercel.app/api/connections/google/callback` (today's
-   production domain — add the custom domain's equivalent too if one is set
-   up later; every redirect URI actually used must be registered exactly,
-   including scheme and path). Save the generated **Client ID** and **Client
-   secret**.
-4. **Secrets.** Add `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`
-   as environment variables in Vercel (Production and Preview) and in local
-   `.env.local`. Never commit them or paste them into chat, an issue, or a
-   log — only the Vercel dashboard and `.env.local`.
-5. **Scopes**, requested separately from sign-in (`google` sign-in only
-   authenticates; connecting a mailbox is its own consent, started only when
-   a member clicks Connect) with `access_type=offline` for a refresh token:
-   - `gmail.send` — required for every mailbox connection, to send drafts.
-   - `gmail.readonly` / `gmail.modify` — only for the Inbox/Sent/Archive
-     mailbox view (`communications.md`'s "Mailbox phase"); modify is also
-     what archiving needs.
-   - `calendar.readonly` (or `calendar.events` if writing meetings back)
-     — for the Google Calendar connection.
-   A member without Email scouting requests the same scopes as one with it;
-   scouting is not a narrower OAuth grant, it is an application-level switch
-   on what the ingestion job is allowed to do with what it reads. A metadata-
-   only scope is not enough for either, since sending and Inbox/Sent both
-   need message content.
-6. **Code**, once steps 1–4 are done and the credentials exist as env vars:
-   a connect route that starts the OAuth redirect, a callback route that
-   exchanges the code for tokens, a new table for per-member connection rows
-   (provider, granted scopes, encrypted refresh token via Supabase Vault or
-   an equivalent, connected/revoked timestamps — this table does not exist
-   yet and is deliberately not created ahead of the code that would use it),
-   a disconnect action that revokes the token with Google and deletes the
-   row, and the Settings cards switching from **Not available yet** to real
-   Connect/Disconnect state. The mailbox scanner that Email scouting gates
-   is separate follow-up work once connections themselves exist.
+1. **Connect** (`/api/connections/google/start`) redirects to Google's
+   consent screen for `gmail.send`, `gmail.readonly`, `gmail.modify` and
+   `calendar.readonly`, with `access_type=offline` and `prompt=consent` so a
+   refresh token is issued even on a reconnect. A random `state` value is
+   stored in a short-lived, `httpOnly` cookie and checked on return as CSRF
+   protection.
+2. **Callback** (`/api/connections/google/callback`) verifies `state`,
+   exchanges the code for tokens, encrypts the refresh token
+   (`src/lib/connections/crypto.ts`, AES-256-GCM with the server-only
+   `MAILBOX_TOKEN_ENCRYPTION_KEY`) and saves it through
+   `save_mailbox_connection` — a function scoped to
+   `private.current_email()`, so it can only ever write the signed-in
+   member's own row — then redirects back to Settings with a status
+   (`?connect=ok|declined|error|no_refresh_token|not_configured`).
+3. **Storage**: `google_mailbox_connections` grants nothing to
+   `authenticated` directly (RLS enabled, all privileges revoked); every
+   access goes through a narrow `SECURITY DEFINER` function scoped to the
+   caller's own email — `my_mailbox_connection()` (status only, no token,
+   used to render the Settings card), `my_mailbox_connection_secret()`
+   (server-only: the encrypted token, for the code that will actually call
+   Gmail/Calendar) and `disconnect_mailbox_connection()`. Nobody, including
+   an admin, can read or act on another member's connection.
+4. **Disconnect** (`disconnectGoogleMailbox`,
+   `src/lib/connections/actions.ts`) decrypts the token server-side,
+   best-effort revokes it with Google (so it also drops from the member's
+   own Google Account permissions), then deletes the row regardless of
+   whether the revoke call succeeded.
+
+Email scouting (above) is not a narrower OAuth grant — every connection
+requests the same scopes — it is a separate application-level switch on
+what a future ingestion job may do with what it reads.
+
+### Setup (one-time, per environment)
+
+Steps 1–3 need a human with access to Google Cloud and this repo's hosting;
+nothing here can be done from inside this codebase. Steps 4–5 are
+environment variables — this has already been done for this project's
+Vercel environments.
+
+1. **Google Cloud project.** A Google Cloud project owned by the
+   `vanquishequity.com` Workspace, at [console.cloud.google.com](https://console.cloud.google.com),
+   with the **Gmail API** and **Google Calendar API** enabled
+   (**APIs & Services → Library**).
+2. **OAuth consent screen** (**APIs & Services → OAuth consent screen**):
+   **Internal** user type — available because every account that will ever
+   connect is a `vanquishequity.com` Workspace account. This skips Google's
+   sensitive-scope verification review entirely (otherwise required for
+   `gmail.readonly`/`gmail.modify` and can take weeks); Internal apps are
+   limited to the Workspace's own users, which is exactly the audience here.
+3. **OAuth client** (**APIs & Services → Credentials**): an **OAuth client
+   ID** of type **Web application**, with an authorized redirect URI for
+   every environment that needs one — `https://vanquish-os.vercel.app/api/connections/google/callback`
+   for today's production domain, plus the same path on any custom domain
+   added later and, for local development, `http://localhost:3000/api/connections/google/callback`.
+   Every redirect URI actually used must be registered exactly (scheme,
+   host and path).
+4. **OAuth secrets**: `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`
+   as environment variables in Vercel (Production, Preview and Development)
+   and in local `.env.local`. Never commit them or paste them into chat, an
+   issue, or a log — only the Vercel dashboard and `.env.local`.
+5. **Token encryption key**: `MAILBOX_TOKEN_ENCRYPTION_KEY`, a random
+   32-byte value, base64-encoded — generate one per environment with
+   `openssl rand -base64 32` (or `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`)
+   and add it the same way as the OAuth secrets above. Losing or rotating
+   this key makes every already-stored refresh token undecryptable (members
+   would need to reconnect); treat it with the same care as a database
+   credential.
 
 ## Verification
 
