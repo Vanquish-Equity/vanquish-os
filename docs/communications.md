@@ -2,7 +2,7 @@
 
 Prepare emails to any Person in the CRM. Choose a People group or all People, select recipients individually or in bulk, and assign each address to **To, CC or BCC**. The Potential LPs group is selected by default and can be renamed in People. **Nothing is sent yet**: actual inbox, sent mail, sending and replies require a connected Gmail mailbox (Vanquish member accounts are Google Workspace; see "Sending later" below for why Gmail rather than Outlook is the integration target).
 
-The page has four folder tabs — Inbox, Sent, Drafts, Archive — matching a real mailbox's shape ahead of the Gmail connection. Drafts is the one with working content (this CRM's own drafts, described below); Inbox, Sent and Archive show a fixed "not connected yet" panel linking to Settings until a mailbox is connected and populates them with real provider messages.
+The page has four folder tabs — Inbox (default), Sent, Drafts, Archive — matching a real mailbox's shape ahead of Gmail sync. Drafts is the one with working content (this CRM's own drafts, described below). Inbox, Sent and Archive show a placeholder panel until that sync is built: "isn't connected yet" with a link to Settings when no mailbox is connected, or "Gmail is connected — sync isn't built yet" (no link; nothing left to do there) once one is.
 
 A draft has one owner: its creator (`created_by`, set by the database from
 the signed-in email; never changes). Only the creator can edit or discard

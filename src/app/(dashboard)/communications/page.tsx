@@ -4,6 +4,7 @@ import { requireMember } from "@/lib/auth/access";
 import { inDraftView, memberLabel, parseDraftView, type DraftListView } from "@/lib/communications/drafts";
 import { loadAssignableMembers } from "@/lib/communications/queries";
 import { checkRecipient, primaryFirst } from "@/lib/communications/recipients";
+import { loadMailboxConnection } from "@/lib/connections/queries";
 import { formatExactDate } from "@/lib/dates";
 import { createClient } from "@/lib/supabase/server";
 
@@ -52,11 +53,11 @@ export default async function CommunicationsPage({
   searchParams: Promise<{ view?: string; folder?: string }>;
 }) {
   const { view: viewParam, folder: folderParam } = await searchParams;
-  const folder: Folder = FOLDERS.some((item) => item.key === folderParam) ? (folderParam as Folder) : "drafts";
+  const folder: Folder = FOLDERS.some((item) => item.key === folderParam) ? (folderParam as Folder) : "inbox";
   const access = await requireMember();
   const supabase = await createClient();
 
-  const [{ data: allDrafts }, { count: lpCount }, members] = await Promise.all([
+  const [{ data: allDrafts }, { count: lpCount }, members, mailbox] = await Promise.all([
     supabase
       .from("email_drafts")
       .select("id,subject,created_by,updated_at,scheduled_at")
@@ -68,6 +69,7 @@ export default async function CommunicationsPage({
       .is("archived_at", null)
       .eq("is_potential_lp", true),
     loadAssignableMembers(supabase),
+    loadMailboxConnection(supabase),
   ]);
 
   const me = access.email;
@@ -142,7 +144,7 @@ export default async function CommunicationsPage({
         {FOLDERS.map((item) => (
           <Link
             key={item.key}
-            href={item.key === "drafts" ? "/communications" : `/communications?folder=${item.key}`}
+            href={item.key === "inbox" ? "/communications" : `/communications?folder=${item.key}`}
             className={tabClass(folder === item.key)}
             aria-current={folder === item.key ? "page" : undefined}
           >
@@ -153,14 +155,25 @@ export default async function CommunicationsPage({
 
       {folder !== "drafts" ? (
         <div className="vq-card-static rounded-[14px] bg-white px-6 py-14 text-center">
-          <p className="text-sm font-semibold text-ink">{FOLDERS.find((item) => item.key === folder)?.label} isn&rsquo;t connected yet</p>
-          <p className="mx-auto mt-1.5 max-w-[440px] text-[12.5px] text-neutral-500">{FOLDER_COPY[folder]}</p>
-          <Link
-            href="/settings#settings-connections"
-            className="mt-4 inline-block rounded-full border border-neutral-200 px-3.5 py-2 text-[12px] font-semibold text-neutral-700 transition hover:border-cyan-300 hover:text-cyan-800"
-          >
-            Connect Gmail in Settings
-          </Link>
+          {mailbox.connected ? (
+            <>
+              <p className="text-sm font-semibold text-ink">Gmail is connected — {FOLDERS.find((item) => item.key === folder)?.label.toLowerCase()} sync isn&rsquo;t built yet</p>
+              <p className="mx-auto mt-1.5 max-w-[440px] text-[12.5px] text-neutral-500">
+                The connection is ready; reading and showing real messages here is separate follow-up work.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-semibold text-ink">{FOLDERS.find((item) => item.key === folder)?.label} isn&rsquo;t connected yet</p>
+              <p className="mx-auto mt-1.5 max-w-[440px] text-[12.5px] text-neutral-500">{FOLDER_COPY[folder]}</p>
+              <Link
+                href="/settings#settings-connections"
+                className="mt-4 inline-block rounded-full border border-neutral-200 px-3.5 py-2 text-[12px] font-semibold text-neutral-700 transition hover:border-cyan-300 hover:text-cyan-800"
+              >
+                Connect Gmail in Settings
+              </Link>
+            </>
+          )}
         </div>
       ) : (
         <>
