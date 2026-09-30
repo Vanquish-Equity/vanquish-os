@@ -1,62 +1,45 @@
-// A constrained HTML allowlist for draft bodies. Not a general HTML parser:
-// it only needs to accept what the composer's own formatting toolbar
-// produces (bold/italic/underline/strike, lists, links, line breaks) and
-// strip everything else, since the stored body will eventually become a
-// real email body once Gmail is connected.
-
-const ALLOWED_TAGS = new Set(["b", "strong", "i", "em", "u", "s", "strike", "br", "p", "div", "ul", "ol", "li", "a", "span"]);
-const SELF_CLOSING = new Set(["br"]);
-const SAFE_HREF = /^(https?:|mailto:)/i;
+import sanitizeHtml from "sanitize-html";
 
 function escapeText(text: string) {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
+// Parse HTML before applying the composer's allowlist. This also makes
+// repeated saves idempotent for entities and handles malformed pasted HTML.
 export function sanitizeDraftHtml(input: string): string {
-  const withoutDangerous = input.replace(/<!--[\s\S]*?-->/g, "").replace(/<(script|style)[\s\S]*?<\/\1>/gi, "");
-
-  let out = "";
-  let i = 0;
-  const n = withoutDangerous.length;
-  while (i < n) {
-    const lt = withoutDangerous.indexOf("<", i);
-    if (lt === -1) {
-      out += escapeText(withoutDangerous.slice(i));
-      break;
-    }
-    out += escapeText(withoutDangerous.slice(i, lt));
-    const gt = withoutDangerous.indexOf(">", lt);
-    if (gt === -1) {
-      out += "&lt;";
-      i = lt + 1;
-      continue;
-    }
-    const tagContent = withoutDangerous.slice(lt + 1, gt);
-    i = gt + 1;
-
-    const match = tagContent.match(/^\/?\s*([a-zA-Z0-9]+)/);
-    if (!match) continue; // malformed tag, drop it
-
-    const closing = tagContent.trim().startsWith("/");
-    const tagName = match[1].toLowerCase();
-    if (!ALLOWED_TAGS.has(tagName)) continue; // drop disallowed markup, keep surrounding text
-
-    if (closing) {
-      out += `</${tagName}>`;
-      continue;
-    }
-
-    let attrs = "";
-    if (tagName === "a") {
-      const hrefMatch = tagContent.match(/href\s*=\s*"([^"]*)"/i) ?? tagContent.match(/href\s*=\s*'([^']*)'/i);
-      const href = (hrefMatch?.[1] ?? "").trim();
-      if (SAFE_HREF.test(href)) {
-        attrs = ` href="${href.replace(/"/g, "&quot;")}" target="_blank" rel="noopener noreferrer"`;
-      }
-    }
-    out += SELF_CLOSING.has(tagName) ? `<${tagName}${attrs}/>` : `<${tagName}${attrs}>`;
-  }
-  return out;
+  return sanitizeHtml(input, {
+    allowedTags: [
+      "b",
+      "strong",
+      "i",
+      "em",
+      "u",
+      "s",
+      "strike",
+      "br",
+      "p",
+      "div",
+      "ul",
+      "ol",
+      "li",
+      "a",
+      "span",
+    ],
+    allowedAttributes: { a: ["href", "target", "rel"] },
+    allowedSchemes: ["http", "https", "mailto"],
+    allowProtocolRelative: false,
+    transformTags: {
+      a: (_tag, attrs): sanitizeHtml.Tag => ({
+        tagName: "a",
+        attribs: /^(https?:|mailto:)/i.test(attrs.href ?? "")
+          ? { href: attrs.href, target: "_blank", rel: "noopener noreferrer" }
+          : {},
+      }),
+    },
+  }).replace(/<br \/>/g, "<br/>");
 }
 
 // True when a stored body has no markup at all: a draft saved before the

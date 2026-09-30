@@ -27,3 +27,12 @@ Change these incrementally with a screenshot and keyboard check in each
 affected section. A selector migration should preserve its empty state,
 disabled state and any search behavior; a board card change should verify
 that its shadow is visible within scrolling columns.
+
+
+## Connected workspace
+
+Mail and Calendar reuse `SelectMenu`, `Checkbox` and static card styling.
+Composer/event dialogs use native `<dialog>` for focus containment, Escape
+and focus return; the workspace remains visible behind them. Calendar colors
+come from Google calendar identities rather than a user-picked board theme.
+Incoming message HTML is isolated from the OS styles in a sandboxed iframe.

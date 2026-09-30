@@ -4,9 +4,10 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { discardDraftAction, saveDraftAction } from "@/lib/communications/actions";
+import MailComposer, { type ComposeSeed } from "@/components/mail/MailComposer";
 import SelectMenu from "@/components/SelectMenu";
 import RichTextEditor from "@/components/RichTextEditor";
-import ComposerIcon, { type ComposerIconName } from "@/components/ComposerIcon";
+import ComposerIcon from "@/components/ComposerIcon";
 import { memberLabel, type Member } from "@/lib/communications/drafts";
 import type { ContactGroup, DraftDetail, DraftRecipient, LpContact } from "@/lib/communications/queries";
 import { RECIPIENT_ISSUE_LABELS } from "@/lib/communications/recipients";
@@ -39,18 +40,6 @@ type Filter = "all" | "selected" | "not_selected";
 const inputClass =
   "w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[13px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100 disabled:bg-neutral-50";
 const labelClass = "mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400";
-
-// Shown so the composer reads like a real mailbox (matching Gmail's own
-// compose bar), but none of these have a backend yet: no attachment
-// storage, no Drive connection, no confidential mode, no signatures. They
-// stay visibly disabled rather than pretending to work.
-const COMPOSER_PLACEHOLDER_ICONS: { key: string; icon: ComposerIconName; label: string }[] = [
-  { key: "attach", icon: "attach", label: "Attach files" },
-  { key: "photo", icon: "photo", label: "Insert photo" },
-  { key: "drive", icon: "drive", label: "Insert files using Drive" },
-  { key: "confidential", icon: "lock", label: "Toggle confidential mode" },
-  { key: "signature", icon: "signature", label: "Insert signature" },
-];
 
 function recipientKey(recipient: DraftRecipient) {
   return recipient.personId ?? `saved:${recipient.recipientId}`;
@@ -106,6 +95,7 @@ export default function DraftComposer({
 }) {
   const router = useRouter();
   const createdBy = draft?.createdBy ?? currentUserEmail;
+  const [gmailSeed, setGmailSeed] = useState<ComposeSeed | null>(null);
   const [subject, setSubject] = useState(draft?.subject ?? "");
   const [body, setBody] = useState(() => (draft && isPlainTextBody(draft.body) ? plainTextToHtml(draft.body) : draft?.body ?? ""));
   const bodyText = useMemo(() => body.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(), [body]);
@@ -380,23 +370,10 @@ export default function DraftComposer({
               }}
             />
             <div className="mt-1.5 flex items-center gap-0.5 rounded-lg border border-neutral-200 bg-[#f7f9fa] px-1.5 py-1" role="group" aria-label="More composing options">
-              {COMPOSER_PLACEHOLDER_ICONS.map((icon) => (
-                <button
-                  key={icon.key}
-                  type="button"
-                  disabled
-                  title={`${icon.label} — not available yet`}
-                  className="flex h-7 w-7 flex-shrink-0 cursor-not-allowed items-center justify-center rounded-md text-neutral-400"
-                >
-                  <ComposerIcon name={icon.icon} />
-                  <span className="sr-only">{icon.label} — not available yet</span>
-                </button>
-              ))}
-              <span className="mx-1 h-4 w-px flex-shrink-0 bg-neutral-200" aria-hidden />
               <button
                 type="button"
                 disabled={!canEdit}
-                title={scheduleEnabled ? "Edit scheduled send time" : "Schedule send"}
+                title={scheduleEnabled ? "Edit planned send time" : "Plan send time"}
                 aria-pressed={scheduleEnabled}
                 onClick={() => setScheduleOpen((open) => !open)}
                 className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md transition disabled:cursor-not-allowed disabled:opacity-40 ${
@@ -407,11 +384,11 @@ export default function DraftComposer({
               </button>
               {scheduleEnabled && scheduledAt && !Number.isNaN(new Date(scheduledAt).getTime()) && (
                 <span className="ml-1 flex items-center gap-1 truncate text-[11px] font-semibold text-cyan-800">
-                  Scheduled · {formatExactDateTime(new Date(scheduledAt).toISOString())}
+                  Planned · {formatExactDateTime(new Date(scheduledAt).toISOString())}
                   {canEdit && (
                     <button
                       type="button"
-                      title="Remove scheduled send"
+                      title="Remove planned time"
                       onClick={() => {
                         setScheduleEnabled(false);
                         setScheduleOpen(false);
@@ -425,7 +402,7 @@ export default function DraftComposer({
                 </span>
               )}
               <span className="ml-auto flex-shrink-0 pr-1 text-[10.5px] font-semibold text-neutral-400">
-                Attach/Drive/confidential/signature not available yet
+                Attachments are available in the Gmail composer
               </span>
             </div>
             {scheduleOpen && (
@@ -449,13 +426,13 @@ export default function DraftComposer({
                   disabled={!scheduledAt}
                   className="flex-shrink-0 rounded-md bg-ink px-2.5 py-1.5 text-[11.5px] font-semibold text-white disabled:opacity-40"
                 >
-                  Schedule
+                  Plan time
                 </button>
                 <button type="button" onClick={() => setScheduleOpen(false)} className="flex-shrink-0 rounded-md border border-neutral-200 px-2.5 py-1.5 text-[11.5px] font-semibold text-neutral-600">
                   Cancel
                 </button>
                 <p className="w-full text-[11px] text-neutral-500">
-                  Not connected yet: this only records the time on the draft — nothing sends automatically until Gmail is connected.
+                  This time is a planning note. Automatic scheduled sending is not enabled; the Gmail composer sends only when you confirm.
                 </p>
               </div>
             )}
@@ -464,10 +441,10 @@ export default function DraftComposer({
           <div className="rounded-xl border border-neutral-100 bg-[#f7f9fa] p-3.5 text-[12px] text-neutral-600">
             <div className="flex items-center justify-between gap-2">
               <span className="text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
-                Delivery · planned
+                Delivery
               </span>
               <span className="rounded-full bg-white px-2 py-0.5 text-[10.5px] font-semibold text-neutral-500 ring-1 ring-neutral-200">
-                Gmail not connected
+                Review in Gmail composer
               </span>
             </div>
             <dl className="mt-2 grid grid-cols-[72px_1fr] gap-y-1">
@@ -481,7 +458,7 @@ export default function DraftComposer({
               </dd>
             </dl>
             <p className="mt-2 text-neutral-500">
-              Sending is not available yet. Saving only stores this draft in Vanquish OS; no email is sent.
+              Saving stores this CRM draft in Vanquish OS. Open it in the Gmail composer to review recipients and send a separate Gmail message.
             </p>
             <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
               {readiness.map((item) => (
@@ -645,7 +622,7 @@ export default function DraftComposer({
               Recipients · {selectedCount} person{selectedCount === 1 ? "" : "s"}
             </h2>
             <p className="mt-0.5 text-[11.5px] text-neutral-500">
-              Exactly who this draft will be addressed to once sending is connected.
+              Recipients copied into the Gmail composer after review.
             </p>
           </div>
         </div>
@@ -702,6 +679,7 @@ export default function DraftComposer({
         )}
       </section>
 
+      {gmailSeed && canEdit && <MailComposer seed={gmailSeed} contacts={contacts} groups={groups} onClose={() => setGmailSeed(null)} onSent={() => { setGmailSeed(null); router.push("/communications?folder=sent"); }} />}
       {canEdit && (
         <div className="sticky bottom-0 z-10 -mx-7 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-white/95 px-7 py-3 backdrop-blur">
           <div className="text-[12px] text-neutral-500">
@@ -718,6 +696,7 @@ export default function DraftComposer({
             )}
           </div>
           <div className="flex items-center gap-2">
+            <button type="button" disabled={isPending || reviewCount > 0 || !selectedCount} onClick={() => setGmailSeed({ to: finalList.filter(r => r.item.field === "to").map(r => r.email).join(", "), cc: finalList.filter(r => r.item.field === "cc").map(r => r.email).join(", "), bcc: finalList.filter(r => r.item.field === "bcc").map(r => r.email).join(", "), subject, html: body })} className="rounded-full border border-cyan-200 bg-cyan-50 px-4 py-2 text-[12px] font-semibold text-cyan-900 disabled:opacity-40">Open in Gmail composer</button>
             {draft &&
               (confirmDiscard ? (
                 <span role="alertdialog" aria-label="Discard draft" className="flex items-center gap-2 text-[12px] text-neutral-600">
@@ -761,3 +740,4 @@ export default function DraftComposer({
     </div>
   );
 }
+
