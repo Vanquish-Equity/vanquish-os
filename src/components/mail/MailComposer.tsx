@@ -3,6 +3,9 @@ import { useEffect, useRef, useState } from "react";
 import RichTextEditor from "@/components/RichTextEditor";
 import SelectMenu from "@/components/SelectMenu";
 import Checkbox from "@/components/Checkbox";
+import RecipientInput from "./RecipientInput";
+import useMovableDialog from "@/components/dialog/useMovableDialog";
+import type { RecipientContact } from "@/lib/communications/contact-suggestions";
 import {
   saveGmailDraft,
   sendGmailDraft,
@@ -24,12 +27,14 @@ export default function MailComposer({
   seed,
   contacts,
   groups,
+  knownRecipients = contacts,
   onClose,
   onSent,
 }: {
   seed: ComposeSeed;
   contacts: LpContact[];
   groups: ContactGroup[];
+  knownRecipients?: RecipientContact[];
   onClose: () => void;
   onSent: () => void;
 }) {
@@ -45,6 +50,7 @@ export default function MailComposer({
   const busyRef = useRef(false);
   const [status, setStatus] = useState("");
   const [full, setFull] = useState(false);
+  const movable = useMovableDialog(dialog, !full);
   const [picker, setPicker] = useState(false);
   const [groupId, setGroupId] = useState("all");
   const [field, setField] = useState("to");
@@ -204,12 +210,12 @@ export default function MailComposer({
       className={`${full ? "h-[94vh] w-[96vw] max-w-none" : "w-[760px] max-w-[94vw]"} max-h-[94vh] rounded-2xl border border-neutral-200 bg-white p-0 text-ink shadow-2xl backdrop:bg-ink/35`}
       aria-labelledby="mail-compose-title"
     >
-      <div className="flex items-center justify-between border-b border-neutral-100 px-5 py-4">
+      <div {...movable.handleProps} aria-label="Move composer" className={`flex items-center justify-between border-b border-neutral-100 px-5 py-4 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300 ${full ? "" : "touch-none select-none cursor-grab active:cursor-grabbing"}`}>
         <h2 id="mail-compose-title" className="font-semibold">
           {seed.threadId ? "Reply" : "New message"}
         </h2>
         <div className="flex gap-3 text-[12px]">
-          <button type="button" onClick={() => setFull((v) => !v)}>
+          <button type="button" onClick={() => { movable.resetPosition(); setFull((v) => !v); }}>
             {full ? "Restore" : "Full screen"}
           </button>
           <button type="button" onClick={close} aria-label="Close composer">
@@ -232,10 +238,11 @@ export default function MailComposer({
             >
               {key}
             </label>
-            <input
+            <RecipientInput
               id={`mail-${key}`}
               value={message[key]}
-              onChange={(e) => change(key, e.target.value)}
+              onChange={(value) => change(key, value)}
+              contacts={knownRecipients}
               className={inputClass}
               placeholder={`${key.toUpperCase()} addresses`}
               disabled={busy || uncertain}

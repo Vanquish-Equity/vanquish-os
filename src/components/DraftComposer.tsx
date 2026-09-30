@@ -679,7 +679,7 @@ export default function DraftComposer({
         )}
       </section>
 
-      {gmailSeed && canEdit && <MailComposer seed={gmailSeed} contacts={contacts} groups={groups} onClose={() => setGmailSeed(null)} onSent={() => { setGmailSeed(null); router.push("/communications?folder=sent"); }} />}
+      {gmailSeed && canEdit && <MailComposer seed={gmailSeed} contacts={contacts} knownRecipients={[...contacts, ...members]} groups={groups} onClose={() => setGmailSeed(null)} onSent={() => { setGmailSeed(null); router.push("/communications?folder=sent"); }} />}
       {canEdit && (
         <div className="sticky bottom-0 z-10 -mx-7 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-white/95 px-7 py-3 backdrop-blur">
           <div className="text-[12px] text-neutral-500">

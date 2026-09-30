@@ -61,10 +61,11 @@ export default async function CommunicationsPage({
   const supabase = await createClient();
 
   if (folder !== "drafts") {
-    const [mailbox, contacts, groups] = await Promise.all([
+    const [mailbox, contacts, groups, members] = await Promise.all([
       loadMailboxConnection(supabase),
       loadLpContacts(supabase),
       loadContactGroups(supabase),
+      loadAssignableMembers(supabase),
     ]);
     return (
       <div className="flex flex-col gap-4 px-4 py-6 md:px-7">
@@ -81,6 +82,7 @@ export default async function CommunicationsPage({
           initialFolder={folder}
           connected={mailbox.connected}
           contacts={contacts}
+          knownRecipients={[...contacts, ...members]}
           groups={groups}
           me={access.email}
         />

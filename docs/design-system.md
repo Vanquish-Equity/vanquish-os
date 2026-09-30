@@ -36,3 +36,9 @@ Composer/event dialogs use native `<dialog>` for focus containment, Escape
 and focus return; the workspace remains visible behind them. Calendar colors
 come from Google calendar identities rather than a user-picked board theme.
 Incoming message HTML is isolated from the OS styles in a sandboxed iframe.
+
+`src/components/dialog/useMovableDialog.ts` supplies bounded pointer/keyboard
+movement to mail compose and calendar dialogs. Drag only from the header;
+buttons and inputs do not initiate movement. Recipient autocomplete uses the
+same white/neutral borders and cyan focus/selection as the existing controls,
+with combobox/listbox semantics and visible names plus email addresses.

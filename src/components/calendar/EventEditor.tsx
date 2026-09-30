@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Checkbox from "@/components/Checkbox";
 import SelectMenu from "@/components/SelectMenu";
+import useMovableDialog from "@/components/dialog/useMovableDialog";
 import {
   saveCalendarEvent,
   deleteCalendarEvent,
@@ -37,6 +38,7 @@ export default function EventEditor({
   onSaved: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const movable = useMovableDialog(dialog);
   const [id] = useState(event?.id ?? crypto.randomUUID().replaceAll("-", ""));
   const [cid, setCid] = useState(
     event?.calendarId ??
@@ -184,7 +186,7 @@ export default function EventEditor({
       className="max-h-[92vh] w-[580px] max-w-[94vw] rounded-2xl border border-neutral-200 bg-white p-0 text-ink shadow-2xl backdrop:bg-ink/35"
       aria-labelledby="event-title"
     >
-      <header className="flex items-center justify-between border-b border-neutral-100 px-5 py-4">
+      <header {...movable.handleProps} aria-label="Move event editor" className="flex touch-none select-none cursor-grab items-center justify-between border-b border-neutral-100 px-5 py-4 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300 active:cursor-grabbing">
         <h2 id="event-title" className="font-semibold">
           {event ? "Edit event" : "New event"}
         </h2>

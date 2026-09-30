@@ -41,6 +41,19 @@ no push subscription or `historyId` synchronization worker yet.
 
 ## Compose and delivery
 
+To/CC/BCC suggest matching People contacts and active workspace members while
+typing a name or email. Suggestions show both name and address; selecting one
+replaces only the recipient at the cursor. Use arrows and Enter to choose,
+Escape to dismiss, or click an option. Names match without accents and duplicate
+addresses are collapsed. This uses the existing member-visible CRM directory;
+it does not query Google Contacts or mine private email history.
+
+Drag the composer header to move the window, or focus the header and use arrow
+keys. Home centers it. Movement stays inside the viewport and reclamps when its
+size or the viewport changes. Full screen centers the composer and disables
+dragging; restoring returns to the centered movable size. Closing/sending and
+unsaved-change confirmation retain their existing behavior.
+
 The composer supports To, CC, BCC, rich text, People/group selection,
 individual or bulk recipients, and up to ten uploaded attachments (2 MB
 combined, including retained attachments when editing). Larger existing
