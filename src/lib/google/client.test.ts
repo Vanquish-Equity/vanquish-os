@@ -27,6 +27,34 @@ beforeEach(() => {
   vi.stubEnv("GOOGLE_OAUTH_CLIENT_SECRET", "secret");
 });
 describe("per-member Google server boundary", () => {
+  it.each([
+    ["gmail", { details: [{ reason: "SERVICE_DISABLED" }] }, "unavailable", "Gmail API is disabled"],
+    ["calendar", { errors: [{ reason: "accessNotConfigured" }] }, "unavailable", "Google Calendar API is disabled"],
+    ["gmail", { errors: [{ reason: "domainPolicy" }] }, "permission", "Workspace policy blocks"],
+    ["calendar", { details: [{ reason: "ACCESS_TOKEN_SCOPE_INSUFFICIENT" }] }, "permission", "did not grant"],
+    ["gmail", { errors: [{ reason: "userRateLimitExceeded" }] }, "unavailable", "quota limit"],
+    ["gmail", { errors: "malformed", details: [null] }, "permission", "Google denied access to Gmail API"],
+  ] as const)("diagnoses %s denial without leaking provider data: %j", async (service, detail, code, message) => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(Response.json({ access_token: "private-token" }))
+      .mockResolvedValueOnce(Response.json({ error: { ...detail, message: "private-user@example.com", metadata: { secret: "private-token" } } }, { status: 403 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = await googleClient();
+    const result = await googleResult(() => client.request(service, "/profile"));
+    expect(result).toMatchObject({ ok: false, code, message: expect.stringContaining(message) });
+    expect(JSON.stringify(result)).not.toContain("private-token");
+    expect(JSON.stringify(result)).not.toContain("private-user@example.com");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+  it("keeps safe guidance for a non-JSON forbidden response", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(Response.json({ access_token: "private-token" }))
+      .mockResolvedValueOnce(new Response("private provider body", { status: 403 })));
+    const client = await googleClient();
+    expect(await googleResult(() => client.request("calendar", "/calendarList"))).toMatchObject({
+      ok: false, code: "permission", message: expect.stringContaining("Google Calendar API"),
+    });
+  });
   it("rejects non-members before reading any connection", async () => {
     mocks.access.mockResolvedValue({ status: "unauthorized" });
     const result = await googleResult(googleClient);

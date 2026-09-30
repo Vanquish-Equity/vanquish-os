@@ -2,6 +2,7 @@ import "server-only";
 import { getAccess } from "@/lib/auth/access";
 import { decryptToken } from "@/lib/connections/crypto";
 import { createClient } from "@/lib/supabase/server";
+import { googleForbidden } from "./api-error";
 
 export class GoogleError extends Error {
   constructor(
@@ -142,11 +143,10 @@ export async function googleClient(): Promise<GoogleClient> {
             "disconnected",
             "Reconnect Google in Settings.",
           );
-        if (res.status === 403)
-          throw new GoogleError(
-            "permission",
-            "Google denied access. Check the account permissions or reconnect Google.",
-          );
+        if (res.status === 403) {
+          const detail = googleForbidden(service, await res.json().catch(() => null));
+          throw new GoogleError(detail.code, detail.message);
+        }
         if (res.status === 404)
           throw new GoogleError(
             "not_found",
