@@ -44,6 +44,15 @@ const GRANTED_SCOPE_LABELS: Record<string, string> = {
   "https://www.googleapis.com/auth/calendar.readonly": "Read your calendar",
 };
 
+// Google always includes these alongside whatever scopes were actually
+// requested (identifying who signed the consent, not a mailbox
+// capability) — not worth showing next to the ones that matter.
+const HIDDEN_SCOPES = new Set([
+  "openid",
+  "https://www.googleapis.com/auth/userinfo.email",
+  "https://www.googleapis.com/auth/userinfo.profile",
+]);
+
 const card = "vq-card-static rounded-[14px] bg-white p-5 sm:p-6";
 
 function Toggle({ label, description, enabled, onChange, disabled = false }: {
@@ -266,14 +275,16 @@ export default function SettingsPanel({ email, displayName, avatarUrl, profileAv
                   Connected {formatExactDateTime(mailbox.connectedAt)}
                 </p>
               )}
-              {mailbox.grantedScopes.length > 0 && (
+              {mailbox.grantedScopes.filter((scope) => !HIDDEN_SCOPES.has(scope)).length > 0 && (
                 <ul className="mt-2 space-y-0.5 text-[11.5px] text-neutral-600">
-                  {mailbox.grantedScopes.map((scope) => (
-                    <li key={scope} className="flex items-center gap-1.5">
-                      <span aria-hidden className="text-emerald-600">✓</span>
-                      {GRANTED_SCOPE_LABELS[scope] ?? scope}
-                    </li>
-                  ))}
+                  {mailbox.grantedScopes
+                    .filter((scope) => !HIDDEN_SCOPES.has(scope))
+                    .map((scope) => (
+                      <li key={scope} className="flex items-center gap-1.5">
+                        <span aria-hidden className="text-emerald-600">✓</span>
+                        {GRANTED_SCOPE_LABELS[scope] ?? scope}
+                      </li>
+                    ))}
                 </ul>
               )}
               <button
