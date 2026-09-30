@@ -46,7 +46,7 @@ export default async function DraftPage({
             {draft.subject.trim() || "Untitled draft"}
           </h1>
           <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-[11px] font-semibold text-neutral-600">
-            {draft.archivedAt ? "Discarded draft" : "Draft · not sent"}
+            {draft.archivedAt ? "Discarded draft" : "CRM draft"}
           </span>
         </div>
         <p className="mt-1 text-[13px] text-neutral-500">
@@ -67,3 +67,4 @@ export default async function DraftPage({
     </div>
   );
 }
+

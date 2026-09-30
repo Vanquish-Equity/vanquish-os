@@ -207,3 +207,13 @@ slower.
 Portfolio pages are internal. SPV ledgers, cap tables and investor positions
 must never be exposed to investors. A future investor portal may only show the
 current investor's own positions and Investor -> SPV documents.
+
+
+### Live Google workspace
+
+Communications now reads the member's actual Gmail conversations and supports
+search, labels, mailbox actions, private Gmail drafts and confirmed sending.
+Calendar provides month/week/day/agenda views of real Google events; editing
+requires the extra Calendar consent. See [email](docs/communications.md) and
+[calendar](docs/calendar.md) for behavior, limits and connected-preview checks.
+This feature reuses existing connection storage and needs no new migration.

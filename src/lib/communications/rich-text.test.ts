@@ -44,3 +44,16 @@ describe("isPlainTextBody / plainTextToHtml", () => {
     expect(plainTextToHtml("a < b\nsecond line")).toBe("a &lt; b<br>second line");
   });
 });
+
+
+describe("HTML pasted from real email", () => {
+  it("does not double-escape entities across repeated saves", () => {
+    const html = '<p>R&amp;D &lt; 5 &quot;items&quot;</p>';
+    expect(sanitizeDraftHtml(sanitizeDraftHtml(html))).toBe(sanitizeDraftHtml(html));
+  });
+  it("handles encoded unsafe links and attribute-breaking input", () => {
+    expect(sanitizeDraftHtml('<a href="&#106;avascript:alert(1)">bad</a>')).toBe('<a>bad</a>');
+    expect(sanitizeDraftHtml('<a href="https://example.com/&quot; onmouseover=&quot;alert(1)">text</a>')).not.toContain(' onmouseover="');
+    expect(sanitizeDraftHtml('<svg><script>alert(1)</script></svg><p onclick="x">ok</p>')).toBe('<p>ok</p>');
+  });
+});

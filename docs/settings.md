@@ -90,11 +90,11 @@ why. Google sign-in only authenticates the user; it does not grant mailbox
 or calendar access — connecting is its own, separate consent, started only
 when a member clicks **Connect Google**.
 
-**What connecting actually does today:** stores the grant
-(`20260929200000_google_mailbox_connections.sql`). **What it does not do
-yet:** send drafts, show a real Inbox/Sent, or sync a calendar — those are
-still separate follow-up work (`communications.md`'s "Mailbox phase") that
-reads the same stored connection.
+The stored grant now powers the live Gmail mailbox and Calendar. See
+[Communications](communications.md) and [Calendar](calendar.md). Existing
+`calendar.readonly` grants can view events; Calendar's **Enable calendar
+editing** link requests `calendar.events` through the same consent flow.
+Connecting does not start scheduled sends or background email scouting.
 
 ### How it works
 
@@ -117,7 +117,7 @@ reads the same stored connection.
    access goes through a narrow `SECURITY DEFINER` function scoped to the
    caller's own email — `my_mailbox_connection()` (status only, no token,
    used to render the Settings card), `my_mailbox_connection_secret()`
-   (server-only: the encrypted token, for the code that will actually call
+   (the caller-scoped encrypted token, decrypted only by server code that calls
    Gmail/Calendar) and `disconnect_mailbox_connection()`. Nobody, including
    an admin, can read or act on another member's connection.
 4. **Disconnect** (`disconnectGoogleMailbox`,
@@ -175,3 +175,4 @@ checks anonymous access, member isolation, folder policy and RPC validation.
 The SQL workflow runs these checks on pull requests.
 It also reapplies `0023` and runs `supabase/tests/admin_settings.sql` in the
 disposable database.
+

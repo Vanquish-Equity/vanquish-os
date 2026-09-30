@@ -12,7 +12,8 @@ any change to its contract.
 | Authentication, roles and protected areas | [Authentication](authentication.md) | `src/lib/auth`, `src/proxy.ts`, RLS migrations |
 | CI and preview schema readiness | [CI and schema](ci-and-schema.md) | `.github/workflows`, `scripts/check_schema_drift.py` |
 | Home, tasks and attention | [Home](home.md) | Home and task routes, `src/lib/deals/attention*` |
-| Email drafts and LP contacts | [Communications](communications.md) | Communications routes and `src/lib/communications` |
+| Gmail mailbox, sending, CRM drafts and People groups | [Communications](communications.md) | Communications routes, `src/components/mail`, `src/lib/google/mail-*`, `src/lib/communications` |
+| Google calendars and event editing | [Calendar](calendar.md) | Calendar route, `src/components/calendar`, `src/lib/google/calendar-*` |
 | Chat, notifications and comments | [Chat](chat.md), [Comments](comments.md), [Contextual comments](contextual-comments.md) | Chat/comment actions and RLS migrations |
 | Member profile and admin settings | [Settings](settings.md) | Settings routes and `src/lib/settings` |
 | Questions requiring business decisions | [Open decisions](open-decisions.md) | Confirm with the team before encoding assumptions |
@@ -22,3 +23,4 @@ The Product Context, Technical Blueprint and Implementation Architecture
 mentioned in older notes are outside this repository. This map covers the
 documentation available in the codebase; do not assume an external document
 has been read or is current.
+

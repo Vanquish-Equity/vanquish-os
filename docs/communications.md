@@ -1,188 +1,133 @@
 # Communications and email
 
-Prepare emails to any Person in the CRM. Choose a People group or all People, select recipients individually or in bulk, and assign each address to **To, CC or BCC**. The Potential LPs group is selected by default and can be renamed in People. **Nothing is sent yet**: actual inbox, sent mail, sending and replies require a connected Gmail mailbox (Vanquish member accounts are Google Workspace; see "Sending later" below for why Gmail rather than Outlook is the integration target).
+Communications (`/communications`) is a live view of the signed-in member's
+Google mailbox. Vanquish accounts are Google Workspace accounts; Outlook is
+another client for the same Gmail mailbox. No Microsoft Graph connection is
+needed. Google's mailbox is the source of truth, including Sent and drafts.
 
-The page has four folder tabs — Inbox (default), Sent, Drafts, Archive — matching a real mailbox's shape ahead of Gmail sync. Drafts is the one with working content (this CRM's own drafts, described below). Inbox, Sent and Archive show a placeholder panel until that sync is built: "isn't connected yet" with a link to Settings when no mailbox is connected, or "Gmail is connected — sync isn't built yet" (no link; nothing left to do there) once one is.
+## Mailbox
 
-A draft has one owner: its creator (`created_by`, set by the database from
-the signed-in email; never changes). Only the creator can edit or discard
-it; every other member can open it read-only. There is no "responsible" to
-prepare a draft for — sending will happen from the creator's own connected
-Gmail (below), so nobody else could send it anyway.
+- Inbox, Starred, Sent, Gmail drafts, Archive, All mail, Spam and Trash show
+  real Gmail conversations, 25 per page, with forward/back pagination.
+- Search accepts Gmail operators (`from:`, `subject:`, `after:`, etc.).
+  Unread and attachment filters combine with the folder and search.
+- Opening a conversation loads all its messages and marks it read on a
+  best-effort basis. Mark read/unread explicitly if Google denies that action.
+  Stars, archive, trash, restore and spam recovery modify Google labels.
+  Bulk actions report partial failures; they do not claim all rows succeeded.
+- Custom Gmail labels can be created, renamed, deleted, applied or removed.
+  Deleting a label keeps its messages. Labels are private to the mailbox.
+- Reply, Reply all and Forward open the rich-text composer. Replies carry
+  `threadId`, `In-Reply-To` and `References`; BCC never becomes a reply-all
+  recipient. Quoted reply/forward content uses the original plain-text body.
+  HTML-only messages are kept readable in their original conversation;
+  forwarding their complete HTML layout and attachments is not automatic.
+- Attachments download through an authenticated server route, scoped to
+  `users/me`, with forced download and no caching. Email HTML runs inside an
+  opaque-origin sandbox with CSP. Scripts, forms and embedded content cannot
+  execute; remote images are blocked until explicitly enabled for that message.
+- `c` opens compose and `/` focuses search outside editable fields. Folder
+  selection and searches stay in browser memory; Refresh fetches Google again.
 
-## Where things live
+Archive deliberately excludes Inbox, Sent, Drafts, Spam and Trash; All mail
+includes received and sent mail outside Spam and Trash. Gmail may return a
+conversation containing messages with different labels. Thread actions act
+on the entire conversation, matching the UI's wording.
 
-| What | Where |
-| --- | --- |
-| Potential LPs | People → **Potential LPs** tab (`/people?view=lps`). They are regular People rows with `people.is_potential_lp = true`; emails stay in `person_emails`. There is no second contact list. |
-| People groups | People → **Manage groups** (`/people/groups`). Shared groups can be created, renamed and deleted, with explicit membership. The starter Potential LPs group is seeded from the existing flag and picks up newly marked LPs; its name can be changed. Deleting a group does not delete People. |
-| Add one | People → **Add potential LP** (or **New Person** with “Potential LP” ticked), or **Mark potential LP** on an existing row. A potential LP needs an email. |
-| Edit name / email | **Edit** on any People row. The primary `person_emails` row is updated in place. |
-| Import a list | People → **Import potential LPs (CSV)** (`/people/import`). |
-| Drafts | **Communications** in the sidebar (`/communications`). Views: **Created by me**, **All drafts** (default). Each row shows who created it. |
+This implementation reads Google on demand; it does not copy private mailbox
+content into shared CRM tables. Metadata fan-out is limited to five requests
+at once, and message bodies/attachment bytes load only when needed. There is
+no push subscription or `historyId` synchronization worker yet.
 
-## Loading the LP list when it arrives
+## Compose and delivery
 
-1. Save the list as CSV (Excel: *File → Save as → CSV UTF-8*). Comma,
-   semicolon or tab separators all work.
-2. Open People → **Import potential LPs (CSV)** and choose the file. It is
-   read in the browser; nothing is saved until you confirm.
-3. Check the column mapping. Headers such as `Name` / `Full name` /
-   `Nombre`, `First name` + `Last name` / `Nombre` + `Apellido`, `Email` /
-   `E-mail Address` / `Correo`, and optional `Title` / `Cargo` are
-   recognised. If the file has no header row, untick “The first row has
-   column names” and pick the columns. Other columns are ignored.
-4. Review every row. Each one shows what will happen:
+The composer supports To, CC, BCC, rich text, People/group selection,
+individual or bulk recipients, and up to ten uploaded attachments (2 MB
+combined, including retained attachments when editing). Larger existing
+messages can be read/downloaded and unmodified Gmail drafts can be sent;
+editing attachments above this limit must be done through Gmail. Email addresses and headers are
+validated server-side; HTML uses a parser-backed allowlist (`sanitize-html`).
 
-   | Status | Meaning | What to do |
-   | --- | --- | --- |
-   | Ready — new | Not in People. A person is created and marked. | Nothing. |
-   | Ready — existing | The email already belongs to someone in People. That person is marked; their name is kept. | Nothing. |
-   | Skipped — repeated | Same email as an earlier row of the file. | Nothing (or fix the email if it was a typo). |
-   | Skipped — already LP | Already a potential LP. | Nothing. |
-   | Needs review — incomplete | Missing name or email, or not exactly one valid address. | Fix it in place or **Exclude**. |
-   | Needs review — same name | Someone with that name is in People without this email. | **Same person: add email to …** or **Different person: create new**, or exclude. |
-   | Needs review — archived | The email belongs to an archived person. | **Restore … as potential LP** or exclude. |
+**Save to Gmail** creates or updates a real Gmail draft. Empty recipients are
+allowed while saving; sending requires 1–200 valid recipients. The sender
+comes from the connected Gmail profile, never a client-supplied From address.
+Edits retain selected existing attachments. A changed Gmail draft message ID
+requires reopening before saving, to reduce accidental overwrites from
+another client (Gmail does not provide an atomic compare-and-swap draft write).
 
-5. **Import N contacts** is enabled only when nothing needs review. The
-   import runs in one database transaction (`import_potential_lps`): either
-   every row is saved or none is.
+**Send → Confirm send** saves the current message, then calls `drafts.send`.
+Gmail consumes that draft and adds the message to Sent. There are no automatic
+send retries. If delivery is uncertain, the composer blocks retry and asks
+the member to check Gmail/Sent first; it never reports success without a Google
+response. A successful draft write followed by a failed read preserves the
+draft ID and asks for a reload rather than creating another draft.
 
-Emails are stored in lowercase and compared case-insensitively, so the same
-address never creates a second person.
+## CRM drafts and People groups
 
-## Drafts
+CRM drafts (`/communications?folder=drafts`) remain distinct from private
+Gmail drafts. Active members can read them; only their creator can edit or
+discard them. `created_by` is immutable and database-controlled. Groups in
+People are shared directory groups, not mailbox sharing permissions.
 
-- **New draft** → subject, a rich text body (Bold, Italic, Underline,
-  Strikethrough, bulleted/numbered lists, links — the same shapes Gmail's own
-  compose toolbar offers), People group (Potential LPs by default), To/CC/BCC
-  selection, and a contact list with search (name, email, company, title) and
-  filters (All / Selected / Not selected). One click selects or deselects a
-  person; “Select shown” / “Clear shown” act on the current search.
-- **Schedule send**: optionally pick a future date and time. This is recorded
-  on the draft (`scheduled_at`) but not acted on — nothing sends automatically
-  yet, since sending itself needs the Gmail connection below. It exists now so
-  a scheduled draft is ready to send itself the moment that connection lands,
-  instead of requiring the creator to send it by hand at the right time.
-- The counter and the **Final recipient list** show exactly who the
-  draft is addressed to before saving. Contacts without an email cannot be
-  selected.
-- **Save draft** stores the text and the selection (`save_email_draft`, one
-  transaction) and reloads it from the database, so what you see after
-  saving is what was stored. Each recipient keeps the email that was
-  selected.
-- If a selected contact later changes in People (email edited or removed,
-  archived or deleted) the draft shows
-  “N recipients need review”, the list marks them, and the Communications
-  list shows “N to review”. Choose **Use current email** or **Remove**, then
-  save. Saving without deciding keeps the stored email and the warning.
-- **Discard** archives the draft (it leaves the list; the row is kept). Only
-  the creator can discard it, same as editing.
+The CRM editor defaults to the editable Potential LPs group, lets the creator
+select any People/group, choose To/CC/BCC, and review changed contact addresses.
+**Open in Gmail composer** copies the reviewed current text and selected
+addresses into a separate private Gmail composition. Only the creator sees
+that handoff control. It does not change the saved CRM draft into a delivery
+ledger: CRM drafts stay labeled **CRM draft**, and actual delivery is shown
+in Gmail Sent. Saving a CRM draft alone never sends email.
 
-### Trying it before the list arrives
+`scheduled_at` is a planning note only. There is no scheduler or automatic
+send job; connecting Google does not activate old planned times. Scheduled
+sending and CRM delivery history require a separate job/ledger design.
 
-1. People → Potential LPs → **Add potential LP**: add yourself (for example
-   `pbp@vanquishequity.com`) and one colleague who agrees to be a test
-   contact.
-2. Communications → **New draft**: write a subject and body, select both
-   contacts, check the counter and the final list, **Save draft**.
-3. Reopen the draft from the list: text and recipients are the same.
-4. In People, **Edit** one of them and change the email: the draft now asks
-   for a review. **Use current email** → **Save draft** clears it.
-5. Unmark the test contacts (or archive them) when done. Nothing was sent at
-   any point.
+## Contact import
 
-## Access and privacy
+People → Import potential LPs accepts CSV with comma, semicolon or tab
+separators, optional headers, name/full-name or first+last columns, email and
+title. Review new, existing, repeated, incomplete, ambiguous-name or archived
+contacts before confirming. `import_potential_lps` commits all reviewed rows
+in one transaction. Emails are compared case-insensitively. Groups can be
+created, renamed and edited in `/people/groups`; deleting a group keeps People.
 
-- Only active members (see [`authentication.md`](authentication.md)) can
-  read or write potential LPs and drafts; anon has no privileges and
-  signed-in non-members see nothing through the API (RLS, migration
-  `0016`).
-- Drafts: members read; only the creator (`created_by`, set by the
-  database from the signed-in email, never from the client) updates,
-  discards or changes recipients. The rule is enforced three times: RLS on
-  `email_drafts` and `email_draft_recipients` (`private.can_edit_email_draft`,
-  creator-only since `20260929220000_drop_draft_responsible.sql`), the
-  `email_drafts_guard` trigger (fixed creator) and `save_email_draft` (runs
-  as the caller, so the same policies apply).
-- Deleting a contact never removes drafts or recipients. Its recipients stay
-  in their drafts with `person_id` / `person_email_id` set to null and the
-  name and address they had when selected, flagged for review; other
-  recipients are untouched. Deleting one of a contact's emails only clears
-  that address. Migration `0020` makes this independent of the order in
-  which Postgres runs the two referential actions on `people` (emails
-  cascade, recipients set null): the recipient foreign keys are
-  `DEFERRABLE INITIALLY DEFERRED`, so they are checked at commit, after
-  both actions. Invalid references are still rejected. Test:
-  `supabase/tests/lp_recipient_fk_order.sql` forces both orders.
-- Recipient lists are never put in URLs (draft pages use the draft id; the
-  search box and group choice are local state), never written to `activity_events` (payloads
-  carry counts only) and never echoed in error messages. Server-function
-  argument logging is off in `next.config.ts` so `next dev` does not print
-  addresses either.
-- Potential LPs follow the same visibility as the rest of People (every
-  member). If they should be restricted, add an area permission like
-  `portfolio` / `documents` in a later migration.
-- The draft body is stored as HTML produced by the composer's own formatting
-  toolbar. `saveDraftAction` (`src/lib/communications/actions.ts`) runs it
-  through `sanitizeDraftHtml` (`src/lib/communications/rich-text.ts`) before
-  it reaches the database: an allowlist of formatting tags only (bold,
-  italic, underline, strikethrough, lists, links, line breaks), every
-  attribute stripped except a validated `http(s)`/`mailto` `href` on links,
-  and `script`/`style` removed outright. A draft saved before the rich text
-  editor existed has no markup at all; the composer treats that as plain
-  text and converts line breaks to `<br>` the first time it is opened.
+## Access and implementation
 
-## Tests
+- Every Google server action verifies active Vanquish membership, loads only
+  `my_mailbox_connection_secret()` for the caller, and decrypts the refresh
+  token server-side. Tokens never appear in action results or shared caches.
+- Gmail endpoints always use `users/me`. Server actions never accept another
+  member's mailbox identity. Scope checks enforce read vs modify/send rights.
+- Provider requests and attachment responses use `no-store`; provider error
+  bodies and credentials are not returned or logged. Server-function argument
+  logging remains disabled in `next.config.ts`.
+- CRM recipient RLS and creator-only rules remain enforced by migrations
+  `0016`, `0020`, `20260929170500` and `20260929220000`. Deleted/changed People
+  retain their selected address snapshot and need review before handoff.
+- `src/lib/google/client.ts`: caller-scoped refresh, API transport, safe errors.
+  `mail-actions.ts`: live queries/mutations. `mail-format.ts`: MIME parsing and
+  writing. `mail-validation.ts`: shared address/header validation.
+  `src/components/mail`: workspace, sandboxed message body, composer.
 
-- Unit: `src/lib/communications/*.test.ts` (CSV parsing, column guessing,
-  row review rules, recipient checks).
-- Database: `supabase/tests/lp_communications.sql` — anon, non-member,
-  author and another member against people, emails, drafts, recipients and
-  both functions. Run only on a disposable database with `0001`–`0016`.
-  `supabase/tests/draft_formatting_and_schedule.sql` covers `scheduled_at`
-  (rejects a past time, accepts and clears a future one) and the widened
-  HTML body length limit.
+## Validation and remaining work
 
-## Sending later (not implemented)
+Unit tests cover MIME alternatives, encoded headers, attachments, quoted
+address names, injection rejection, sender isolation, scope enforcement,
+no automatic retry, draft conflict/preservation and Google pagination.
+Run lint, TypeScript, unit tests and build; SQL tests for CRM drafts run only
+on a disposable database. This change uses existing connection storage and
+needs no database migration.
 
-Vanquish member mailboxes are Google Workspace accounts on `vanquishequity.com`
-(seen through Outlook as a client for some members, but the mailbox itself is
-Gmail). Delivery, Sent items and any Outlook view of that same account all
-reconcile through Gmail, so the integration target is the Gmail API, not
-Microsoft Graph — connecting Outlook directly would talk to the wrong mailbox.
+Before merging, a connected-member preview must verify actual Google folder
+contents, sending to an agreed test recipient, Sent visibility in Gmail and
+Outlook, editing a Gmail draft with attachments and revoked-grant handling.
+No test emails are sent automatically by CI or by implementing this code.
 
-What connecting Gmail needs:
+Not yet implemented: push updates, scheduled sending, send-as aliases,
+complete forwarding of HTML/attachments, large/resumable uploads, email
+signatures/settings, Google rules and offline search. These are separate
+iterations; the current folders and actions use real Google data.
 
-1. **Google Cloud OAuth client** (Vanquish's own project) with the
-   `gmail.send` scope (and `gmail.readonly` / `gmail.modify` once the mailbox
-   phase below reads Inbox/Sent). Google verification per its policy for
-   sensitive scopes. This is separate from sign-in (`google` is already a
-   sign-in provider; a mailbox connection is its own consent, asked only
-   when a user chooses to connect it, typically with `access_type=offline`
-   for a refresh token).
-2. **Token storage**: the refresh token must stay server-side (encrypted
-   table readable only by a server role, or Supabase Vault), never in the
-   browser or in `email_drafts`.
-3. **Send path**: a server-side function that only the **creator** can call,
-   and only with their own connected mailbox. It re-checks the draft (no
-   recipients needing review, subject and body present), then calls the
-   Gmail API `users.messages.send` as the creator, with the recipients in
-   the saved `toRecipients`, `ccRecipients` and `bccRecipients` (Gmail takes
-   a raw RFC 2822 MIME message, so headers are built before sending).
-   Nobody can send on another member's behalf.
-4. **Model changes**: extend `email_drafts.status` beyond `'draft'`
-   (`sending`, `sent`, `failed`), add `sent_at` / `sent_by`, and freeze the
-   recipient list when sending (store per-recipient delivery results).
-5. **UI**: a confirmation step that shows the final To/CC/BCC list and count, a
-   clear “Sent on …” state, and no edits after sending.
-6. **Compliance**: unsubscribe/opt-out handling and a record of consent for
-   each LP, if required for the audience.
-
-## Mailbox phase (planned)
-
-Communications must become a second view of each connected user's mailbox, with Inbox, Sent, Drafts, Archive, search, message reading, reply/forward, and compose. These folders must show real provider messages, scoped to the connected user; the shared CRM drafts stay distinct until their creator sends them. Never present an empty local table as a Gmail inbox.
-
-Use the Gmail API's delegated mailbox access: `gmail.readonly` for reading messages and labels, `gmail.modify` for archiving or moving messages (Gmail uses labels, not folders — Inbox/Sent/Archive map to the `INBOX`, `SENT` labels and the absence of `INBOX`, respectively), `gmail.send` for sending, and `access_type=offline` for a refresh token. Token storage stays encrypted server-side and isolated per member. Label-based pagination, `historyId`-based incremental sync, attachment handling, retry/idempotency and sent-message reconciliation need separate implementation and tests. The first connected mailbox should be an explicit opt-in with revocation in Settings. Group expansion happens at draft selection time; preserve the exact selected people and recipient field on save, and re-check addresses before sending.
-
-Sources: [Gmail API overview](https://developers.google.com/workspace/gmail/api/guides), [users.messages.list](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/list), [users.messages.send](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/send), [Gmail API scopes](https://developers.google.com/workspace/gmail/api/auth/scopes).
+References: [Gmail threads](https://developers.google.com/workspace/gmail/api/guides/threads),
+[sending MIME](https://developers.google.com/workspace/gmail/api/guides/sending),
+[labels](https://developers.google.com/workspace/gmail/api/guides/labels),
+[scope reference](https://developers.google.com/workspace/gmail/api/auth/scopes).

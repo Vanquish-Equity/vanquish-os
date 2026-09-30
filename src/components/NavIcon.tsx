@@ -72,6 +72,7 @@ const PATHS: Record<NavIconName | "collapse" | "expand" | "signout" | "sound-on"
       <path d="m3.8 6.5 8.2 6.2 8.2-6.2" />
     </>
   ),
+  calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M7 3v4M17 3v4M3 10h18M7 14h2M13 14h2M7 18h2" /></>,
   tasks: (
     <>
       <rect x="3.5" y="3.5" width="17" height="17" rx="3" />
@@ -154,3 +155,4 @@ export default function NavIcon({ name, className = "h-[18px] w-[18px]" }: { nam
     </svg>
   );
 }
+

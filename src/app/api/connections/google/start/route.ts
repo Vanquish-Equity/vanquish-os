@@ -21,7 +21,7 @@ export async function GET(request: Request) {
 
   let authUrl: string;
   try {
-    authUrl = buildGoogleAuthUrl({ redirectUri, state });
+    authUrl = buildGoogleAuthUrl({ redirectUri, state, calendarWrite: url.searchParams.get("calendar") === "write" });
   } catch {
     return NextResponse.redirect(new URL("/settings?connect=not_configured#settings-connections", url.origin));
   }
@@ -34,3 +34,4 @@ export async function GET(request: Request) {
   });
   return response;
 }
+

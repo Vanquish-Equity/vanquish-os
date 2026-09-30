@@ -41,6 +41,7 @@ export type NavIcon =
   | "companies"
   | "people"
   | "communications"
+  | "calendar"
   | "tasks"
   | "review"
   | "settings"
@@ -66,6 +67,7 @@ export const WORKSPACE_NAV: NavItem[] = [
   { href: "/companies", label: "Companies", icon: "companies" },
   { href: "/people", label: "People", icon: "people" },
   { href: "/communications", label: "Communications", icon: "communications" },
+  { href: "/calendar", label: "Calendar", icon: "calendar" },
   { href: "/tasks", label: "Tasks", icon: "tasks" },
   { href: "/review", label: "Review", icon: "review" },
   { href: "/portfolio", label: "Portfolio", icon: "portfolio", requires: "portfolio" },
@@ -74,3 +76,4 @@ export const WORKSPACE_NAV: NavItem[] = [
 export function visibleNav(items: NavItem[], permissions: ReadonlySet<AreaPermission>) {
   return items.filter((item) => !item.requires || permissions.has(item.requires));
 }
+
