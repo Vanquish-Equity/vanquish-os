@@ -15,6 +15,11 @@ day, and overlapping timed events use separate lanes. Week/Day start scrolled
 to 07:00. Event details use a modal over the calendar, with guest responses,
 location and Google Meet when present.
 
+Event details and event editor dialogs can be moved by dragging their headers,
+including touch. Focus the header and use arrow keys for keyboard movement;
+Home centers the window. The window remains within the viewport after movement
+or resizing. Native modal focus containment and Escape behavior remain in place.
+
 ## Reading versus writing
 
 Existing connections granted `calendar.readonly`. They can immediately read

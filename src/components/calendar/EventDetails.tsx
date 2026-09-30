@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef } from "react";
+import useMovableDialog from "@/components/dialog/useMovableDialog";
 import { eventTimeLabel } from "@/lib/google/calendar-format";
 import type { CalendarEvent } from "@/lib/google/calendar-types";
 export default function EventDetails({
@@ -18,6 +19,7 @@ export default function EventDetails({
   onEdit: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const movable = useMovableDialog(dialog);
   useEffect(() => {
     dialog.current?.showModal();
   }, []);
@@ -33,7 +35,7 @@ export default function EventDetails({
       className="vq-card-static max-h-[85vh] w-[480px] max-w-[94vw] overflow-y-auto rounded-2xl bg-white p-6 backdrop:bg-ink/30"
       aria-labelledby="event-detail-title"
     >
-      <div className="flex gap-3">
+      <div {...movable.handleProps} aria-label="Move event details" className="flex touch-none select-none cursor-grab gap-3 outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 active:cursor-grabbing">
         <h2
           id="event-detail-title"
           className="flex-1 text-lg font-semibold text-ink"

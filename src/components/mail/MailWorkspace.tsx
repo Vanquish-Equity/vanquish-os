@@ -28,17 +28,20 @@ import {
 import { parseAddresses } from "@/lib/google/mail-validation";
 import { plainTextToHtml } from "@/lib/communications/rich-text";
 import type { ContactGroup, LpContact } from "@/lib/communications/queries";
+import type { RecipientContact } from "@/lib/communications/contact-suggestions";
 
 export default function MailWorkspace({
   connected,
   contacts,
   groups,
+  knownRecipients,
   initialFolder = "inbox",
   me,
 }: {
   connected: boolean;
   contacts: LpContact[];
   groups: ContactGroup[];
+  knownRecipients?: RecipientContact[];
   initialFolder?: MailFolder;
   me: string;
 }) {
@@ -625,6 +628,7 @@ export default function MailWorkspace({
         <MailComposer
           seed={composer}
           contacts={contacts}
+          knownRecipients={knownRecipients}
           groups={groups}
           onClose={() => {
             setComposer(null);
