@@ -455,3 +455,30 @@ html[data-vq-intro="play"] .vq-intro-card::before {
     background-color: transparent;
   }
 }
+
+/* Draft body rich text editor: Tailwind's preflight strips list markers and
+   link styling, so the formatting the toolbar applies (lists, links) needs
+   to be visible again inside this one editable area. */
+.vq-rich-text:empty:before {
+  content: attr(data-placeholder);
+  color: rgb(115 115 115);
+  pointer-events: none;
+}
+.vq-rich-text ul {
+  list-style: disc;
+  padding-left: 1.4em;
+}
+.vq-rich-text ol {
+  list-style: decimal;
+  padding-left: 1.4em;
+}
+.vq-rich-text a {
+  color: #0e7490;
+  text-decoration: underline;
+}
+.vq-rich-text p {
+  margin: 0 0 0.6em;
+}
+.vq-rich-text p:last-child {
+  margin-bottom: 0;
+}

@@ -5,10 +5,23 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { discardDraftAction, saveDraftAction } from "@/lib/communications/actions";
 import SelectMenu from "@/components/SelectMenu";
-import { isActiveMember, memberLabel, type Member } from "@/lib/communications/drafts";
+import RichTextEditor from "@/components/RichTextEditor";
+import ComposerIcon, { type ComposerIconName } from "@/components/ComposerIcon";
+import { memberLabel, type Member } from "@/lib/communications/drafts";
 import type { ContactGroup, DraftDetail, DraftRecipient, LpContact } from "@/lib/communications/queries";
 import { RECIPIENT_ISSUE_LABELS } from "@/lib/communications/recipients";
-import { formatExactDate } from "@/lib/dates";
+import { isPlainTextBody, plainTextToHtml } from "@/lib/communications/rich-text";
+import { formatExactDate, formatExactDateTime } from "@/lib/dates";
+
+// datetime-local wants "YYYY-MM-DDTHH:mm" in local time, with no timezone
+// suffix, so this can't reuse the display formatters above.
+function toDateTimeLocalValue(iso: string | null): string {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 
 // One selected recipient. Saved recipients keep their recipientId; they are
 // re-selected with the contact's current email only when acceptCurrent is
@@ -26,6 +39,18 @@ type Filter = "all" | "selected" | "not_selected";
 const inputClass =
   "w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[13px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100 disabled:bg-neutral-50";
 const labelClass = "mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400";
+
+// Shown so the composer reads like a real mailbox (matching Gmail's own
+// compose bar), but none of these have a backend yet: no attachment
+// storage, no Drive connection, no confidential mode, no signatures. They
+// stay visibly disabled rather than pretending to work.
+const COMPOSER_PLACEHOLDER_ICONS: { key: string; icon: ComposerIconName; label: string }[] = [
+  { key: "attach", icon: "attach", label: "Attach files" },
+  { key: "photo", icon: "photo", label: "Insert photo" },
+  { key: "drive", icon: "drive", label: "Insert files using Drive" },
+  { key: "confidential", icon: "lock", label: "Toggle confidential mode" },
+  { key: "signature", icon: "signature", label: "Insert signature" },
+];
 
 function recipientKey(recipient: DraftRecipient) {
   return recipient.personId ?? `saved:${recipient.recipientId}`;
@@ -73,7 +98,7 @@ export default function DraftComposer({
   draft: DraftDetail | null;
   contacts: LpContact[];
   groups: ContactGroup[];
-  // Active members, the only valid responsibles.
+  // Active members, for showing display names (e.g. the creator's).
   members: Member[];
   canEdit: boolean;
   currentUserEmail: string;
@@ -81,13 +106,12 @@ export default function DraftComposer({
 }) {
   const router = useRouter();
   const createdBy = draft?.createdBy ?? currentUserEmail;
-  const [assignedTo, setAssignedTo] = useState(draft?.assignedTo ?? currentUserEmail);
-  const assigneeActive = isActiveMember(members, assignedTo);
-  // Handing the draft to someone else removes your edit rights unless you
-  // created it.
-  const handingOff = assignedTo !== (draft?.assignedTo ?? currentUserEmail) && assignedTo !== currentUserEmail && createdBy !== currentUserEmail;
   const [subject, setSubject] = useState(draft?.subject ?? "");
-  const [body, setBody] = useState(draft?.body ?? "");
+  const [body, setBody] = useState(() => (draft && isPlainTextBody(draft.body) ? plainTextToHtml(draft.body) : draft?.body ?? ""));
+  const bodyText = useMemo(() => body.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(), [body]);
+  const [scheduleEnabled, setScheduleEnabled] = useState(Boolean(draft?.scheduledAt));
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState(() => toDateTimeLocalValue(draft?.scheduledAt ?? null));
   const [selection, setSelection] = useState(() => initialSelection(draft));
   const [query, setQuery] = useState("");
   const [groupId, setGroupId] = useState(groups.find((g) => g.kind === "potential_lp")?.id ?? "all");
@@ -231,12 +255,22 @@ export default function DraftComposer({
 
   function save() {
     setMessage(null);
+    if (scheduleEnabled) {
+      if (!scheduledAt) {
+        setMessage({ tone: "error", text: "Choose a date and time to schedule this draft, or turn scheduling off." });
+        return;
+      }
+      if (new Date(scheduledAt).getTime() <= Date.now()) {
+        setMessage({ tone: "error", text: "Scheduled send time must be in the future." });
+        return;
+      }
+    }
     startTransition(async () => {
       const result = await saveDraftAction({
         draftId: draft?.id ?? null,
         subject,
         body,
-        assignedTo: draft && assignedTo === draft.assignedTo ? null : assignedTo,
+        scheduledAt: scheduleEnabled && scheduledAt ? new Date(scheduledAt).toISOString() : null,
         recipients: [...selection.values()].map((item) => ({
           recipientId: item.recipientId,
           personId: item.personId,
@@ -249,11 +283,6 @@ export default function DraftComposer({
         return;
       }
       setDirty(false);
-      if (handingOff) {
-        router.push("/communications");
-        router.refresh();
-        return;
-      }
       // The page reloads the draft from the database, so what is shown after
       // saving is exactly what was stored.
       router.replace(`/communications/${result.draftId}?saved=1`);
@@ -276,18 +305,9 @@ export default function DraftComposer({
 
   const readiness = [
     { label: "Subject", ok: subject.trim().length > 0 },
-    { label: "Message", ok: body.trim().length > 0 },
+    { label: "Message", ok: bodyText.length > 0 },
     { label: "At least one recipient", ok: selectedCount > 0 },
     { label: "No recipients to review", ok: reviewCount === 0 },
-    { label: "Responsible is an active member", ok: assigneeActive },
-  ];
-
-  const memberOptions = [
-    ...members.map((member) => ({
-      value: member.email,
-      label: member.email === currentUserEmail ? `${member.name} (you)` : `${member.name} · ${member.email}`,
-    })),
-    ...(assigneeActive ? [] : [{ value: assignedTo, label: `${assignedTo} (no longer active)`, disabled: true }]),
   ];
 
   return (
@@ -296,56 +316,20 @@ export default function DraftComposer({
         <div className="rounded-[14px] border border-neutral-200 bg-[#f7f9fa] px-4 py-3 text-[12.5px] text-neutral-600">
           {draft.archivedAt
             ? "This draft was discarded. It is read-only."
-            : `Read-only: only ${memberLabel(members, draft.createdBy)} (created it) and ${memberLabel(
-                members,
-                draft.assignedTo
-              )} (responsible) can edit this draft.`}
+            : `Read-only: only ${memberLabel(members, draft.createdBy)} (created it) can edit this draft.`}
         </div>
       )}
 
-      <section className="vq-card-static grid grid-cols-1 gap-4 rounded-[14px] bg-white p-5 sm:grid-cols-2">
-        <div>
-          <div className={labelClass}>Created by</div>
-          <p className="py-2 text-[13px] text-ink">
-            {memberLabel(members, createdBy)}
-            {createdBy === currentUserEmail ? " (you)" : ""}
-            <span className="block text-[11.5px] text-neutral-500">Prepared the draft. Can keep editing it.</span>
-          </p>
-        </div>
-        <div>
-          <label htmlFor="draft-assignee" className={labelClass}>
-            Responsible / planned sender
-          </label>
-          {canEdit ? (
-            <SelectMenu
-              id="draft-assignee"
-              value={assignedTo}
-              options={memberOptions}
-              onChange={(value) => {
-                setAssignedTo(value);
-                markDirty();
-              }}
-            />
-          ) : (
-            <p id="draft-assignee" className="py-2 text-[13px] text-ink">
-              {memberLabel(members, assignedTo)}
-            </p>
-          )}
-          <p className="mt-1 text-[11.5px] text-neutral-500">
-            Reviews the draft and, once Gmail is connected, sends it from their own mailbox.
-          </p>
-          {!assigneeActive && (
-            <p role="alert" className="mt-1 text-[11.5px] text-amber-800">
-              This responsible is no longer an active member. Choose another one.
-            </p>
-          )}
-          {handingOff && (
-            <p className="mt-1 text-[11.5px] text-amber-800">
-              After saving, {memberLabel(members, assignedTo)} and {memberLabel(members, createdBy)} can edit it; you
-              will only be able to view it.
-            </p>
-          )}
-        </div>
+      <section className="vq-card-static rounded-[14px] bg-white p-5">
+        <div className={labelClass}>Created by</div>
+        <p className="py-2 text-[13px] text-ink">
+          {memberLabel(members, createdBy)}
+          {createdBy === currentUserEmail ? " (you)" : ""}
+          <span className="block text-[11.5px] text-neutral-500">
+            Only the creator can edit or discard this draft — once Gmail is connected, it sends from the creator&rsquo;s own
+            mailbox.
+          </span>
+        </p>
       </section>
 
       {reviewCount > 0 && (
@@ -380,21 +364,101 @@ export default function DraftComposer({
             />
           </div>
           <div className="flex flex-1 flex-col">
-            <label htmlFor="draft-body" className={labelClass}>
+            <span id="draft-body-label" className={labelClass}>
               Body
-            </label>
-            <textarea
+            </span>
+            <RichTextEditor
+              key={draft?.id ?? "new"}
               id="draft-body"
-              value={body}
+              labelledBy="draft-body-label"
+              initialHtml={body}
               disabled={!canEdit}
-              onChange={(event) => {
-                setBody(event.target.value);
+              placeholder="Write the email…"
+              onChange={(html) => {
+                setBody(html);
                 markDirty();
               }}
-              rows={16}
-              placeholder="Write the email. Plain text; line breaks are kept."
-              className={`${inputClass} min-h-[280px] flex-1 resize-y leading-relaxed`}
             />
+            <div className="mt-1.5 flex items-center gap-0.5 rounded-lg border border-neutral-200 bg-[#f7f9fa] px-1.5 py-1" role="group" aria-label="More composing options">
+              {COMPOSER_PLACEHOLDER_ICONS.map((icon) => (
+                <button
+                  key={icon.key}
+                  type="button"
+                  disabled
+                  title={`${icon.label} — not available yet`}
+                  className="flex h-7 w-7 flex-shrink-0 cursor-not-allowed items-center justify-center rounded-md text-neutral-400"
+                >
+                  <ComposerIcon name={icon.icon} />
+                  <span className="sr-only">{icon.label} — not available yet</span>
+                </button>
+              ))}
+              <span className="mx-1 h-4 w-px flex-shrink-0 bg-neutral-200" aria-hidden />
+              <button
+                type="button"
+                disabled={!canEdit}
+                title={scheduleEnabled ? "Edit scheduled send time" : "Schedule send"}
+                aria-pressed={scheduleEnabled}
+                onClick={() => setScheduleOpen((open) => !open)}
+                className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                  scheduleEnabled ? "bg-ink text-white" : "text-neutral-600 hover:bg-neutral-100"
+                }`}
+              >
+                <ComposerIcon name="clock" />
+              </button>
+              {scheduleEnabled && scheduledAt && !Number.isNaN(new Date(scheduledAt).getTime()) && (
+                <span className="ml-1 flex items-center gap-1 truncate text-[11px] font-semibold text-cyan-800">
+                  Scheduled · {formatExactDateTime(new Date(scheduledAt).toISOString())}
+                  {canEdit && (
+                    <button
+                      type="button"
+                      title="Remove scheduled send"
+                      onClick={() => {
+                        setScheduleEnabled(false);
+                        setScheduleOpen(false);
+                        markDirty();
+                      }}
+                      className="text-neutral-400 hover:text-neutral-700"
+                    >
+                      <ComposerIcon name="clear" className="h-3 w-3" />
+                    </button>
+                  )}
+                </span>
+              )}
+              <span className="ml-auto flex-shrink-0 pr-1 text-[10.5px] font-semibold text-neutral-400">
+                Attach/Drive/confidential/signature not available yet
+              </span>
+            </div>
+            {scheduleOpen && (
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5 rounded-lg border border-cyan-200 bg-[#f0fafb] p-2">
+                <input
+                  type="datetime-local"
+                  autoFocus
+                  value={scheduledAt}
+                  disabled={!canEdit}
+                  onChange={(event) => setScheduledAt(event.target.value)}
+                  className="min-w-0 flex-1 rounded-md border border-neutral-200 bg-white px-2.5 py-1.5 text-[12.5px] outline-none focus:border-cyan-300"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!scheduledAt) return;
+                    setScheduleEnabled(true);
+                    setScheduleOpen(false);
+                    markDirty();
+                  }}
+                  disabled={!scheduledAt}
+                  className="flex-shrink-0 rounded-md bg-ink px-2.5 py-1.5 text-[11.5px] font-semibold text-white disabled:opacity-40"
+                >
+                  Schedule
+                </button>
+                <button type="button" onClick={() => setScheduleOpen(false)} className="flex-shrink-0 rounded-md border border-neutral-200 px-2.5 py-1.5 text-[11.5px] font-semibold text-neutral-600">
+                  Cancel
+                </button>
+                <p className="w-full text-[11px] text-neutral-500">
+                  Not connected yet: this only records the time on the draft — nothing sends automatically until Gmail is connected.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="rounded-xl border border-neutral-100 bg-[#f7f9fa] p-3.5 text-[12px] text-neutral-600">
@@ -409,7 +473,7 @@ export default function DraftComposer({
             <dl className="mt-2 grid grid-cols-[72px_1fr] gap-y-1">
               <dt className="text-neutral-400">From</dt>
               <dd className="text-ink">
-                {memberLabel(members, assignedTo)} · {assignedTo} (their Gmail mailbox)
+                {memberLabel(members, createdBy)} · {createdBy} (their Gmail mailbox)
               </dd>
               <dt className="text-neutral-400">Recipients</dt>
               <dd className="text-ink">

@@ -94,6 +94,20 @@ Run the migration files in order in the Supabase SQL Editor:
     including People outside the Potential LPs group.
 31. `20260929173000_board_directory_import.sql` - add People, Companies and
     group members as linked board cards, with the board's access rules.
+32. `20260929180000_draft_formatting_and_schedule.sql` - draft bodies store
+    sanitized rich text (bold/italic/lists/links), and a `scheduled_at` field
+    records a planned send time (informational only; nothing sends yet).
+33. `20260929190000_email_scouting_permission.sql` - `email_scouting` member
+    permission distinguishing members whose future connected Gmail may be
+    scanned to detect Companies from those whose mailbox never is.
+34. `20260929200000_google_mailbox_connections.sql` - stores each member's
+    own Google (Gmail + Calendar) OAuth connection, application-encrypted,
+    accessible only to that member through narrow functions (no direct
+    table access, not even for admins).
+35. `20260929220000_drop_draft_responsible.sql` - removes the "Responsible /
+    planned sender" concept from email drafts (`assigned_to` dropped
+    entirely); a draft's only editor is now its creator, since sending will
+    come from the creator's own connected Gmail.
 
 These timestamps are part of the migration filenames. For the schema readiness
 check, the recorded history uses their descriptive suffix; see

@@ -48,10 +48,10 @@ export type DraftDetail = {
   subject: string;
   body: string;
   createdBy: string;
-  assignedTo: string;
   createdAt: string;
   updatedAt: string;
   archivedAt: string | null;
+  scheduledAt: string | null;
   recipients: DraftRecipient[];
 };
 
@@ -100,7 +100,7 @@ export async function loadDraft(supabase: SupabaseClient, draftId: string): Prom
   const [{ data: draft }, { data: recipientRows }] = await Promise.all([
     supabase
       .from("email_drafts")
-      .select("id,subject,body,created_by,assigned_to,created_at,updated_at,archived_at")
+      .select("id,subject,body,created_by,created_at,updated_at,archived_at,scheduled_at")
       .eq("id", draftId)
       .maybeSingle(),
     supabase
@@ -119,10 +119,10 @@ export async function loadDraft(supabase: SupabaseClient, draftId: string): Prom
     subject: draft.subject,
     body: draft.body,
     createdBy: draft.created_by,
-    assignedTo: draft.assigned_to,
     createdAt: draft.created_at,
     updatedAt: draft.updated_at,
     archivedAt: draft.archived_at,
+    scheduledAt: draft.scheduled_at,
     recipients: (recipientRows ?? []).map((row) => {
       const person = row.person
         ? {
@@ -149,7 +149,7 @@ export async function loadDraft(supabase: SupabaseClient, draftId: string): Prom
   };
 }
 
-// Active members, for choosing a draft's responsible and for showing names.
+// Active members, for showing display names next to a draft's creator.
 // Returned by a narrow database function (app_members itself is only
 // readable row-by-row by each member).
 export async function loadAssignableMembers(supabase: SupabaseClient): Promise<Member[]> {

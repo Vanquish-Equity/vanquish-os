@@ -3,7 +3,10 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
+import { disconnectGoogleMailbox } from "@/lib/connections/actions";
+import type { MailboxConnection } from "@/lib/connections/queries";
 import { changeAvatar, changeDisplayName } from "@/lib/settings/actions";
+import { formatExactDateTime } from "@/lib/dates";
 import { requestIntroReplay, SIDEBAR_COOKIE_MAX_AGE_SECONDS } from "@/lib/ui/entrance";
 import { playUiSound, setInterfaceSound, setSoundPref, setSoundVolume, setWelcomeSound, useInterfaceSound, useSoundPref, useSoundVolume, useWelcomeSound } from "@/lib/ui/sound";
 import { landingCookieName, NOTICE_FLAGS, notificationCookieName, pipelineCookieName, type LandingPage, type NoticeCategory, type PipelineDefault } from "@/lib/settings/preferences";
@@ -19,6 +22,26 @@ type Props = {
   initialNoticeMask: number;
   initialLanding: LandingPage;
   initialPipeline: PipelineDefault;
+  mailbox: MailboxConnection;
+  connectStatus: string | null;
+};
+
+const CONNECT_STATUS_MESSAGES: Record<string, { tone: "ok" | "error"; text: string }> = {
+  ok: { tone: "ok", text: "Google connected." },
+  declined: { tone: "error", text: "Connection cancelled — nothing was connected." },
+  error: { tone: "error", text: "Something went wrong connecting Google. Try again." },
+  no_refresh_token: {
+    tone: "error",
+    text: "Google didn't return a refresh token. Remove Vanquish OS from your Google Account's connected apps and try connecting again.",
+  },
+  not_configured: { tone: "error", text: "Google connection isn't configured yet." },
+};
+
+const GRANTED_SCOPE_LABELS: Record<string, string> = {
+  "https://www.googleapis.com/auth/gmail.send": "Send email",
+  "https://www.googleapis.com/auth/gmail.readonly": "Read your mailbox",
+  "https://www.googleapis.com/auth/gmail.modify": "Organize your mailbox (archive, labels)",
+  "https://www.googleapis.com/auth/calendar.readonly": "Read your calendar",
 };
 
 const card = "vq-card-static rounded-[14px] bg-white p-5 sm:p-6";
@@ -41,7 +64,7 @@ function Toggle({ label, description, enabled, onChange, disabled = false }: {
   );
 }
 
-export default function SettingsPanel({ email, displayName, avatarUrl, profileAvailable, introCookie, initialIntroEnabled, initialNoticeMask, initialLanding, initialPipeline }: Props) {
+export default function SettingsPanel({ email, displayName, avatarUrl, profileAvailable, introCookie, initialIntroEnabled, initialNoticeMask, initialLanding, initialPipeline, mailbox, connectStatus }: Props) {
   const router = useRouter();
   const [name, setName] = useState(displayName);
   const [photoUrl, setPhotoUrl] = useState(avatarUrl);
@@ -51,6 +74,8 @@ export default function SettingsPanel({ email, displayName, avatarUrl, profileAv
   const [pipeline, setPipeline] = useState(initialPipeline);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [connectPending, startConnectTransition] = useTransition();
+  const [connectMessage, setConnectMessage] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const soundOn = useSoundPref();
   const welcomeSound = useWelcomeSound();
@@ -104,6 +129,17 @@ export default function SettingsPanel({ email, displayName, avatarUrl, profileAv
   function replayIntro() {
     if (requestIntroReplay(window.location.pathname) === "home") router.push("/home");
   }
+
+  function disconnectGoogle() {
+    setConnectMessage(null);
+    startConnectTransition(async () => {
+      const result = await disconnectGoogleMailbox();
+      setConnectMessage(result.ok ? "Google disconnected." : result.message);
+      if (result.ok) router.refresh();
+    });
+  }
+
+  const statusFromRedirect = connectStatus ? CONNECT_STATUS_MESSAGES[connectStatus] ?? null : null;
 
   return (
     <>
@@ -167,7 +203,7 @@ export default function SettingsPanel({ email, displayName, avatarUrl, profileAv
           <Toggle label="Assigned tasks" description="Tasks assigned to you." enabled={Boolean(noticeMask & NOTICE_FLAGS.tasks)} onChange={() => toggleNotice("tasks")} />
           <Toggle label="Mentions and replies" description="@mentions in chat or comments, and replies to your comments." enabled={Boolean(noticeMask & NOTICE_FLAGS.mentions)} onChange={() => toggleNotice("mentions")} />
           <Toggle label="Chat messages" description="Direct and group messages. Chat @mentions follow the Mentions choice." enabled={Boolean(noticeMask & NOTICE_FLAGS.chat)} onChange={() => toggleNotice("chat")} />
-          <Toggle label="Assigned email drafts" description="Drafts assigned to you for review or sending." enabled={Boolean(noticeMask & NOTICE_FLAGS.drafts)} onChange={() => toggleNotice("drafts")} />
+          <Toggle label="Assigned email drafts" description="Historical only — drafts no longer have a responsible to assign." enabled={Boolean(noticeMask & NOTICE_FLAGS.drafts)} onChange={() => toggleNotice("drafts")} />
         </div>
         <p className="mt-2 text-[11px] text-neutral-500">Activity alerts can be added when that event type exists.</p>
       </section>
@@ -202,21 +238,66 @@ export default function SettingsPanel({ email, displayName, avatarUrl, profileAv
 
       <section className={card} aria-labelledby="settings-connections">
         <h2 id="settings-connections" className="text-[15px] font-semibold text-ink">Connected accounts</h2>
-        <p className="mt-1 text-[12px] text-neutral-500">Signing in with Google does not give Vanquish OS access to your mailbox or calendar. Connections will request separate permission.</p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          {[
-            ["Gmail", "Email activity and sending from your Gmail account"],
-            ["Outlook", "Email activity and sending from your Microsoft mailbox"],
-            ["Google Calendar", "Meetings linked to companies and deals"],
-            ["Microsoft Calendar", "Meetings from your Microsoft calendar"],
-          ].map(([title, detail]) => (
-            <div key={title} className="rounded-xl border border-neutral-200 bg-[#f8fafb] p-4">
-              <div className="flex items-center justify-between gap-2"><h3 className="text-[13px] font-semibold text-ink">{title}</h3><span className="rounded-full bg-neutral-200 px-2 py-1 text-[10px] font-semibold text-neutral-600">Not available yet</span></div>
-              <p className="mt-2 text-[11.5px] text-neutral-500">{detail}</p>
-            </div>
-          ))}
+        <p className="mt-1 text-[12px] text-neutral-500">Signing in with Google does not give Vanquish OS access to your mailbox or calendar. Connecting asks for that separately.</p>
+        {statusFromRedirect && (
+          <p role="status" className={`mt-3 rounded-lg p-3 text-[12px] ${statusFromRedirect.tone === "ok" ? "bg-cyan-50 text-cyan-800" : "bg-amber-50 text-amber-800"}`}>
+            {statusFromRedirect.text}
+          </p>
+        )}
+        <div className="mt-4 rounded-xl border border-neutral-200 bg-[#f8fafb] p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-[13px] font-semibold text-ink">Google (Gmail + Calendar)</h3>
+            <span
+              className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
+                mailbox.connected ? "bg-emerald-100 text-emerald-800" : "bg-neutral-200 text-neutral-600"
+              }`}
+            >
+              {mailbox.connected ? "Connected" : "Not connected"}
+            </span>
+          </div>
+          <p className="mt-2 text-[11.5px] text-neutral-500">
+            Sending drafts, reading Inbox/Sent, and meetings linked to companies and deals, from your own Gmail and Google
+            Calendar. One connection covers both.
+          </p>
+          {mailbox.connected ? (
+            <>
+              {mailbox.connectedAt && (
+                <p className="mt-2 text-[11.5px] text-neutral-500">
+                  Connected {formatExactDateTime(mailbox.connectedAt)}
+                </p>
+              )}
+              {mailbox.grantedScopes.length > 0 && (
+                <ul className="mt-2 space-y-0.5 text-[11.5px] text-neutral-600">
+                  {mailbox.grantedScopes.map((scope) => (
+                    <li key={scope} className="flex items-center gap-1.5">
+                      <span aria-hidden className="text-emerald-600">✓</span>
+                      {GRANTED_SCOPE_LABELS[scope] ?? scope}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <button
+                type="button"
+                disabled={connectPending}
+                onClick={disconnectGoogle}
+                className="mt-3 rounded-lg border border-neutral-200 px-3 py-2 text-[12px] font-semibold text-neutral-700 hover:border-red-200 hover:text-red-700 disabled:opacity-50"
+              >
+                {connectPending ? "Disconnecting..." : "Disconnect"}
+              </button>
+            </>
+          ) : (
+            <a
+              href="/api/connections/google/start"
+              className="mt-3 inline-block rounded-lg bg-ink px-3 py-2 text-[12px] font-semibold text-white hover:bg-[#263033]"
+            >
+              Connect Google
+            </a>
+          )}
+          {connectMessage && <p role="status" className="mt-2 text-[11.5px] text-cyan-800">{connectMessage}</p>}
         </div>
-        <p className="mt-3 text-[11px] text-neutral-500">Connection buttons and sync status will appear here when each service is configured.</p>
+        <p className="mt-3 text-[11px] text-neutral-500">
+          Sending, mailbox sync and calendar sync are separate follow-up work — connecting only stores the grant for now.
+        </p>
       </section>
     </>
   );

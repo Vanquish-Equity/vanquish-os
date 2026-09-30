@@ -21,8 +21,8 @@ export default async function NewDraftPage() {
           New email draft
         </h1>
         <p className="mt-1 text-[13px] text-neutral-500">
-          Any kind of email to potential LPs. You can prepare it for another member, who will review it and later send it
-          from their own Gmail. Everything stays a draft until sending is connected.
+          Any kind of email to potential LPs. It stays a draft, and only you can edit or discard it — once Gmail is
+          connected, it sends from your own mailbox.
         </p>
       </header>
       <DraftComposer draft={null} contacts={contacts} groups={groups} members={members} canEdit currentUserEmail={access.email} />

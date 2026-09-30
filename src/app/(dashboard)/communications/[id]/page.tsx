@@ -51,8 +51,6 @@ export default async function DraftPage({
         </div>
         <p className="mt-1 text-[13px] text-neutral-500">
           Created by <span className="font-semibold text-ink">{memberLabel(members, draft.createdBy)}{you(draft.createdBy)}</span>
-          {" · "}For <span className="font-semibold text-ink">{memberLabel(members, draft.assignedTo)}{you(draft.assignedTo)}</span>
-          {" "}(responsible / planned sender)
         </p>
       </header>
       {/* Remount after each save so the form shows exactly what was stored. */}

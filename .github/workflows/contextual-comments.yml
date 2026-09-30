@@ -68,3 +68,11 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/tests/email_recipient_fields.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260929173000_board_directory_import.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/board_directory_import.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260929180000_draft_formatting_and_schedule.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/draft_formatting_and_schedule.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260929190000_email_scouting_permission.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/email_scouting_permission.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260929200000_google_mailbox_connections.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/google_mailbox_connections.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260929220000_drop_draft_responsible.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/lp_communications.sql > /dev/null

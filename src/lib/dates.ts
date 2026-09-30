@@ -13,6 +13,14 @@ const exactDateFormatter = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 });
 
+const exactDateTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
 function toDate(value: string | Date) {
   return value instanceof Date ? value : new Date(value);
 }
@@ -24,6 +32,17 @@ export function formatExactDate(value: string | Date | null | undefined) {
   if (Number.isNaN(date.getTime())) return "Invalid date";
 
   return exactDateFormatter.format(date);
+}
+
+// Client-side only (uses the browser's local time zone): for a specific
+// planned moment such as a scheduled send, not for date-only CRM fields.
+export function formatExactDateTime(value: string | Date | null | undefined) {
+  if (!value) return "No date";
+
+  const date = toDate(value);
+  if (Number.isNaN(date.getTime())) return "Invalid date";
+
+  return exactDateTimeFormatter.format(date);
 }
 
 export function formatMonthYear(value: string | Date | null | undefined) {

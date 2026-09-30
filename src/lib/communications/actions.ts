@@ -6,6 +6,7 @@ import { logActivity } from "@/lib/activity/log";
 import { actionAccessError } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/server";
 import type { ImportPayloadRow } from "@/lib/communications/import";
+import { sanitizeDraftHtml } from "@/lib/communications/rich-text";
 
 // Recipient lists and contact details never go into URLs, the activity log
 // or error messages: results carry counts and generic messages only.
@@ -72,9 +73,9 @@ export type SaveDraftInput = {
   subject: string;
   body: string;
   recipients: DraftRecipientInput[];
-  // Responsible / planned sender (active member email). null keeps the
-  // current one; a new draft defaults to its creator.
-  assignedTo: string | null;
+  // Planned send time (ISO string) or null to clear it. Informational only:
+  // nothing sends yet, so this does not schedule any job.
+  scheduledAt: string | null;
 };
 
 export type SaveDraftResult = { ok: true; draftId: string } | { ok: false; message: string };
@@ -84,11 +85,19 @@ export async function saveDraftAction(input: SaveDraftInput): Promise<SaveDraftR
   if (accessError) return { ok: false, message: accessError };
 
   const subject = String(input.subject ?? "");
-  const body = String(input.body ?? "");
+  const body = sanitizeDraftHtml(String(input.body ?? ""));
   if (subject.length > 500) return { ok: false, message: "Subject is too long (500 characters max)." };
-  if (body.length > 100000) return { ok: false, message: "Message is too long." };
+  if (body.length > 200000) return { ok: false, message: "Message is too long." };
   if (!Array.isArray(input.recipients)) return { ok: false, message: "Invalid recipient list." };
   if (input.recipients.some((r) => !["to", "cc", "bcc"].includes(r.field))) return { ok: false, message: "Invalid recipient field." };
+
+  let scheduledAt: string | null = null;
+  if (input.scheduledAt) {
+    const parsed = new Date(input.scheduledAt);
+    if (Number.isNaN(parsed.getTime())) return { ok: false, message: "Invalid scheduled send time." };
+    if (parsed.getTime() <= Date.now()) return { ok: false, message: "Scheduled send time must be in the future." };
+    scheduledAt = parsed.toISOString();
+  }
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("save_email_draft", {
@@ -101,16 +110,14 @@ export async function saveDraftAction(input: SaveDraftInput): Promise<SaveDraftR
       accept_current: recipient.acceptCurrent === true,
       field: recipient.field,
     })),
-    p_assigned_to: input.assignedTo ? String(input.assignedTo) : null,
+    p_scheduled_at: scheduledAt,
   });
 
   if (error || !data) {
     const message =
       error?.code === "42501"
-        ? "Only the person who created this draft or its responsible can edit it, and discarded drafts cannot be changed."
-        : error?.code === "23514"
-          ? "Choose an active Vanquish member as the responsible."
-          : "The draft was not saved. A selected contact may have changed in People; reload the draft to review it.";
+        ? "Only the person who created this draft can edit it, and discarded drafts cannot be changed."
+        : "The draft was not saved. A selected contact may have changed in People; reload the draft to review it.";
     return { ok: false, message };
   }
 
@@ -120,7 +127,7 @@ export async function saveDraftAction(input: SaveDraftInput): Promise<SaveDraftR
       eventType: input.draftId ? "EMAIL_DRAFT_UPDATED" : "EMAIL_DRAFT_CREATED",
       targetType: "email_draft",
       targetId: draftId,
-      payload: { recipientCount: input.recipients.length, assigned: Boolean(input.assignedTo) },
+      payload: { recipientCount: input.recipients.length },
     },
     supabase
   );
@@ -142,7 +149,7 @@ export async function discardDraftAction(draftId: string): Promise<{ ok: true } 
     .select("id");
 
   if (error || !data || data.length === 0) {
-    return { ok: false, message: "Only the person who created this draft or its responsible can discard it." };
+    return { ok: false, message: "Only the person who created this draft can discard it." };
   }
 
   await logActivity(

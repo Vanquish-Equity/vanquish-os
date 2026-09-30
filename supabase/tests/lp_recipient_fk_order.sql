@@ -58,9 +58,9 @@ begin
     (md5(p_tag || 'gone-e1')::uuid, md5(p_tag || 'gone')::uuid, 'leaving.' || p_tag || '@example.com', true),
     (md5(p_tag || 'gone-e2')::uuid, md5(p_tag || 'gone')::uuid, 'leaving2.' || p_tag || '@example.com', false),
     (md5(p_tag || 'stay-e1')::uuid, md5(p_tag || 'stay')::uuid, 'staying.' || p_tag || '@example.com', true);
-  insert into public.email_drafts (id, subject, created_by, assigned_to) values
-    (md5(p_tag || 'draft1')::uuid, 'Draft one ' || p_tag, 'fk.test@vanquishequity.com', 'fk.test@vanquishequity.com'),
-    (md5(p_tag || 'draft2')::uuid, 'Draft two ' || p_tag, 'fk.test@vanquishequity.com', 'fk.test@vanquishequity.com');
+  insert into public.email_drafts (id, subject, created_by) values
+    (md5(p_tag || 'draft1')::uuid, 'Draft one ' || p_tag, 'fk.test@vanquishequity.com'),
+    (md5(p_tag || 'draft2')::uuid, 'Draft two ' || p_tag, 'fk.test@vanquishequity.com');
   insert into public.email_draft_recipients (draft_id, person_id, person_email_id, email_at_selection, name_at_selection) values
     (md5(p_tag || 'draft1')::uuid, md5(p_tag || 'gone')::uuid, md5(p_tag || 'gone-e1')::uuid, 'leaving.' || p_tag || '@example.com', 'Leaving LP ' || p_tag),
     (md5(p_tag || 'draft1')::uuid, md5(p_tag || 'stay')::uuid, md5(p_tag || 'stay-e1')::uuid, 'staying.' || p_tag || '@example.com', 'Staying LP ' || p_tag),
