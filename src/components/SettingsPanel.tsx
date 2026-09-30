@@ -203,7 +203,7 @@ export default function SettingsPanel({ email, displayName, avatarUrl, profileAv
           <Toggle label="Assigned tasks" description="Tasks assigned to you." enabled={Boolean(noticeMask & NOTICE_FLAGS.tasks)} onChange={() => toggleNotice("tasks")} />
           <Toggle label="Mentions and replies" description="@mentions in chat or comments, and replies to your comments." enabled={Boolean(noticeMask & NOTICE_FLAGS.mentions)} onChange={() => toggleNotice("mentions")} />
           <Toggle label="Chat messages" description="Direct and group messages. Chat @mentions follow the Mentions choice." enabled={Boolean(noticeMask & NOTICE_FLAGS.chat)} onChange={() => toggleNotice("chat")} />
-          <Toggle label="Assigned email drafts" description="Drafts assigned to you for review or sending." enabled={Boolean(noticeMask & NOTICE_FLAGS.drafts)} onChange={() => toggleNotice("drafts")} />
+          <Toggle label="Assigned email drafts" description="Historical only — drafts no longer have a responsible to assign." enabled={Boolean(noticeMask & NOTICE_FLAGS.drafts)} onChange={() => toggleNotice("drafts")} />
         </div>
         <p className="mt-2 text-[11px] text-neutral-500">Activity alerts can be added when that event type exists.</p>
       </section>

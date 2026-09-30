@@ -104,6 +104,10 @@ Run the migration files in order in the Supabase SQL Editor:
     own Google (Gmail + Calendar) OAuth connection, application-encrypted,
     accessible only to that member through narrow functions (no direct
     table access, not even for admins).
+35. `20260929220000_drop_draft_responsible.sql` - removes the "Responsible /
+    planned sender" concept from email drafts (`assigned_to` dropped
+    entirely); a draft's only editor is now its creator, since sending will
+    come from the creator's own connected Gmail.
 
 These timestamps are part of the migration filenames. For the schema readiness
 check, the recorded history uses their descriptive suffix; see

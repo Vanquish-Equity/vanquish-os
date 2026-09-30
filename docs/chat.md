@@ -35,15 +35,17 @@ The database re-checks that every mention is an active participant.
 | @mention | The mentioned participant (instead of the group notice) | The conversation |
 | Group message | Every other active participant | The conversation |
 | Task assigned (`0017`) | The assignee, when someone else assigns it | `/tasks?view=mine#task-<id>` |
-| Email draft assigned (`0016`) | The responsible, when someone else sets them | `/communications/<id>` |
 
-- Nobody is notified of their own message, task or draft.
+- Nobody is notified of their own message or task.
 - One notification per recipient and event: a unique
-  `(recipient_email, dedupe_key)` (`message:<id>`, `task:<id>:<assigned_at>`,
-  `draft:<id>:<assignee>:<time of the assignment>`) makes retries no-ops.
-  Only a real change of assignee or responsible notifies: editing a task, or
-  a draft's subject, body or recipients, does not; handing it to someone
-  else does (and handing it back is a new assignment).
+  `(recipient_email, dedupe_key)` (`message:<id>`, `task:<id>:<assigned_at>`)
+  makes retries no-ops. Only a real change of assignee notifies: editing a
+  task does not.
+- Email drafts never notify anyone: `20260929220000_drop_draft_responsible.sql`
+  drops the `0016` draft-assignment trigger along with the "responsible"
+  concept it existed for (a draft's only owner is now its creator). The
+  `draft_assigned` notification kind and any historical rows of that kind
+  stay in the schema (nothing new is ever created).
 - Notifications store references, never message text. The inbox reads the
   message, task or draft under the recipient's own RLS, so a notification
   cannot show content the recipient cannot open.

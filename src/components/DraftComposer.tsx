@@ -7,7 +7,7 @@ import { discardDraftAction, saveDraftAction } from "@/lib/communications/action
 import SelectMenu from "@/components/SelectMenu";
 import RichTextEditor from "@/components/RichTextEditor";
 import ComposerIcon, { type ComposerIconName } from "@/components/ComposerIcon";
-import { isActiveMember, memberLabel, type Member } from "@/lib/communications/drafts";
+import { memberLabel, type Member } from "@/lib/communications/drafts";
 import type { ContactGroup, DraftDetail, DraftRecipient, LpContact } from "@/lib/communications/queries";
 import { RECIPIENT_ISSUE_LABELS } from "@/lib/communications/recipients";
 import { isPlainTextBody, plainTextToHtml } from "@/lib/communications/rich-text";
@@ -98,7 +98,7 @@ export default function DraftComposer({
   draft: DraftDetail | null;
   contacts: LpContact[];
   groups: ContactGroup[];
-  // Active members, the only valid responsibles.
+  // Active members, for showing display names (e.g. the creator's).
   members: Member[];
   canEdit: boolean;
   currentUserEmail: string;
@@ -106,11 +106,6 @@ export default function DraftComposer({
 }) {
   const router = useRouter();
   const createdBy = draft?.createdBy ?? currentUserEmail;
-  const [assignedTo, setAssignedTo] = useState(draft?.assignedTo ?? currentUserEmail);
-  const assigneeActive = isActiveMember(members, assignedTo);
-  // Handing the draft to someone else removes your edit rights unless you
-  // created it.
-  const handingOff = assignedTo !== (draft?.assignedTo ?? currentUserEmail) && assignedTo !== currentUserEmail && createdBy !== currentUserEmail;
   const [subject, setSubject] = useState(draft?.subject ?? "");
   const [body, setBody] = useState(() => (draft && isPlainTextBody(draft.body) ? plainTextToHtml(draft.body) : draft?.body ?? ""));
   const bodyText = useMemo(() => body.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(), [body]);
@@ -275,7 +270,6 @@ export default function DraftComposer({
         draftId: draft?.id ?? null,
         subject,
         body,
-        assignedTo: draft && assignedTo === draft.assignedTo ? null : assignedTo,
         scheduledAt: scheduleEnabled && scheduledAt ? new Date(scheduledAt).toISOString() : null,
         recipients: [...selection.values()].map((item) => ({
           recipientId: item.recipientId,
@@ -289,11 +283,6 @@ export default function DraftComposer({
         return;
       }
       setDirty(false);
-      if (handingOff) {
-        router.push("/communications");
-        router.refresh();
-        return;
-      }
       // The page reloads the draft from the database, so what is shown after
       // saving is exactly what was stored.
       router.replace(`/communications/${result.draftId}?saved=1`);
@@ -319,15 +308,6 @@ export default function DraftComposer({
     { label: "Message", ok: bodyText.length > 0 },
     { label: "At least one recipient", ok: selectedCount > 0 },
     { label: "No recipients to review", ok: reviewCount === 0 },
-    { label: "Responsible is an active member", ok: assigneeActive },
-  ];
-
-  const memberOptions = [
-    ...members.map((member) => ({
-      value: member.email,
-      label: member.email === currentUserEmail ? `${member.name} (you)` : `${member.name} · ${member.email}`,
-    })),
-    ...(assigneeActive ? [] : [{ value: assignedTo, label: `${assignedTo} (no longer active)`, disabled: true }]),
   ];
 
   return (
@@ -336,56 +316,20 @@ export default function DraftComposer({
         <div className="rounded-[14px] border border-neutral-200 bg-[#f7f9fa] px-4 py-3 text-[12.5px] text-neutral-600">
           {draft.archivedAt
             ? "This draft was discarded. It is read-only."
-            : `Read-only: only ${memberLabel(members, draft.createdBy)} (created it) and ${memberLabel(
-                members,
-                draft.assignedTo
-              )} (responsible) can edit this draft.`}
+            : `Read-only: only ${memberLabel(members, draft.createdBy)} (created it) can edit this draft.`}
         </div>
       )}
 
-      <section className="vq-card-static grid grid-cols-1 gap-4 rounded-[14px] bg-white p-5 sm:grid-cols-2">
-        <div>
-          <div className={labelClass}>Created by</div>
-          <p className="py-2 text-[13px] text-ink">
-            {memberLabel(members, createdBy)}
-            {createdBy === currentUserEmail ? " (you)" : ""}
-            <span className="block text-[11.5px] text-neutral-500">Prepared the draft. Can keep editing it.</span>
-          </p>
-        </div>
-        <div>
-          <label htmlFor="draft-assignee" className={labelClass}>
-            Responsible / planned sender
-          </label>
-          {canEdit ? (
-            <SelectMenu
-              id="draft-assignee"
-              value={assignedTo}
-              options={memberOptions}
-              onChange={(value) => {
-                setAssignedTo(value);
-                markDirty();
-              }}
-            />
-          ) : (
-            <p id="draft-assignee" className="py-2 text-[13px] text-ink">
-              {memberLabel(members, assignedTo)}
-            </p>
-          )}
-          <p className="mt-1 text-[11.5px] text-neutral-500">
-            Reviews the draft and, once Gmail is connected, sends it from their own mailbox.
-          </p>
-          {!assigneeActive && (
-            <p role="alert" className="mt-1 text-[11.5px] text-amber-800">
-              This responsible is no longer an active member. Choose another one.
-            </p>
-          )}
-          {handingOff && (
-            <p className="mt-1 text-[11.5px] text-amber-800">
-              After saving, {memberLabel(members, assignedTo)} and {memberLabel(members, createdBy)} can edit it; you
-              will only be able to view it.
-            </p>
-          )}
-        </div>
+      <section className="vq-card-static rounded-[14px] bg-white p-5">
+        <div className={labelClass}>Created by</div>
+        <p className="py-2 text-[13px] text-ink">
+          {memberLabel(members, createdBy)}
+          {createdBy === currentUserEmail ? " (you)" : ""}
+          <span className="block text-[11.5px] text-neutral-500">
+            Only the creator can edit or discard this draft — once Gmail is connected, it sends from the creator&rsquo;s own
+            mailbox.
+          </span>
+        </p>
       </section>
 
       {reviewCount > 0 && (
@@ -529,7 +473,7 @@ export default function DraftComposer({
             <dl className="mt-2 grid grid-cols-[72px_1fr] gap-y-1">
               <dt className="text-neutral-400">From</dt>
               <dd className="text-ink">
-                {memberLabel(members, assignedTo)} · {assignedTo} (their Gmail mailbox)
+                {memberLabel(members, createdBy)} · {createdBy} (their Gmail mailbox)
               </dd>
               <dt className="text-neutral-400">Recipients</dt>
               <dd className="text-ink">

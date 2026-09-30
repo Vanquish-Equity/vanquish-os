@@ -73,9 +73,6 @@ export type SaveDraftInput = {
   subject: string;
   body: string;
   recipients: DraftRecipientInput[];
-  // Responsible / planned sender (active member email). null keeps the
-  // current one; a new draft defaults to its creator.
-  assignedTo: string | null;
   // Planned send time (ISO string) or null to clear it. Informational only:
   // nothing sends yet, so this does not schedule any job.
   scheduledAt: string | null;
@@ -113,17 +110,14 @@ export async function saveDraftAction(input: SaveDraftInput): Promise<SaveDraftR
       accept_current: recipient.acceptCurrent === true,
       field: recipient.field,
     })),
-    p_assigned_to: input.assignedTo ? String(input.assignedTo) : null,
     p_scheduled_at: scheduledAt,
   });
 
   if (error || !data) {
     const message =
       error?.code === "42501"
-        ? "Only the person who created this draft or its responsible can edit it, and discarded drafts cannot be changed."
-        : error?.code === "23514"
-          ? "Choose an active Vanquish member as the responsible."
-          : "The draft was not saved. A selected contact may have changed in People; reload the draft to review it.";
+        ? "Only the person who created this draft can edit it, and discarded drafts cannot be changed."
+        : "The draft was not saved. A selected contact may have changed in People; reload the draft to review it.";
     return { ok: false, message };
   }
 
@@ -133,7 +127,7 @@ export async function saveDraftAction(input: SaveDraftInput): Promise<SaveDraftR
       eventType: input.draftId ? "EMAIL_DRAFT_UPDATED" : "EMAIL_DRAFT_CREATED",
       targetType: "email_draft",
       targetId: draftId,
-      payload: { recipientCount: input.recipients.length, assigned: Boolean(input.assignedTo) },
+      payload: { recipientCount: input.recipients.length },
     },
     supabase
   );
@@ -155,7 +149,7 @@ export async function discardDraftAction(draftId: string): Promise<{ ok: true } 
     .select("id");
 
   if (error || !data || data.length === 0) {
-    return { ok: false, message: "Only the person who created this draft or its responsible can discard it." };
+    return { ok: false, message: "Only the person who created this draft can discard it." };
   }
 
   await logActivity(

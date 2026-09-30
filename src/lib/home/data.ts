@@ -117,7 +117,7 @@ export async function loadHomeData(
         .select(
           "id,subject,created_by,updated_at,recipients:email_draft_recipients(email_at_selection,person:people(archived_at,is_potential_lp,person_emails(email,is_primary)),selected_email:person_emails(email))"
         )
-        .eq("assigned_to", email)
+        .eq("created_by", email)
         .is("archived_at", null)
         .order("updated_at", { ascending: false })
         .limit(20) as unknown as Promise<{ data: DraftRow[] | null }>,

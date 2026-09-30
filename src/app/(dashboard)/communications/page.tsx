@@ -13,7 +13,6 @@ type DraftRow = {
   id: string;
   subject: string;
   created_by: string;
-  assigned_to: string;
   updated_at: string;
   scheduled_at: string | null;
 };
@@ -30,7 +29,6 @@ type RecipientRow = {
 };
 
 const VIEW_LABELS: Record<DraftListView, string> = {
-  for_me: "For me",
   created_by_me: "Created by me",
   all: "All drafts",
 };
@@ -61,7 +59,7 @@ export default async function CommunicationsPage({
   const [{ data: allDrafts }, { count: lpCount }, members] = await Promise.all([
     supabase
       .from("email_drafts")
-      .select("id,subject,created_by,assigned_to,updated_at,scheduled_at")
+      .select("id,subject,created_by,updated_at,scheduled_at")
       .is("archived_at", null)
       .order("updated_at", { ascending: false }) as unknown as Promise<{ data: DraftRow[] | null }>,
     supabase
@@ -73,20 +71,15 @@ export default async function CommunicationsPage({
   ]);
 
   const me = access.email;
-  const counts: Record<DraftListView, number> = { for_me: 0, created_by_me: 0, all: 0 };
+  const counts: Record<DraftListView, number> = { created_by_me: 0, all: 0 };
   for (const draft of allDrafts ?? []) {
-    const ownership = { createdBy: draft.created_by, assignedTo: draft.assigned_to };
+    const ownership = { createdBy: draft.created_by };
     (Object.keys(counts) as DraftListView[]).forEach((key) => {
       if (inDraftView(key, ownership, me)) counts[key] += 1;
     });
   }
-  const view = parseDraftView(viewParam, counts.for_me);
-  const drafts = (allDrafts ?? []).filter((draft) =>
-    inDraftView(view, { createdBy: draft.created_by, assignedTo: draft.assigned_to }, me)
-  );
-  const preparedForMe = (allDrafts ?? []).filter(
-    (draft) => draft.assigned_to === me && draft.created_by !== me
-  ).length;
+  const view = parseDraftView(viewParam);
+  const drafts = (allDrafts ?? []).filter((draft) => inDraftView(view, { createdBy: draft.created_by }, me));
   const who = (email: string) => (email === me ? "You" : memberLabel(members, email));
   const tabClass = (active: boolean) =>
     `rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition ${
@@ -133,8 +126,8 @@ export default async function CommunicationsPage({
           </h1>
           <p className="mt-1 max-w-[680px] text-[13px] text-neutral-500">
             Prepare emails to potential LPs (announcements, updates, invitations) and choose who receives each one.
-            Each draft has a responsible who reviews it and, once Gmail is connected, sends it from their own mailbox with
-            recipients in To, CC or BCC. Sending is not connected yet, so nothing is sent.
+            Once Gmail is connected, a draft sends from its creator&rsquo;s own mailbox with recipients in To, CC or BCC.
+            Sending is not connected yet, so nothing is sent.
           </p>
         </div>
         <Link
@@ -185,16 +178,6 @@ export default async function CommunicationsPage({
         </div>
       </div>
 
-      {preparedForMe > 0 && (
-        <div className="rounded-[14px] border border-cyan-200 bg-[#f0fafb] px-4 py-3 text-[12.5px] text-cyan-900">
-          <span className="font-semibold">
-            {preparedForMe} draft{preparedForMe === 1 ? " was" : "s were"} prepared for you
-          </span>{" "}
-          by other members. You are the responsible: review, edit and (later) send {preparedForMe === 1 ? "it" : "them"} from
-          your Gmail.
-        </div>
-      )}
-
       <nav className="flex flex-wrap items-center gap-2" aria-label="Draft views">
         {(Object.keys(VIEW_LABELS) as DraftListView[]).map((key) => (
           <Link key={key} href={`/communications?view=${key}`} className={tabClass(view === key)} aria-current={view === key ? "page" : undefined}>
@@ -209,7 +192,6 @@ export default async function CommunicationsPage({
             <tr className="border-b border-neutral-100 text-left text-[10.5px] uppercase tracking-wide text-neutral-400">
               <th className="px-4 py-3 font-semibold">Draft</th>
               <th className="px-4 py-3 font-semibold">Created by</th>
-              <th className="px-4 py-3 font-semibold">For (responsible)</th>
               <th className="px-4 py-3 font-semibold">Recipients</th>
               <th className="px-4 py-3 font-semibold">Status</th>
               <th className="px-4 py-3 font-semibold">Last change</th>
@@ -226,11 +208,6 @@ export default async function CommunicationsPage({
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-neutral-600">{who(draft.created_by)}</td>
-                  <td className="px-4 py-3">
-                    <span className={draft.assigned_to === me ? "font-semibold text-cyan-800" : "text-neutral-600"}>
-                      {who(draft.assigned_to)}
-                    </span>
-                  </td>
                   <td className="px-4 py-3 text-neutral-600">{entry.total}</td>
                   <td className="px-4 py-3">
                     <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-semibold text-neutral-600">
@@ -255,7 +232,7 @@ export default async function CommunicationsPage({
             })}
             {drafts.length === 0 && (allDrafts ?? []).length > 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-[12.5px] text-neutral-500">
+                <td colSpan={5} className="px-4 py-10 text-center text-[12.5px] text-neutral-500">
                   No drafts in this view.{" "}
                   <Link href="/communications?view=all" className="font-semibold text-cyan-700 hover:underline">
                     See all drafts
@@ -265,7 +242,7 @@ export default async function CommunicationsPage({
             )}
             {(allDrafts ?? []).length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center">
+                <td colSpan={5} className="px-4 py-10 text-center">
                   <p className="font-semibold text-ink">No drafts yet.</p>
                   <p className="mx-auto mt-1 max-w-[520px] text-[12px] text-neutral-500">
                     {lpCount
