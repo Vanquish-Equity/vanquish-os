@@ -30,11 +30,18 @@ export async function GET(request: Request) {
   };
 
   if (!code || !state || !cookieState || state !== cookieState) {
+    console.error("[google-connect] state check failed", {
+      hasCode: Boolean(code),
+      hasState: Boolean(state),
+      hasCookieState: Boolean(cookieState),
+      stateMatches: state === cookieState,
+    });
     return clearStateCookie(NextResponse.redirect(settingsUrl("error")));
   }
 
   const access = await getAccess();
   if (access.status !== "member") {
+    console.error("[google-connect] callback reached by a non-member", { status: access.status });
     return clearStateCookie(NextResponse.redirect(new URL("/login", url.origin)));
   }
 
@@ -46,6 +53,9 @@ export async function GET(request: Request) {
       // without prompt=consent; we always pass prompt=consent, so this
       // should not happen in practice, but never overwrite a working
       // connection with one that can't be refreshed.
+      console.error("[google-connect] token exchange succeeded but no refresh_token was returned", {
+        scope: tokens.scope,
+      });
       return clearStateCookie(NextResponse.redirect(settingsUrl("no_refresh_token")));
     }
 
@@ -58,9 +68,14 @@ export async function GET(request: Request) {
       p_refresh_token_tag: tag,
     });
     if (error) {
+      console.error("[google-connect] save_mailbox_connection failed", {
+        code: error.code,
+        message: error.message,
+      });
       return clearStateCookie(NextResponse.redirect(settingsUrl("error")));
     }
-  } catch {
+  } catch (err) {
+    console.error("[google-connect] callback threw", err instanceof Error ? err.message : err);
     return clearStateCookie(NextResponse.redirect(settingsUrl("error")));
   }
 
