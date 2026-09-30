@@ -166,6 +166,22 @@ Vercel environments.
    would need to reconnect); treat it with the same care as a database
    credential.
 
+### Google access errors after reconnecting
+
+Successful OAuth consent does not enable APIs in Google Cloud. If Inbox or
+Calendar still reports denied access, check **APIs & Services → Enabled APIs**
+in the exact project that owns `GOOGLE_OAUTH_CLIENT_ID`. Both **Gmail API**
+(`gmail.googleapis.com`) and **Google Calendar API** (`calendar-json.googleapis.com`)
+must be enabled. After enabling them, allow propagation and refresh the OS.
+Reconnecting alone does not resolve disabled APIs or Workspace policy blocks.
+
+The Google transport distinguishes provider reason codes for disabled APIs,
+missing scopes, Workspace policy and quota limits, using fixed user-facing
+guidance. Unknown or malformed responses keep a safe generic fallback; raw
+provider messages, tokens, account details and project IDs are never exposed.
+Calendar writes additionally require **Enable calendar editing** and writer
+access to that calendar.
+
 ## Verification
 
 Run `0001` through `0022` in order on a disposable Postgres database using
@@ -175,4 +191,3 @@ checks anonymous access, member isolation, folder policy and RPC validation.
 The SQL workflow runs these checks on pull requests.
 It also reapplies `0023` and runs `supabase/tests/admin_settings.sql` in the
 disposable database.
-
