@@ -20,25 +20,33 @@ The current implementation includes shared general boards with native cards and 
 
 As of the current board implementation, native cards support team assignees,
 due dates, descriptions and checklists. Linked Deals support multiple team
-assignees with avatars. Pipeline supports on-board filters. Board pages support
-contextual comments. Custom fields, task/LP record workflows and personal
-boards for general purposes are still planned rather than available. People
-now has saved views (below); boards do not yet.
+assignees with avatars. Pipeline supports on-board filters, now savable as
+Views (below). Board pages support contextual comments. Custom fields,
+task/LP record workflows and personal boards for general purposes are still
+planned rather than available. People and Pipeline have saved views; custom
+boards do not yet.
 
-## Saved Views (People)
+## Saved Views (People, Pipeline)
 
-A **View** is a named, saved filter spec for the People list — which group,
-name search and base tab (`/people` vs `?view=lps`) to apply — not a separate
-copy of People. `saved_views` (migration `20260930100000`) stores `object_type`
-(currently only `'people'`, extensible to other lists later), `owner`,
-`is_shared`, and the filter spec as `filters` jsonb. Any active member can
-read their own views plus any `is_shared` view from a teammate; only the
-owner can rename or delete a view — sharing means "others can use it", not
-"others can edit it". Clicking a saved view navigates to `/people` with that
-view's query params applied; there is no separate "view mode" to maintain.
-Column visibility, sorting and board/kanban-style views are not implemented
-yet — today a view only captures filters (group, name search, base tab) over
-the existing table.
+A **View** is a named, saved filter spec for a list — not a separate copy of
+its records. `saved_views` (migration `20260930100000`, widened to a second
+`object_type` in `20260930120000`) stores `object_type` (`'people'` or
+`'pipeline'`, extensible to other lists later), `owner`, `is_shared`, and the
+filter spec as `filters` jsonb. Any active member can read their own views
+plus any `is_shared` view from a teammate; only the owner can rename or
+delete a view — sharing means "others can use it", not "others can edit it".
+Clicking a saved view navigates back to its list with that view's query
+params applied; there is no separate "view mode" to maintain, and each list
+normalizes the stored `filters` jsonb into its own typed shape (nothing is
+shared between People's and Pipeline's filter spec beyond the table and its
+RLS). Column visibility, sorting and board/kanban-style views are not
+implemented yet:
+
+- **People** filters: group and name search, and the base tab (`/people` vs
+  `?view=lps`).
+- **Pipeline** filters: stage, priority and whether terminal outcomes are
+  hidden — the same filters the board already applied via query params,
+  now nameable and reusable instead of re-set by hand each time.
 
 ## Company timeline: email history
 
