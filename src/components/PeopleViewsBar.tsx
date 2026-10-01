@@ -3,6 +3,8 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Checkbox from "@/components/Checkbox";
+import { FormSelectMenu } from "@/components/SelectMenu";
 import { deleteViewAction, saveViewAction } from "@/lib/views/actions";
 import {
   viewHref,
@@ -30,6 +32,8 @@ export default function PeopleViewsBar({
   me: string;
 }) {
   const router = useRouter();
+  const isFiltered = Boolean(filters.groupId || filters.q);
+  const [filtersOpen, setFiltersOpen] = useState(isFiltered);
   const [saveOpen, setSaveOpen] = useState(false);
   const [name, setName] = useState("");
   const [shared, setShared] = useState(false);
@@ -70,14 +74,11 @@ export default function PeopleViewsBar({
   }
 
   return (
-    <div className="vq-card-static flex flex-col gap-3 rounded-[14px] bg-white px-3 py-3">
+    <div className="vq-card-static flex flex-col gap-2.5 rounded-[14px] bg-white px-3 py-2.5">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
-          Views
-        </span>
-        {views.length === 0 && (
-          <span className="text-[11.5px] text-neutral-400">
-            Save a filtered search below to reuse it here.
+        {views.length > 0 && (
+          <span className="text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
+            Views
           </span>
         )}
         {views.map((view) => (
@@ -111,82 +112,102 @@ export default function PeopleViewsBar({
         ))}
         <button
           type="button"
-          onClick={() => setSaveOpen((v) => !v)}
-          className="rounded-full border border-dashed border-neutral-300 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-500 transition hover:border-cyan-300 hover:text-cyan-800"
+          onClick={() => setFiltersOpen((v) => !v)}
+          aria-expanded={filtersOpen}
+          className={`ml-auto flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition ${
+            isFiltered
+              ? "border border-cyan-200 bg-[#f0fafb] text-cyan-800"
+              : "border border-neutral-200 text-neutral-500 hover:border-cyan-300 hover:text-cyan-800"
+          }`}
         >
-          + Save current filters as view
+          Filters{isFiltered ? " · on" : ""}
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 12 12"
+            fill="none"
+            className={`transition-transform ${filtersOpen ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          >
+            <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </button>
       </div>
 
-      <form method="get" className="flex flex-wrap items-center gap-2">
-        {filters.view === "lps" && <input type="hidden" name="view" value="lps" />}
-        <select
-          name="group"
-          defaultValue={filters.groupId ?? ""}
-          className="rounded-md border border-neutral-200 px-2 py-1.5 text-[12px] text-neutral-600"
-        >
-          <option value="">All groups</option>
-          {groups.map((group) => (
-            <option key={group.id} value={group.id}>
-              {group.name}
-            </option>
-          ))}
-        </select>
-        <input
-          type="search"
-          name="q"
-          defaultValue={filters.q ?? ""}
-          placeholder="Search by name"
-          className="rounded-md border border-neutral-200 px-2.5 py-1.5 text-[12px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
-        />
-        <button
-          type="submit"
-          className="rounded-full border border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
-        >
-          Apply
-        </button>
-      </form>
-
-      {saveOpen && (
-        <form
-          onSubmit={handleSave}
-          className="flex flex-wrap items-center gap-2 rounded-xl border border-neutral-100 bg-[#f7f9fa] px-3 py-2.5"
-        >
-          <input
-            autoFocus
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              setError(null);
-            }}
-            placeholder="View name"
-            className="rounded-md border border-neutral-200 bg-white px-2.5 py-1.5 text-[12px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
-          />
-          <label className="flex items-center gap-1.5 text-[11.5px] text-neutral-600">
-            <input
-              type="checkbox"
-              checked={shared}
-              onChange={(e) => setShared(e.target.checked)}
-              className="accent-cyan-700"
+      {filtersOpen && (
+        <>
+          <form method="get" className="flex flex-wrap items-center gap-2">
+            {filters.view === "lps" && <input type="hidden" name="view" value="lps" />}
+            <FormSelectMenu
+              name="group"
+              defaultValue={filters.groupId ?? ""}
+              placeholder="All groups"
+              buttonClassName="py-1.5 text-[12px]"
+              rootClassName="w-auto min-w-[160px]"
+              options={[
+                { value: "", label: "All groups" },
+                ...groups.map((group) => ({ value: group.id, label: group.name })),
+              ]}
             />
-            Share with team
-          </label>
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded-full bg-ink px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {pending ? "Saving..." : "Save"}
-          </button>
-          <button
-            type="button"
-            onClick={() => setSaveOpen(false)}
-            className="text-[11.5px] font-semibold text-neutral-500 hover:text-ink"
-          >
-            Cancel
-          </button>
-          {error && <p className="w-full text-[11px] text-red-600">{error}</p>}
-        </form>
+            <input
+              type="search"
+              name="q"
+              defaultValue={filters.q ?? ""}
+              placeholder="Search by name"
+              className="rounded-xl border border-neutral-200 px-2.5 py-1.5 text-[12px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
+            />
+            <button
+              type="submit"
+              className="rounded-full border border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
+            >
+              Apply
+            </button>
+            <button
+              type="button"
+              onClick={() => setSaveOpen((v) => !v)}
+              className="rounded-full border border-dashed border-neutral-300 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-500 transition hover:border-cyan-300 hover:text-cyan-800"
+            >
+              + Save as view
+            </button>
+          </form>
+
+          {saveOpen && (
+            <form
+              onSubmit={handleSave}
+              className="flex flex-wrap items-center gap-2 rounded-xl border border-neutral-100 bg-[#f7f9fa] px-3 py-2.5"
+            >
+              <input
+                autoFocus
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setError(null);
+                }}
+                placeholder="View name"
+                className="rounded-md border border-neutral-200 bg-white px-2.5 py-1.5 text-[12px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
+              />
+              <label className="flex items-center gap-1.5 text-[11.5px] text-neutral-600">
+                <Checkbox checked={shared} onChange={(e) => setShared(e.target.checked)} />
+                Share with team
+              </label>
+              <button
+                type="submit"
+                disabled={pending}
+                className="rounded-full bg-ink px-3 py-1.5 text-[11.5px] font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {pending ? "Saving..." : "Save"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSaveOpen(false)}
+                className="text-[11.5px] font-semibold text-neutral-500 hover:text-ink"
+              >
+                Cancel
+              </button>
+              {error && <p className="w-full text-[11px] text-red-600">{error}</p>}
+            </form>
+          )}
+        </>
       )}
     </div>
   );
