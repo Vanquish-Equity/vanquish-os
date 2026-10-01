@@ -3,9 +3,18 @@ import Link from "next/link";
 import NewPersonModal from "@/components/NewPersonModal";
 import PersonContactActions from "@/components/PersonContactActions";
 import PeopleViewsBar from "@/components/PeopleViewsBar";
+import RelativeTime from "@/components/RelativeTime";
 import { requireMember } from "@/lib/auth/access";
+import { loadMailboxConnection } from "@/lib/connections/queries";
+import { lastEmailDatesForContacts } from "@/lib/google/mail-actions";
 import { startDevPageTimer } from "@/lib/performance";
 import { loadSavedViews, type PeopleViewFilters } from "@/lib/views/queries";
+
+// Beyond this many rows, a single combined Gmail search can no longer give
+// each contact a fair shot at showing up in the results (see
+// lastEmailDatesForContacts), so the column is withheld instead of silently
+// showing an incomplete, misleading subset.
+const LAST_EMAIL_MAX_ROWS = 50;
 
 export const dynamic = "force-dynamic";
 
@@ -104,6 +113,19 @@ export default async function PeoplePage({
   ]);
   endTimer();
 
+  const mailbox = await loadMailboxConnection(supabase);
+  const rows = people ?? [];
+  const showLastEmail = mailbox.connected && rows.length > 0 && rows.length <= LAST_EMAIL_MAX_ROWS;
+  const lastEmailByAddress = showLastEmail
+    ? await (async () => {
+        const emails = rows
+          .map((p) => primaryEmail(p.person_emails ?? []))
+          .filter((email): email is string => Boolean(email));
+        const result = await lastEmailDatesForContacts(emails);
+        return result.ok ? result.data : {};
+      })()
+    : {};
+
   const tabClass = (active: boolean) =>
     `rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition ${
       active
@@ -164,6 +186,21 @@ export default async function PeoplePage({
         me={access.email ?? ""}
       />
 
+      {!mailbox.connected && rows.length > 0 && (
+        <p className="text-[11.5px] text-neutral-400">
+          <Link href="/settings" className="font-semibold text-cyan-700 hover:underline">
+            Connect Gmail
+          </Link>{" "}
+          to see each person&apos;s last email here.
+        </p>
+      )}
+      {mailbox.connected && rows.length > LAST_EMAIL_MAX_ROWS && (
+        <p className="text-[11.5px] text-neutral-400">
+          Last email isn&apos;t shown for more than {LAST_EMAIL_MAX_ROWS} people at once —
+          filter this view down (a group or search) to see it.
+        </p>
+      )}
+
       <div className="vq-card-static overflow-hidden rounded-[14px] bg-white">
         <table className="w-full text-[12.5px]">
           <thead>
@@ -172,6 +209,7 @@ export default async function PeoplePage({
               <th className="px-4 py-3 font-semibold">Company</th>
               <th className="px-4 py-3 font-semibold">Email</th>
               <th className="px-4 py-3 font-semibold">LinkedIn</th>
+              <th className="px-4 py-3 font-semibold">Last email</th>
               <th className="px-4 py-3 text-right font-semibold">Contact</th>
             </tr>
           </thead>
@@ -220,6 +258,19 @@ export default async function PeoplePage({
                     <span className="text-neutral-400">—</span>
                   )}
                 </td>
+                <td className="px-4 py-3 text-neutral-500">
+                  {(() => {
+                    const email = primaryEmail(p.person_emails ?? []);
+                    const last = email ? lastEmailByAddress[email] : undefined;
+                    if (!showLastEmail) return <span className="text-neutral-300">—</span>;
+                    if (!last) return <span className="text-neutral-300">—</span>;
+                    return (
+                      <span title={last.subject}>
+                        <RelativeTime date={last.date} />
+                      </span>
+                    );
+                  })()}
+                </td>
                 <td className="px-4 py-3">
                   <PersonContactActions
                     personId={p.id}
@@ -232,7 +283,7 @@ export default async function PeoplePage({
             ))}
             {(!people || people.length === 0) && (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center">
+                <td colSpan={6} className="px-4 py-10 text-center">
                   {showLps ? (
                     <div className="mx-auto max-w-[460px]">
                       <p className="font-semibold text-ink">No potential LPs yet.</p>

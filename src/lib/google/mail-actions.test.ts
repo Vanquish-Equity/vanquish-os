@@ -5,6 +5,7 @@ vi.mock("./client", async (importOriginal) => ({
   googleClient: mocks.client,
 }));
 import {
+  lastEmailDatesForContacts,
   listMail,
   listMailForContacts,
   saveGmailDraft,
@@ -164,6 +165,71 @@ describe("Gmail mailbox operations", () => {
   it("returns no threads without making a request when there are no contact emails", async () => {
     const result = await listMailForContacts([]);
     expect(result).toMatchObject({ ok: true, data: [] });
+    expect(mocks.request).not.toHaveBeenCalled();
+  });
+  it("matches the latest thread per contact address and ignores a thread matching no requested address", async () => {
+    mocks.request
+      .mockResolvedValueOnce({ threads: [{ id: "older" }, { id: "newer" }, { id: "unrelated" }] })
+      .mockResolvedValueOnce({
+        id: "older",
+        messages: [
+          {
+            id: "m1",
+            threadId: "older",
+            internalDate: "1700000000000",
+            payload: {
+              headers: [
+                { name: "Subject", value: "First note" },
+                { name: "From", value: "Jane Doe <jane@example.com>" },
+                { name: "To", value: "me@vanquishequity.com" },
+              ],
+            },
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        id: "newer",
+        messages: [
+          {
+            id: "m2",
+            threadId: "newer",
+            internalDate: "1800000000000",
+            payload: {
+              headers: [
+                { name: "Subject", value: "Follow-up" },
+                { name: "From", value: "me@vanquishequity.com" },
+                { name: "To", value: "Jane Doe <jane@example.com>" },
+              ],
+            },
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        id: "unrelated",
+        messages: [
+          {
+            id: "m3",
+            threadId: "unrelated",
+            internalDate: "1900000000000",
+            payload: {
+              headers: [
+                { name: "Subject", value: "Someone else" },
+                { name: "From", value: "other@example.com" },
+                { name: "To", value: "me@vanquishequity.com" },
+              ],
+            },
+          },
+        ],
+      });
+    const result = await lastEmailDatesForContacts(["jane@example.com"]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data["jane@example.com"]).toMatchObject({ subject: "Follow-up" });
+    expect(result.data["other@example.com"]).toBeUndefined();
+  });
+  it("returns no dates without making a request when there are no contact emails", async () => {
+    const result = await lastEmailDatesForContacts([]);
+    expect(result).toMatchObject({ ok: true, data: {} });
     expect(mocks.request).not.toHaveBeenCalled();
   });
 });

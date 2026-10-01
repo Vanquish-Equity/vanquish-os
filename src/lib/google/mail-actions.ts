@@ -17,7 +17,7 @@ import {
   type ComposeInput,
 } from "./mail-types";
 import { formatMessage, summarizeThread, mimeMessage } from "./mail-format";
-import { validateCompose } from "./mail-validation";
+import { parseAddresses, validateCompose } from "./mail-validation";
 import { sanitizeDraftHtml } from "@/lib/communications/rich-text";
 
 export async function listMail(
@@ -83,55 +83,106 @@ export async function listMail(
     };
   });
 }
+function cleanContactEmails(emails: string[], limit: number) {
+  return [
+    ...new Set(
+      (Array.isArray(emails) ? emails : [])
+        .map((email) => (typeof email === "string" ? email.trim().toLowerCase() : ""))
+        .filter((email) => email && email.length <= 254 && !/[\r\n"]/.test(email)),
+    ),
+  ].slice(0, limit);
+}
+
+// Shared by listMailForContacts and lastEmailDatesForContacts: one Gmail
+// search across every given address, then thread metadata for each result.
+async function searchThreadsForAddresses(
+  client: Awaited<ReturnType<typeof googleClient>>,
+  addresses: string[],
+  maxResults: number,
+): Promise<MailThreadSummary[]> {
+  const addressQuery = addresses
+    .map((email) => `from:"${email}" OR to:"${email}"`)
+    .join(" OR ");
+  const params = new URLSearchParams({
+    maxResults: String(maxResults),
+    q: `-in:trash -in:spam (${addressQuery})`,
+  });
+  const list = await client.request<{ threads?: { id: string }[] }>(
+    "gmail",
+    `/threads?${params}`,
+  );
+  const ids = list.threads ?? [];
+  const threads: MailThreadSummary[] = [];
+  for (let start = 0; start < ids.length; start += 5) {
+    const group = await Promise.all(
+      ids.slice(start, start + 5).map(async ({ id }) => {
+        try {
+          return summarizeThread(
+            await client.request<GmailThread>(
+              "gmail",
+              `/threads/${resourceId(id)}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To`,
+            ),
+          );
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            "code" in error &&
+            error.code === "not_found"
+          )
+            return null;
+          throw error;
+        }
+      }),
+    );
+    threads.push(...group.filter((t): t is MailThreadSummary => t !== null));
+  }
+  return threads;
+}
+
 export async function listMailForContacts(emails: string[]) {
   return googleResult(async (): Promise<MailThreadSummary[]> => {
-    const clean = [
-      ...new Set(
-        (Array.isArray(emails) ? emails : [])
-          .map((email) => (typeof email === "string" ? email.trim().toLowerCase() : ""))
-          .filter((email) => email && email.length <= 254 && !/[\r\n"]/.test(email)),
-      ),
-    ].slice(0, 12);
+    const clean = cleanContactEmails(emails, 12);
     if (!clean.length) return [];
     const client = await googleClient();
     requireScope(client, "gmail.readonly", "gmail.modify");
-    const addressQuery = clean
-      .map((email) => `from:"${email}" OR to:"${email}"`)
-      .join(" OR ");
-    const params = new URLSearchParams({
-      maxResults: "8",
-      q: `-in:trash -in:spam (${addressQuery})`,
-    });
-    const list = await client.request<{ threads?: { id: string }[] }>(
-      "gmail",
-      `/threads?${params}`,
-    );
-    const ids = list.threads ?? [];
-    const threads: MailThreadSummary[] = [];
-    for (let start = 0; start < ids.length; start += 5) {
-      const group = await Promise.all(
-        ids.slice(start, start + 5).map(async ({ id }) => {
-          try {
-            return summarizeThread(
-              await client.request<GmailThread>(
-                "gmail",
-                `/threads/${resourceId(id)}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To`,
-              ),
-            );
-          } catch (error) {
-            if (
-              error instanceof Error &&
-              "code" in error &&
-              error.code === "not_found"
-            )
-              return null;
-            throw error;
-          }
-        }),
-      );
-      threads.push(...group.filter((t): t is MailThreadSummary => t !== null));
+    return searchThreadsForAddresses(client, clean, 8);
+  });
+}
+
+export type LastEmailByContact = Record<string, { date: string; subject: string }>;
+
+// One combined search for up to 50 addresses, then the latest matching
+// thread per address — an approximation (Gmail returns its top matches by
+// recency across ALL of them together, not guaranteed one per address), so
+// a contact who was last emailed long before the other 49 can still show
+// nothing here even though a thread exists. Good enough for an "at a glance"
+// column; never treated as a complete or authoritative history.
+export async function lastEmailDatesForContacts(emails: string[]) {
+  return googleResult(async (): Promise<LastEmailByContact> => {
+    const clean = cleanContactEmails(emails, 50);
+    if (!clean.length) return {};
+    const client = await googleClient();
+    requireScope(client, "gmail.readonly", "gmail.modify");
+    const threads = await searchThreadsForAddresses(client, clean, 50);
+    const result: LastEmailByContact = {};
+    for (const thread of threads) {
+      const addresses = new Set<string>();
+      for (const raw of [thread.from, thread.to]) {
+        try {
+          parseAddresses(raw).forEach((address) => addresses.add(address.toLowerCase()));
+        } catch {
+          // Unparseable header on this thread; skip matching from it.
+        }
+      }
+      for (const email of clean) {
+        if (!addresses.has(email)) continue;
+        const existing = result[email];
+        if (!existing || new Date(thread.date).getTime() > new Date(existing.date).getTime()) {
+          result[email] = { date: thread.date, subject: thread.subject };
+        }
+      }
     }
-    return threads;
+    return result;
   });
 }
 export async function readThread(id: string) {
