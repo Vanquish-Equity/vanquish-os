@@ -132,8 +132,8 @@ Clicking a Pipeline or Deal-board card opens a large accessible overlay while th
 | --- | --- | --- |
 | Next action | Assigned follow-up with due date visible on Deal/board and overdue in Overview. | Tasks exist; surface them consistently. |
 | Deal team | Assign multiple active members to a Deal, show team avatars on Pipeline cards, and filter by member. Preserve the old free-text `deals.owner` for historical records; migrate only unambiguous member names. | Membership and avatar profiles exist; join-table assignments are added in the Deal team migration. |
-| Saved views and custom fields | Personal/shared filters, table/Kanban layouts, card fields and business fields. | Basic Pipeline filters exist; durable views remain. |
-| Relationship history | Consolidate activity by Person and Company, relationship owner and possible warm introductions. | People and manual activity exist; sync and graph remain. |
+| Saved views and custom fields | Personal/shared filters, table/Kanban layouts, card fields and business fields. | Durable, nameable/shareable Views exist for People and Pipeline filters; column visibility, sorting, custom fields and Kanban-style views remain. |
+| Relationship history | Consolidate activity by Person and Company, relationship owner and possible warm introductions. | Company timeline and People's Last email column surface real Gmail activity per viewer on demand; a durable synced history, warm-intro graph and Calendar activity remain. |
 | Stage rules | Show required inputs and optionally create tasks or notifications on stage entry. | Stage history and some diligence requirements exist; reusable rules remain. |
 | LP outreach | Own workflow for prospects, communications and investments. | Private per-member LP follow-up boards and shared People LP flags exist; explicit linking, communication history and investment status remain. |
 | Search/quick actions | Find People, Companies and Deals globally; add notes/tasks in context. | Dedicated pages exist; universal search remains. |
