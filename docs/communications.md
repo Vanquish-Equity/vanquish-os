@@ -84,11 +84,13 @@ People are shared directory groups, not mailbox sharing permissions.
 
 The CRM editor defaults to the editable Potential LPs group, lets the creator
 select any People/group, choose To/CC/BCC, and review changed contact addresses.
-**Open in Gmail composer** copies the reviewed current text and selected
-addresses into a separate private Gmail composition. Only the creator sees
-that handoff control. It does not change the saved CRM draft into a delivery
-ledger: CRM drafts stay labeled **CRM draft**, and actual delivery is shown
-in Gmail Sent. Saving a CRM draft alone never sends email.
+**Send via Gmail** (the primary action in the draft's bottom bar) copies the
+current text and selected addresses into a private Gmail composition, where
+the creator reviews and confirms sending. Only the creator sees that
+control, disabled until there is at least one recipient and none need
+review. It does not change the saved CRM draft into a delivery ledger: CRM
+drafts stay labeled **CRM draft**, and actual delivery is shown in Gmail
+Sent. Saving a CRM draft alone never sends email.
 
 `scheduled_at` is a planning note only. There is no scheduler or automatic
 send job; connecting Google does not activate old planned times. Scheduled

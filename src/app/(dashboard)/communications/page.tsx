@@ -167,11 +167,11 @@ export default async function CommunicationsPage({
           </h1>
           <p className="mt-1 max-w-[680px] text-[13px] text-neutral-500">
             Prepare emails to potential LPs (announcements, updates,
-            invitations) and choose who receives each one. Once Gmail is
-            connected, a draft sends from its creator&rsquo;s own mailbox with
-            recipients in To, CC or BCC. Open a CRM draft in the Gmail composer
-            to review and send it now. Scheduled times are planning notes;
-            automatic sending is not enabled.
+            invitations) and choose who receives each one, then click{" "}
+            <span className="font-semibold text-ink">Send via Gmail</span> on
+            the draft to send it now from your own mailbox, with recipients
+            in To, CC or BCC. Scheduled times are planning notes; automatic
+            sending is not enabled.
           </p>
         </div>
         <Link
