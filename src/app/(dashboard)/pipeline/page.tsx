@@ -226,8 +226,8 @@ export default async function PipelinePage({
         />
       </header>
 
-      <div className="vq-card-static flex flex-wrap items-center justify-between gap-2 rounded-[14px] bg-white px-3 py-2">
-        <div className="flex items-center gap-2">
+      {showArchived ? (
+        <div className="vq-card-static flex flex-wrap items-center gap-2 rounded-[14px] bg-white px-3 py-2">
           <Link href="/pipeline" className={tabClass(!showArchived)}>
             Active
           </Link>
@@ -235,26 +235,18 @@ export default async function PipelinePage({
             Archived ({archivedCount ?? 0})
           </Link>
         </div>
-        {!showArchived && (
-          <div className="flex items-center gap-3">
-            <div className="text-[12px] text-neutral-500">
-              Terminal outcome filter:{" "}
-              <span className="font-semibold text-ink">
-                {shouldHideTerminal ? "hidden" : "visible"}
-              </span>
-            </div>
-            <Link
-              href={shouldHideTerminal ? "/pipeline?hideTerminal=0" : "/pipeline?hideTerminal=1"}
-              className="rounded-lg border border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
-            >
-              {shouldHideTerminal ? "Show terminal outcomes" : "Hide terminal outcomes"}
-            </Link>
-          </div>
-        )}
-      </div>
-
-      {!showArchived && (
+      ) : (
         <PipelineViewsBar
+          tabs={
+            <div className="flex items-center gap-2">
+              <Link href="/pipeline" className={tabClass(!showArchived)}>
+                Active
+              </Link>
+              <Link href="/pipeline?view=archived" className={tabClass(showArchived)}>
+                Archived ({archivedCount ?? 0})
+              </Link>
+            </div>
+          }
           views={savedPipelineViews}
           stages={stages ?? []}
           priorities={priorities ?? []}
