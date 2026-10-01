@@ -49,15 +49,22 @@ and Home says My tasks needs the migration.
   out is a text button when expanded and an icon button (with tooltip and
   accessible name) when collapsed.
 - Related items collapse under a named, toggleable group instead of each
-  costing a full row: **CRM** (Pipeline, Boards, LP follow-up, Companies,
-  People) and **Mail** (Communications, Calendar). `NAV_GROUPS` in
-  `src/components/Sidebar.tsx` is the single place that defines a group
-  (key, label, icon, member hrefs); adding a group or moving an item between
-  groups only touches that list. Each group starts collapsed except the one
-  the member is currently in (by `activeHref`); a group also forces itself
-  open, regardless of its toggle state, while the member is on one of its
-  pages, so navigating never hides the active link. Collapse/expand per
-  group is not persisted across a reload.
+  costing a full row: **CRM** (Pipeline, Companies, People), **Boards**
+  (Boards, LP follow-up) and **Mail** (Communications, Calendar).
+  `NAV_GROUPS` in `src/components/Sidebar.tsx` is the single place that
+  defines a group (key, label, icon, member hrefs); adding a group or moving
+  an item between groups only touches that list. Each group starts
+  collapsed except the one the member is currently in (by `activeHref`); a
+  group also forces itself open, regardless of its toggle state, while the
+  member is on one of its pages, so navigating never hides the active link.
+  Collapse/expand per group is not persisted across a reload.
+- **Home, Notifications, Chat and Overview** render as one horizontal row
+  of icon-only buttons (each still keeps its accessible name, badge and
+  tooltip) instead of four separate labeled rows, whenever labels would
+  otherwise show (expanded desktop sidebar, or the mobile drawer). Collapsed
+  or on a narrow screen, they fall back to the normal vertical icon list,
+  matching the rest of the nav. `ICON_ROW_HREFS` in
+  `src/components/Sidebar.tsx` controls which items get this treatment.
 
 ## Entrance (after a new sign-in only)
 
