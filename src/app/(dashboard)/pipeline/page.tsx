@@ -17,6 +17,11 @@ import { formatExactDate } from "@/lib/dates";
 import { dealLabel } from "@/lib/deals/display";
 import { dealHref } from "@/lib/deals/scope";
 import { loadDealAssignees } from "@/lib/deals/assignee-queries";
+import PipelineViewsBar from "@/components/PipelineViewsBar";
+import {
+  loadPipelineSavedViews,
+  type PipelineViewFilters,
+} from "@/lib/views/pipeline-queries";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -78,6 +83,11 @@ export default async function PipelinePage({
   const savedPipeline = pipelineDefault((await cookies()).get(pipelineCookieName(member.email))?.value);
   const shouldHideTerminal = hideTerminal === "1" || filter === "active" ||
     (hideTerminal !== "0" && filter !== "all" && savedPipeline === "active");
+  const pipelineFilters: PipelineViewFilters = {
+    hideTerminal: shouldHideTerminal,
+    priority: priority || null,
+    stage: stage || null,
+  };
   const supabase = await createClient();
   const endTimer = startDevPageTimer("page:data:pipeline");
 
@@ -90,6 +100,7 @@ export default async function PipelinePage({
     industries,
     priorities,
     rounds,
+    savedPipelineViews,
   ] = await Promise.all([
     getPipelineStages() as Promise<Stage[]>,
     showArchived
@@ -132,6 +143,7 @@ export default async function PipelinePage({
     getIndustryOptions() as Promise<Option[]>,
     getPriorityOptions() as Promise<Option[]>,
     getDealRoundOptions() as Promise<Option[]>,
+    loadPipelineSavedViews(supabase),
   ]);
   endTimer();
   const { members, byDeal: assigneesByDeal } = await loadDealAssignees(supabase, (deals ?? []).map((deal) => deal.id));
@@ -240,6 +252,16 @@ export default async function PipelinePage({
           </div>
         )}
       </div>
+
+      {!showArchived && (
+        <PipelineViewsBar
+          views={savedPipelineViews}
+          stages={stages ?? []}
+          priorities={priorities ?? []}
+          filters={pipelineFilters}
+          me={member.email ?? ""}
+        />
+      )}
 
       {showArchived ? (
         <div className="vq-card-static rounded-[14px] bg-white">

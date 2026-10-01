@@ -5,28 +5,30 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { deleteViewAction, saveViewAction } from "@/lib/views/actions";
 import {
-  viewHref,
-  type PeopleViewFilters,
-  type SavedView,
-} from "@/lib/views/queries";
+  pipelineViewHref,
+  type PipelineSavedView,
+  type PipelineViewFilters,
+} from "@/lib/views/pipeline-queries";
 
-function sameFilters(a: PeopleViewFilters, b: PeopleViewFilters) {
+function sameFilters(a: PipelineViewFilters, b: PipelineViewFilters) {
   return (
-    a.view === b.view &&
-    (a.groupId ?? "") === (b.groupId ?? "") &&
-    (a.q ?? "") === (b.q ?? "")
+    a.hideTerminal === b.hideTerminal &&
+    (a.priority ?? "") === (b.priority ?? "") &&
+    (a.stage ?? "") === (b.stage ?? "")
   );
 }
 
-export default function PeopleViewsBar({
+export default function PipelineViewsBar({
   views,
-  groups,
+  stages,
+  priorities,
   filters,
   me,
 }: {
-  views: SavedView[];
-  groups: { id: string; name: string }[];
-  filters: PeopleViewFilters;
+  views: PipelineSavedView[];
+  stages: { id: string; name: string }[];
+  priorities: { id: string; name: string }[];
+  filters: PipelineViewFilters;
   me: string;
 }) {
   const router = useRouter();
@@ -46,7 +48,7 @@ export default function PeopleViewsBar({
     setPending(true);
     setError(null);
     const result = await saveViewAction({
-      objectType: "people",
+      objectType: "pipeline",
       name,
       isShared: shared,
       filters,
@@ -64,7 +66,7 @@ export default function PeopleViewsBar({
 
   async function handleDelete(id: string) {
     setDeletingId(id);
-    await deleteViewAction(id, "people");
+    await deleteViewAction(id, "pipeline");
     router.refresh();
     setDeletingId(null);
   }
@@ -83,7 +85,7 @@ export default function PeopleViewsBar({
         {views.map((view) => (
           <span key={view.id} className="inline-flex items-center gap-0.5">
             <Link
-              href={viewHref("/people", view.filters)}
+              href={pipelineViewHref(view.filters)}
               className={`rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition ${
                 sameFilters(view.filters, filters)
                   ? "bg-ink text-white"
@@ -119,26 +121,38 @@ export default function PeopleViewsBar({
       </div>
 
       <form method="get" className="flex flex-wrap items-center gap-2">
-        {filters.view === "lps" && <input type="hidden" name="view" value="lps" />}
         <select
-          name="group"
-          defaultValue={filters.groupId ?? ""}
+          name="stage"
+          defaultValue={filters.stage ?? ""}
           className="rounded-md border border-neutral-200 px-2 py-1.5 text-[12px] text-neutral-600"
         >
-          <option value="">All groups</option>
-          {groups.map((group) => (
-            <option key={group.id} value={group.id}>
-              {group.name}
+          <option value="">All stages</option>
+          {stages.map((stage) => (
+            <option key={stage.id} value={stage.name}>
+              {stage.name}
             </option>
           ))}
         </select>
-        <input
-          type="search"
-          name="q"
-          defaultValue={filters.q ?? ""}
-          placeholder="Search by name"
-          className="rounded-md border border-neutral-200 px-2.5 py-1.5 text-[12px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
-        />
+        <select
+          name="priority"
+          defaultValue={filters.priority ?? ""}
+          className="rounded-md border border-neutral-200 px-2 py-1.5 text-[12px] text-neutral-600"
+        >
+          <option value="">All priorities</option>
+          {priorities.map((priority) => (
+            <option key={priority.id} value={priority.name}>
+              {priority.name}
+            </option>
+          ))}
+        </select>
+        <select
+          name="hideTerminal"
+          defaultValue={filters.hideTerminal ? "1" : "0"}
+          className="rounded-md border border-neutral-200 px-2 py-1.5 text-[12px] text-neutral-600"
+        >
+          <option value="1">Terminal outcomes hidden</option>
+          <option value="0">Terminal outcomes visible</option>
+        </select>
         <button
           type="submit"
           className="rounded-full border border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"

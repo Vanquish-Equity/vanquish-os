@@ -3,14 +3,21 @@
 import { revalidatePath } from "next/cache";
 import { actionAccessError, getAccess } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/server";
-import type { PeopleViewFilters } from "./queries";
+import type { PeopleViewFilters, ViewObjectType } from "./queries";
+import type { PipelineViewFilters } from "./pipeline-queries";
 
 export type ViewActionResult = { ok: true } | { ok: false; message: string };
 
+const REVALIDATE_PATH: Record<ViewObjectType, string> = {
+  people: "/people",
+  pipeline: "/pipeline",
+};
+
 export async function saveViewAction(input: {
+  objectType: ViewObjectType;
   name: string;
   isShared: boolean;
-  filters: PeopleViewFilters;
+  filters: PeopleViewFilters | PipelineViewFilters;
 }): Promise<ViewActionResult> {
   const accessError = await actionAccessError();
   if (accessError) return { ok: false, message: accessError };
@@ -27,15 +34,11 @@ export async function saveViewAction(input: {
 
   const supabase = await createClient();
   const { error } = await supabase.from("saved_views").insert({
-    object_type: "people",
+    object_type: input.objectType,
     name,
     owner: access.email,
     is_shared: input.isShared,
-    filters: {
-      view: input.filters.view,
-      groupId: input.filters.groupId,
-      q: input.filters.q,
-    },
+    filters: input.filters,
   });
 
   if (error) {
@@ -48,11 +51,14 @@ export async function saveViewAction(input: {
     };
   }
 
-  revalidatePath("/people");
+  revalidatePath(REVALIDATE_PATH[input.objectType]);
   return { ok: true };
 }
 
-export async function deleteViewAction(id: string): Promise<ViewActionResult> {
+export async function deleteViewAction(
+  id: string,
+  objectType: ViewObjectType,
+): Promise<ViewActionResult> {
   const accessError = await actionAccessError();
   if (accessError) return { ok: false, message: accessError };
   if (typeof id !== "string" || !id) {
@@ -65,6 +71,6 @@ export async function deleteViewAction(id: string): Promise<ViewActionResult> {
   const { error } = await supabase.from("saved_views").delete().eq("id", id);
   if (error) return { ok: false, message: "Could not remove this view." };
 
-  revalidatePath("/people");
+  revalidatePath(REVALIDATE_PATH[objectType]);
   return { ok: true };
 }
