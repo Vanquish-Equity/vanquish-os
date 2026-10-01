@@ -444,7 +444,7 @@ export default function DraftComposer({
                 Delivery
               </span>
               <span className="rounded-full bg-white px-2 py-0.5 text-[10.5px] font-semibold text-neutral-500 ring-1 ring-neutral-200">
-                Review in Gmail composer
+                Send from Gmail
               </span>
             </div>
             <dl className="mt-2 grid grid-cols-[72px_1fr] gap-y-1">
@@ -458,7 +458,9 @@ export default function DraftComposer({
               </dd>
             </dl>
             <p className="mt-2 text-neutral-500">
-              Saving stores this CRM draft in Vanquish OS. Open it in the Gmail composer to review recipients and send a separate Gmail message.
+              This subject, message and recipient list are only a plan, kept in Vanquish OS. Click{" "}
+              <span className="font-semibold text-ink">Send via Gmail</span> below to open it as a real message in your
+              Gmail mailbox, where you confirm and send it.
             </p>
             <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
               {readiness.map((item) => (
@@ -696,7 +698,6 @@ export default function DraftComposer({
             )}
           </div>
           <div className="flex items-center gap-2">
-            <button type="button" disabled={isPending || reviewCount > 0 || !selectedCount} onClick={() => setGmailSeed({ to: finalList.filter(r => r.item.field === "to").map(r => r.email).join(", "), cc: finalList.filter(r => r.item.field === "cc").map(r => r.email).join(", "), bcc: finalList.filter(r => r.item.field === "bcc").map(r => r.email).join(", "), subject, html: body })} className="rounded-full border border-cyan-200 bg-cyan-50 px-4 py-2 text-[12px] font-semibold text-cyan-900 disabled:opacity-40">Open in Gmail composer</button>
             {draft &&
               (confirmDiscard ? (
                 <span role="alertdialog" aria-label="Discard draft" className="flex items-center gap-2 text-[12px] text-neutral-600">
@@ -730,9 +731,18 @@ export default function DraftComposer({
               type="button"
               onClick={save}
               disabled={isPending || (!dirty && Boolean(draft))}
-              className="rounded-full bg-ink px-4 py-2 text-[12px] font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-full border border-neutral-200 px-3.5 py-2 text-[12px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isPending ? "Saving..." : "Save draft"}
+            </button>
+            <button
+              type="button"
+              title={reviewCount > 0 ? "Resolve the recipients that need review first" : !selectedCount ? "Add at least one recipient first" : undefined}
+              disabled={isPending || reviewCount > 0 || !selectedCount}
+              onClick={() => setGmailSeed({ to: finalList.filter(r => r.item.field === "to").map(r => r.email).join(", "), cc: finalList.filter(r => r.item.field === "cc").map(r => r.email).join(", "), bcc: finalList.filter(r => r.item.field === "bcc").map(r => r.email).join(", "), subject, html: body })}
+              className="rounded-full bg-ink px-4 py-2 text-[12px] font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Send via Gmail
             </button>
           </div>
         </div>
