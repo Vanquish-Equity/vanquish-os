@@ -21,8 +21,24 @@ The current implementation includes shared general boards with native cards and 
 As of the current board implementation, native cards support team assignees,
 due dates, descriptions and checklists. Linked Deals support multiple team
 assignees with avatars. Pipeline supports on-board filters. Board pages support
-contextual comments. Saved views, custom fields, task/LP record workflows and
-personal boards for general purposes are still planned rather than available.
+contextual comments. Custom fields, task/LP record workflows and personal
+boards for general purposes are still planned rather than available. People
+now has saved views (below); boards do not yet.
+
+## Saved Views (People)
+
+A **View** is a named, saved filter spec for the People list — which group,
+name search and base tab (`/people` vs `?view=lps`) to apply — not a separate
+copy of People. `saved_views` (migration `20260930100000`) stores `object_type`
+(currently only `'people'`, extensible to other lists later), `owner`,
+`is_shared`, and the filter spec as `filters` jsonb. Any active member can
+read their own views plus any `is_shared` view from a teammate; only the
+owner can rename or delete a view — sharing means "others can use it", not
+"others can edit it". Clicking a saved view navigates to `/people` with that
+view's query params applied; there is no separate "view mode" to maintain.
+Column visibility, sorting and board/kanban-style views are not implemented
+yet — today a view only captures filters (group, name search, base tab) over
+the existing table.
 
 ## Personal LP follow-up
 
