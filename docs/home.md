@@ -53,8 +53,11 @@ and Home says My tasks needs the migration.
   People) and **Mail** (Communications, Calendar). `NAV_GROUPS` in
   `src/components/Sidebar.tsx` is the single place that defines a group
   (key, label, icon, member hrefs); adding a group or moving an item between
-  groups only touches that list. Groups start expanded and collapse
-  independently per session (not persisted).
+  groups only touches that list. Each group starts collapsed except the one
+  the member is currently in (by `activeHref`); a group also forces itself
+  open, regardless of its toggle state, while the member is on one of its
+  pages, so navigating never hides the active link. Collapse/expand per
+  group is not persisted across a reload.
 
 ## Entrance (after a new sign-in only)
 
