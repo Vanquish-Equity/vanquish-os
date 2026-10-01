@@ -12,6 +12,19 @@ import { useUnreadCounts } from "@/components/UnreadCounts";
 
 export type SidebarNavItem = { href: string; label: string; icon: NavIconName; badge?: "chat" | "notifications"; child?: boolean };
 
+// Collapsible groups of related nav items, in the order their items appear
+// in WORKSPACE_NAV. A group's toggle renders just before its first item;
+// collapsing it hides the rest, so related pages don't each cost a full row
+// in the sidebar's default (expanded) view.
+type NavGroup = { key: string; label: string; icon: NavIconName; hrefs: string[] };
+const NAV_GROUPS: NavGroup[] = [
+  { key: "crm", label: "CRM", icon: "boards", hrefs: ["/pipeline", "/boards", "/lp-board", "/companies", "/people"] },
+  { key: "mail", label: "Mail", icon: "communications", hrefs: ["/communications", "/calendar"] },
+];
+function groupFor(href: string): NavGroup | undefined {
+  return NAV_GROUPS.find((group) => group.hrefs.includes(href) || (group.key === "crm" && href.startsWith("/boards/")));
+}
+
 // rail: icons only (collapsed). full: icons + labels (expanded, and the
 // mobile drawer). responsive: full on desktop, rail on small screens.
 type Mode = "rail" | "full" | "responsive";
@@ -65,7 +78,9 @@ function SidebarBody({
   const router = useRouter();
   const pathname = usePathname();
   const [profileOpen, setProfileOpen] = useState(false);
-  const [crmOpen, setCrmOpen] = useState(true);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(NAV_GROUPS.map((group) => [group.key, true])),
+  );
   const profileRef = useRef<HTMLDivElement>(null);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -174,11 +189,26 @@ function SidebarBody({
         {navItems.map((item) => {
           const active = activeHref === item.href || (item.href !== "/boards" && activeHref.startsWith(item.href + "/"));
           const count = item.badge ? unread[item.badge] : 0;
-          const inCrm = ["/pipeline", "/boards", "/lp-board", "/companies", "/people"].includes(item.href) || item.href.startsWith("/boards/");
+          const group = groupFor(item.href);
+          const isGroupHead = group ? group.hrefs[0] === item.href : false;
+          const groupOpen = group ? (openGroups[group.key] ?? true) : true;
           return (
             <Fragment key={item.href}>
-            {item.href === "/pipeline" && <button type="button" onClick={() => setCrmOpen((value) => !value)} aria-expanded={crmOpen} className={`group relative mt-3 flex items-center py-2 text-left text-[10px] font-semibold uppercase tracking-[1.4px] text-neutral-500 hover:text-white ${center}`}><span className={label}>CRM {crmOpen ? "▾" : "▸"}</span><span className={byMode(mode, { rail: "", full: "hidden", responsive: "md:hidden" })}><NavIcon name="boards" /></span><Tooltip mode={mode}>CRM · {crmOpen ? "Collapse" : "Expand"}</Tooltip></button>}
-            {(!inCrm || crmOpen) && (
+            {isGroupHead && group && (
+              <button
+                type="button"
+                onClick={() => setOpenGroups((value) => ({ ...value, [group.key]: !groupOpen }))}
+                aria-expanded={groupOpen}
+                className={`group relative mt-3 flex items-center py-2 text-left text-[10px] font-semibold uppercase tracking-[1.4px] text-neutral-500 hover:text-white ${center}`}
+              >
+                <span className={label}>{group.label} {groupOpen ? "▾" : "▸"}</span>
+                <span className={byMode(mode, { rail: "", full: "hidden", responsive: "md:hidden" })}>
+                  <NavIcon name={group.icon} />
+                </span>
+                <Tooltip mode={mode}>{group.label} · {groupOpen ? "Collapse" : "Expand"}</Tooltip>
+              </button>
+            )}
+            {(!group || groupOpen) && (
             <Link
               href={item.href}
               onClick={() => onNavigate(item.href)}

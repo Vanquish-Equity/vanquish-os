@@ -3,6 +3,7 @@ import { hasPermission } from "@/lib/auth/access";
 import OverviewAttentionPanel from "@/components/OverviewAttentionPanel";
 import RelativeTime from "@/components/RelativeTime";
 import { loadAttentionDeals } from "@/lib/deals/attention-data";
+import { getPipelineStages } from "@/lib/taxonomies";
 import { introCard } from "@/lib/ui/entrance";
 import { startDevPageTimer } from "@/lib/performance";
 import { createClient } from "@/lib/supabase/server";
@@ -111,12 +112,17 @@ export default async function OverviewPage() {
   const supabase = await createClient();
   const endTimer = startDevPageTimer("page:data:overview");
 
+  const weekAgo = new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
   const [
     { deals, importedDeals, staleDeals },
     { data: openTasks },
     { data: activity },
     { data: requirements },
     { data: investments },
+    stages,
+    { count: potentialLpCount },
+    { count: weeklyActivityCount },
   ] = await Promise.all([
     loadAttentionDeals(supabase, { canDocuments }),
     supabase
@@ -145,8 +151,27 @@ export default async function OverviewPage() {
       .is("archived_at", null) as unknown as Promise<{
       data: InvestmentLookupRow[] | null;
     }>,
+    getPipelineStages(),
+    supabase
+      .from("people")
+      .select("id", { count: "exact", head: true })
+      .is("archived_at", null)
+      .eq("is_potential_lp", true),
+    supabase
+      .from("activity_events")
+      .select("id", { count: "exact", head: true })
+      .gte("occurred_at", weekAgo),
   ]);
   endTimer();
+
+  const dealsByStage = new Map<string, number>();
+  deals.forEach((deal) => {
+    if (!deal.stage) return;
+    dealsByStage.set(deal.stage.name, (dealsByStage.get(deal.stage.name) ?? 0) + 1);
+  });
+  const stageBreakdown = stages
+    .map((stage) => ({ id: stage.id, name: stage.name, count: dealsByStage.get(stage.name) ?? 0 }))
+    .filter((stage) => stage.count > 0);
 
   const activeDeals = deals.filter((d) => !d.stage?.is_terminal && !d.outcome);
   const dueDiligence = activeDeals.filter((d) => d.stage?.name === "Due Diligence");
@@ -187,7 +212,7 @@ export default async function OverviewPage() {
         </p>
       </header>
 
-      <div className="vq-card-grid grid grid-cols-4 gap-3.5">
+      <div className="vq-card-grid grid grid-cols-6 gap-3.5">
         <StatTile
           label="Active Deals"
           index={0}
@@ -212,7 +237,46 @@ export default async function OverviewPage() {
           value={(openTasks ?? []).length}
           href="/tasks?status=open"
         />
+        <StatTile
+          label="Potential LPs"
+          index={4}
+          value={potentialLpCount ?? 0}
+          href="/people?view=lps"
+        />
+        <StatTile
+          label="Activity This Week"
+          index={5}
+          value={weeklyActivityCount ?? 0}
+          href="#recent-activity"
+        />
       </div>
+
+      {stageBreakdown.length > 0 && (
+        <div
+          data-comment-anchor="pipeline-by-stage"
+          data-comment-label="Pipeline by stage"
+          className="vq-card-static vq-intro-card rounded-[14px] bg-white p-4"
+          style={introCard(2)}
+        >
+          <h2 className="mb-2.5 text-[12px] font-semibold text-neutral-500">
+            Pipeline by stage
+          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            {stageBreakdown.map((stage) => (
+              <Link
+                key={stage.id}
+                href={`/pipeline?stage=${encodeURIComponent(stage.name)}`}
+                className="flex items-center gap-1.5 rounded-full border border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
+              >
+                {stage.name}
+                <span className="rounded-full bg-[#f0fafb] px-1.5 py-0.5 text-[10.5px] text-cyan-800">
+                  {stage.count}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-[1.4fr_1fr] gap-3.5">
         <OverviewAttentionPanel
@@ -221,7 +285,7 @@ export default async function OverviewPage() {
           introIndex={4}
         />
 
-        <div data-comment-anchor="recent-activity" data-comment-label="Recent activity" className="vq-card-static vq-intro-card rounded-[14px] bg-white p-5" style={introCard(5)}>
+        <div id="recent-activity" data-comment-anchor="recent-activity" data-comment-label="Recent activity" className="vq-card-static vq-intro-card rounded-[14px] bg-white p-5 scroll-mt-16" style={introCard(5)}>
           <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
             Recent Activity
           </h2>

@@ -137,7 +137,7 @@ Clicking a Pipeline or Deal-board card opens a large accessible overlay while th
 | Stage rules | Show required inputs and optionally create tasks or notifications on stage entry. | Stage history and some diligence requirements exist; reusable rules remain. |
 | LP outreach | Own workflow for prospects, communications and investments. | Private per-member LP follow-up boards and shared People LP flags exist; explicit linking, communication history and investment status remain. |
 | Search/quick actions | Find People, Companies and Deals globally; add notes/tasks in context. | Dedicated pages exist; universal search remains. |
-| Analytics | Time per stage, stale Deals, movement, outcomes, owner and investment potential. | Overview exists; process metrics remain. |
+| Analytics | Time per stage, stale Deals, movement, outcomes, owner and investment potential. | Overview now also shows a pipeline-by-stage breakdown, potential LP count and activity in the last 7 days; time-per-stage, movement trends and owner/investment-potential views remain. |
 | Templates | Start from Investment Deal, LP Outreach or Tasks, then customize. | Later, once each record workflow exists. |
 | Connected activity | An authorized Gmail mailbox and calendar attach activity and update last interaction. | Provider connections and sync remain separate roadmap work. |
 
