@@ -48,6 +48,13 @@ and Home says My tasks needs the migration.
 - The account is shown as the part before `@` in capitals (`MARIOS`). Sign
   out is a text button when expanded and an icon button (with tooltip and
   accessible name) when collapsed.
+- Related items collapse under a named, toggleable group instead of each
+  costing a full row: **CRM** (Pipeline, Boards, LP follow-up, Companies,
+  People) and **Mail** (Communications, Calendar). `NAV_GROUPS` in
+  `src/components/Sidebar.tsx` is the single place that defines a group
+  (key, label, icon, member hrefs); adding a group or moving an item between
+  groups only touches that list. Groups start expanded and collapse
+  independently per session (not persisted).
 
 ## Entrance (after a new sign-in only)
 
