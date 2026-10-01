@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Checkbox from "@/components/Checkbox";
@@ -21,12 +21,14 @@ function sameFilters(a: PipelineViewFilters, b: PipelineViewFilters) {
 }
 
 export default function PipelineViewsBar({
+  tabs,
   views,
   stages,
   priorities,
   filters,
   me,
 }: {
+  tabs: ReactNode;
   views: PipelineSavedView[];
   stages: { id: string; name: string }[];
   priorities: { id: string; name: string }[];
@@ -75,77 +77,67 @@ export default function PipelineViewsBar({
     setDeletingId(null);
   }
 
-  const hasChrome = views.length > 0 || filtersOpen;
-
   return (
-    <div
-      className={
-        hasChrome
-          ? "vq-card-static flex flex-col gap-2.5 rounded-[14px] bg-white px-3 py-2.5"
-          : "flex justify-end"
-      }
-    >
-      <div className="flex flex-wrap items-center gap-2">
-        {views.length > 0 && (
-          <span className="text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
-            Views
-          </span>
-        )}
-        {views.map((view) => (
-          <span key={view.id} className="inline-flex items-center gap-0.5">
-            <Link
-              href={pipelineViewHref(view.filters)}
-              className={`rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition ${
-                sameFilters(view.filters, filters)
-                  ? "bg-ink text-white"
-                  : "border border-neutral-200 text-neutral-600 hover:border-cyan-300 hover:text-cyan-800"
-              }`}
-            >
-              {view.name}
-              {view.isShared && view.owner !== me && (
-                <span className="ml-1 font-normal opacity-70">· shared</span>
-              )}
-            </Link>
-            {view.owner === me && (
-              <button
-                type="button"
-                onClick={() => handleDelete(view.id)}
-                disabled={deletingId === view.id}
-                title="Remove this view"
-                aria-label={`Remove view ${view.name}`}
-                className="px-1 text-[13px] leading-none text-neutral-300 transition hover:text-red-600 disabled:opacity-40"
+    <div className="vq-card-static flex flex-col gap-2.5 rounded-[14px] bg-white px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {tabs}
+        <div className="flex flex-wrap items-center gap-2">
+          {views.map((view) => (
+            <span key={view.id} className="inline-flex items-center gap-0.5">
+              <Link
+                href={pipelineViewHref(view.filters)}
+                className={`rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition ${
+                  sameFilters(view.filters, filters)
+                    ? "bg-ink text-white"
+                    : "border border-neutral-200 text-neutral-600 hover:border-cyan-300 hover:text-cyan-800"
+                }`}
               >
-                ×
-              </button>
-            )}
-          </span>
-        ))}
-        <button
-          type="button"
-          onClick={() => setFiltersOpen((v) => !v)}
-          aria-expanded={filtersOpen}
-          className={`ml-auto flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition ${
-            isFiltered
-              ? "border border-cyan-200 bg-[#f0fafb] text-cyan-800"
-              : "border border-neutral-200 text-neutral-500 hover:border-cyan-300 hover:text-cyan-800"
-          }`}
-        >
-          Filters{isFiltered ? " · on" : ""}
-          <svg
-            width="10"
-            height="10"
-            viewBox="0 0 12 12"
-            fill="none"
-            className={`transition-transform ${filtersOpen ? "rotate-180" : ""}`}
-            aria-hidden="true"
+                {view.name}
+                {view.isShared && view.owner !== me && (
+                  <span className="ml-1 font-normal opacity-70">· shared</span>
+                )}
+              </Link>
+              {view.owner === me && (
+                <button
+                  type="button"
+                  onClick={() => handleDelete(view.id)}
+                  disabled={deletingId === view.id}
+                  title="Remove this view"
+                  aria-label={`Remove view ${view.name}`}
+                  className="px-1 text-[13px] leading-none text-neutral-300 transition hover:text-red-600 disabled:opacity-40"
+                >
+                  ×
+                </button>
+              )}
+            </span>
+          ))}
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((v) => !v)}
+            aria-expanded={filtersOpen}
+            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition ${
+              isFiltered
+                ? "border border-cyan-200 bg-[#f0fafb] text-cyan-800"
+                : "border border-neutral-200 text-neutral-500 hover:border-cyan-300 hover:text-cyan-800"
+            }`}
           >
-            <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
+            Filters{isFiltered ? " · on" : ""}
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 12 12"
+              fill="none"
+              className={`transition-transform ${filtersOpen ? "rotate-180" : ""}`}
+              aria-hidden="true"
+            >
+              <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {filtersOpen && (
-        <>
+        <div className="flex flex-col gap-2.5 border-t border-neutral-100 pt-2.5">
           <form method="get" className="flex flex-wrap items-center gap-2">
             <FormSelectMenu
               name="stage"
@@ -230,7 +222,7 @@ export default function PipelineViewsBar({
               {error && <p className="w-full text-[11px] text-red-600">{error}</p>}
             </form>
           )}
-        </>
+        </div>
       )}
     </div>
   );

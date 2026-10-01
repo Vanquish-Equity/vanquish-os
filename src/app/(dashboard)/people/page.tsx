@@ -161,25 +161,26 @@ export default async function PeoplePage({
         </div>
       </header>
 
-      <div className="vq-card-static flex flex-wrap items-center justify-between gap-2 rounded-[14px] bg-white px-3 py-2">
-        <div className="flex items-center gap-2">
-          <Link href="/people" className={tabClass(!showLps)}>
-            All people ({allCount ?? 0})
-          </Link>
-          <Link href="/people?view=lps" className={tabClass(showLps)}>
-            Potential LPs ({lpCount ?? 0})
-          </Link>
-        </div>
-        <p className="text-[11.5px] text-neutral-500">
-          Potential LPs can be selected as recipients in{" "}
-          <Link href="/communications" className="font-semibold text-cyan-700 hover:underline">
-            Communications
-          </Link>
-          .
-        </p>
-      </div>
-
       <PeopleViewsBar
+        tabs={
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Link href="/people" className={tabClass(!showLps)}>
+                All people ({allCount ?? 0})
+              </Link>
+              <Link href="/people?view=lps" className={tabClass(showLps)}>
+                Potential LPs ({lpCount ?? 0})
+              </Link>
+            </div>
+            <p className="text-[11.5px] text-neutral-500">
+              Potential LPs can be selected as recipients in{" "}
+              <Link href="/communications" className="font-semibold text-cyan-700 hover:underline">
+                Communications
+              </Link>
+              .
+            </p>
+          </div>
+        }
         views={savedViews}
         groups={groups ?? []}
         filters={filters}
