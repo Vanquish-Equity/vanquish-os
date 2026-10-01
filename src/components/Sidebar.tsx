@@ -18,12 +18,20 @@ export type SidebarNavItem = { href: string; label: string; icon: NavIconName; b
 // in the sidebar's default (expanded) view.
 type NavGroup = { key: string; label: string; icon: NavIconName; hrefs: string[] };
 const NAV_GROUPS: NavGroup[] = [
-  { key: "crm", label: "CRM", icon: "boards", hrefs: ["/pipeline", "/boards", "/lp-board", "/companies", "/people"] },
+  { key: "crm", label: "CRM", icon: "pipeline", hrefs: ["/pipeline", "/companies", "/people"] },
+  { key: "boards", label: "Boards", icon: "boards", hrefs: ["/boards", "/lp-board"] },
   { key: "mail", label: "Mail", icon: "communications", hrefs: ["/communications", "/calendar"] },
 ];
 function groupFor(href: string): NavGroup | undefined {
-  return NAV_GROUPS.find((group) => group.hrefs.includes(href) || (group.key === "crm" && href.startsWith("/boards/")));
+  return NAV_GROUPS.find((group) => group.hrefs.includes(href) || (group.key === "boards" && href.startsWith("/boards/")));
 }
+
+// Home, Notifications, Chat and Overview: everyday, single-click pages a
+// member checks constantly. Grouping them as a horizontal icon row (instead
+// of four full labeled rows) keeps them as fast to reach while using far
+// less vertical space -- but only once there's room for a row of icons;
+// collapsed/narrow views fall back to the normal vertical icon list.
+const ICON_ROW_HREFS = ["/home", "/notifications", "/chat", "/overview"];
 
 // rail: icons only (collapsed). full: icons + labels (expanded, and the
 // mobile drawer). responsive: full on desktop, rail on small screens.
@@ -131,6 +139,53 @@ function SidebarBody({
   });
   const account = accountLabel(userEmail, displayName);
 
+  // Rendered twice at different breakpoints (see iconRowItems below): once
+  // as a compact icon-only row, once as the normal vertical labeled list.
+  // `iconOnly` forces the label hidden regardless of `mode`.
+  function NavLink({ item, iconOnly = false }: { item: SidebarNavItem; iconOnly?: boolean }) {
+    const active = activeHref === item.href || (item.href !== "/boards" && activeHref.startsWith(item.href + "/"));
+    const count = item.badge ? unread[item.badge] : 0;
+    return (
+      <Link
+        href={item.href}
+        onClick={() => onNavigate(item.href)}
+        aria-current={active ? "page" : undefined}
+        className={`group relative flex items-center gap-2.5 rounded-[9px] py-2.5 text-[13px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400 ${
+          iconOnly ? "justify-center px-0" : center
+        } ${item.child ? "md:ml-3" : ""} ${
+          active ? "bg-[#12191c] text-white" : "text-neutral-400 hover:bg-[#12191c] hover:text-white"
+        }`}
+      >
+        <span className="relative flex">
+          <NavIcon name={item.icon} />
+          {count > 0 && (
+            <span
+              aria-hidden="true"
+              data-badge={item.badge}
+              className="absolute -right-2 -top-1.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-cyan-400 px-1 text-[9.5px] font-bold leading-none text-ink"
+            >
+              {count > 99 ? "99+" : count}
+            </span>
+          )}
+        </span>
+        <span className={iconOnly ? "sr-only" : label}>{item.label}</span>
+        {count > 0 && <span className="sr-only">({count} unread)</span>}
+        <Tooltip mode={iconOnly ? "rail" : mode}>
+          {item.label}
+          {count > 0 ? ` · ${count} unread` : ""}
+        </Tooltip>
+      </Link>
+    );
+  }
+
+  const iconRowItems = navItems.filter((item) => ICON_ROW_HREFS.includes(item.href));
+  const restItems = navItems.filter((item) => !ICON_ROW_HREFS.includes(item.href));
+  // Icon row shows once there's room for labels elsewhere (full, or
+  // responsive at md+); below that, the vertical fallback list matches the
+  // rest of the nav's icon-only rail appearance.
+  const iconRowClass = byMode(mode, { rail: "hidden", full: "flex", responsive: "hidden md:flex" });
+  const iconRowFallbackClass = byMode(mode, { rail: "flex", full: "hidden", responsive: "flex md:hidden" });
+
   return (
     <>
       <div className={`mb-4 flex items-center ${byMode(mode, { rail: "justify-center", full: "justify-between px-2", responsive: "justify-center md:justify-between md:px-2" })}`}>
@@ -192,10 +247,26 @@ function SidebarBody({
       )}
 
       <div className={`mb-1.5 mt-1 px-3 text-[10px] uppercase tracking-[1.4px] text-neutral-600 ${label}`}>Workspace</div>
+
+      {iconRowItems.length > 0 && (
+        <>
+          <div className={`mb-0.5 items-center justify-around gap-1 ${iconRowClass}`}>
+            {iconRowItems.map((item) => (
+              <div key={item.href} className="flex-1">
+                <NavLink item={item} iconOnly />
+              </div>
+            ))}
+          </div>
+          <div className={`mb-0.5 flex-col gap-0.5 ${iconRowFallbackClass}`}>
+            {iconRowItems.map((item) => (
+              <NavLink key={item.href} item={item} />
+            ))}
+          </div>
+        </>
+      )}
+
       <nav aria-label="Workspace" className="flex flex-col gap-0.5">
-        {navItems.map((item) => {
-          const active = activeHref === item.href || (item.href !== "/boards" && activeHref.startsWith(item.href + "/"));
-          const count = item.badge ? unread[item.badge] : 0;
+        {restItems.map((item) => {
           const group = groupFor(item.href);
           const isGroupHead = group ? group.hrefs[0] === item.href : false;
           // A collapsed group never hides the page the member is actually on.
@@ -219,35 +290,7 @@ function SidebarBody({
                 <Tooltip mode={mode}>{group.label} · {groupOpen ? "Collapse" : "Expand"}</Tooltip>
               </button>
             )}
-            {(!group || groupOpen) && (
-            <Link
-              href={item.href}
-              onClick={() => onNavigate(item.href)}
-              aria-current={active ? "page" : undefined}
-              className={`group relative flex items-center gap-2.5 rounded-[9px] py-2.5 text-[13px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400 ${center} ${item.child ? "md:ml-3" : ""} ${
-                active ? "bg-[#12191c] text-white" : "text-neutral-400 hover:bg-[#12191c] hover:text-white"
-              }`}
-            >
-              <span className="relative flex">
-                <NavIcon name={item.icon} />
-                {count > 0 && (
-                  <span
-                    aria-hidden="true"
-                    data-badge={item.badge}
-                    className="absolute -right-2 -top-1.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-cyan-400 px-1 text-[9.5px] font-bold leading-none text-ink"
-                  >
-                    {count > 99 ? "99+" : count}
-                  </span>
-                )}
-              </span>
-              <span className={label}>{item.label}</span>
-              {count > 0 && <span className="sr-only">({count} unread)</span>}
-              <Tooltip mode={mode}>
-                {item.label}
-                {count > 0 ? ` · ${count} unread` : ""}
-              </Tooltip>
-            </Link>
-            )}
+            {(!group || groupOpen) && <NavLink item={item} />}
             </Fragment>
           );
         })}
