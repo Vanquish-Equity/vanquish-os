@@ -64,6 +64,27 @@ different members depending on who has actually emailed those people and who
 has connected Gmail. If the member has not connected Gmail, the Timeline shows
 a prompt to connect it in Settings instead of silently omitting email history.
 
+## People: Last email column
+
+The People table's **Last email** column shows, per row, the most recent
+email thread between the viewing member's connected Gmail and that person —
+the same on-demand, per-viewer, nothing-stored model as the Company timeline
+above. `lastEmailDatesForContacts` (`src/lib/google/mail-actions.ts`) runs
+**one** combined Gmail search across every visible row's primary email,
+then matches each returned thread's From/To back to a specific address.
+
+This is an approximation, not a complete history: Gmail returns its top
+matches by recency across all requested addresses together, not one
+guaranteed match per address, so a contact who was last emailed long before
+everyone else on the page can show nothing here even though a real thread
+exists. For that reason the column is only shown for 50 rows or fewer
+(`LAST_EMAIL_MAX_ROWS` in `src/app/(dashboard)/people/page.tsx`) — narrow
+enough that the single search's results realistically cover most of the
+visible contacts — and withheld with an explanatory note above that limit or
+when Gmail isn't connected, rather than shown incomplete without comment.
+Saved Views (above) are the intended way to narrow a large People list down
+to where this column becomes useful.
+
 ## Personal LP follow-up
 
 Every active member gets one independent **LP follow-up** board on first visit.
