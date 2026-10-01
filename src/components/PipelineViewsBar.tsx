@@ -75,8 +75,16 @@ export default function PipelineViewsBar({
     setDeletingId(null);
   }
 
+  const hasChrome = views.length > 0 || filtersOpen;
+
   return (
-    <div className="vq-card-static flex flex-col gap-2.5 rounded-[14px] bg-white px-3 py-2.5">
+    <div
+      className={
+        hasChrome
+          ? "vq-card-static flex flex-col gap-2.5 rounded-[14px] bg-white px-3 py-2.5"
+          : "flex justify-end"
+      }
+    >
       <div className="flex flex-wrap items-center gap-2">
         {views.length > 0 && (
           <span className="text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
