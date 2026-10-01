@@ -78,8 +78,15 @@ function SidebarBody({
   const router = useRouter();
   const pathname = usePathname();
   const [profileOpen, setProfileOpen] = useState(false);
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(
-    () => Object.fromEntries(NAV_GROUPS.map((group) => [group.key, true])),
+  // Collapsed by default -- open only the group the member is actually in,
+  // so an unrelated section doesn't cost visual space it isn't earning.
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(
+      NAV_GROUPS.map((group) => [
+        group.key,
+        group.hrefs.some((href) => activeHref === href || activeHref.startsWith(href + "/")),
+      ]),
+    ),
   );
   const profileRef = useRef<HTMLDivElement>(null);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
