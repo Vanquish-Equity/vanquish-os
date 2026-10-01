@@ -2,11 +2,19 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import NewPersonModal from "@/components/NewPersonModal";
 import PersonContactActions from "@/components/PersonContactActions";
+import PeopleViewsBar from "@/components/PeopleViewsBar";
+import { requireMember } from "@/lib/auth/access";
 import { startDevPageTimer } from "@/lib/performance";
+import { loadSavedViews, type PeopleViewFilters } from "@/lib/views/queries";
 
 export const dynamic = "force-dynamic";
 
 type Option = { id: string; name: string };
+
+// LIKE wildcards are literal characters in a person's name.
+function escapeLike(value: string) {
+  return value.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
 
 type PersonRow = {
   id: string;
@@ -35,12 +43,29 @@ function initials(name: string) {
 export default async function PeoplePage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; group?: string; q?: string }>;
 }) {
-  const { view } = await searchParams;
+  const { view, group, q } = await searchParams;
   const showLps = view === "lps";
+  const groupId = group || null;
+  const search = (q ?? "").trim();
+  const filters: PeopleViewFilters = {
+    view: showLps ? "lps" : "all",
+    groupId,
+    q: search || null,
+  };
+  const access = await requireMember();
   const supabase = await createClient();
   const endTimer = startDevPageTimer("page:data:people");
+
+  let groupMemberIds: string[] | null = null;
+  if (groupId) {
+    const { data: members } = await supabase
+      .from("person_group_members")
+      .select("person_id")
+      .eq("group_id", groupId);
+    groupMemberIds = (members ?? []).map((m) => m.person_id as string);
+  }
 
   let peopleQuery = supabase
     .from("people")
@@ -49,8 +74,17 @@ export default async function PeoplePage({
     )
     .is("archived_at", null);
   if (showLps) peopleQuery = peopleQuery.eq("is_potential_lp", true);
+  if (search) peopleQuery = peopleQuery.ilike("name", `%${escapeLike(search)}%`);
+  if (groupMemberIds) peopleQuery = peopleQuery.in("id", groupMemberIds.length ? groupMemberIds : [""]);
 
-  const [{ data: people }, { data: companies }, { count: allCount }, { count: lpCount }] = await Promise.all([
+  const [
+    { data: people },
+    { data: companies },
+    { count: allCount },
+    { count: lpCount },
+    { data: groups },
+    savedViews,
+  ] = await Promise.all([
     peopleQuery.order("name") as unknown as Promise<{ data: PersonRow[] | null }>,
     supabase
       .from("companies")
@@ -63,6 +97,10 @@ export default async function PeoplePage({
       .select("id", { count: "exact", head: true })
       .is("archived_at", null)
       .eq("is_potential_lp", true),
+    supabase.from("person_groups").select("id,name").order("name") as unknown as Promise<{
+      data: Option[] | null;
+    }>,
+    loadSavedViews(supabase, "people"),
   ]);
   endTimer();
 
@@ -118,6 +156,13 @@ export default async function PeoplePage({
           .
         </p>
       </div>
+
+      <PeopleViewsBar
+        views={savedViews}
+        groups={groups ?? []}
+        filters={filters}
+        me={access.email ?? ""}
+      />
 
       <div className="vq-card-static overflow-hidden rounded-[14px] bg-white">
         <table className="w-full text-[12.5px]">
