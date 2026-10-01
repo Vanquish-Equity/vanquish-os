@@ -16,7 +16,9 @@ import { describeActivity, describeActivityDetail } from "@/lib/activity/describ
 import { dealLabel } from "@/lib/deals/display";
 import { countByDeal, dealHref, partitionDeals } from "@/lib/deals/scope";
 import { calculateRequirementProgress } from "@/lib/documents/requirements";
+import { listMailForContacts } from "@/lib/google/mail-actions";
 import { humanizeCode, labelForInstrument } from "@/lib/labels";
+import { loadMailboxConnection } from "@/lib/connections/queries";
 import { startDevPageTimer } from "@/lib/performance";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -125,6 +127,7 @@ export default async function CompanyDetailPage({
   const supabase = await createClient();
   // Company-level comments (null until migration 0019 is applied).
   const commentsPromise = Promise.all([loadComments(supabase, id, null), loadDirectory(supabase)]);
+  const mailboxPromise = loadMailboxConnection(supabase);
   const endTimer = startDevPageTimer(`page:data:company:${id}`);
 
   const [
@@ -238,9 +241,19 @@ export default async function CompanyDetailPage({
     }>,
     supabase
       .from("people")
-      .select("id,name,title,linkedin_url")
+      .select("id,name,title,linkedin_url,person_emails(email)")
       .eq("primary_organization_id", id)
-      .is("archived_at", null),
+      .is("archived_at", null) as unknown as Promise<{
+      data:
+        | {
+            id: string;
+            name: string;
+            title: string | null;
+            linkedin_url: string | null;
+            person_emails: { email: string }[];
+          }[]
+        | null;
+    }>,
     // Documents and checklists are only queried with the Documents
     // permission (RLS withholds them anyway).
     (canDocuments
@@ -344,6 +357,25 @@ export default async function CompanyDetailPage({
   );
   endTimer();
 
+  const mailbox = await mailboxPromise;
+  const contactEmails = (people ?? []).flatMap((p) =>
+    p.person_emails.map((e) => e.email),
+  );
+  const emailThreads =
+    mailbox.connected && contactEmails.length
+      ? await listMailForContacts(contactEmails)
+      : null;
+  const emailTimelineItems: TimelineItem[] =
+    emailThreads?.ok && emailThreads.data.length
+      ? emailThreads.data.map((thread) => ({
+          id: `email-${thread.id}`,
+          at: thread.date || new Date(0).toISOString(),
+          eyebrow: "Email",
+          label: thread.subject,
+          detail: thread.snippet || null,
+        }))
+      : [];
+
   const relevantIds = new Set([
     id,
     ...dealIds,
@@ -352,6 +384,7 @@ export default async function CompanyDetailPage({
     ...(requirements ?? []).map((requirement) => requirement.id),
   ]);
   const timeline: TimelineItem[] = [
+    ...emailTimelineItems,
     ...(history ?? []).map((h) => ({
       id: `history-${h.id}`,
       at: h.changed_at,
@@ -671,8 +704,16 @@ export default async function CompanyDetailPage({
 
       <section id="timeline" className="grid grid-cols-[1.3fr_0.7fr] gap-3.5 scroll-mt-16">
         <div className="vq-card rounded-[14px] bg-white p-5">
-          <h2 className="mb-3 text-[14.5px] font-semibold text-ink">Timeline</h2>
-          <div className="flex flex-col gap-3">
+          <h2 className="mb-1 text-[14.5px] font-semibold text-ink">Timeline</h2>
+          {!mailbox.connected && contactEmails.length > 0 && (
+            <p className="mb-3 text-[11.5px] text-neutral-400">
+              <Link href="/settings" className="font-semibold text-cyan-700 hover:underline">
+                Connect Gmail
+              </Link>{" "}
+              to see your email history with this company&apos;s people here.
+            </p>
+          )}
+          <div className="mt-2 flex flex-col gap-3">
             {timeline.length === 0 && (
               <p className="rounded-xl border border-dashed border-neutral-200 px-3 py-4 text-center text-[12px] text-neutral-400">
                 No activity recorded yet.

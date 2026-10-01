@@ -6,6 +6,7 @@ vi.mock("./client", async (importOriginal) => ({
 }));
 import {
   listMail,
+  listMailForContacts,
   saveGmailDraft,
   sendGmailDraft,
   changeMail,
@@ -137,5 +138,32 @@ describe("Gmail mailbox operations", () => {
     expect((await sendGmailDraft("draft1")).ok).toBe(false);
     expect(mocks.request).toHaveBeenCalledTimes(1);
     expect(mocks.request.mock.calls[0][1]).toBe("/drafts/send");
+  });
+  it("searches Gmail for threads with the given contact addresses and skips trash/spam", async () => {
+    mocks.request
+      .mockResolvedValueOnce({ threads: [{ id: "t1" }] })
+      .mockResolvedValueOnce({
+        id: "t1",
+        messages: [
+          {
+            id: "m1",
+            threadId: "t1",
+            internalDate: "1700000000000",
+            payload: { headers: [{ name: "Subject", value: "Intro" }] },
+          },
+        ],
+      });
+    const result = await listMailForContacts(["Person@Example.com", ""]);
+    expect(result.ok).toBe(true);
+    const query = decodeURIComponent(
+      mocks.request.mock.calls[0][1].replace(/\+/g, " "),
+    );
+    expect(query).toContain("-in:trash -in:spam");
+    expect(query).toContain('from:"person@example.com" OR to:"person@example.com"');
+  });
+  it("returns no threads without making a request when there are no contact emails", async () => {
+    const result = await listMailForContacts([]);
+    expect(result).toMatchObject({ ok: true, data: [] });
+    expect(mocks.request).not.toHaveBeenCalled();
   });
 });
