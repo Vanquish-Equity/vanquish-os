@@ -191,7 +191,11 @@ function SidebarBody({
           const count = item.badge ? unread[item.badge] : 0;
           const group = groupFor(item.href);
           const isGroupHead = group ? group.hrefs[0] === item.href : false;
-          const groupOpen = group ? (openGroups[group.key] ?? true) : true;
+          // A collapsed group never hides the page the member is actually on.
+          const groupHasActivePage = group?.hrefs.some(
+            (href) => activeHref === href || activeHref.startsWith(href + "/"),
+          );
+          const groupOpen = group ? (openGroups[group.key] ?? true) || groupHasActivePage : true;
           return (
             <Fragment key={item.href}>
             {isGroupHead && group && (
