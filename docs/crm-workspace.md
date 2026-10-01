@@ -24,6 +24,22 @@ assignees with avatars. Pipeline supports on-board filters. Board pages support
 contextual comments. Saved views, custom fields, task/LP record workflows and
 personal boards for general purposes are still planned rather than available.
 
+## Company timeline: email history
+
+The Company detail page's **Timeline** merges stage history, manually logged
+interactions, system activity events, and — when the viewing member has
+connected Gmail in Settings — recent email threads with that company's People.
+`listMailForContacts` (`src/lib/google/mail-actions.ts`) searches the viewing
+member's own connected mailbox (`from:`/`to:` any of that company's People
+email addresses, excluding Trash/Spam, capped at 8 threads) and reads it on
+demand each page load; it is never stored in a shared table, matching the rest
+of the Google mailbox integration (see
+[`docs/communications.md`](communications.md)). Each member sees this section
+built from their own mailbox — a company may show different email history to
+different members depending on who has actually emailed those people and who
+has connected Gmail. If the member has not connected Gmail, the Timeline shows
+a prompt to connect it in Settings instead of silently omitting email history.
+
 ## Personal LP follow-up
 
 Every active member gets one independent **LP follow-up** board on first visit.

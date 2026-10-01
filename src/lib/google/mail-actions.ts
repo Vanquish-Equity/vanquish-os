@@ -13,6 +13,7 @@ import {
   type MailFolder,
   type MailOperation,
   type MailPage,
+  type MailThreadSummary,
   type ComposeInput,
 } from "./mail-types";
 import { formatMessage, summarizeThread, mimeMessage } from "./mail-format";
@@ -80,6 +81,57 @@ export async function listMail(
       nextPageToken: list.nextPageToken ?? null,
       estimate: list.resultSizeEstimate ?? 0,
     };
+  });
+}
+export async function listMailForContacts(emails: string[]) {
+  return googleResult(async (): Promise<MailThreadSummary[]> => {
+    const clean = [
+      ...new Set(
+        (Array.isArray(emails) ? emails : [])
+          .map((email) => (typeof email === "string" ? email.trim().toLowerCase() : ""))
+          .filter((email) => email && email.length <= 254 && !/[\r\n"]/.test(email)),
+      ),
+    ].slice(0, 12);
+    if (!clean.length) return [];
+    const client = await googleClient();
+    requireScope(client, "gmail.readonly", "gmail.modify");
+    const addressQuery = clean
+      .map((email) => `from:"${email}" OR to:"${email}"`)
+      .join(" OR ");
+    const params = new URLSearchParams({
+      maxResults: "8",
+      q: `-in:trash -in:spam (${addressQuery})`,
+    });
+    const list = await client.request<{ threads?: { id: string }[] }>(
+      "gmail",
+      `/threads?${params}`,
+    );
+    const ids = list.threads ?? [];
+    const threads: MailThreadSummary[] = [];
+    for (let start = 0; start < ids.length; start += 5) {
+      const group = await Promise.all(
+        ids.slice(start, start + 5).map(async ({ id }) => {
+          try {
+            return summarizeThread(
+              await client.request<GmailThread>(
+                "gmail",
+                `/threads/${resourceId(id)}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To`,
+              ),
+            );
+          } catch (error) {
+            if (
+              error instanceof Error &&
+              "code" in error &&
+              error.code === "not_found"
+            )
+              return null;
+            throw error;
+          }
+        }),
+      );
+      threads.push(...group.filter((t): t is MailThreadSummary => t !== null));
+    }
+    return threads;
   });
 }
 export async function readThread(id: string) {
