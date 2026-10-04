@@ -42,8 +42,12 @@ shared between People's and Pipeline's filter spec beyond the table and its
 RLS). Column visibility, sorting and board/kanban-style views are not
 implemented yet:
 
-- **People** filters: group and name search, and the base tab (`/people` vs
-  `?view=lps`).
+- **People** filters: group and name search, the base tab (`/people` vs
+  `?view=lps`), and which optional columns show (Company, Email, LinkedIn,
+  Last email, Next meeting; Name and row actions always show). Columns are
+  query params (`cols=1&col=company&col=email...`); `cols=1` marks an
+  explicit choice so unchecking everything means "only Name" rather than
+  the default of all columns. Defined in `src/lib/views/people-columns.ts`.
 - **Pipeline** filters: stage, priority and whether terminal outcomes are
   hidden — the same filters the board already applied via query params,
   now nameable and reusable instead of re-set by hand each time.
@@ -84,6 +88,15 @@ visible contacts — and withheld with an explanatory note above that limit or
 when Gmail isn't connected, rather than shown incomplete without comment.
 Saved Views (above) are the intended way to narrow a large People list down
 to where this column becomes useful.
+
+**Next meeting** works the same way (same 50-row limit, per viewer, nothing
+stored) but reads the viewer's primary Google Calendar instead:
+`nextMeetingsForContacts` (`src/lib/google/calendar-actions.ts`) lists the
+next 60 days of events and returns, per contact address, the earliest event
+that address is invited to. Unlike Gmail search, every event in that window
+comes back with its full attendee list, so this is complete for the window
+(up to 1,000 events) rather than an approximation. Each lookup only runs
+when its column is visible.
 
 ## Personal LP follow-up
 

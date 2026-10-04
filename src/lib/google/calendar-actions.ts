@@ -264,3 +264,65 @@ export async function deleteCalendarEvent(
     return true;
   });
 }
+
+export type NextMeetingByContact = Record<string, { start: string; summary: string }>;
+
+// Earliest upcoming event on the member's primary calendar that each given
+// address is invited to. Unlike Gmail search, the calendar API returns every
+// event in the window with its full attendee list, so within the next 60
+// days (and the page cap below) this is complete rather than approximate.
+export async function nextMeetingsForContacts(emails: string[]) {
+  return googleResult(async (): Promise<NextMeetingByContact> => {
+    const wanted = new Set(
+      (Array.isArray(emails) ? emails : [])
+        .map((email) => (typeof email === "string" ? email.trim().toLowerCase() : ""))
+        .filter((email) => email && email.length <= 254)
+        .slice(0, 200),
+    );
+    if (!wanted.size) return {};
+    const client = await googleClient();
+    requireScope(
+      client,
+      "calendar.readonly",
+      "calendar.events.readonly",
+      "calendar.events",
+      "calendar",
+    );
+    const now = new Date();
+    const timeMin = now.toISOString();
+    const timeMax = new Date(now.getTime() + 60 * 86400000).toISOString();
+    const result: NextMeetingByContact = {};
+    let next = "",
+      pages = 0;
+    do {
+      const params = new URLSearchParams({
+        timeMin,
+        timeMax,
+        singleEvents: "true",
+        orderBy: "startTime",
+        maxResults: "250",
+        showDeleted: "false",
+      });
+      if (next) params.set("pageToken", next);
+      const page = await client.request<{
+        items?: Omit<CalendarEvent, "calendarId">[];
+        nextPageToken?: string;
+      }>("calendar", `/calendars/primary/events?${params}`);
+      for (const event of page.items ?? []) {
+        if (event.status === "cancelled") continue;
+        const start = event.start.dateTime ?? event.start.date;
+        if (!start) continue;
+        for (const attendee of event.attendees ?? []) {
+          const email = attendee.email?.toLowerCase();
+          // Events arrive in start order, so the first match is the earliest.
+          if (email && wanted.has(email) && !result[email]) {
+            result[email] = { start, summary: event.summary || "(No title)" };
+          }
+        }
+      }
+      next = page.nextPageToken ?? "";
+      pages++;
+    } while (next && pages < 4);
+    return result;
+  });
+}

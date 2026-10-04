@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Checkbox from "@/components/Checkbox";
 import { FormSelectMenu } from "@/components/SelectMenu";
 import { deleteViewAction, saveViewAction } from "@/lib/views/actions";
+import { PEOPLE_COLUMNS, visiblePeopleColumns } from "@/lib/views/people-columns";
 import {
   viewHref,
   type PeopleViewFilters,
@@ -16,7 +17,8 @@ function sameFilters(a: PeopleViewFilters, b: PeopleViewFilters) {
   return (
     a.view === b.view &&
     (a.groupId ?? "") === (b.groupId ?? "") &&
-    (a.q ?? "") === (b.q ?? "")
+    (a.q ?? "") === (b.q ?? "") &&
+    (a.cols ?? []).join(",") === (b.cols ?? []).join(",")
   );
 }
 
@@ -34,7 +36,8 @@ export default function PeopleViewsBar({
   me: string;
 }) {
   const router = useRouter();
-  const isFiltered = Boolean(filters.groupId || filters.q);
+  const isFiltered = Boolean(filters.groupId || filters.q || filters.cols);
+  const shownColumns = visiblePeopleColumns(filters.cols);
   const [filtersOpen, setFiltersOpen] = useState(isFiltered);
   const [saveOpen, setSaveOpen] = useState(false);
   const [name, setName] = useState("");
@@ -156,6 +159,19 @@ export default function PeopleViewsBar({
               placeholder="Search by name"
               className="rounded-xl border border-neutral-200 px-2.5 py-1.5 text-[12px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
             />
+            <fieldset className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-neutral-100 px-2.5 py-1.5">
+              <legend className="sr-only">Columns</legend>
+              <span className="text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">Columns</span>
+              {/* Marks an explicit column choice, so unchecking everything
+                 means "only Name" instead of falling back to the default. */}
+              <input type="hidden" name="cols" value="1" />
+              {PEOPLE_COLUMNS.map((column) => (
+                <label key={column.key} className="flex items-center gap-1.5 text-[11.5px] text-neutral-600">
+                  <Checkbox name="col" value={column.key} defaultChecked={shownColumns.has(column.key)} />
+                  {column.label}
+                </label>
+              ))}
+            </fieldset>
             <button
               type="submit"
               className="rounded-full border border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
