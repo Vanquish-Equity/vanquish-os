@@ -28,6 +28,7 @@ export function describeActivity(eventType: string, payload: Record<string, unkn
   if (eventType === "STATUS_CHANGED") return "Stage changed";
   if (eventType === "PERSON_MARKED_POTENTIAL_LP") return "Marked as potential LP";
   if (eventType === "PERSON_UNMARKED_POTENTIAL_LP") return "No longer a potential LP";
+  if (eventType === "PEOPLE_MERGED") return "Duplicate person merged";
   if (eventType === "POTENTIAL_LPS_IMPORTED") return "Potential LPs imported";
   if (eventType === "EMAIL_DRAFT_CREATED") return "Email draft created";
   if (eventType === "EMAIL_DRAFT_UPDATED") return "Email draft saved";
