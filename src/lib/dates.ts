@@ -71,6 +71,26 @@ export function formatRelative(
   return monthYearFormatter.format(date);
 }
 
+// Counterpart of formatRelative for dates ahead (e.g. a next meeting):
+// "today", "tomorrow", "in 5d", then month/day/year once it's far out.
+export function formatUpcoming(
+  value: string | Date | null | undefined,
+  now: Date = new Date()
+) {
+  if (!value) return "None";
+
+  const date = toDate(value);
+  if (Number.isNaN(date.getTime())) return "Invalid date";
+
+  const days = Math.floor((date.getTime() - now.getTime()) / DAY_MS);
+
+  if (days <= 0) return "today";
+  if (days === 1) return "tomorrow";
+  if (days < 14) return `in ${days}d`;
+
+  return exactDateFormatter.format(date);
+}
+
 export function daysBetween(
   earlier: string | Date,
   later: string | Date = new Date()

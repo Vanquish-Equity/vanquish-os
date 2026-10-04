@@ -7,6 +7,9 @@ import RelativeTime from "@/components/RelativeTime";
 import { requireMember } from "@/lib/auth/access";
 import { loadMailboxConnection } from "@/lib/connections/queries";
 import { lastEmailDatesForContacts } from "@/lib/google/mail-actions";
+import { nextMeetingsForContacts } from "@/lib/google/calendar-actions";
+import { parsePeopleColumns, visiblePeopleColumns } from "@/lib/views/people-columns";
+import { formatExactDate, formatUpcoming } from "@/lib/dates";
 import { startDevPageTimer } from "@/lib/performance";
 import { loadSavedViews, type PeopleViewFilters } from "@/lib/views/queries";
 
@@ -52,9 +55,15 @@ function initials(name: string) {
 export default async function PeoplePage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; group?: string; q?: string }>;
+  searchParams: Promise<{
+    view?: string;
+    group?: string;
+    q?: string;
+    cols?: string;
+    col?: string | string[];
+  }>;
 }) {
-  const { view, group, q } = await searchParams;
+  const { view, group, q, cols: colsMarker, col } = await searchParams;
   const showLps = view === "lps";
   const groupId = group || null;
   const search = (q ?? "").trim();
@@ -62,7 +71,11 @@ export default async function PeoplePage({
     view: showLps ? "lps" : "all",
     groupId,
     q: search || null,
+    // `cols=1` marks an explicit column choice (even "none"); without it,
+    // every column shows.
+    cols: colsMarker ? (parsePeopleColumns(col ?? []) ?? []) : null,
   };
+  const shown = visiblePeopleColumns(filters.cols);
   const access = await requireMember();
   const supabase = await createClient();
   const endTimer = startDevPageTimer("page:data:people");
@@ -115,16 +128,22 @@ export default async function PeoplePage({
 
   const mailbox = await loadMailboxConnection(supabase);
   const rows = people ?? [];
-  const showLastEmail = mailbox.connected && rows.length > 0 && rows.length <= LAST_EMAIL_MAX_ROWS;
-  const lastEmailByAddress = showLastEmail
-    ? await (async () => {
-        const emails = rows
-          .map((p) => primaryEmail(p.person_emails ?? []))
-          .filter((email): email is string => Boolean(email));
-        const result = await lastEmailDatesForContacts(emails);
-        return result.ok ? result.data : {};
-      })()
-    : {};
+  // Both per-row signals cost a Google round trip, so they only run when
+  // their column is visible and the list is small enough (see
+  // LAST_EMAIL_MAX_ROWS) to be meaningful.
+  const canLookUp = mailbox.connected && rows.length > 0 && rows.length <= LAST_EMAIL_MAX_ROWS;
+  const showLastEmail = canLookUp && shown.has("last_email");
+  const showNextMeeting = canLookUp && shown.has("next_meeting");
+  const contactEmails = rows
+    .map((p) => primaryEmail(p.person_emails ?? []))
+    .filter((email): email is string => Boolean(email));
+  const [lastEmailResult, nextMeetingResult] = await Promise.all([
+    showLastEmail ? lastEmailDatesForContacts(contactEmails) : null,
+    showNextMeeting ? nextMeetingsForContacts(contactEmails) : null,
+  ]);
+  const lastEmailByAddress = lastEmailResult?.ok ? lastEmailResult.data : {};
+  const nextMeetingByAddress = nextMeetingResult?.ok ? nextMeetingResult.data : {};
+  const columnCount = 2 + shown.size;
 
   const tabClass = (active: boolean) =>
     `rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition ${
@@ -192,12 +211,12 @@ export default async function PeoplePage({
           <Link href="/settings" className="font-semibold text-cyan-700 hover:underline">
             Connect Gmail
           </Link>{" "}
-          to see each person&apos;s last email here.
+          to see each person&apos;s last email and next meeting here.
         </p>
       )}
       {mailbox.connected && rows.length > LAST_EMAIL_MAX_ROWS && (
         <p className="text-[11.5px] text-neutral-400">
-          Last email isn&apos;t shown for more than {LAST_EMAIL_MAX_ROWS} people at once —
+          Last email and next meeting aren&apos;t shown for more than {LAST_EMAIL_MAX_ROWS} people at once —
           filter this view down (a group or search) to see it.
         </p>
       )}
@@ -207,10 +226,11 @@ export default async function PeoplePage({
           <thead>
             <tr className="border-b border-neutral-100 text-left text-[10.5px] uppercase tracking-wide text-neutral-400">
               <th className="px-4 py-3 font-semibold">Name</th>
-              <th className="px-4 py-3 font-semibold">Company</th>
-              <th className="px-4 py-3 font-semibold">Email</th>
-              <th className="px-4 py-3 font-semibold">LinkedIn</th>
-              <th className="px-4 py-3 font-semibold">Last email</th>
+              {shown.has("company") && <th className="px-4 py-3 font-semibold">Company</th>}
+              {shown.has("email") && <th className="px-4 py-3 font-semibold">Email</th>}
+              {shown.has("linkedin") && <th className="px-4 py-3 font-semibold">LinkedIn</th>}
+              {shown.has("last_email") && <th className="px-4 py-3 font-semibold">Last email</th>}
+              {shown.has("next_meeting") && <th className="px-4 py-3 font-semibold">Next meeting</th>}
               <th className="px-4 py-3 text-right font-semibold">Contact</th>
             </tr>
           </thead>
@@ -230,6 +250,7 @@ export default async function PeoplePage({
                     </div>
                   </div>
                 </td>
+                {shown.has("company") && (
                 <td className="px-4 py-3 text-neutral-600">
                   {p.organization ? (
                     <Link
@@ -242,9 +263,13 @@ export default async function PeoplePage({
                     "—"
                   )}
                 </td>
+                )}
+                {shown.has("email") && (
                 <td className="px-4 py-3 text-neutral-600">
                   {primaryEmail(p.person_emails ?? []) ?? "—"}
                 </td>
+                )}
+                {shown.has("linkedin") && (
                 <td className="px-4 py-3">
                   {p.linkedin_url ? (
                     <a
@@ -259,10 +284,12 @@ export default async function PeoplePage({
                     <span className="text-neutral-400">—</span>
                   )}
                 </td>
+                )}
+                {shown.has("last_email") && (
                 <td className="px-4 py-3 text-neutral-500">
                   {(() => {
                     const email = primaryEmail(p.person_emails ?? []);
-                    const last = email ? lastEmailByAddress[email] : undefined;
+                    const last = email ? lastEmailByAddress[email.toLowerCase()] : undefined;
                     if (!showLastEmail) return <span className="text-neutral-300">—</span>;
                     if (!last) return <span className="text-neutral-300">—</span>;
                     return (
@@ -272,6 +299,21 @@ export default async function PeoplePage({
                     );
                   })()}
                 </td>
+                )}
+                {shown.has("next_meeting") && (
+                <td className="px-4 py-3 text-neutral-500">
+                  {(() => {
+                    const email = primaryEmail(p.person_emails ?? []);
+                    const next = email ? nextMeetingByAddress[email.toLowerCase()] : undefined;
+                    if (!showNextMeeting || !next) return <span className="text-neutral-300">—</span>;
+                    return (
+                      <time dateTime={next.start} title={`${next.summary} · ${formatExactDate(next.start)}`}>
+                        {formatUpcoming(next.start)}
+                      </time>
+                    );
+                  })()}
+                </td>
+                )}
                 <td className="px-4 py-3">
                   <PersonContactActions
                     personId={p.id}
@@ -284,7 +326,7 @@ export default async function PeoplePage({
             ))}
             {(!people || people.length === 0) && (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center">
+                <td colSpan={columnCount} className="px-4 py-10 text-center">
                   {showLps ? (
                     <div className="mx-auto max-w-[460px]">
                       <p className="font-semibold text-ink">No potential LPs yet.</p>

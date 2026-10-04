@@ -8,6 +8,7 @@ import {
   saveCalendarEvent,
   listCalendarEvents,
   deleteCalendarEvent,
+  nextMeetingsForContacts,
 } from "./calendar-actions";
 import type { EventInput } from "./calendar-types";
 const input: EventInput = {
@@ -115,5 +116,36 @@ describe("Google Calendar writes and pagination", () => {
       method: "DELETE",
       headers: { "If-Match": '"current"' },
     });
+  });
+  it("returns each contact's earliest upcoming meeting from the primary calendar", async () => {
+    mocks.request.mockResolvedValueOnce({
+      items: [
+        {
+          id: "e1",
+          summary: "Intro call",
+          start: { dateTime: "2026-10-05T09:00:00Z" },
+          end: { dateTime: "2026-10-05T10:00:00Z" },
+          attendees: [{ email: "LP@example.com" }, { email: "me@example.com", self: true }],
+        },
+        {
+          id: "e2",
+          summary: "Follow-up",
+          start: { dateTime: "2026-10-12T09:00:00Z" },
+          end: { dateTime: "2026-10-12T10:00:00Z" },
+          attendees: [{ email: "lp@example.com" }, { email: "other@example.com" }],
+        },
+      ],
+    });
+    const result = await nextMeetingsForContacts(["lp@example.com", "nobody@example.com"]);
+    expect(result).toMatchObject({
+      ok: true,
+      data: { "lp@example.com": { summary: "Intro call" } },
+    });
+    if (result.ok) expect(result.data["nobody@example.com"]).toBeUndefined();
+    expect(mocks.request.mock.calls[0][1]).toContain("/calendars/primary/events?");
+  });
+  it("makes no request without contact emails", async () => {
+    expect(await nextMeetingsForContacts([])).toMatchObject({ ok: true, data: {} });
+    expect(mocks.request).not.toHaveBeenCalled();
   });
 });
