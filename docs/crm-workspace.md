@@ -150,9 +150,23 @@ Clicking a Pipeline or Deal-board card opens a large accessible overlay while th
 | Stage rules | Show required inputs and optionally create tasks or notifications on stage entry. | Stage history and some diligence requirements exist; reusable rules remain. |
 | LP outreach | Own workflow for prospects, communications and investments. | Private per-member LP follow-up boards and shared People LP flags exist; explicit linking, communication history and investment status remain. |
 | Search/quick actions | Find People, Companies and Deals globally; add notes/tasks in context. | Dedicated pages exist; universal search remains. |
-| Analytics | Time per stage, stale Deals, movement, outcomes, owner and investment potential. | Overview now also shows a pipeline-by-stage breakdown, potential LP count and activity in the last 7 days; time-per-stage, movement trends and owner/investment-potential views remain. |
+| Analytics | Time per stage, stale Deals, movement, outcomes, owner and investment potential. | Overview shows a pipeline-by-stage breakdown, potential LP count, activity in the last 7 days and a **Time in stage** table (see below); movement trends over time and owner/investment-potential views remain. |
 | Templates | Start from Investment Deal, LP Outreach or Tasks, then customize. | Later, once each record workflow exists. |
 | Connected activity | An authorized Gmail mailbox and calendar attach activity and update last interaction. | Provider connections and sync remain separate roadmap work. |
+
+### Time in stage
+
+Overview's **Time in stage** table (`src/lib/deals/pipeline-analytics.ts`)
+is computed from `deal_status_history` stage changes and each Deal's
+`created_at`/`archived_at`/`outcome_id`, nothing stored. Per stage it shows
+active Deals there now and their average days so far; the average length of
+finished stints (Deals that have left the stage); and **Moved forward**, the
+share of those that later reached a stage with a higher sort order. History
+is only written on a stage change, so a Deal that has changed stage has an
+unknown creation stage and that first stint is left out; a Deal that has
+never changed stage counts from its creation. Archived Deals end their last
+stint at `archived_at`. All Deals and history rows are read in one query each
+(124 and 160 rows today); past the API's row cap this needs a SQL aggregate.
 
 ## Delivery order and open decisions
 

@@ -3,6 +3,7 @@ import { hasPermission } from "@/lib/auth/access";
 import OverviewAttentionPanel from "@/components/OverviewAttentionPanel";
 import RelativeTime from "@/components/RelativeTime";
 import { loadAttentionDeals } from "@/lib/deals/attention-data";
+import { pipelineAnalytics, type AnalyticsDeal, type StageChange } from "@/lib/deals/pipeline-analytics";
 import { getPipelineStages } from "@/lib/taxonomies";
 import { introCard } from "@/lib/ui/entrance";
 import { startDevPageTimer } from "@/lib/performance";
@@ -123,6 +124,8 @@ export default async function OverviewPage() {
     stages,
     { count: potentialLpCount },
     { count: weeklyActivityCount },
+    { data: allDeals },
+    { data: stageChanges },
   ] = await Promise.all([
     loadAttentionDeals(supabase, { canDocuments }),
     supabase
@@ -161,6 +164,16 @@ export default async function OverviewPage() {
       .from("activity_events")
       .select("id", { count: "exact", head: true })
       .gte("occurred_at", weekAgo),
+    // Archived and decided deals too: their finished stints feed time-in-stage.
+    supabase
+      .from("deals")
+      .select("id,stage_id,created_at,archived_at,outcome_id") as unknown as Promise<{
+      data: AnalyticsDeal[] | null;
+    }>,
+    supabase
+      .from("deal_status_history")
+      .select("deal_id,stage_id,changed_at")
+      .not("stage_id", "is", null) as unknown as Promise<{ data: StageChange[] | null }>,
   ]);
   endTimer();
 
@@ -172,6 +185,11 @@ export default async function OverviewPage() {
   const stageBreakdown = stages
     .map((stage) => ({ id: stage.id, name: stage.name, count: dealsByStage.get(stage.name) ?? 0 }))
     .filter((stage) => stage.count > 0);
+
+  const analytics = pipelineAnalytics(stages, allDeals ?? [], stageChanges ?? []).filter(
+    (row) => row.currentCount > 0 || row.completedCount > 0 || row.decided > 0,
+  );
+  const formatDays = (days: number | null) => (days === null ? "—" : `${days}d`);
 
   const activeDeals = deals.filter((d) => !d.stage?.is_terminal && !d.outcome);
   const dueDiligence = activeDeals.filter((d) => d.stage?.name === "Due Diligence");
@@ -275,6 +293,58 @@ export default async function OverviewPage() {
               </Link>
             ))}
           </div>
+        </div>
+      )}
+
+      {analytics.length > 0 && (
+        <div
+          data-comment-anchor="pipeline-analytics"
+          data-comment-label="Pipeline analytics"
+          className="vq-card-static vq-intro-card overflow-x-auto rounded-[14px] bg-white p-4"
+          style={introCard(3)}
+        >
+          <h2 className="text-[12px] font-semibold text-neutral-500">Time in stage</h2>
+          <p className="mb-2.5 mt-0.5 text-[11.5px] text-neutral-400">
+            From stage history. &ldquo;Moved forward&rdquo; counts deals that left a stage for a later one.
+          </p>
+          <table className="w-full min-w-[560px] text-left text-[12px]">
+            <thead>
+              <tr className="text-[10.5px] uppercase tracking-wide text-neutral-400">
+                <th className="py-1.5 pr-3 font-semibold">Stage</th>
+                <th className="py-1.5 pr-3 text-right font-semibold">Deals now</th>
+                <th className="py-1.5 pr-3 text-right font-semibold">Avg days so far</th>
+                <th className="py-1.5 pr-3 text-right font-semibold">Avg days (left stage)</th>
+                <th className="py-1.5 text-right font-semibold">Moved forward</th>
+              </tr>
+            </thead>
+            <tbody>
+              {analytics.map((row) => (
+                <tr key={row.stageId} className="border-t border-neutral-50">
+                  <td className="py-1.5 pr-3">
+                    <Link
+                      href={`/pipeline?stage=${encodeURIComponent(row.name)}`}
+                      className="font-semibold text-ink hover:text-cyan-800"
+                    >
+                      {row.name}
+                    </Link>
+                  </td>
+                  <td className="py-1.5 pr-3 text-right tabular-nums text-neutral-600">{row.currentCount}</td>
+                  <td className="py-1.5 pr-3 text-right tabular-nums text-neutral-600">{formatDays(row.currentAvgDays)}</td>
+                  <td className="py-1.5 pr-3 text-right tabular-nums text-neutral-600">
+                    {formatDays(row.completedAvgDays)}
+                    {row.completedCount > 0 && (
+                      <span className="ml-1 text-[10.5px] text-neutral-400">({row.completedCount})</span>
+                    )}
+                  </td>
+                  <td className="py-1.5 text-right tabular-nums text-neutral-600">
+                    {row.decided === 0
+                      ? "—"
+                      : `${Math.round((row.advanced / row.decided) * 100)}% (${row.advanced}/${row.decided})`}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
