@@ -147,12 +147,33 @@ Clicking a Pipeline or Deal-board card opens a large accessible overlay while th
 | Deal team | Assign multiple active members to a Deal, show team avatars on Pipeline cards, and filter by member. Preserve the old free-text `deals.owner` for historical records; migrate only unambiguous member names. | Membership and avatar profiles exist; join-table assignments are added in the Deal team migration. |
 | Saved views and custom fields | Personal/shared filters, table/Kanban layouts, card fields and business fields. | Durable, nameable/shareable Views exist for People and Pipeline filters; column visibility, sorting, custom fields and Kanban-style views remain. |
 | Relationship history | Consolidate activity by Person and Company, relationship owner and possible warm introductions. | Company timeline and People's Last email column surface real Gmail activity per viewer on demand; a durable synced history, warm-intro graph and Calendar activity remain. |
-| Stage rules | Show required inputs and optionally create tasks or notifications on stage entry. | Stage history and some diligence requirements exist; reusable rules remain. |
+| Stage rules | Show required inputs and optionally create tasks or notifications on stage entry. | Admin-defined rules create tasks on stage entry (see below); required inputs before a move remain. |
 | LP outreach | Own workflow for prospects, communications and investments. | Private per-member LP follow-up boards and shared People LP flags exist; explicit linking, communication history and investment status remain. |
 | Search/quick actions | Find People, Companies and Deals globally; add notes/tasks in context. | Dedicated pages exist; universal search remains. |
 | Analytics | Time per stage, stale Deals, movement, outcomes, owner and investment potential. | Overview now also shows a pipeline-by-stage breakdown, potential LP count and activity in the last 7 days; time-per-stage, movement trends and owner/investment-potential views remain. |
 | Templates | Start from Investment Deal, LP Outreach or Tasks, then customize. | Later, once each record workflow exists. |
 | Connected activity | An authorized Gmail mailbox and calendar attach activity and update last interaction. | Provider connections and sync remain separate roadmap work. |
+
+## Stage rules (automation)
+
+Admins manage **Stage rules** in Settings: "when a Deal enters stage X,
+create task Y", with an optional due date (N days after entry) and assignee.
+`stage_task_rules` (migration `20261004120000`) is readable by members and
+writable only with the Admin permission; rules are turned off rather than
+deleted. The database trigger `deals_apply_stage_task_rules` runs on Deal
+insert and on every `stage_id` change, whoever makes it, and for each active
+rule of the new stage creates a task on that Deal and Company, logged as
+`TASK_CREATED` with the rule id (tasks keep `source_stage_rule_id`).
+
+- A Deal that already has an **open** task from the same rule (it left the
+  stage and came back) does not get a second one; once that task is done,
+  a later entry creates it again.
+- If the rule's assignee is no longer an active member, the task is created
+  unassigned instead of blocking the stage move.
+- Archived Deals and moves on custom boards (which never change
+  `stage_id`) create nothing.
+- Assigned tasks notify the assignee through the existing task-assigned
+  notification.
 
 ## Delivery order and open decisions
 

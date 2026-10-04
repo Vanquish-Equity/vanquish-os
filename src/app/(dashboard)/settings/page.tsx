@@ -7,6 +7,8 @@ import { introCookieName } from "@/lib/ui/entrance";
 import { landingCookieName, landingPage, noticeMask, notificationCookieName, pipelineCookieName, pipelineDefault } from "@/lib/settings/preferences";
 import SettingsPanel from "@/components/SettingsPanel";
 import AdminSettings from "@/components/AdminSettings";
+import StageRulesSettings, { type StageRule } from "@/components/StageRulesSettings";
+import { getPipelineStages } from "@/lib/taxonomies";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +36,16 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         supabase.from("ignored_email_domains").select("domain,reason").order("domain"),
       ])
     : [{ data: null, error: null }, { data: null, error: null }, { data: null, error: null }];
+  const [rulesResult, stages] = isAdmin
+    ? await Promise.all([
+        supabase
+          .from("stage_task_rules")
+          .select("id,stage_id,title,due_in_days,assignee_email,is_active")
+          .order("is_active", { ascending: false })
+          .order("created_at") as unknown as Promise<{ data: StageRule[] | null; error: unknown }>,
+        getPipelineStages(),
+      ])
+    : [{ data: null, error: null }, []];
 
   return (
     <div className="mx-auto flex w-full max-w-[990px] flex-col gap-5 px-4 py-6 sm:px-7">
@@ -64,6 +76,15 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             permissions: (permissionsResult.data ?? []).filter((item) => item.email === member.email).map((item) => item.permission),
           }))}
           domains={domainsResult.data ?? []}
+        />
+      )}
+      {isAdmin && !rulesResult.error && !membersResult.error && (
+        <StageRulesSettings
+          stages={stages.map((stage) => ({ id: stage.id, name: stage.name }))}
+          members={(membersResult.data ?? [])
+            .filter((member) => member.is_active)
+            .map((member) => ({ email: member.email, name: member.display_name }))}
+          rules={rulesResult.data ?? []}
         />
       )}
     </div>
