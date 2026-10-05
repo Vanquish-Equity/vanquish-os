@@ -1,11 +1,12 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import GlobalSearch from "@/components/GlobalSearch";
 import NotificationBell from "@/components/NotificationBell";
 import { useUnreadCounts } from "@/components/UnreadCounts";
 
-// One shared bar above every workspace page, so the bell sits in the same
-// place everywhere. Chat and the Notifications page have their own
+// One shared bar above every workspace page, so search and the bell sit in
+// the same place everywhere. Chat and the Notifications page have their own
 // navigation for this and do not show it.
 export function showsTopBar(pathname: string) {
   return !(pathname === "/chat" || pathname.startsWith("/chat/") || pathname === "/notifications");
@@ -14,10 +15,11 @@ export function showsTopBar(pathname: string) {
 export default function WorkspaceTopBar() {
   const pathname = usePathname();
   const { available } = useUnreadCounts();
-  if (!available || !showsTopBar(pathname)) return null;
+  if (!showsTopBar(pathname)) return null;
   return (
     <div className="flex h-12 flex-shrink-0 items-center justify-end gap-2 border-b border-neutral-100 bg-white px-4 sm:px-7" data-topbar>
-      <NotificationBell />
+      <GlobalSearch />
+      {available && <NotificationBell />}
     </div>
   );
 }
