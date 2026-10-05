@@ -169,7 +169,7 @@ Clicking a Pipeline or Deal-board card opens a large accessible overlay while th
 | Deal team | Assign multiple active members to a Deal, show team avatars on Pipeline cards, and filter by member. Preserve the old free-text `deals.owner` for historical records; migrate only unambiguous member names. | Membership and avatar profiles exist; join-table assignments are added in the Deal team migration. |
 | Saved views and custom fields | Personal/shared filters, table/Kanban layouts, card fields and business fields. | Durable, nameable/shareable Views exist for People and Pipeline filters; column visibility, sorting, custom fields and Kanban-style views remain. |
 | Relationship history | Consolidate activity by Person and Company, relationship owner and possible warm introductions. | Company timeline and People's Last email column surface real Gmail activity per viewer on demand; a durable synced history, warm-intro graph and Calendar activity remain. |
-| Stage rules | Show required inputs and optionally create tasks or notifications on stage entry. | Admin-defined rules create tasks on stage entry (see below); required inputs before a move remain. |
+| Stage rules | Show required inputs and optionally create tasks or notifications on stage entry. | Admin-defined rules create tasks on stage entry, and stage requirements block entry until required inputs exist (see below). |
 | LP outreach | Own workflow for prospects, communications and investments. | Private per-member LP follow-up boards and shared People LP flags exist; explicit linking, communication history and investment status remain. |
 | Search/quick actions | Find People, Companies and Deals globally; add notes/tasks in context. | Global search (⌘K / Ctrl+K or the top-bar box) finds People by name or email, Companies and Deals by name, under the member's RLS; quick actions from search remain. |
 | Analytics | Time per stage, stale Deals, movement, outcomes, owner and investment potential. | Overview shows a pipeline-by-stage breakdown, potential LP count, activity in the last 7 days and a **Time in stage** table (see below); movement trends over time and owner/investment-potential views remain. |
@@ -210,6 +210,24 @@ rule of the new stage creates a task on that Deal and Company, logged as
   `stage_id`) create nothing.
 - Assigned tasks notify the assignee through the existing task-assigned
   notification.
+
+### Stage requirements
+
+Admins tick, per stage, what a Deal must have before it can enter it
+(Settings → **Stage requirements**; `stage_requirements`, migration
+`20261005120000`): potential investment, raise amount, round, source, at
+least one deal team member, an open task, or a complete due diligence
+checklist (no required critical/important `deal_dd` item still open; found,
+not applicable and waived count as done). A `before update of stage_id`
+trigger refuses the move with "Before moving to X, add: …", so the check
+holds for the Pipeline board, the Deal page and any script alike; the board
+puts the card back and shows that message. Requirements are switched off,
+not deleted, and only apply when the stage changes — other edits and Deal
+creation (imports) are not blocked. `deal_stage_blockers(deal, stage)` returns
+the same list for a UI that wants to warn before a move. The checklist check
+reads due diligence items as definer but only says the checklist is
+incomplete, never which documents, so members without Documents access learn
+nothing more than that.
 
 ## Delivery order and open decisions
 

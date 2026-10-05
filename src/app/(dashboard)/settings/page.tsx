@@ -8,6 +8,7 @@ import { landingCookieName, landingPage, noticeMask, notificationCookieName, pip
 import SettingsPanel from "@/components/SettingsPanel";
 import AdminSettings from "@/components/AdminSettings";
 import StageRulesSettings, { type StageRule } from "@/components/StageRulesSettings";
+import StageRequirementsSettings from "@/components/StageRequirementsSettings";
 import { getPipelineStages } from "@/lib/taxonomies";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         supabase.from("ignored_email_domains").select("domain,reason").order("domain"),
       ])
     : [{ data: null, error: null }, { data: null, error: null }, { data: null, error: null }];
-  const [rulesResult, stages] = isAdmin
+  const [rulesResult, stages, requirementsResult] = isAdmin
     ? await Promise.all([
         supabase
           .from("stage_task_rules")
@@ -44,8 +45,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           .order("is_active", { ascending: false })
           .order("created_at") as unknown as Promise<{ data: StageRule[] | null; error: unknown }>,
         getPipelineStages(),
+        supabase.from("stage_requirements").select("stage_id,requirement").eq("is_active", true) as unknown as Promise<{
+          data: { stage_id: string; requirement: string }[] | null;
+          error: unknown;
+        }>,
       ])
-    : [{ data: null, error: null }, []];
+    : [{ data: null, error: null }, [], { data: null, error: null }];
 
   return (
     <div className="mx-auto flex w-full max-w-[990px] flex-col gap-5 px-4 py-6 sm:px-7">
@@ -85,6 +90,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             .filter((member) => member.is_active)
             .map((member) => ({ email: member.email, name: member.display_name }))}
           rules={rulesResult.data ?? []}
+        />
+      )}
+      {isAdmin && !requirementsResult.error && (
+        <StageRequirementsSettings
+          stages={stages.map((stage) => ({ id: stage.id, name: stage.name }))}
+          active={(requirementsResult.data ?? []).map((row) => `${row.stage_id}:${row.requirement}`)}
         />
       )}
     </div>
