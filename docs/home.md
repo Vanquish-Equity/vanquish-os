@@ -37,27 +37,27 @@ and Home says My tasks needs the migration.
 
 ## Sidebar
 
-- **Collapse / expand** with the button under the logo (keyboard: Tab to it,
-  Enter). Collapsed shows icons; each item keeps its accessible name and
-  shows a tooltip on hover or keyboard focus.
+- **Collapse / expand** with the icon button next to the logo (keyboard:
+  Tab to it, Enter). Collapsed shows icons; each item keeps its accessible
+  name and shows a tooltip on hover or keyboard focus.
 - The choice is remembered per member on this browser in a cookie
   (`vq_sidebar_<hash of the email>`), read by the server so the page is
   rendered in the right state without a flash.
 - Small screens (< 768 px) always show the icon rail; the menu button opens
   the full navigation as a drawer (Escape or a link closes it).
-- The account is shown as the part before `@` in capitals (`MARIOS`). Sign
-  out is a text button when expanded and an icon button (with tooltip and
-  accessible name) when collapsed.
-- Related items collapse under a named, toggleable group instead of each
-  costing a full row: **CRM** (Pipeline, Companies, People), **Boards**
-  (Boards, LP follow-up) and **Mail** (Communications, Calendar).
-  `NAV_GROUPS` in `src/components/Sidebar.tsx` is the single place that
-  defines a group (key, label, icon, member hrefs); adding a group or moving
-  an item between groups only touches that list. Each group starts
-  collapsed except the one the member is currently in (by `activeHref`); a
-  group also forces itself open, regardless of its toggle state, while the
-  member is on one of its pages, so navigating never hides the active link.
-  Collapse/expand per group is not persisted across a reload.
+- The account shows the saved display name as written, or the email's local
+  part in title case (`marios` → `Marios`), with the email underneath.
+  Settings, Replay intro and Sign out are in its menu.
+- Items sit under explicit sections, each drawn as one block so an item can
+  never appear under the wrong heading: **CRM** (Pipeline, Companies,
+  People, LP follow-up), **Boards** (All boards, then each board indented on
+  a guide line), **Work** (Tasks, Calendar, Communications, Review) and
+  **Fund** (Portfolio, only with that permission). `NAV_SECTIONS` in
+  `src/components/Sidebar.tsx` is the single place that assigns pages to
+  sections; a page not listed there appears under **More**. Sections start
+  open; clicking a heading closes it (not persisted across a reload), except
+  the section holding the current page. Collapsed, every item shows as an
+  icon with a thin rule between sections.
 - **Home, Notifications, Chat and Overview** render as one horizontal row
   of icon-only buttons (each still keeps its accessible name, badge and
   tooltip) instead of four separate labeled rows, whenever labels would

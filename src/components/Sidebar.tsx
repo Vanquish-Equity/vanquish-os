@@ -3,35 +3,55 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import NavIcon from "@/components/NavIcon";
 import type { NavIcon as NavIconName } from "@/lib/auth/permissions";
-import { accountLabel, requestIntroReplay, SIDEBAR_COOKIE_MAX_AGE_SECONDS } from "@/lib/ui/entrance";
+import { requestIntroReplay, SIDEBAR_COOKIE_MAX_AGE_SECONDS } from "@/lib/ui/entrance";
 import { playUiSound, setSoundPref, useSoundPref } from "@/lib/ui/sound";
 import { useUnreadCounts } from "@/components/UnreadCounts";
 
 export type SidebarNavItem = { href: string; label: string; icon: NavIconName; badge?: "chat" | "notifications"; child?: boolean };
 
-// Collapsible groups of related nav items, in the order their items appear
-// in WORKSPACE_NAV. A group's toggle renders just before its first item;
-// collapsing it hides the rest, so related pages don't each cost a full row
-// in the sidebar's default (expanded) view.
-type NavGroup = { key: string; label: string; icon: NavIconName; hrefs: string[] };
-const NAV_GROUPS: NavGroup[] = [
-  { key: "crm", label: "CRM", icon: "pipeline", hrefs: ["/pipeline", "/companies", "/people"] },
-  { key: "boards", label: "Boards", icon: "boards", hrefs: ["/boards", "/lp-board"] },
-  { key: "mail", label: "Mail", icon: "communications", hrefs: ["/communications", "/calendar"] },
+// Sections of the sidebar, in display order. An item belongs to the section
+// listing its href; Boards also owns every individual board (/boards/<id>).
+// Anything not listed (a future page) falls into "More" so it is never lost
+// or drawn under the wrong heading.
+type NavSection = { key: string; label: string; hrefs: string[] };
+const NAV_SECTIONS: NavSection[] = [
+  { key: "crm", label: "CRM", hrefs: ["/pipeline", "/companies", "/people", "/lp-board"] },
+  { key: "boards", label: "Boards", hrefs: ["/boards"] },
+  { key: "work", label: "Work", hrefs: ["/tasks", "/calendar", "/communications", "/review"] },
+  { key: "fund", label: "Fund", hrefs: ["/portfolio"] },
 ];
-function groupFor(href: string): NavGroup | undefined {
-  return NAV_GROUPS.find((group) => group.hrefs.includes(href) || (group.key === "boards" && href.startsWith("/boards/")));
+
+// Home, Notifications, Chat and Overview: checked constantly, so they sit
+// as one row of icons at the top instead of four labeled rows. Collapsed
+// and narrow views list them vertically like every other item.
+const ICON_ROW_HREFS = ["/home", "/notifications", "/chat", "/overview"];
+
+const isActive = (activeHref: string, href: string) =>
+  activeHref === href || (href !== "/boards" && activeHref.startsWith(href + "/"));
+
+function sectionItems(section: NavSection, items: SidebarNavItem[]) {
+  const listed = section.hrefs
+    .map((href) => items.find((item) => item.href === href))
+    .filter((item): item is SidebarNavItem => Boolean(item));
+  if (section.key !== "boards") return listed;
+  return [...listed, ...items.filter((item) => item.href.startsWith("/boards/"))];
 }
 
-// Home, Notifications, Chat and Overview: everyday, single-click pages a
-// member checks constantly. Grouping them as a horizontal icon row (instead
-// of four full labeled rows) keeps them as fast to reach while using far
-// less vertical space -- but only once there's room for a row of icons;
-// collapsed/narrow views fall back to the normal vertical icon list.
-const ICON_ROW_HREFS = ["/home", "/notifications", "/chat", "/overview"];
+// The member's saved name as written; otherwise their email's local part
+// in title case ("mario.salas" -> "Mario Salas"). Never all capitals.
+function displayNameFor(email: string, displayName: string | null) {
+  const saved = displayName?.trim();
+  if (saved) return saved;
+  const local = email.split("@")[0] || email;
+  return local
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
 
 // rail: icons only (collapsed). full: icons + labels (expanded, and the
 // mobile drawer). responsive: full on desktop, rail on small screens.
@@ -53,6 +73,8 @@ function Tooltip({ mode, children }: { mode: Mode; children: React.ReactNode }) 
     </span>
   );
 }
+
+const FOCUS = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400";
 
 function SidebarBody({
   mode,
@@ -86,16 +108,9 @@ function SidebarBody({
   const router = useRouter();
   const pathname = usePathname();
   const [profileOpen, setProfileOpen] = useState(false);
-  // Collapsed by default -- open only the group the member is actually in,
-  // so an unrelated section doesn't cost visual space it isn't earning.
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(
-      NAV_GROUPS.map((group) => [
-        group.key,
-        group.hrefs.some((href) => activeHref === href || activeHref.startsWith(href + "/")),
-      ]),
-    ),
-  );
+  // Sections start open (rows are compact enough to fit); a member can
+  // close any section except the one holding the current page.
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const profileRef = useRef<HTMLDivElement>(null);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -132,46 +147,67 @@ function SidebarBody({
   }
 
   const label = byMode(mode, { rail: "sr-only", full: "", responsive: "sr-only md:not-sr-only" });
+  const wide = byMode(mode, { rail: "hidden", full: "flex", responsive: "hidden md:flex" });
+  const narrow = byMode(mode, { rail: "flex", full: "hidden", responsive: "flex md:hidden" });
   const center = byMode(mode, {
     rail: "justify-center px-0",
-    full: "justify-start px-3",
-    responsive: "justify-center px-0 md:justify-start md:px-3",
+    full: "justify-start px-2.5",
+    responsive: "justify-center px-0 md:justify-start md:px-2.5",
   });
-  const account = accountLabel(userEmail, displayName);
+  const name = displayNameFor(userEmail, displayName);
 
-  // Rendered twice at different breakpoints (see iconRowItems below): once
-  // as a compact icon-only row, once as the normal vertical labeled list.
-  // `iconOnly` forces the label hidden regardless of `mode`.
-  function NavLink({ item, iconOnly = false }: { item: SidebarNavItem; iconOnly?: boolean }) {
-    const active = activeHref === item.href || (item.href !== "/boards" && activeHref.startsWith(item.href + "/"));
+  function NavLink({ item, iconOnly = false, nested = false }: { item: SidebarNavItem; iconOnly?: boolean; nested?: boolean }) {
+    const active = isActive(activeHref, item.href);
     const count = item.badge ? unread[item.badge] : 0;
+    const text = item.href === "/boards" ? "All boards" : item.label;
+    const tone = active
+      ? "bg-white/[0.08] text-white"
+      : "text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-100";
+    if (nested) {
+      // An individual board: a quieter row hanging off a guide line, with
+      // no icon of its own. In the rail it shows as a small board icon.
+      return (
+        <Link
+          href={item.href}
+          onClick={() => onNavigate(item.href)}
+          aria-current={active ? "page" : undefined}
+          className={`group relative flex h-7 items-center rounded-md text-[12.5px] transition-colors ${FOCUS} ${tone} ${byMode(mode, {
+            rail: "justify-center",
+            full: "ml-[19px] rounded-l-none border-l border-white/10 pl-3",
+            responsive: "justify-center md:ml-[19px] md:justify-start md:rounded-l-none md:border-l md:border-white/10 md:pl-3",
+          })} ${active ? "md:border-cyan-400" : ""}`}
+        >
+          <span className={narrow}><NavIcon name="boards" className="h-3.5 w-3.5" /></span>
+          <span className={`truncate ${label}`}>{item.label}</span>
+          <Tooltip mode={mode}>{item.label}</Tooltip>
+        </Link>
+      );
+    }
     return (
       <Link
         href={item.href}
         onClick={() => onNavigate(item.href)}
         aria-current={active ? "page" : undefined}
-        className={`group relative flex items-center gap-2.5 rounded-[9px] py-2.5 text-[13px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400 ${
-          iconOnly ? "justify-center px-0" : center
-        } ${item.child ? "md:ml-3" : ""} ${
-          active ? "bg-[#12191c] text-white" : "text-neutral-400 hover:bg-[#12191c] hover:text-white"
-        }`}
+        className={`group relative flex h-8 items-center gap-2.5 rounded-md text-[13px] transition-colors ${FOCUS} ${
+          iconOnly ? "flex-1 justify-center px-0" : center
+        } ${active ? "font-medium" : ""} ${tone}`}
       >
         <span className="relative flex">
-          <NavIcon name={item.icon} />
+          <NavIcon name={item.icon} className="h-4 w-4" />
           {count > 0 && (
             <span
               aria-hidden="true"
               data-badge={item.badge}
-              className="absolute -right-2 -top-1.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-cyan-400 px-1 text-[9.5px] font-bold leading-none text-ink"
+              className="absolute -right-2 -top-1.5 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-cyan-400 px-1 text-[9px] font-bold leading-none text-ink"
             >
               {count > 99 ? "99+" : count}
             </span>
           )}
         </span>
-        <span className={iconOnly ? "sr-only" : label}>{item.label}</span>
+        <span className={`truncate ${iconOnly ? "sr-only" : label}`}>{text}</span>
         {count > 0 && <span className="sr-only">({count} unread)</span>}
         <Tooltip mode={iconOnly ? "rail" : mode}>
-          {item.label}
+          {text}
           {count > 0 ? ` · ${count} unread` : ""}
         </Tooltip>
       </Link>
@@ -179,20 +215,24 @@ function SidebarBody({
   }
 
   const iconRowItems = navItems.filter((item) => ICON_ROW_HREFS.includes(item.href));
-  const restItems = navItems.filter((item) => !ICON_ROW_HREFS.includes(item.href));
-  // Icon row shows once there's room for labels elsewhere (full, or
-  // responsive at md+); below that, the vertical fallback list matches the
-  // rest of the nav's icon-only rail appearance.
-  const iconRowClass = byMode(mode, { rail: "hidden", full: "flex", responsive: "hidden md:flex" });
-  const iconRowFallbackClass = byMode(mode, { rail: "flex", full: "hidden", responsive: "flex md:hidden" });
+  const sectioned = new Set(NAV_SECTIONS.flatMap((section) => sectionItems(section, navItems).map((item) => item.href)));
+  const sections = [
+    ...NAV_SECTIONS.map((section) => ({ ...section, items: sectionItems(section, navItems) })),
+    {
+      key: "more",
+      label: "More",
+      hrefs: [],
+      items: navItems.filter((item) => !ICON_ROW_HREFS.includes(item.href) && !sectioned.has(item.href)),
+    },
+  ].filter((section) => section.items.length > 0);
 
   return (
     <>
-      <div className={`mb-4 flex items-center ${byMode(mode, { rail: "justify-center", full: "justify-between px-2", responsive: "justify-center md:justify-between md:px-2" })}`}>
-        <Link href="/home" onClick={() => onNavigate("/home")} className="rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400">
+      <div className={`mb-5 flex items-center gap-2 ${byMode(mode, { rail: "flex-col", full: "justify-between pl-2.5", responsive: "flex-col md:flex-row md:justify-between md:pl-2.5" })}`}>
+        <Link href="/home" onClick={() => onNavigate("/home")} className={`rounded-md ${FOCUS}`}>
           <span className="sr-only">Vanquish OS home</span>
           <span className={byMode(mode, { rail: "hidden", full: "block", responsive: "hidden md:block" })}>
-            <span className="block h-[42px] w-[166px]">
+            <span className="block h-[26px] w-[104px]">
               <Image
                 src="/vanquish-logotype.png"
                 alt=""
@@ -202,10 +242,9 @@ function SidebarBody({
                 className="h-full w-full object-contain object-left"
               />
             </span>
-            <span className="mt-1 block text-[9px] tracking-[1.6px] text-neutral-500">OPERATING SYSTEM</span>
           </span>
           <span className={byMode(mode, { rail: "block", full: "hidden", responsive: "block md:hidden" })}>
-            <Image src="/vanquish-mark.png" alt="" width={1250} height={1250} priority className="h-8 w-8 object-contain" />
+            <Image src="/vanquish-mark.png" alt="" width={1250} height={1250} priority className="h-7 w-7 object-contain" />
           </span>
         </Link>
         {onCloseDrawer && (
@@ -214,50 +253,45 @@ function SidebarBody({
             type="button"
             onClick={onCloseDrawer}
             aria-label="Close navigation"
-            className="rounded-lg p-2 text-neutral-400 transition hover:bg-[#12191c] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
+            className={`rounded-md p-1.5 text-neutral-500 transition hover:bg-white/[0.06] hover:text-white ${FOCUS}`}
           >
-            <NavIcon name="collapse" />
+            <NavIcon name="collapse" className="h-4 w-4" />
+          </button>
+        )}
+        {onToggleCollapsed && (
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            aria-expanded={!collapsed}
+            aria-controls="vq-sidebar"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className={`group relative hidden rounded-md p-1.5 text-neutral-500 transition hover:bg-white/[0.06] hover:text-white md:flex ${FOCUS}`}
+          >
+            <NavIcon name={collapsed ? "expand" : "collapse"} className="h-4 w-4" />
+            <Tooltip mode="rail">{collapsed ? "Expand sidebar" : "Collapse sidebar"}</Tooltip>
+          </button>
+        )}
+        {onOpenDrawer && (
+          <button
+            type="button"
+            onClick={onOpenDrawer}
+            aria-label="Open navigation"
+            aria-haspopup="dialog"
+            className={`flex rounded-md p-1.5 text-neutral-400 transition hover:bg-white/[0.06] hover:text-white md:hidden ${FOCUS}`}
+          >
+            <NavIcon name="menu" className="h-4 w-4" />
           </button>
         )}
       </div>
 
-      {onToggleCollapsed && (
-        <button
-          type="button"
-          onClick={onToggleCollapsed}
-          aria-expanded={!collapsed}
-          aria-controls="vq-sidebar"
-          className={`group relative mb-2 hidden items-center gap-2.5 rounded-[9px] py-2 text-[12px] font-medium text-neutral-500 transition hover:bg-[#12191c] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400 md:flex ${center}`}
-        >
-          <NavIcon name={collapsed ? "expand" : "collapse"} />
-          <span className={label}>{collapsed ? "Expand sidebar" : "Collapse sidebar"}</span>
-          <Tooltip mode={mode}>{collapsed ? "Expand sidebar" : "Collapse sidebar"}</Tooltip>
-        </button>
-      )}
-      {onOpenDrawer && (
-        <button
-          type="button"
-          onClick={onOpenDrawer}
-          aria-label="Open navigation"
-          aria-haspopup="dialog"
-          className="mb-2 flex items-center justify-center rounded-[9px] py-2 text-neutral-400 transition hover:bg-[#12191c] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400 md:hidden"
-        >
-          <NavIcon name="menu" />
-        </button>
-      )}
-
-      <div className={`mb-1.5 mt-1 px-3 text-[10px] uppercase tracking-[1.4px] text-neutral-600 ${label}`}>Workspace</div>
-
       {iconRowItems.length > 0 && (
         <>
-          <div className={`mb-0.5 items-center justify-around gap-1 ${iconRowClass}`}>
+          <div className={`mb-4 items-center gap-0.5 rounded-lg bg-white/[0.03] p-0.5 ${wide}`}>
             {iconRowItems.map((item) => (
-              <div key={item.href} className="flex-1">
-                <NavLink item={item} iconOnly />
-              </div>
+              <NavLink key={item.href} item={item} iconOnly />
             ))}
           </div>
-          <div className={`mb-0.5 flex-col gap-0.5 ${iconRowFallbackClass}`}>
+          <div className={`mb-3 flex-col gap-0.5 ${narrow}`}>
             {iconRowItems.map((item) => (
               <NavLink key={item.href} item={item} />
             ))}
@@ -265,69 +299,73 @@ function SidebarBody({
         </>
       )}
 
-      <nav aria-label="Workspace" className="flex flex-col gap-0.5">
-        {restItems.map((item) => {
-          const group = groupFor(item.href);
-          const isGroupHead = group ? group.hrefs[0] === item.href : false;
-          // A collapsed group never hides the page the member is actually on.
-          const groupHasActivePage = group?.hrefs.some(
-            (href) => activeHref === href || activeHref.startsWith(href + "/"),
-          );
-          const groupOpen = group ? (openGroups[group.key] ?? true) || groupHasActivePage : true;
+      <nav aria-label="Workspace" className="-mr-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+        {sections.map((section) => {
+          const holdsActive = section.items.some((item) => isActive(activeHref, item.href));
+          const open = (openSections[section.key] ?? true) || holdsActive;
+          const listId = `vq-nav-${section.key}`;
           return (
-            <Fragment key={item.href}>
-            {isGroupHead && group && (
+            <div key={section.key} className="flex flex-col gap-px">
               <button
                 type="button"
-                onClick={() => setOpenGroups((value) => ({ ...value, [group.key]: !groupOpen }))}
-                aria-expanded={groupOpen}
-                className={`group relative mt-3 flex items-center py-2 text-left text-[10px] font-semibold uppercase tracking-[1.4px] text-neutral-500 hover:text-white ${center}`}
+                onClick={() => setOpenSections((value) => ({ ...value, [section.key]: !open }))}
+                aria-expanded={open}
+                aria-controls={listId}
+                disabled={holdsActive}
+                className={`group mb-0.5 h-6 items-center gap-1 rounded-md px-2.5 text-left text-[11px] font-medium text-neutral-500 transition hover:text-neutral-200 disabled:cursor-default disabled:hover:text-neutral-500 ${FOCUS} ${wide}`}
               >
-                <span className={label}>{group.label} {groupOpen ? "▾" : "▸"}</span>
-                <span className={byMode(mode, { rail: "", full: "hidden", responsive: "md:hidden" })}>
-                  <NavIcon name={group.icon} />
-                </span>
-                <Tooltip mode={mode}>{group.label} · {groupOpen ? "Collapse" : "Expand"}</Tooltip>
+                {section.label}
+                {!holdsActive && (
+                  <NavIcon
+                    name="chevron"
+                    className={`h-3 w-3 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100 ${open ? "rotate-90" : ""}`}
+                  />
+                )}
               </button>
-            )}
-            {(!group || groupOpen) && <NavLink item={item} />}
-            </Fragment>
+              {/* In the rail every item shows; a thin rule separates sections. */}
+              <div className={`mx-auto mb-1 h-px w-5 bg-white/10 ${narrow}`} aria-hidden="true" />
+              <div id={listId} className={`flex-col gap-px ${open ? "flex" : `${narrow}`}`}>
+                {section.items.map((item) => (
+                  <NavLink key={item.href} item={item} nested={item.href.startsWith("/boards/")} />
+                ))}
+              </div>
+            </div>
           );
         })}
       </nav>
 
-      <div className="flex-1" />
-
-      <div className="border-t border-[#14191b] pt-3">
-        <div className={`flex items-center gap-2.5 ${byMode(mode, { rail: "flex-col", full: "px-2", responsive: "flex-col md:flex-row md:px-2" })}`}>
+      <div className="mt-3 border-t border-white/[0.06] pt-3">
+        <div className={`flex items-center gap-1 ${byMode(mode, { rail: "flex-col", full: "", responsive: "flex-col md:flex-row" })}`}>
           <div ref={profileRef} className="relative min-w-0 flex-1">
             <button
               ref={profileButtonRef}
               type="button"
               title={userEmail}
-              aria-label={`Account: ${account}`}
+              aria-label={`Account: ${name}`}
               aria-haspopup="true"
               aria-expanded={profileOpen}
               onClick={() => setProfileOpen((open) => !open)}
-              className={`group flex w-full min-w-0 items-center gap-2.5 rounded-lg py-1 text-left transition hover:bg-[#12191c] focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400 ${byMode(mode, { rail: "justify-center", full: "", responsive: "justify-center md:justify-start" })}`}
+              className={`group flex w-full min-w-0 items-center gap-2.5 rounded-md p-1.5 text-left transition hover:bg-white/[0.04] ${FOCUS} ${byMode(mode, { rail: "justify-center", full: "", responsive: "justify-center md:justify-start" })}`}
             >
               <span className="relative flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#182022] text-[11px] font-semibold text-white">
-                {avatarUrl ? <Image src={avatarUrl} alt="" width={28} height={28} unoptimized className="h-7 w-7 rounded-full object-cover" /> : account.charAt(0)}
-                {!profileOpen && <Tooltip mode={mode}>{account}</Tooltip>}
+                {avatarUrl ? <Image src={avatarUrl} alt="" width={28} height={28} unoptimized className="h-7 w-7 rounded-full object-cover" /> : name.charAt(0).toUpperCase()}
+                {!profileOpen && <Tooltip mode={mode}>{name}</Tooltip>}
               </span>
-              <span className={`min-w-0 truncate text-xs font-semibold leading-tight tracking-wide text-neutral-200 ${byMode(mode, { rail: "sr-only", full: "", responsive: "sr-only md:not-sr-only" })}`}>{account}</span>
+              <span className={`min-w-0 leading-tight ${byMode(mode, { rail: "sr-only", full: "", responsive: "sr-only md:not-sr-only" })}`}>
+                <span className="block truncate text-[12.5px] font-medium text-neutral-100">{name}</span>
+                <span className="block truncate text-[11px] text-neutral-500">{userEmail}</span>
+              </span>
             </button>
             {profileOpen && (
               <div aria-label="Account options" className="absolute bottom-full left-0 z-50 mb-2 w-[218px] rounded-xl border border-white/10 bg-[#1b2427] p-1.5 shadow-2xl">
-                <div className="truncate border-b border-white/10 px-2.5 py-2 text-[11px] text-neutral-400" title={userEmail}>{userEmail}</div>
-                <Link href="/settings" onClick={() => { setProfileOpen(false); onNavigate("/settings"); }} className="mt-1 flex items-center gap-2 rounded-lg px-2.5 py-2 text-[12px] font-medium text-white hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400">
+                <Link href="/settings" onClick={() => { setProfileOpen(false); onNavigate("/settings"); }} className={`flex items-center gap-2 rounded-lg px-2.5 py-2 text-[12px] font-medium text-white hover:bg-white/10 ${FOCUS}`}>
                   <NavIcon name="settings" className="h-4 w-4" /> Settings
                 </Link>
-                <button type="button" onClick={() => { setProfileOpen(false); replayIntro(); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12px] text-neutral-200 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400">
+                <button type="button" onClick={() => { setProfileOpen(false); replayIntro(); }} className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12px] text-neutral-200 hover:bg-white/10 ${FOCUS}`}>
                   <NavIcon name="replay" className="h-4 w-4" /> Replay intro
                 </button>
                 <form action="/auth/signout" method="post" className="mt-1 border-t border-white/10 pt-1">
-                  <button type="submit" className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12px] text-neutral-200 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400">
+                  <button type="submit" className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12px] text-neutral-200 hover:bg-white/10 ${FOCUS}`}>
                     <NavIcon name="signout" className="h-4 w-4" /> Sign out
                   </button>
                 </form>
@@ -340,7 +378,7 @@ function SidebarBody({
             aria-pressed={soundOn}
             aria-label={soundOn ? "Sounds on. Turn off" : "Sounds off. Turn on"}
             data-sound="off"
-            className="group relative rounded-lg p-1.5 text-neutral-500 transition hover:bg-[#12191c] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
+            className={`group relative rounded-md p-1.5 text-neutral-500 transition hover:bg-white/[0.06] hover:text-white ${FOCUS}`}
           >
             <NavIcon name={soundOn ? "sound-on" : "sound-off"} className="h-4 w-4" />
             <Tooltip mode="rail">{soundOn ? "Sounds: on" : "Sounds: off"}</Tooltip>
@@ -409,8 +447,8 @@ export default function Sidebar({
         id="vq-sidebar"
         aria-label="Sidebar"
         data-collapsed={collapsed ? "true" : "false"}
-        className={`relative z-30 flex h-screen w-[68px] flex-shrink-0 flex-col bg-ink px-2.5 py-5 transition-[width] duration-200 motion-reduce:transition-none ${
-          collapsed ? "" : "md:w-[248px] md:px-3.5"
+        className={`relative z-30 flex h-screen w-[60px] flex-shrink-0 flex-col bg-ink px-2 py-4 transition-[width] duration-200 motion-reduce:transition-none ${
+          collapsed ? "" : "md:w-[236px] md:px-3"
         }`}
       >
         <div ref={menuButtonRef} className="contents">
@@ -438,7 +476,7 @@ export default function Sidebar({
             onClick={() => setDrawerOpen(false)}
             className="absolute inset-0 h-full w-full bg-ink/40"
           />
-          <div className="relative flex h-full w-[248px] max-w-[85vw] flex-col bg-ink px-3.5 py-5 shadow-2xl">
+          <div className="relative flex h-full w-[236px] max-w-[85vw] flex-col bg-ink px-3 py-4 shadow-2xl">
             <SidebarBody
               mode="full"
               navItems={navItems}
