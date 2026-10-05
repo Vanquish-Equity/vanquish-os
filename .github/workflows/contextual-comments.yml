@@ -76,5 +76,9 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/tests/google_mailbox_connections.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260929220000_drop_draft_responsible.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/lp_communications.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261004120000_stage_task_rules.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/stage_task_rules.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261005120000_stage_requirements.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/stage_requirements.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261005140000_relationship_interactions.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/relationship_interactions.sql > /dev/null

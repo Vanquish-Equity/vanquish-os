@@ -98,6 +98,28 @@ comes back with its full attendee list, so this is complete for the window
 (up to 1,000 events) rather than an approximation. Each lookup only runs
 when its column is visible.
 
+## People: possible duplicates
+
+`/people/duplicates` (linked from People as **Duplicates**) lists pairs of
+active People with the same name once case, accents and punctuation are
+ignored, or the same LinkedIn profile (`src/lib/people/duplicates.ts`).
+Emails are already unique across People, so they can't produce a duplicate.
+For each pair a member can keep either record or mark the pair **Not
+duplicates**, which stores it in `person_duplicate_dismissals` so it isn't
+suggested again.
+
+Merging calls `merge_people(keep, drop)` (migration `20261004100000`), one
+transaction: the dropped person's emails, group memberships, deal links,
+email-draft recipients and board-card source links move to the kept person;
+the kept person's blank title/LinkedIn/company are filled from the dropped
+one and the potential-LP flag is kept if either had it; the dropped person is
+archived, never deleted. Investor positions are Portfolio data, so a merge
+that would move them is refused for members without Portfolio access.
+
+Automatic data enrichment (title, company, LinkedIn from an email address)
+is not built: it needs a paid third-party data provider (Apollo, Clearbit,
+People Data Labs, ...) and a decision about sending contact emails to it.
+
 ## Relationship history (shared, opt-in)
 
 Decided with Mario on 2026-10-05: the team may share **that** a member
@@ -177,9 +199,9 @@ Clicking a Pipeline or Deal-board card opens a large accessible overlay while th
 | Deal team | Assign multiple active members to a Deal, show team avatars on Pipeline cards, and filter by member. Preserve the old free-text `deals.owner` for historical records; migrate only unambiguous member names. | Membership and avatar profiles exist; join-table assignments are added in the Deal team migration. |
 | Saved views and custom fields | Personal/shared filters, table/Kanban layouts, card fields and business fields. | Durable, nameable/shareable Views exist for People and Pipeline filters; column visibility, sorting, custom fields and Kanban-style views remain. |
 | Relationship history | Consolidate activity by Person and Company, relationship owner and possible warm introductions. | Company timeline and People's Last email column read Gmail per viewer on demand; opt-in shared relationship history (who emailed/met whom, by day) powers People's Last interaction column and "knows them" on Company pages (see below). A warm-intro graph across companies remains. |
-| Stage rules | Show required inputs and optionally create tasks or notifications on stage entry. | Stage history and some diligence requirements exist; reusable rules remain. |
+| Stage rules | Show required inputs and optionally create tasks or notifications on stage entry. | Admin-defined rules create tasks on stage entry, and stage requirements block entry until required inputs exist (see below). |
 | LP outreach | Own workflow for prospects, communications and investments. | Private per-member LP follow-up boards and shared People LP flags exist; explicit linking, communication history and investment status remain. |
-| Search/quick actions | Find People, Companies and Deals globally; add notes/tasks in context. | Dedicated pages exist; universal search remains. |
+| Search/quick actions | Find People, Companies and Deals globally; add notes/tasks in context. | Global search (⌘K / Ctrl+K or the top-bar box) finds People by name or email, Companies and Deals by name, under the member's RLS; quick actions from search remain. |
 | Analytics | Time per stage, stale Deals, movement, outcomes, owner and investment potential. | Overview shows a pipeline-by-stage breakdown, potential LP count, activity in the last 7 days and a **Time in stage** table (see below); movement trends over time and owner/investment-potential views remain. |
 | Templates | Start from Investment Deal, LP Outreach or Tasks, then customize. | Later, once each record workflow exists. |
 | Connected activity | An authorized Gmail mailbox and calendar attach activity and update last interaction. | Provider connections and sync remain separate roadmap work. |
@@ -197,6 +219,45 @@ unknown creation stage and that first stint is left out; a Deal that has
 never changed stage counts from its creation. Archived Deals end their last
 stint at `archived_at`. All Deals and history rows are read in one query each
 (124 and 160 rows today); past the API's row cap this needs a SQL aggregate.
+
+## Stage rules (automation)
+
+Admins manage **Stage rules** in Settings: "when a Deal enters stage X,
+create task Y", with an optional due date (N days after entry) and assignee.
+`stage_task_rules` (migration `20261004120000`) is readable by members and
+writable only with the Admin permission; rules are turned off rather than
+deleted. The database trigger `deals_apply_stage_task_rules` runs on Deal
+insert and on every `stage_id` change, whoever makes it, and for each active
+rule of the new stage creates a task on that Deal and Company, logged as
+`TASK_CREATED` with the rule id (tasks keep `source_stage_rule_id`).
+
+- A Deal that already has an **open** task from the same rule (it left the
+  stage and came back) does not get a second one; once that task is done,
+  a later entry creates it again.
+- If the rule's assignee is no longer an active member, the task is created
+  unassigned instead of blocking the stage move.
+- Archived Deals and moves on custom boards (which never change
+  `stage_id`) create nothing.
+- Assigned tasks notify the assignee through the existing task-assigned
+  notification.
+
+### Stage requirements
+
+Admins tick, per stage, what a Deal must have before it can enter it
+(Settings → **Stage requirements**; `stage_requirements`, migration
+`20261005120000`): potential investment, raise amount, round, source, at
+least one deal team member, an open task, or a complete due diligence
+checklist (no required critical/important `deal_dd` item still open; found,
+not applicable and waived count as done). A `before update of stage_id`
+trigger refuses the move with "Before moving to X, add: …", so the check
+holds for the Pipeline board, the Deal page and any script alike; the board
+puts the card back and shows that message. Requirements are switched off,
+not deleted, and only apply when the stage changes — other edits and Deal
+creation (imports) are not blocked. `deal_stage_blockers(deal, stage)` returns
+the same list for a UI that wants to warn before a move. The checklist check
+reads due diligence items as definer but only says the checklist is
+incomplete, never which documents, so members without Documents access learn
+nothing more than that.
 
 ## Delivery order and open decisions
 
