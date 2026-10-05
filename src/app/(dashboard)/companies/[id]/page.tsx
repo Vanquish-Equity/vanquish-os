@@ -20,6 +20,7 @@ import { listMailForContacts } from "@/lib/google/mail-actions";
 import { humanizeCode, labelForInstrument } from "@/lib/labels";
 import { loadMailboxConnection } from "@/lib/connections/queries";
 import { startDevPageTimer } from "@/lib/performance";
+import { summarizeRelationships, type StoredInteraction } from "@/lib/relationships/summary";
 import { createClient } from "@/lib/supabase/server";
 import {
   getDocumentCategories,
@@ -356,6 +357,22 @@ export default async function CompanyDetailPage({
     })
   );
   endTimer();
+
+  const personIds = (people ?? []).map((person) => person.id);
+  const [{ data: relationshipRows }, { data: memberDirectory }] = personIds.length
+    ? await Promise.all([
+        supabase
+          .from("relationship_interactions")
+          .select("person_id,member_email,kind,last_at")
+          .in("person_id", personIds) as unknown as Promise<{ data: StoredInteraction[] | null }>,
+        supabase.rpc("deal_assignee_directory") as unknown as Promise<{
+          data: { email: string; display_name: string | null }[] | null;
+        }>,
+      ])
+    : [{ data: null }, { data: null }];
+  const relationships = summarizeRelationships(relationshipRows ?? []);
+  const memberName = (email: string) =>
+    (memberDirectory ?? []).find((member) => member.email === email)?.display_name || email.split("@")[0];
 
   const mailbox = await mailboxPromise;
   const contactEmails = (people ?? []).flatMap((p) =>
@@ -765,9 +782,21 @@ export default async function CompanyDetailPage({
                   .slice(0, 2)
                   .join("")}
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-[12.5px] font-semibold">{p.name}</div>
                 <div className="text-[11px] text-neutral-500">{p.title ?? "-"}</div>
+                {(() => {
+                  const relationship = relationships.get(p.id);
+                  if (!relationship) return null;
+                  return (
+                    <div className="mt-0.5 truncate text-[10.5px] text-neutral-400" title="From members who share their relationship history in Settings">
+                      Last: <RelativeTime date={relationship.lastAt} /> · {memberName(relationship.lastMember)}
+                      {relationship.members.length > 0 && (
+                        <> · Knows them: {relationship.members.slice(0, 3).map((member) => memberName(member.email)).join(", ")}</>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           ))}

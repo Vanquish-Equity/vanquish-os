@@ -141,6 +141,20 @@ export default async function PeoplePage({
     showLastEmail ? lastEmailDatesForContacts(contactEmails) : null,
     showNextMeeting ? nextMeetingsForContacts(contactEmails) : null,
   ]);
+  // Team relationship history is stored (not a Google call), so it shows
+  // for any list size. Members who never turned sharing on add nothing.
+  const [{ data: lastInteractions }, { data: memberDirectory }] = shown.has("last_interaction") && rows.length
+    ? await Promise.all([
+        supabase.from("person_last_interaction").select("person_id,member_email,kind,last_at") as unknown as Promise<{
+          data: { person_id: string; member_email: string; kind: string; last_at: string }[] | null;
+        }>,
+        supabase.rpc("deal_assignee_directory") as unknown as Promise<{
+          data: { email: string; display_name: string | null }[] | null;
+        }>,
+      ])
+    : [{ data: null }, { data: null }];
+  const lastInteractionByPerson = new Map((lastInteractions ?? []).map((row) => [row.person_id, row]));
+  const memberNames = new Map((memberDirectory ?? []).map((member) => [member.email, member.display_name || member.email.split("@")[0]]));
   const lastEmailByAddress = lastEmailResult?.ok ? lastEmailResult.data : {};
   const nextMeetingByAddress = nextMeetingResult?.ok ? nextMeetingResult.data : {};
   const columnCount = 2 + shown.size;
@@ -232,6 +246,7 @@ export default async function PeoplePage({
               {shown.has("linkedin") && <th className="px-4 py-3 font-semibold">LinkedIn</th>}
               {shown.has("last_email") && <th className="px-4 py-3 font-semibold">Last email</th>}
               {shown.has("next_meeting") && <th className="px-4 py-3 font-semibold">Next meeting</th>}
+              {shown.has("last_interaction") && <th className="px-4 py-3 font-semibold">Last interaction</th>}
               <th className="px-4 py-3 text-right font-semibold">Contact</th>
             </tr>
           </thead>
@@ -311,6 +326,20 @@ export default async function PeoplePage({
                       <time dateTime={next.start} title={`${next.summary} · ${formatExactDate(next.start)}`}>
                         {formatUpcoming(next.start)}
                       </time>
+                    );
+                  })()}
+                </td>
+                )}
+                {shown.has("last_interaction") && (
+                <td className="px-4 py-3 text-neutral-500">
+                  {(() => {
+                    const last = lastInteractionByPerson.get(p.id);
+                    if (!last) return <span className="text-neutral-300">—</span>;
+                    const who = memberNames.get(last.member_email) ?? last.member_email.split("@")[0];
+                    return (
+                      <span title={`${last.kind === "meeting" ? "Meeting" : "Email"} with ${who}`}>
+                        <RelativeTime date={last.last_at} /> · {who}
+                      </span>
                     );
                   })()}
                 </td>
