@@ -38,6 +38,7 @@ export type NavIcon =
   | "pipeline"
   | "boards"
   | "board_item"
+  | "lp"
   | "companies"
   | "people"
   | "communications"
@@ -63,7 +64,7 @@ export const WORKSPACE_NAV: NavItem[] = [
   { href: "/overview", label: "Overview", icon: "overview" },
   { href: "/pipeline", label: "Pipeline", icon: "pipeline" },
   { href: "/boards", label: "Boards", icon: "boards" },
-  { href: "/lp-board", label: "LP follow-up", icon: "board_item" },
+  { href: "/lp-board", label: "LP follow-up", icon: "lp" },
   { href: "/companies", label: "Companies", icon: "companies" },
   { href: "/people", label: "People", icon: "people" },
   { href: "/communications", label: "Communications", icon: "communications" },

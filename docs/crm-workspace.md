@@ -4,7 +4,7 @@ Product direction discussed with Mario on 2026-09-28. This extends the Product C
 
 ## Navigation and board types
 
-The sidebar groups Investment Pipeline, Boards, Companies and People under CRM. **+ Create board** lets an authorized user choose a name and whether the board can link Deals; lists are added inside the board. Investment Pipeline remains the principal process for investment Deals. Other boards can track committee preparation, founder follow-up, LP outreach or tasks, with behavior appropriate to their records.
+The sidebar groups Pipeline, Companies, People and LP follow-up under CRM, with Boards as its own section (see [`home.md`](home.md#sidebar)). **+ Create board** lets an authorized user choose a name and whether the board can link Deals; lists are added inside the board. Investment Pipeline remains the principal process for investment Deals. Other boards can track committee preparation, founder follow-up, LP outreach or tasks, with behavior appropriate to their records.
 
 Three behaviors must remain explicit:
 
