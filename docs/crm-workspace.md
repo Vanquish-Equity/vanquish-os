@@ -26,6 +26,26 @@ task/LP record workflows and personal boards for general purposes are still
 planned rather than available. People and Pipeline have saved views; custom
 boards do not yet.
 
+## Board header and sharing
+
+The board header works like Trello's: click the name to rename it (Enter
+saves, Escape cancels), see who has access as avatar circles (up to five,
+then `+N`), and **Share** to choose who can open the board: **Everyone on the
+team** (default, and what every board created before this kept), **Specific
+people** (the creator plus picked active members) or **Only me**. The `⋯`
+menu has Rename and Archive.
+
+Only the board's creator, or an Admin who can see the board, can rename,
+share or archive it (`crm_set_board_sharing`, migration `20261005180000`).
+Access is enforced in Postgres, not by hiding UI: `crm_boards` and its
+columns, items, Deal cards, assignees and checklist items are readable only
+through `private.can_view_crm_board`, and a trigger on each of those tables
+refuses writes to a board the caller can't see — including through the
+existing board RPCs, which run as definer. Comments on a board's cards
+(`target_key` `board:<id>:…`) follow the same rule. Admins don't see other
+members' private boards. `crm_board_access(board)` lists who can open it, for
+the avatars. Creating boards and lists is still Admin-only.
+
 ## Saved Views (People, Pipeline)
 
 A **View** is a named, saved filter spec for a list — not a separate copy of
@@ -185,7 +205,7 @@ changes do not move cards. Private LP board RLS also protects imported card
 metadata and notes. Deleting a source record leaves its board card intact
 and clears the source link.
 
-Board creation follows the in-board workflow: choose a title and whether to link existing Deals, create an empty board, then add lists and native cards one at a time. Admins can later rename/archive the board, rename/reorder whole lists, and delete only empty lists; populated lists require moving or removing their cards first. Native cards have a title, description, due date and persistent list/order, and can be dragged across lists. Boards that opt into Deal links may contain both native cards and existing Deals; those Deal cards retain their own investment stage. All current boards are shared with the team; private visibility is a future permission model, not a selectable setting yet. The background is the existing neutral workspace design, without user color configuration.
+Board creation follows the in-board workflow: choose a title and whether to link existing Deals, create an empty board, then add lists and native cards one at a time. Admins can later rename/archive the board, rename/reorder whole lists, and delete only empty lists; populated lists require moving or removing their cards first. Native cards have a title, description, due date and persistent list/order, and can be dragged across lists. Boards that opt into Deal links may contain both native cards and existing Deals; those Deal cards retain their own investment stage. Boards can be shared with the whole team (default), specific members or only their creator; see **Board header and sharing** below. The background is the existing neutral workspace design, without user color configuration.
 
 ## Deal preview
 
