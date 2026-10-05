@@ -98,6 +98,36 @@ comes back with its full attendee list, so this is complete for the window
 (up to 1,000 events) rather than an approximation. Each lookup only runs
 when its column is visible.
 
+## Relationship history (shared, opt-in)
+
+Decided with Mario on 2026-10-05: the team may share **that** a member
+emailed or met someone in People and on which day — nothing else. Each member
+turns it on in Settings → **Relationship history**; it is off by default.
+
+- `relationship_interactions` (migration `20261005140000`) has one row per
+  Person, member, kind (`email`/`meeting`) and day, with the latest time that
+  day. No subject, body, meeting title, other participants or provider IDs
+  are stored. Only addresses already in People are matched; the member's own
+  address is ignored. Declined and cancelled meetings don't count.
+- RLS: every member can read the history; a member can only write their own
+  rows, only while their `relationship_sync` row is enabled, and can always
+  delete their own rows (**Delete my history** also turns sync off).
+  `relationship_sync` is visible only to its owner.
+- Sync (`src/lib/relationships/actions.ts`) uses the member's own Google
+  connection. The first run covers the last 90 days; later runs start a day
+  before the previous sync. Gmail is searched in batches of 20 People
+  addresses (from/to/cc, outside Trash/Spam/Chats) and reads only the
+  From/To/Cc headers of at most 400 messages per run — when a run hits that
+  cap the oldest messages in the window are skipped and Settings says so.
+  The primary Calendar is read for the same window. It runs when sharing is
+  turned on, from **Sync now**, and quietly once per browser tab when the
+  last sync is over 6 hours old. There is no background worker, so a member
+  who doesn't open Vanquish OS isn't synced.
+- Shown as People's **Last interaction (team)** column (any list size; it
+  reads stored rows, not Google) and on Company pages under each person:
+  last touch, by whom, and up to three members who know them, ranked by days
+  in touch.
+
 ## Personal LP follow-up
 
 Every active member gets one independent **LP follow-up** board on first visit.
@@ -146,7 +176,7 @@ Clicking a Pipeline or Deal-board card opens a large accessible overlay while th
 | Next action | Assigned follow-up with due date visible on Deal/board and overdue in Overview. | Tasks exist; surface them consistently. |
 | Deal team | Assign multiple active members to a Deal, show team avatars on Pipeline cards, and filter by member. Preserve the old free-text `deals.owner` for historical records; migrate only unambiguous member names. | Membership and avatar profiles exist; join-table assignments are added in the Deal team migration. |
 | Saved views and custom fields | Personal/shared filters, table/Kanban layouts, card fields and business fields. | Durable, nameable/shareable Views exist for People and Pipeline filters; column visibility, sorting, custom fields and Kanban-style views remain. |
-| Relationship history | Consolidate activity by Person and Company, relationship owner and possible warm introductions. | Company timeline and People's Last email column surface real Gmail activity per viewer on demand; a durable synced history, warm-intro graph and Calendar activity remain. |
+| Relationship history | Consolidate activity by Person and Company, relationship owner and possible warm introductions. | Company timeline and People's Last email column read Gmail per viewer on demand; opt-in shared relationship history (who emailed/met whom, by day) powers People's Last interaction column and "knows them" on Company pages (see below). A warm-intro graph across companies remains. |
 | Stage rules | Show required inputs and optionally create tasks or notifications on stage entry. | Stage history and some diligence requirements exist; reusable rules remain. |
 | LP outreach | Own workflow for prospects, communications and investments. | Private per-member LP follow-up boards and shared People LP flags exist; explicit linking, communication history and investment status remain. |
 | Search/quick actions | Find People, Companies and Deals globally; add notes/tasks in context. | Dedicated pages exist; universal search remains. |

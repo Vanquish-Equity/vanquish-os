@@ -7,6 +7,7 @@ import { introCookieName } from "@/lib/ui/entrance";
 import { landingCookieName, landingPage, noticeMask, notificationCookieName, pipelineCookieName, pipelineDefault } from "@/lib/settings/preferences";
 import SettingsPanel from "@/components/SettingsPanel";
 import AdminSettings from "@/components/AdminSettings";
+import RelationshipSyncSettings from "@/components/RelationshipSyncSettings";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +15,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const { connect } = await searchParams;
   const access = await requireMember();
   const supabase = await createClient();
-  const [{ data: profile, error }, mailbox] = await Promise.all([
+  const [{ data: profile, error }, mailbox, { data: relationshipSync, error: relationshipError }] = await Promise.all([
     supabase.from("app_members").select("display_name,avatar_path").eq("email", access.email).maybeSingle(),
     loadMailboxConnection(supabase),
+    supabase.from("relationship_sync").select("enabled,last_synced_at").eq("member_email", access.email).maybeSingle(),
   ]);
   const avatarUrl = profile?.avatar_path
     ? (await supabase.storage.from("member-avatars").createSignedUrl(profile.avatar_path, 3600)).data?.signedUrl ?? null
@@ -54,6 +56,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         mailbox={mailbox}
         connectStatus={connect ?? null}
       />
+      {!relationshipError && (
+        <RelationshipSyncSettings
+          enabled={Boolean(relationshipSync?.enabled)}
+          lastSyncedAt={relationshipSync?.last_synced_at ?? null}
+          googleConnected={mailbox.connected}
+        />
+      )}
       {isAdmin && !membersResult.error && !permissionsResult.error && !domainsResult.error && (
         <AdminSettings
           me={access.email}

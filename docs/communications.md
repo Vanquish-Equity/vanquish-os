@@ -35,7 +35,9 @@ conversation containing messages with different labels. Thread actions act
 on the entire conversation, matching the UI's wording.
 
 This implementation reads Google on demand; it does not copy private mailbox
-content into shared CRM tables. Metadata fan-out is limited to five requests
+content into shared CRM tables. The one exception is opt-in relationship
+history, which stores only who emailed or met which Person on which day (see
+[`crm-workspace.md`](crm-workspace.md#relationship-history-shared-opt-in)). Metadata fan-out is limited to five requests
 at once, and message bodies/attachment bytes load only when needed. There is
 no push subscription or `historyId` synchronization worker yet.
 

@@ -6,6 +6,7 @@ export const PEOPLE_COLUMNS = [
   { key: "linkedin", label: "LinkedIn" },
   { key: "last_email", label: "Last email" },
   { key: "next_meeting", label: "Next meeting" },
+  { key: "last_interaction", label: "Last interaction (team)" },
 ] as const;
 
 export type PeopleColumn = (typeof PEOPLE_COLUMNS)[number]["key"];
