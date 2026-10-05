@@ -1,4 +1,6 @@
 import ReviewItemActions from "@/components/ReviewItemActions";
+import ScoutingReview, { type ContactRequest, type Suggestion } from "@/components/ScoutingReview";
+import { requireMember } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/server";
 import { startDevPageTimer } from "@/lib/performance";
 
@@ -26,6 +28,7 @@ type ReviewItem = {
 };
 
 export default async function ReviewPage() {
+  const access = await requireMember();
   const supabase = await createClient();
   const endTimer = startDevPageTimer("page:data:review");
   const { data: items } = (await supabase
@@ -35,6 +38,29 @@ export default async function ReviewPage() {
     .limit(100)) as unknown as {
     data: ReviewItem[] | null;
   };
+  // Email scouting: RLS returns only the signed-in member's own rows.
+  const [{ data: suggestions, error: suggestionsError }, { data: requests }, { data: scouting }] = await Promise.all([
+    supabase
+      .from("company_suggestions")
+      .select("id,domain,suggested_name,thread_count,two_way,last_seen_at,contacts")
+      .eq("status", "open")
+      .order("two_way", { ascending: false })
+      .order("thread_count", { ascending: false })
+      .order("last_seen_at", { ascending: false })
+      .limit(60) as unknown as Promise<{ data: Suggestion[] | null; error: unknown }>,
+    supabase
+      .from("contact_requests")
+      .select("id,email,name,company:companies(id,name)")
+      .eq("status", "pending")
+      .order("created_at") as unknown as Promise<{ data: ContactRequest[] | null }>,
+    supabase
+      .from("member_permissions")
+      .select("permission")
+      .eq("email", access.email)
+      .eq("permission", "email_scouting")
+      .maybeSingle(),
+  ]);
+  const showScouting = !suggestionsError && (Boolean(scouting) || (suggestions ?? []).length > 0 || (requests ?? []).length > 0);
   endTimer();
   const openItems = (items ?? []).filter((item) => item.status === "open");
   const closedItems = (items ?? []).filter((item) => item.status !== "open");
@@ -46,10 +72,13 @@ export default async function ReviewPage() {
           Review
         </h1>
         <p className="mt-1 text-[13px] text-neutral-500">
-          Human decisions for ambiguous tracker and reconciliation items.
+          Companies suggested from your email, contacts waiting for approval, and ambiguous import items.
         </p>
       </header>
 
+      {showScouting && <ScoutingReview suggestions={suggestions ?? []} requests={requests ?? []} />}
+
+      {showScouting && <h2 className="mt-2 text-[14.5px] font-semibold text-ink">Import review</h2>}
       <div className="vq-card-grid flex flex-col gap-3">
         {openItems.length === 0 && (
           <div className="vq-card-static rounded-[14px] bg-white p-8 text-center text-[12.5px] text-neutral-400">

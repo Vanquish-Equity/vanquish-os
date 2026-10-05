@@ -8,6 +8,7 @@ import { landingCookieName, landingPage, noticeMask, notificationCookieName, pip
 import SettingsPanel from "@/components/SettingsPanel";
 import AdminSettings from "@/components/AdminSettings";
 import RelationshipSyncSettings from "@/components/RelationshipSyncSettings";
+import ScoutingSettings from "@/components/ScoutingSettings";
 import StageRulesSettings, { type StageRule } from "@/components/StageRulesSettings";
 import StageRequirementsSettings from "@/components/StageRequirementsSettings";
 import { getPipelineStages } from "@/lib/taxonomies";
@@ -22,6 +23,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     supabase.from("app_members").select("display_name,avatar_path").eq("email", access.email).maybeSingle(),
     loadMailboxConnection(supabase),
     supabase.from("relationship_sync").select("enabled,last_synced_at").eq("member_email", access.email).maybeSingle(),
+  ]);
+  const [{ data: scoutingPermission }, { data: scoutingSettings, error: scoutingError }] = await Promise.all([
+    supabase.from("member_permissions").select("permission").eq("email", access.email).eq("permission", "email_scouting").maybeSingle(),
+    supabase.from("scouting_settings").select("contact_mode,last_scanned_at").eq("member_email", access.email).maybeSingle(),
   ]);
   const avatarUrl = profile?.avatar_path
     ? (await supabase.storage.from("member-avatars").createSignedUrl(profile.avatar_path, 3600)).data?.signedUrl ?? null
@@ -73,6 +78,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         mailbox={mailbox}
         connectStatus={connect ?? null}
       />
+      {scoutingPermission && !scoutingError && (
+        <ScoutingSettings
+          contactMode={(scoutingSettings?.contact_mode as "request" | "skip" | "auto" | undefined) ?? "request"}
+          lastScannedAt={scoutingSettings?.last_scanned_at ?? null}
+          googleConnected={mailbox.connected}
+        />
+      )}
       {!relationshipError && (
         <RelationshipSyncSettings
           enabled={Boolean(relationshipSync?.enabled)}
