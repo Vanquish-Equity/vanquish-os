@@ -98,6 +98,28 @@ comes back with its full attendee list, so this is complete for the window
 (up to 1,000 events) rather than an approximation. Each lookup only runs
 when its column is visible.
 
+## People: possible duplicates
+
+`/people/duplicates` (linked from People as **Duplicates**) lists pairs of
+active People with the same name once case, accents and punctuation are
+ignored, or the same LinkedIn profile (`src/lib/people/duplicates.ts`).
+Emails are already unique across People, so they can't produce a duplicate.
+For each pair a member can keep either record or mark the pair **Not
+duplicates**, which stores it in `person_duplicate_dismissals` so it isn't
+suggested again.
+
+Merging calls `merge_people(keep, drop)` (migration `20261004100000`), one
+transaction: the dropped person's emails, group memberships, deal links,
+email-draft recipients and board-card source links move to the kept person;
+the kept person's blank title/LinkedIn/company are filled from the dropped
+one and the potential-LP flag is kept if either had it; the dropped person is
+archived, never deleted. Investor positions are Portfolio data, so a merge
+that would move them is refused for members without Portfolio access.
+
+Automatic data enrichment (title, company, LinkedIn from an email address)
+is not built: it needs a paid third-party data provider (Apollo, Clearbit,
+People Data Labs, ...) and a decision about sending contact emails to it.
+
 ## Personal LP follow-up
 
 Every active member gets one independent **LP follow-up** board on first visit.
