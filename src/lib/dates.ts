@@ -65,6 +65,7 @@ export function formatRelative(
 
   const days = Math.max(0, Math.floor((now.getTime() - date.getTime()) / DAY_MS));
 
+  if (days === 0) return "today";
   if (days < 14) return `${days}d ago`;
   if (days < 56) return `${Math.floor(days / 7)}w ago`;
 

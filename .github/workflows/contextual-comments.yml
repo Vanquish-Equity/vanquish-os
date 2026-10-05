@@ -82,3 +82,5 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/tests/stage_requirements.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261005140000_relationship_interactions.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/relationship_interactions.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261005160000_email_scouting.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/email_scouting.sql > /dev/null

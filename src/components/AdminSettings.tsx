@@ -51,13 +51,13 @@ export default function AdminSettings({ me, members, domains }: { me: string; me
         ))}
       </div>
       <p className="mt-2 text-[11px] text-neutral-500">
-        <span className="font-semibold text-ink">Email scouting</span>: once a member connects Gmail, their mailbox is
-        scanned to detect and suggest new Companies from their email activity only if this is on. It has no effect yet —
-        no mailbox is connected — but it is decided per member now so scouting only ever covers the members who actually
-        do deal sourcing by email.
+        <span className="font-semibold text-ink">Email scouting</span>: when on, and the member has connected Gmail,
+        their own mailbox is scanned for companies they write with that aren&apos;t in Companies yet. Suggestions appear
+        only to that member, in Review. Only the domain, counts, dates and contact names/emails are stored — never
+        subjects or content.
       </p>
       <h3 className="mt-6 text-[13px] font-semibold text-ink">Ignored email domains</h3>
-      <p className="mt-1 text-[11px] text-neutral-500">This list is ready for company detection when email sync is connected. It does not currently filter any emails.</p>
+      <p className="mt-1 text-[11px] text-neutral-500">Email scouting never suggests companies from these domains (personal mail providers like Gmail are always skipped).</p>
       <form className="mt-3 flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); run(() => saveIgnoredDomain(domain, reason), "Domain saved."); setDomain(""); setReason(""); }}>
         <label className="min-w-[180px] flex-1 text-[11px] font-semibold text-ink">Domain
           <input value={domain} onChange={(event) => setDomain(event.target.value)} placeholder="example.com" required maxLength={253} className="mt-1 block w-full rounded-lg border border-neutral-200 px-3 py-2 text-[12px] font-normal" />
@@ -73,7 +73,6 @@ export default function AdminSettings({ me, members, domains }: { me: string; me
           <button type="button" disabled={pending} onClick={() => run(() => deleteIgnoredDomain(entry.domain), "Domain removed.")} className="text-[11px] font-semibold text-neutral-500 hover:text-ink disabled:opacity-40">Remove</button>
         </li>)}
       </ul>}
-      <p className="mt-3 text-[11px] text-neutral-500">Company detection rules will appear here when mailbox sync and its review queue are connected.</p>
       {message && <p role="status" className="mt-3 text-[11px] text-cyan-800">{message}</p>}
     </section>
   );

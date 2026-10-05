@@ -53,31 +53,47 @@ Portfolio and Documents and initially grants it only to Mario. RLS protects
 the member list and ignored-domain list. An admin can activate or deactivate
 other members, assign Portfolio, Documents and Email scouting access, and save
 or remove ignored email domains. Admin cannot deactivate their own account or
-grant the Admin permission through the UI RPC. Ingestion is not connected
-yet: ignored domains are saved for use when email detection is built, and do
-not currently filter email or create companies. All writes are checked again
+grant the Admin permission through the UI RPC. Email scouting skips
+ignored domains when suggesting companies. All writes are checked again
 in Postgres and cannot be performed directly by regular members or anonymous
 callers.
 
-### Email scouting (`20260929190000_email_scouting_permission.sql`)
+### Email scouting (`20260929190000`, built in `20261005160000`)
 
-Not every member does deal sourcing by email, and once a mailbox can be
-connected, scanning a personal inbox to detect companies is a meaningful
-thing to opt a member into rather than something every connection does by
-default. `email_scouting` is a per-member permission (same
-`member_permissions` table and `admin_set_member_permission` RPC as Portfolio
-and Documents, toggled from the member list above) that will gate this:
+`email_scouting` is a per-member permission an Admin toggles in the member
+list. Decided with Mario on 2026-10-05: suggestions are **private to the
+member whose mailbox they came from**, and each member chooses what happens to
+a new company's contacts.
 
-- A member **with** Email scouting: once they connect Gmail, their mailbox
-  activity can be scanned against the ignored-domain list to detect and
-  suggest new Companies (the review queue this feeds does not exist yet).
-- A member **without** it: their connection (once built) only ever powers
-  their own inbox/sent/drafts view and sending — nothing about their mailbox
-  content is scanned or used to create or suggest Companies.
-
-This permission has no effect today (no mailbox is connected to scan), but is
-decided per member now so the distinction is in place before scanning exists,
-rather than defaulting everyone in.
+- **Scan** (`src/lib/scouting/actions.ts`, logic in `detect.ts`): with the
+  permission and Gmail connected, reads From/To/Cc headers of the newest 500
+  emails of the last 30 days outside Spam, Trash, Chats, Promotions, Social,
+  Updates and Forums. Runs from **Scan now** in Settings and quietly once per
+  browser tab when the last scan is over 6 hours old (no background worker).
+- **What counts**: addresses grouped by registrable domain
+  (`mail.acme.co.uk` → `acme.co.uk`), skipping the member's own domain,
+  personal providers (Gmail, Outlook, iCloud, …), Admin's **ignored
+  domains**, domains of existing Companies' websites, domains of People
+  already linked to a company, any domain where someone is already in People,
+  and automated senders (`no-reply`, `notifications`, `billing`, …). A domain
+  is suggested when the member and someone there both wrote (two-way) or it
+  appears in at least two threads; two-way first, then thread count.
+- **Stored** (`company_suggestions`): domain, suggested name, thread count,
+  two-way flag, first/last seen and up to 10 contact names/emails — never
+  subjects, bodies or attachments. RLS: only the owner reads or updates their
+  rows, and only members with the permission can add them. Dismissed and
+  accepted suggestions are never reopened by later scans.
+- **Review → Suggested companies**: edit the name, then **Create company**
+  (`accept_company_suggestion`, one transaction: creates the company with
+  `https://<domain>` as website and logs `COMPANY_CREATED`) or **Dismiss**.
+- **Contacts** follow the member's Settings choice (`scouting_settings.
+  contact_mode`): **Ask me first** (default) puts each new contact in
+  **Review → Contact requests** (`contact_requests`, private) to Accept
+  (adds the Person under the company) or Decline; **Add automatically** adds
+  them to People right away; **Don't add** skips them. Emails already in
+  People are never duplicated.
+- Members without the permission: their connection only powers their own
+  inbox, calendar and (if they opt in) relationship history.
 
 ## Connected accounts
 
@@ -94,7 +110,7 @@ The stored grant now powers the live Gmail mailbox and Calendar. See
 [Communications](communications.md) and [Calendar](calendar.md). Existing
 `calendar.readonly` grants can view events; Calendar's **Enable calendar
 editing** link requests `calendar.events` through the same consent flow.
-Connecting does not start scheduled sends or background email scouting.
+Connecting does not start scheduled sends; email scouting only runs for members with that permission (above).
 
 ### How it works
 

@@ -2,10 +2,12 @@
 
 import { useEffect } from "react";
 import { maybeSyncRelationships } from "@/lib/relationships/actions";
+import { maybeScanMailbox } from "@/lib/scouting/actions";
 
 // Once per browser tab, asks the server to refresh this member's
-// relationship history. The server does nothing unless the member turned it
-// on in Settings and the last sync is a few hours old. Never blocks or
+// relationship history and email scouting. The server does nothing unless
+// the member turned each on (scouting: the Admin-granted permission) and the
+// last run is a few hours old. Never blocks or
 // reloads the page.
 export default function RelationshipAutoSync() {
   useEffect(() => {
@@ -16,7 +18,11 @@ export default function RelationshipAutoSync() {
     } catch {
       // Storage unavailable: still try once for this page load.
     }
-    void maybeSyncRelationships().catch(() => undefined);
+    // One after the other, so two Gmail jobs never run at the same time.
+    void maybeSyncRelationships()
+      .catch(() => undefined)
+      .then(() => maybeScanMailbox())
+      .catch(() => undefined);
   }, []);
   return null;
 }
