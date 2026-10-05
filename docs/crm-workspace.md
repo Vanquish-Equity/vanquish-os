@@ -172,7 +172,7 @@ Clicking a Pipeline or Deal-board card opens a large accessible overlay while th
 | Stage rules | Show required inputs and optionally create tasks or notifications on stage entry. | Admin-defined rules create tasks on stage entry, and stage requirements block entry until required inputs exist (see below). |
 | LP outreach | Own workflow for prospects, communications and investments. | Private per-member LP follow-up boards and shared People LP flags exist; explicit linking, communication history and investment status remain. |
 | Search/quick actions | Find People, Companies and Deals globally; add notes/tasks in context. | Global search (⌘K / Ctrl+K or the top-bar box) finds People by name or email, Companies and Deals by name, under the member's RLS; quick actions from search remain. |
-| Analytics | Time per stage, stale Deals, movement, outcomes, owner and investment potential. | Overview shows a pipeline-by-stage breakdown, potential LP count, activity in the last 7 days and a **Time in stage** table (see below); movement trends over time and owner/investment-potential views remain. |
+| Analytics | Time per stage, stale Deals, movement, outcomes, owner and investment potential. | Overview shows a pipeline-by-stage breakdown, potential LP count, activity in the last 7 days, a **Time in stage** table and **Pipeline trends** (see below); stale-deal trends and outcome analysis remain. |
 | Templates | Start from Investment Deal, LP Outreach or Tasks, then customize. | Later, once each record workflow exists. |
 | Connected activity | An authorized Gmail mailbox and calendar attach activity and update last interaction. | Provider connections and sync remain separate roadmap work. |
 
@@ -189,6 +189,24 @@ unknown creation stage and that first stint is left out; a Deal that has
 never changed stage counts from its creation. Archived Deals end their last
 stint at `archived_at`. All Deals and history rows are read in one query each
 (124 and 160 rows today); past the API's row cap this needs a SQL aggregate.
+
+### Pipeline trends
+
+Below Time in stage, Overview shows three panels computed on each load from
+the same Deal and stage-history reads plus `deal_assignees`
+(`src/lib/deals/pipeline-trends.ts`):
+
+- **Movement, last 12 weeks** (Monday weeks, UTC; the current week is
+  partial): Deals created, stage moves forward or back by stage sort order,
+  and Deals archived. A Deal's first recorded change has no known previous
+  stage, so it isn't counted as forward or back.
+- **Potential investment by stage**: the sum of `potential_investment` for
+  active Deals (not archived, no outcome) per stage, with how many of them
+  have an amount at all.
+- **Active deals by deal team**: Deals and summed potential per member (a
+  shared Deal counts for each member) plus an Unassigned row. Each name links
+  to Pipeline pre-filtered to that member (`/pipeline?member=<email>` or
+  `?member=unassigned`).
 
 ## Stage rules (automation)
 

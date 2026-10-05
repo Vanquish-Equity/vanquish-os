@@ -75,9 +75,10 @@ export default async function PipelinePage({
     priority?: string;
     stage?: string;
     view?: string;
+    member?: string;
   }>;
 }) {
-  const { filter, hideTerminal, priority, stage, view } = await searchParams;
+  const { filter, hideTerminal, priority, stage, view, member: memberParam } = await searchParams;
   const showArchived = view === "archived";
   const member = await requireMember();
   const savedPipeline = pipelineDefault((await cookies()).get(pipelineCookieName(member.email))?.value);
@@ -322,7 +323,7 @@ export default async function PipelinePage({
           No pipeline stages found. Run the M1 migration in Supabase first.
         </div>
       ) : (
-        <PipelineBoard key={boardKey} stages={stages} deals={visibleDeals} members={members} me={member.email} />
+        <PipelineBoard key={`${boardKey}:${memberParam ?? ""}`} stages={stages} deals={visibleDeals} members={members} me={member.email} initialMember={memberParam ?? null} />
       )}
     </div>
   );

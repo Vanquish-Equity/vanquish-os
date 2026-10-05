@@ -3,7 +3,8 @@ import { hasPermission } from "@/lib/auth/access";
 import OverviewAttentionPanel from "@/components/OverviewAttentionPanel";
 import RelativeTime from "@/components/RelativeTime";
 import { loadAttentionDeals } from "@/lib/deals/attention-data";
-import { pipelineAnalytics, type AnalyticsDeal, type StageChange } from "@/lib/deals/pipeline-analytics";
+import { pipelineAnalytics, type StageChange } from "@/lib/deals/pipeline-analytics";
+import { dealsByMember, potentialByStage, weeklyMovement, type TrendDeal } from "@/lib/deals/pipeline-trends";
 import { getPipelineStages } from "@/lib/taxonomies";
 import { introCard } from "@/lib/ui/entrance";
 import { startDevPageTimer } from "@/lib/performance";
@@ -126,6 +127,8 @@ export default async function OverviewPage() {
     { count: weeklyActivityCount },
     { data: allDeals },
     { data: stageChanges },
+    { data: dealAssignees },
+    { data: memberDirectory },
   ] = await Promise.all([
     loadAttentionDeals(supabase, { canDocuments }),
     supabase
@@ -167,13 +170,19 @@ export default async function OverviewPage() {
     // Archived and decided deals too: their finished stints feed time-in-stage.
     supabase
       .from("deals")
-      .select("id,stage_id,created_at,archived_at,outcome_id") as unknown as Promise<{
-      data: AnalyticsDeal[] | null;
+      .select("id,stage_id,created_at,archived_at,outcome_id,potential_investment") as unknown as Promise<{
+      data: TrendDeal[] | null;
     }>,
     supabase
       .from("deal_status_history")
       .select("deal_id,stage_id,changed_at")
       .not("stage_id", "is", null) as unknown as Promise<{ data: StageChange[] | null }>,
+    supabase.from("deal_assignees").select("deal_id,member_email") as unknown as Promise<{
+      data: { deal_id: string; member_email: string }[] | null;
+    }>,
+    supabase.rpc("deal_assignee_directory") as unknown as Promise<{
+      data: { email: string; display_name: string | null }[] | null;
+    }>,
   ]);
   endTimer();
 
@@ -190,6 +199,19 @@ export default async function OverviewPage() {
     (row) => row.currentCount > 0 || row.completedCount > 0 || row.decided > 0,
   );
   const formatDays = (days: number | null) => (days === null ? "—" : `${days}d`);
+
+  const movement = weeklyMovement(stages, allDeals ?? [], stageChanges ?? []);
+  const maxMoves = Math.max(1, ...movement.map((week) => week.advanced));
+  const stageValues = potentialByStage(stages, allDeals ?? []).filter((row) => row.deals > 0);
+  const maxStageValue = Math.max(1, ...stageValues.map((row) => row.total));
+  const memberLoad = dealsByMember(
+    allDeals ?? [],
+    dealAssignees ?? [],
+    new Map((memberDirectory ?? []).map((member) => [member.email, member.display_name || member.email.split("@")[0]])),
+  );
+  const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 });
+  const weekLabel = (iso: string) =>
+    new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
   const activeDeals = deals.filter((d) => !d.stage?.is_terminal && !d.outcome);
   const dueDiligence = activeDeals.filter((d) => d.stage?.name === "Due Diligence");
@@ -347,6 +369,101 @@ export default async function OverviewPage() {
           </table>
         </div>
       )}
+
+      <div
+        data-comment-anchor="pipeline-trends"
+        data-comment-label="Pipeline trends"
+        className="vq-intro-card grid gap-3.5 lg:grid-cols-[1.25fr_1fr_1fr]"
+        style={introCard(3)}
+      >
+        <div className="vq-card-static overflow-x-auto rounded-[14px] bg-white p-4">
+          <h2 className="text-[12px] font-semibold text-neutral-500">Movement, last 12 weeks</h2>
+          <p className="mb-2 mt-0.5 text-[11px] text-neutral-400">New deals, stage moves forward/back, and deals closed (archived) per week.</p>
+          <table className="w-full min-w-[340px] text-[11.5px]">
+            <thead>
+              <tr className="text-[10px] uppercase tracking-wide text-neutral-400">
+                <th className="py-1 pr-2 text-left font-semibold">Week of</th>
+                <th className="py-1 pr-2 text-right font-semibold">New</th>
+                <th className="py-1 pr-2 text-left font-semibold">Forward</th>
+                <th className="py-1 pr-2 text-right font-semibold">Back</th>
+                <th className="py-1 text-right font-semibold">Closed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {movement.map((week) => (
+                <tr key={week.weekStart} className="border-t border-neutral-50">
+                  <td className="py-1 pr-2 text-neutral-500">{weekLabel(week.weekStart)}</td>
+                  <td className="py-1 pr-2 text-right tabular-nums text-neutral-600">{week.created || "·"}</td>
+                  <td className="py-1 pr-2">
+                    <div className="flex items-center gap-1.5" title={`${week.advanced} moved forward`}>
+                      <span
+                        aria-hidden="true"
+                        className="h-2 rounded-r-[4px] bg-cyan-600"
+                        style={{ width: `${(week.advanced / maxMoves) * 64}px` }}
+                      />
+                      <span className="tabular-nums text-neutral-600">{week.advanced || "·"}</span>
+                    </div>
+                  </td>
+                  <td className="py-1 pr-2 text-right tabular-nums text-neutral-600">{week.movedBack || "·"}</td>
+                  <td className="py-1 text-right tabular-nums text-neutral-600">{week.closed || "·"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="vq-card-static rounded-[14px] bg-white p-4">
+          <h2 className="text-[12px] font-semibold text-neutral-500">Potential investment by stage</h2>
+          <p className="mb-2 mt-0.5 text-[11px] text-neutral-400">Active deals only; deals without an amount are counted but add nothing.</p>
+          {stageValues.length === 0 ? (
+            <p className="text-[12px] text-neutral-400">No active deals.</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {stageValues.map((row) => (
+                <div key={row.stageId} title={`${row.withAmount} of ${row.deals} deals have an amount`}>
+                  <div className="flex items-baseline justify-between gap-2 text-[11.5px]">
+                    <span className="truncate font-semibold text-ink">{row.name}</span>
+                    <span className="tabular-nums text-neutral-600">
+                      {money.format(row.total)}
+                      <span className="ml-1 text-[10.5px] text-neutral-400">{row.withAmount}/{row.deals}</span>
+                    </span>
+                  </div>
+                  <div className="mt-1 h-2 rounded-full bg-neutral-100">
+                    <div className="h-2 rounded-full bg-cyan-600" style={{ width: `${(row.total / maxStageValue) * 100}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="vq-card-static rounded-[14px] bg-white p-4">
+          <h2 className="text-[12px] font-semibold text-neutral-500">Active deals by deal team</h2>
+          <p className="mb-2 mt-0.5 text-[11px] text-neutral-400">A deal with two members counts for both.</p>
+          {memberLoad.length === 0 ? (
+            <p className="text-[12px] text-neutral-400">No active deals.</p>
+          ) : (
+            <table className="w-full text-[11.5px]">
+              <tbody>
+                {memberLoad.map((row) => (
+                  <tr key={row.email ?? "unassigned"} className="border-t border-neutral-50 first:border-0">
+                    <td className="py-1 pr-2">
+                      <Link
+                        href={row.email ? `/pipeline?member=${encodeURIComponent(row.email)}` : "/pipeline?member=unassigned"}
+                        className={`font-semibold hover:text-cyan-800 ${row.email ? "text-ink" : "text-neutral-500"}`}
+                      >
+                        {row.name}
+                      </Link>
+                    </td>
+                    <td className="py-1 pr-2 text-right tabular-nums text-neutral-600">{row.deals}</td>
+                    <td className="py-1 text-right tabular-nums text-neutral-500">{row.total ? money.format(row.total) : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
 
       <div className="grid grid-cols-[1.4fr_1fr] gap-3.5">
         <OverviewAttentionPanel

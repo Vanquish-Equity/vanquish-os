@@ -108,11 +108,14 @@ export default function PipelineBoard({
   deals,
   members,
   me,
+  initialMember = null,
 }: {
   stages: PipelineStage[];
   deals: PipelineDeal[];
   members: DealMember[];
   me: string;
+  // From ?member=<email> or ?member=unassigned (Overview's deal-team table).
+  initialMember?: string | null;
 }) {
   const router = useRouter();
   const stageIds = useMemo(
@@ -150,10 +153,12 @@ export default function PipelineBoard({
   const [moveError, setMoveError] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [memberEmails, setMemberEmails] = useState<string[]>([]);
+  const [memberEmails, setMemberEmails] = useState<string[]>(() =>
+    initialMember && initialMember !== "unassigned" ? [initialMember] : [],
+  );
   const [priorities, setPriorities] = useState<string[]>([]);
   const [stageFilter, setStageFilter] = useState<string[]>([]);
-  const [unassigned, setUnassigned] = useState(false);
+  const [unassigned, setUnassigned] = useState(initialMember === "unassigned");
   const [overdue, setOverdue] = useState(false);
   const [noNextAction, setNoNextAction] = useState(false);
   const priorityOptions = useMemo(() => [...new Set(deals.map((deal) => deal.priority?.name).filter((value): value is string => !!value))].sort(), [deals]);
