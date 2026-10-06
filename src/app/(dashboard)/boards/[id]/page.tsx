@@ -12,7 +12,7 @@ type Deal = { id: string; name: string; round: string | null; first_seen_at: str
 export default async function BoardDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params; if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const member = await requireMember(); const db = await createClient();
-  const board = await db.from("crm_boards").select("id,name,record_type").eq("id", id).is("archived_at", null).maybeSingle();
+  const board = await db.from("crm_boards").select("id,name,record_type,created_by,share_scope,shared_with").eq("id", id).is("archived_at", null).maybeSingle();
   if (board.error) throw new Error("Could not load board data.");
   if (!board.data) notFound();
 
@@ -26,7 +26,18 @@ export default async function BoardDetailPage({ params }: { params: Promise<{ id
       : Promise.resolve({ data: [] as Deal[], error: null }),
   ]);
   if (columns.error || cards.error || items.error || deals.error) throw new Error("Could not load board data.");
-  const { members, byDeal } = await loadDealAssignees(db, (deals.data ?? []).map((deal) => deal.id));
+  const [{ members, byDeal }, accessRows] = await Promise.all([
+    loadDealAssignees(db, (deals.data ?? []).map((deal) => deal.id)),
+    db.rpc("crm_board_access", { p_board: id }) as unknown as Promise<{ data: { email: string; display_name: string | null; is_owner: boolean }[] | null }>,
+  ]);
+  const memberByEmail = new Map(members.map((person) => [person.email, person]));
+  const sharing = {
+    canManage: board.data.created_by === member.email || member.permissions.has("admin"),
+    scope: board.data.share_scope as "team" | "private" | "selected",
+    sharedWith: (board.data.shared_with ?? []) as string[],
+    ownerEmail: (board.data.created_by ?? null) as string | null,
+    access: (accessRows.data ?? []).map((row) => memberByEmail.get(row.email) ?? { email: row.email, name: row.display_name || row.email.split("@")[0], avatarUrl: null }),
+  };
   const byItem = await loadBoardItemAssignees(db, members, (items.data ?? []).map((item) => item.id));
   const byChecklist = await loadBoardItemChecklists(db, (items.data ?? []).map((item) => item.id));
   const labeled = (deals.data ?? []).map((deal) => ({ ...deal, assignees: byDeal.get(deal.id) ?? [], label: dealLabel({ name: deal.name, round: deal.round, companyName: deal.company?.name, firstSeenAt: deal.first_seen_at, createdAt: deal.created_at }), companyDealCount: 1 }));
@@ -37,6 +48,6 @@ export default async function BoardDetailPage({ params }: { params: Promise<{ id
        to close whatever card or Deal preview the member had open the instant
        they checked an owner. CustomDealBoard re-syncs those from fresh props
        on its own. */}
-    <CustomDealBoard key={JSON.stringify({ board: board.data, columns: columns.data, cards: cards.data, itemIds: (items.data ?? []).map((item) => item.id) })} boardId={id} boardName={board.data.name} includeDeals={includeDeals} initialColumns={columns.data ?? []} initialCards={cards.data ?? []} initialItems={itemsWithAssignees} deals={labeled} members={members} admin={member.permissions.has("admin")} />
+    <CustomDealBoard key={JSON.stringify({ board: board.data, columns: columns.data, cards: cards.data, itemIds: (items.data ?? []).map((item) => item.id) })} boardId={id} boardName={board.data.name} includeDeals={includeDeals} initialColumns={columns.data ?? []} initialCards={cards.data ?? []} initialItems={itemsWithAssignees} deals={labeled} members={members} admin={member.permissions.has("admin")} sharing={sharing} />
   </div>;
 }

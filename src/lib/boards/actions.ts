@@ -17,17 +17,28 @@ export async function createBoardAction(name: string, includeDeals: boolean): Pr
   revalidatePath("/", "layout"); return { ok: true, id: data as string };
 }
 
-export async function updateBoardAction(boardId: string, name: string): Promise<Result> {
-  const access = await actionAccessError("admin"); if (access) return fail(access);
-  if (!uuid.test(boardId) || !name.trim() || name.length > 80) return fail("Invalid board settings.");
+// Name and sharing in one call. The database only lets the board's creator
+// or an Admin who can see it make this change (crm_set_board_sharing).
+export async function setBoardSharingAction(
+  boardId: string,
+  name: string,
+  scope: "team" | "private" | "selected",
+  members: string[],
+): Promise<Result> {
+  const access = await actionAccessError(); if (access) return fail(access);
+  if (!uuid.test(boardId) || !name.trim() || name.trim().length > 80 || !["team", "private", "selected"].includes(scope) || !Array.isArray(members) || members.length > 100) {
+    return fail("Invalid board settings.");
+  }
+  if (scope === "selected" && members.length === 0) return fail("Pick at least one person to share with.");
   const db = await createClient();
-  const { data, error } = await db.from("crm_boards").update({ name: name.trim() }).eq("id", boardId).is("archived_at", null).select("id").maybeSingle();
-  if (error || !data) return fail(error?.message ?? "Board not found.");
+  const { error } = await db.rpc("crm_set_board_sharing", { p_board: boardId, p_name: name.trim(), p_scope: scope, p_members: members });
+  if (error) return fail(error.code === "42501" ? "Only the board's creator or an Admin can change this." : "Could not save the board settings.");
   revalidatePath("/", "layout"); return { ok: true };
 }
 
 export async function archiveBoardAction(boardId: string): Promise<Result> {
-  const access = await actionAccessError("admin"); if (access) return fail(access);
+  // RLS: only the creator or an Admin who can see the board may archive it.
+  const access = await actionAccessError(); if (access) return fail(access);
   if (!uuid.test(boardId)) return fail("Invalid board.");
   const db = await createClient();
   const { data, error } = await db.from("crm_boards").update({ archived_at: new Date().toISOString() }).eq("id", boardId).is("archived_at", null).select("id").maybeSingle();

@@ -84,3 +84,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/tests/relationship_interactions.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261005160000_email_scouting.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/email_scouting.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261005180000_crm_board_sharing.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/crm_board_sharing.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/crm_boards.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/boards_context_comments.sql > /dev/null
