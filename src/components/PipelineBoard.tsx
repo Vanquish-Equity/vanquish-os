@@ -284,6 +284,11 @@ export default function PipelineBoard({
       onDragCancel={handleDragCancel}
       onDragEnd={handleDragEnd}
     >
+      {/* Everything above the lists (page header, saved views, filters) stays
+         put; only the lists below scroll sideways when there are more
+         stages than fit. The lists box owns both axes, so its scrollbar is
+         always at the bottom of the screen instead of the end of the page. */}
+      <div className="flex min-h-0 flex-1 flex-col">
       {moveError && (
         <p className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600">
           {moveError}
@@ -303,6 +308,7 @@ export default function PipelineBoard({
         </div>}
       </div>
 
+      <div className="min-h-0 flex-1 overflow-auto pb-2">
       <div
         className="vq-card-grid grid gap-3"
         style={{
@@ -322,6 +328,8 @@ export default function PipelineBoard({
             onToggleAssignee={toggleAssignee}
           />
         ))}
+      </div>
+      </div>
       </div>
 
       <DragOverlay>

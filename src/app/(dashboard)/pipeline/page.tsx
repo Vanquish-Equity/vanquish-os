@@ -204,7 +204,7 @@ export default async function PipelinePage({
     }`;
 
   return (
-    <div className="flex flex-col gap-4 px-7 py-6">
+    <div className={`flex flex-col gap-4 px-7 py-6 ${showArchived || !stages.length ? "" : "h-full"}`}>
       <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">

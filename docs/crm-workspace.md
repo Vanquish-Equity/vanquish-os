@@ -300,6 +300,18 @@ reads due diligence items as definer but only says the checklist is
 incomplete, never which documents, so members without Documents access learn
 nothing more than that.
 
+### Scrolling on board pages
+
+On Pipeline, the page header, saved views and filter row stay put; only the
+lists box below scrolls sideways when there are more stages than fit, and it
+owns both axes so its scrollbar sits at the bottom of the screen. Custom
+boards and the LP board already keep their lists in their own scroll box. The
+sidebar's navigation scrolls without showing a scrollbar when the window is
+too short for every item (most visible when it is collapsed to icons). Its
+tooltips are fixed-position and placed beside the hovered item, because an
+absolutely positioned tooltip is clipped by the scrolling nav and widened it
+into a horizontal scrollbar.
+
 ## Delivery order and open decisions
 
 1. CRM navigation and Deal preview over Pipeline.
