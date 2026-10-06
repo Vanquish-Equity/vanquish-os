@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import Checkbox from "@/components/Checkbox";
+import SelectMenu from "@/components/SelectMenu";
 import type { DealMember } from "@/lib/deals/assignee-types";
 import { archiveBoardAction, setBoardSharingAction } from "@/lib/boards/actions";
 
@@ -138,7 +138,41 @@ export default function BoardHeader({
 
   const shown = access.slice(0, 5);
   const extra = access.length - shown.length;
-  const others = directory.filter((member) => member.email !== ownerEmail);
+  const byEmail = new Map([...directory, ...access].map((member) => [member.email, member]));
+  const owner = ownerEmail ? byEmail.get(ownerEmail) ?? { email: ownerEmail, name: ownerEmail.split("@")[0], avatarUrl: null } : null;
+  // Who would have access with the choices in the panel (before Save).
+  const draftAccess: DealMember[] =
+    draftScope === "team"
+      ? [...(owner ? [owner] : []), ...directory.filter((member) => member.email !== ownerEmail)]
+      : [
+          ...(owner ? [owner] : []),
+          ...(draftScope === "selected"
+            ? draftMembers.map((email) => byEmail.get(email) ?? { email, name: email.split("@")[0], avatarUrl: null })
+            : []),
+        ];
+  const addable = draftScope === "team" ? [] : directory.filter((member) => member.email !== ownerEmail && !draftAccess.some((person) => person.email === member.email));
+  const changed =
+    draftScope !== scope ||
+    (draftScope === "selected" && [...draftMembers].sort().join() !== [...sharedWith].sort().join());
+
+  function openShare() {
+    setDraftScope(scope);
+    setDraftMembers(sharedWith);
+    setShareOpen(true);
+  }
+
+  // Removing someone from a team-wide board turns it into "specific people":
+  // everyone else keeps access.
+  function removePerson(email: string) {
+    if (draftScope === "team") {
+      setDraftScope("selected");
+      setDraftMembers(directory.map((member) => member.email).filter((value) => value !== ownerEmail && value !== email));
+      return;
+    }
+    const next = draftMembers.filter((value) => value !== email);
+    setDraftMembers(next);
+    if (next.length === 0) setDraftScope("private");
+  }
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -176,36 +210,43 @@ export default function BoardHeader({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        {access.length > 0 && (
-          <div className="flex items-center" aria-label={`${access.length} ${access.length === 1 ? "person has" : "people have"} access`}>
-            <div className="flex -space-x-1">
-              {shown.map((member) => (
-                <Avatar key={member.email} member={member} />
-              ))}
-            </div>
-            {extra > 0 && <span className="ml-1.5 text-[11.5px] font-semibold text-neutral-500">+{extra}</span>}
-          </div>
-        )}
+        <div ref={shareRef} className="relative flex items-center gap-2">
+          {access.length > 0 && (
+            <button
+              type="button"
+              onClick={() => (shareOpen ? setShareOpen(false) : openShare())}
+              aria-haspopup="dialog"
+              aria-expanded={shareOpen}
+              aria-label={`${access.length} ${access.length === 1 ? "person has" : "people have"} access. Show members`}
+              className="flex items-center rounded-full p-0.5 transition hover:bg-neutral-200/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
+            >
+              <span className="flex -space-x-1">
+                {shown.map((member) => (
+                  <Avatar key={member.email} member={member} />
+                ))}
+              </span>
+              {extra > 0 && <span className="ml-1.5 mr-1 text-[11.5px] font-semibold text-neutral-500">+{extra}</span>}
+            </button>
+          )}
 
-        {canManage && (
-          <div ref={shareRef} className="relative">
+          {canManage && (
             <button
               type="button"
               aria-haspopup="dialog"
               aria-expanded={shareOpen}
-              onClick={() => {
-                setDraftScope(scope);
-                setDraftMembers(sharedWith);
-                setShareOpen((open) => !open);
-              }}
+              onClick={() => (shareOpen ? setShareOpen(false) : openShare())}
               className="flex items-center gap-1.5 rounded-lg bg-ink px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#1b2427]"
             >
               <ShareIcon /> Share
             </button>
-            {shareOpen && (
-              <div role="dialog" aria-label="Share board" className="absolute right-0 top-full z-40 mt-2 w-[min(340px,90vw)] rounded-xl border border-neutral-200 bg-white p-3 shadow-xl">
-                <div className="mb-2 text-[13px] font-semibold text-ink">Share board</div>
-                <div className="flex flex-col gap-1" role="radiogroup" aria-label="Who can access">
+          )}
+
+          {shareOpen && (
+            <div role="dialog" aria-label="Board members and sharing" className="absolute right-0 top-full z-40 mt-2 w-[min(360px,92vw)] rounded-xl border border-neutral-200 bg-white p-3 shadow-xl">
+              <div className="mb-2 text-[13px] font-semibold text-ink">{canManage ? "Share board" : "Board members"}</div>
+
+              {canManage && (
+                <div className="flex flex-col gap-1" role="radiogroup" aria-label="Who can open this board">
                   {SCOPES.map((option) => (
                     <button
                       key={option.value}
@@ -213,7 +254,7 @@ export default function BoardHeader({
                       role="radio"
                       aria-checked={draftScope === option.value}
                       onClick={() => setDraftScope(option.value)}
-                      className={`flex items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition ${draftScope === option.value ? "bg-[#f0fafb]" : "hover:bg-neutral-50"}`}
+                      className={`flex items-start gap-2.5 rounded-lg px-2.5 py-1.5 text-left transition ${draftScope === option.value ? "bg-[#f0fafb]" : "hover:bg-neutral-50"}`}
                     >
                       <span aria-hidden="true" className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border ${draftScope === option.value ? "border-cyan-700" : "border-neutral-300"}`}>
                         {draftScope === option.value && <span className="h-2 w-2 rounded-full bg-cyan-700" />}
@@ -225,35 +266,62 @@ export default function BoardHeader({
                     </button>
                   ))}
                 </div>
-                {draftScope === "selected" && (
-                  <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-neutral-100 p-1">
-                    {others.length === 0 && <p className="px-2 py-2 text-[11.5px] text-neutral-400">No other active members.</p>}
-                    {others.map((member) => (
-                      <label key={member.email} className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-neutral-50">
-                        <Checkbox
-                          checked={draftMembers.includes(member.email)}
-                          onChange={(event) =>
-                            setDraftMembers((current) =>
-                              event.target.checked ? [...current, member.email] : current.filter((email) => email !== member.email),
-                            )
-                          }
-                        />
-                        <Avatar member={member} ring={false} />
-                        <span className="min-w-0">
-                          <span className="block truncate text-[12px] font-medium text-ink">{member.name}</span>
-                          <span className="block truncate text-[10.5px] text-neutral-400">{member.email}</span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-                <div className="mt-3 flex justify-end gap-2">
+              )}
+
+              {canManage && addable.length > 0 && (
+                <div className="mt-3 text-[11px] font-semibold text-ink">
+                  Add people
+                  <SelectMenu
+                    value=""
+                    placeholder="Choose a member…"
+                    options={addable.map((member) => ({ value: member.email, label: `${member.name} · ${member.email}` }))}
+                    onChange={(email) => {
+                      if (!email) return;
+                      setDraftScope("selected");
+                      setDraftMembers((current) => [...new Set([...current, email])]);
+                    }}
+                    rootClassName="mt-1"
+                  />
+                </div>
+              )}
+
+              <div className="mt-3 text-[11px] font-semibold text-neutral-500">People with access ({draftAccess.length})</div>
+              <ul className="mt-1 max-h-64 overflow-y-auto">
+                {draftAccess.map((member) => {
+                  const owner = member.email === ownerEmail;
+                  return (
+                    <li key={member.email} className="flex items-center gap-2.5 rounded-md px-1.5 py-1.5 hover:bg-neutral-50">
+                      <Avatar member={member} ring={false} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[12.5px] font-medium text-ink">{member.name}</span>
+                        <span className="block truncate text-[10.5px] text-neutral-400">{member.email}</span>
+                      </span>
+                      {owner ? (
+                        <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10.5px] font-semibold text-neutral-500">Owner</span>
+                      ) : (
+                        canManage && (
+                          <button
+                            type="button"
+                            onClick={() => removePerson(member.email)}
+                            className="rounded-md px-2 py-1 text-[11px] font-semibold text-neutral-500 transition hover:bg-red-50 hover:text-red-700"
+                          >
+                            Remove
+                          </button>
+                        )
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+
+              {canManage && (
+                <div className="mt-3 flex items-center justify-end gap-2 border-t border-neutral-100 pt-3">
                   <button type="button" onClick={() => setShareOpen(false)} className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-neutral-600 hover:bg-neutral-100">
                     Cancel
                   </button>
                   <button
                     type="button"
-                    disabled={busy || (draftScope === "selected" && draftMembers.length === 0)}
+                    disabled={busy || !changed || (draftScope === "selected" && draftMembers.length === 0)}
                     onClick={async () => {
                       if (await save(title.trim() || name, draftScope, draftScope === "selected" ? draftMembers : [])) setShareOpen(false);
                     }}
@@ -262,10 +330,10 @@ export default function BoardHeader({
                     {busy ? "Saving…" : "Save"}
                   </button>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
+              )}
+            </div>
+          )}
+        </div>
 
         {actions}
 

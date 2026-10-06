@@ -30,10 +30,13 @@ boards do not yet.
 
 The board header works like Trello's: click the name to rename it (Enter
 saves, Escape cancels), see who has access as avatar circles (up to five,
-then `+N`), and **Share** to choose who can open the board: **Everyone on the
+then `+N`; click them to open the member list), and **Share** to choose who can open the board: **Everyone on the
 team** (default, and what every board created before this kept), **Specific
-people** (the creator plus picked active members) or **Only me**. The `⋯`
-menu has Rename and Archive.
+people** (the creator plus picked active members) or **Only me**. The member list
+shows everyone with access (the creator marked Owner); the creator or an Admin
+can **Remove** someone (on a team-wide board this switches it to Specific
+people with everyone else kept) or **Add people**, then Save. Others see the
+list read-only. The `⋯` menu has Rename and Archive.
 
 Only the board's creator, or an Admin who can see the board, can rename,
 share or archive it (`crm_set_board_sharing`, migration `20261005180000`).
