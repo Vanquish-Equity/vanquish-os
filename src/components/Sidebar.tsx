@@ -299,7 +299,7 @@ function SidebarBody({
         </>
       )}
 
-      <nav aria-label="Workspace" className="-mr-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+      <nav aria-label="Workspace" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {sections.map((section) => {
           const holdsActive = section.items.some((item) => isActive(activeHref, item.href));
           const open = (openSections[section.key] ?? true) || holdsActive;
