@@ -27,9 +27,14 @@ export function sanitizeDraftHtml(input: string): string {
       "li",
       "a",
       "span",
+      // Signature logos: remote https images only.
+      "img",
     ],
-    allowedAttributes: { a: ["href", "target", "rel"] },
+    allowedAttributes: { a: ["href", "target", "rel"], img: ["src", "alt", "width", "height"] },
     allowedSchemes: ["http", "https", "mailto"],
+    allowedSchemesByTag: { img: ["https"] },
+    // An image without an https source is dropped entirely, not kept empty.
+    exclusiveFilter: (frame) => frame.tag === "img" && !/^https:\/\//i.test(frame.attribs.src ?? ""),
     allowProtocolRelative: false,
     transformTags: {
       a: (_tag, attrs): sanitizeHtml.Tag => ({

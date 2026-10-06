@@ -1,4 +1,4 @@
-import { googleClient, resourceId, requireScope } from "@/lib/google/client";
+import { attachmentResourceId, googleClient, resourceId, requireScope } from "@/lib/google/client";
 import type { GmailMessage, GmailPart } from "@/lib/google/mail-types";
 export async function GET(request: Request) {
   try {
@@ -23,16 +23,17 @@ export async function GET(request: Request) {
     const body = found.body.attachmentId
       ? await client.request<{ data: string }>(
           "gmail",
-          `/messages/${id}/attachments/${resourceId(found.body.attachmentId)}`,
+          `/messages/${id}/attachments/${attachmentResourceId(found.body.attachmentId)}`,
         )
       : found.body;
     if (!body.data)
       return new Response("Attachment not found.", { status: 404 });
-    const name = (found.filename || "attachment").replace(/[\r\n]/g, "");
+    const name = (found.filename || "attachment").replace(/[\r\n"]/g, "");
+    const asciiName = name.replace(/[^\x20-\x7e]/g, "_");
     return new Response(Buffer.from(body.data, "base64url"), {
       headers: {
         "Content-Type": "application/octet-stream",
-        "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(name)}`,
+        "Content-Disposition": `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(name)}`,
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff",
       },

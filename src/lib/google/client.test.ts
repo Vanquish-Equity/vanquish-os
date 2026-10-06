@@ -9,7 +9,7 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({ rpc: mocks.rpc }),
 }));
 vi.mock("@/lib/connections/crypto", () => ({ decryptToken: mocks.decrypt }));
-import { googleClient, googleResult, requireScope } from "./client";
+import { attachmentResourceId, googleClient, googleResult, requireScope, resourceId } from "./client";
 const secret = {
   refresh_token_encrypted: "cipher",
   refresh_token_iv: "iv",
@@ -90,5 +90,14 @@ describe("per-member Google server boundary", () => {
     await two.request("gmail", "/profile");
     expect(fetchMock.mock.calls[2][1].headers.Authorization).toBe("Bearer one");
     expect(fetchMock.mock.calls[3][1].headers.Authorization).toBe("Bearer two");
+  });
+});
+
+describe("Gmail IDs", () => {
+  it("accepts long attachment IDs that message IDs would reject", () => {
+    const longId = "ANGjdJ" + "a1_-".repeat(150);
+    expect(() => resourceId(longId)).toThrow();
+    expect(attachmentResourceId(longId)).toBe(longId);
+    expect(() => attachmentResourceId("bad/id")).toThrow();
   });
 });

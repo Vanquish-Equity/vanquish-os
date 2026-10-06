@@ -11,6 +11,7 @@ import {
   sendGmailDraft,
   discardGmailDraft,
   mailboxProfile,
+  mailSignature,
 } from "@/lib/google/mail-actions";
 import { validateCompose } from "@/lib/google/mail-validation";
 import type { ComposeInput, MailAttachment } from "@/lib/google/mail-types";
@@ -63,6 +64,10 @@ export default function MailComposer({
   const [chosen, setChosen] = useState<string[]>([]);
   const [confirmSend, setConfirmSend] = useState(false);
   const [uncertain, setUncertain] = useState(false);
+  // New messages and replies start with the Gmail signature, like Gmail;
+  // a reopened draft already contains whatever the member kept.
+  const wantsSignature = !seed.draftId;
+  const [initialHtml, setInitialHtml] = useState<string | null>(wantsSignature ? null : seed.html);
   useEffect(() => {
     dialog.current?.showModal();
   }, []);
@@ -77,6 +82,24 @@ export default function MailComposer({
       canceled = true;
     };
   }, []);
+  useEffect(() => {
+    if (!wantsSignature) return;
+    let canceled = false;
+    mailSignature()
+      .then((result) => {
+        if (canceled) return;
+        const signature = result.ok ? result.data.html : "";
+        const html = signature ? `<br><br>${signature}${seed.html ? `<br>${seed.html}` : ""}` : seed.html;
+        setMessage((current) => ({ ...current, html }));
+        setInitialHtml(html);
+      })
+      .catch(() => {
+        if (!canceled) setInitialHtml(seed.html);
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [wantsSignature, seed.html]);
   useEffect(() => {
     if (!dirty) return;
     const handler = (event: BeforeUnloadEvent) => event.preventDefault();
@@ -357,12 +380,18 @@ export default function MailComposer({
           onChange={(e) => change("subject", e.target.value)}
           disabled={busy || uncertain}
         />
-        <RichTextEditor
-          initialHtml={seed.html}
-          onChange={(html) => change("html", html)}
-          disabled={busy || uncertain}
-          placeholder="Write your message…"
-        />
+        {initialHtml === null ? (
+          <div className="min-h-[180px] rounded-xl border border-neutral-200 px-3 py-2 text-[13px] text-neutral-400">
+            Loading your signature…
+          </div>
+        ) : (
+          <RichTextEditor
+            initialHtml={initialHtml}
+            onChange={(html) => change("html", html)}
+            disabled={busy || uncertain}
+            placeholder="Write your message…"
+          />
+        )}
         <label className="inline-flex cursor-pointer rounded-full border border-neutral-200 px-3 py-2 text-[12px]">
           Attach files
           <input
