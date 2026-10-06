@@ -116,6 +116,8 @@ export default function ContextComments() {
     function dismiss(event: PointerEvent) {
       const target = event.target as Node;
       if (menuRef.current?.contains(target) || panelRef.current?.contains(target)) return;
+      // Suggestions of the @mention picker live in a portal outside the panel.
+      if (target instanceof Element && target.closest("[data-mention-picker]")) return;
       setMenu(null);
       setActive(null);
     }
