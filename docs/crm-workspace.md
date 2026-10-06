@@ -179,7 +179,7 @@ Every active member gets one independent **LP follow-up** board on first visit.
 It starts private with editable/removable lists: Potential, Researching,
 Contacted, In conversation, Awaiting response, Invested and Declined. The
 member may add and reorder lists, add LP cards, edit contact information and
-follow-up notes, and drag cards between lists. The list describes that person's
+follow-up notes, and drag cards between lists (grab the card itself; a click still opens it, and the ⠿ handle is the touch-friendly grip). The list describes that person's
 follow-up workflow; it is not the Deal stage or a global LP investment status.
 
 The board owner can rename the board and set its access in **Board settings**:

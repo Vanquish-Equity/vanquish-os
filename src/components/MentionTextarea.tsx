@@ -156,6 +156,10 @@ export default function MentionTextarea({
           id={listId}
           role="listbox"
           aria-label="Mention a member"
+          // The list is portaled to <body>, outside any popover that hosts
+          // the textarea; this marker lets such popovers tell a click on a
+          // suggestion from a click elsewhere (see ContextComments).
+          data-mention-picker=""
           style={placement}
           className="fixed z-[100] overflow-y-auto rounded-xl border border-neutral-200 bg-white py-1 shadow-lg"
         >

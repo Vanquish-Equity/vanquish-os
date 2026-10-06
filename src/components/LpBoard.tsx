@@ -18,9 +18,12 @@ type Result = { ok: true; id?: string } | { ok: false; message: string };
 function LpCard({ card, columnName, onOpen, active }: { card: Card; columnName: string; onOpen: () => void; active: boolean }) {
   const { setNodeRef: setDragRef, attributes, listeners } = useDraggable({ id: `card:${card.id}`, data: { type: "card", id: card.id, columnId: card.column_id } satisfies Drag });
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `card-target:${card.id}`, data: { type: "card", id: card.id, columnId: card.column_id } satisfies Drag });
-  return <div ref={setDropRef} className={`vq-card rounded-xl bg-white p-3.5 ${active ? "opacity-30" : ""} ${isOver ? "ring-2 ring-cyan-300" : ""}`}>
+  // The whole card is the drag source (a click still opens it: dragging only
+  // starts after the pointer moves 8px). The handle stays as the touch-safe
+  // way to drag, since the card body must keep scrolling on touch screens.
+  return <div ref={(node) => { setDropRef(node); setDragRef(node); }} {...listeners} className={`vq-card cursor-grab rounded-xl bg-white p-3.5 active:cursor-grabbing ${active ? "opacity-30" : ""} ${isOver ? "ring-2 ring-cyan-300" : ""}`}>
     <div className="flex items-start gap-2">
-      <button ref={setDragRef} type="button" {...attributes} {...listeners} aria-label={`Drag ${card.name} from ${columnName}`} className="cursor-grab touch-none rounded text-neutral-400 active:cursor-grabbing">⠿</button>
+      <button type="button" {...attributes} aria-label={`Drag ${card.name} from ${columnName}`} className="touch-none rounded text-neutral-400">⠿</button>
       <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400">
         <span className="block truncate text-[12.5px] font-semibold text-ink">{card.name}</span>
         {card.organization && <span className="mt-1 block truncate text-[11px] text-neutral-500">{card.organization}</span>}
