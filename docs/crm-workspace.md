@@ -307,7 +307,10 @@ lists box below scrolls sideways when there are more stages than fit, and it
 owns both axes so its scrollbar sits at the bottom of the screen. Custom
 boards and the LP board already keep their lists in their own scroll box. The
 sidebar's navigation scrolls without showing a scrollbar when the window is
-too short for every item (most visible when it is collapsed to icons).
+too short for every item (most visible when it is collapsed to icons). Its
+tooltips are fixed-position and placed beside the hovered item, because an
+absolutely positioned tooltip is clipped by the scrolling nav and widened it
+into a horizontal scrollbar.
 
 ## Delivery order and open decisions
 

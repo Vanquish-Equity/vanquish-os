@@ -59,15 +59,28 @@ type Mode = "rail" | "full" | "responsive";
 
 const byMode = (mode: Mode, classes: Record<Mode, string>) => classes[mode];
 
-function Tooltip({ mode, children }: { mode: Mode; children: React.ReactNode }) {
+// Items inside the scrolling nav can't use an absolutely positioned tooltip:
+// the nav clips it and its width would add a horizontal scrollbar. Those use
+// a fixed tooltip that placeTip() moves next to the hovered item, which
+// neither is clipped nor counts toward the nav's scrollable area.
+function placeTip(event: React.SyntheticEvent<HTMLElement>) {
+  const target = event.currentTarget;
+  const tip = target.querySelector<HTMLElement>("[data-tip]");
+  if (!tip) return;
+  const rect = target.getBoundingClientRect();
+  tip.style.top = `${rect.top + rect.height / 2}px`;
+  tip.style.left = `${rect.right + 12}px`;
+}
+
+function Tooltip({ mode, children, anchored = false }: { mode: Mode; children: React.ReactNode; anchored?: boolean }) {
   // Visual hint only; the accessible name comes from the (sr-only) label.
   return (
     <span
       aria-hidden="true"
-      className={`pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 whitespace-nowrap rounded-md bg-[#1b2427] px-2 py-1 text-[11.5px] font-medium text-white opacity-0 shadow-lg ring-1 ring-white/10 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 ${byMode(
-        mode,
-        { rail: "", full: "hidden", responsive: "md:hidden" }
-      )}`}
+      data-tip={anchored ? "" : undefined}
+      className={`pointer-events-none z-50 whitespace-nowrap rounded-md bg-[#1b2427] px-2 py-1 text-[11.5px] font-medium text-white opacity-0 shadow-lg ring-1 ring-white/10 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 ${
+        anchored ? "fixed -translate-y-1/2" : "absolute left-full top-1/2 ml-3 -translate-y-1/2"
+      } ${byMode(mode, { rail: "", full: "hidden", responsive: "md:hidden" })}`}
     >
       {children}
     </span>
@@ -170,6 +183,8 @@ function SidebarBody({
         <Link
           href={item.href}
           onClick={() => onNavigate(item.href)}
+          onMouseEnter={placeTip}
+          onFocus={placeTip}
           aria-current={active ? "page" : undefined}
           className={`group relative flex h-7 items-center rounded-md text-[12.5px] transition-colors ${FOCUS} ${tone} ${byMode(mode, {
             rail: "justify-center",
@@ -179,7 +194,7 @@ function SidebarBody({
         >
           <span className={narrow}><NavIcon name="boards" className="h-3.5 w-3.5" /></span>
           <span className={`truncate ${label}`}>{item.label}</span>
-          <Tooltip mode={mode}>{item.label}</Tooltip>
+          <Tooltip mode={mode} anchored>{item.label}</Tooltip>
         </Link>
       );
     }
@@ -187,6 +202,8 @@ function SidebarBody({
       <Link
         href={item.href}
         onClick={() => onNavigate(item.href)}
+        onMouseEnter={placeTip}
+        onFocus={placeTip}
         aria-current={active ? "page" : undefined}
         className={`group relative flex h-8 items-center gap-2.5 rounded-md text-[13px] transition-colors ${FOCUS} ${
           iconOnly ? "flex-1 justify-center px-0" : center
@@ -206,7 +223,7 @@ function SidebarBody({
         </span>
         <span className={`truncate ${iconOnly ? "sr-only" : label}`}>{text}</span>
         {count > 0 && <span className="sr-only">({count} unread)</span>}
-        <Tooltip mode={iconOnly ? "rail" : mode}>
+        <Tooltip mode={iconOnly ? "rail" : mode} anchored>
           {text}
           {count > 0 ? ` · ${count} unread` : ""}
         </Tooltip>
