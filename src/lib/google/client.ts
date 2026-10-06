@@ -200,6 +200,13 @@ export async function googleResult<T>(
     };
   }
 }
+// Gmail attachment IDs are much longer than message or thread IDs (often
+// several hundred characters), so they get their own, wider limit.
+export function attachmentResourceId(id: string) {
+  if (typeof id !== "string" || !/^[a-zA-Z0-9_-]{1,4096}$/.test(id))
+    throw new Error("Invalid attachment ID.");
+  return encodeURIComponent(id);
+}
 export function resourceId(id: string) {
   if (typeof id !== "string" || !/^[a-zA-Z0-9_-]{1,250}$/.test(id))
     throw new Error("Invalid resource ID.");

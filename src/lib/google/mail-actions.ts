@@ -436,6 +436,22 @@ export async function mailboxProfile() {
     return { email: profile.emailAddress };
   });
 }
+// The signature set in Gmail for the default "Send mail as" address, so the
+// composer can start with it like Gmail does. Sanitized with the same
+// allowlist as the message body.
+export async function mailSignature() {
+  return googleResult(async () => {
+    const client = await googleClient();
+    requireScope(client, "gmail.readonly", "gmail.modify");
+    const result = await client.request<{
+      sendAs?: { sendAsEmail: string; isDefault?: boolean; isPrimary?: boolean; signature?: string }[];
+    }>("gmail", "/settings/sendAs");
+    const list = result.sendAs ?? [];
+    const chosen = list.find((entry) => entry.isDefault) ?? list.find((entry) => entry.isPrimary);
+    const html = sanitizeDraftHtml(chosen?.signature ?? "").trim();
+    return { html };
+  });
+}
 export async function listMailLabels() {
   return googleResult(async () => {
     const client = await googleClient();

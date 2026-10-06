@@ -57,3 +57,12 @@ describe("HTML pasted from real email", () => {
     expect(sanitizeDraftHtml('<svg><script>alert(1)</script></svg><p onclick="x">ok</p>')).toBe('<p>ok</p>');
   });
 });
+
+describe("signature images", () => {
+  it("keeps https images and drops other image sources", () => {
+    expect(sanitizeDraftHtml('<img src="https://lh3.googleusercontent.com/logo.png" alt="Logo" width="80" onerror="x()">')).toBe(
+      '<img src="https://lh3.googleusercontent.com/logo.png" alt="Logo" width="80" />',
+    );
+    expect(sanitizeDraftHtml('<img src="http://example.com/a.png"><img src="data:image/png;base64,AAAA">')).toBe("");
+  });
+});

@@ -23,7 +23,10 @@ needed. Google's mailbox is the source of truth, including Sent and drafts.
   HTML-only messages are kept readable in their original conversation;
   forwarding their complete HTML layout and attachments is not automatic.
 - Attachments download through an authenticated server route, scoped to
-  `users/me`, with forced download and no caching. Email HTML runs inside an
+  `users/me`, with forced download under the original file name and no
+  caching. Gmail attachment IDs are validated with their own, longer limit
+  (they run to hundreds of characters); before that fix every download failed
+  and the browser saved the error as `attachment.txt`. Email HTML runs inside an
   opaque-origin sandbox with CSP. Scripts, forms and embedded content cannot
   execute; remote images are blocked until explicitly enabled for that message.
 - `c` opens compose and `/` focuses search outside editable fields. Folder
@@ -61,7 +64,14 @@ individual or bulk recipients, and up to ten uploaded attachments (2 MB
 combined, including retained attachments when editing). Larger existing
 messages can be read/downloaded and unmodified Gmail drafts can be sent;
 editing attachments above this limit must be done through Gmail. Email addresses and headers are
-validated server-side; HTML uses a parser-backed allowlist (`sanitize-html`).
+validated server-side; HTML uses a parser-backed allowlist (`sanitize-html`),
+which also keeps `https` images (signature logos) and drops any other image.
+
+New messages and replies start with the member's Gmail signature (the
+default "Send mail as" address, read with `users.settings.sendAs.list`
+through the existing Gmail read grant), placed above any quoted text and
+editable like the rest of the body. A reopened draft is left as saved. If the
+signature can't be read, the composer opens without it.
 
 **Save to Gmail** creates or updates a real Gmail draft. Empty recipients are
 allowed while saving; sending requires 1–200 valid recipients. The sender
