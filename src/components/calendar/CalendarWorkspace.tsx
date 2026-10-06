@@ -48,11 +48,37 @@ export default function CalendarWorkspace({
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<CalendarEvent | null>(null);
+  // Right-click (or the keyboard's context-menu key) on a day in the month
+  // grid: a small menu to create an event on that day.
+  const [dayMenu, setDayMenu] = useState<{ day: string; x: number; y: number } | null>(null);
+  const dayMenuRef = useRef<HTMLDivElement | null>(null);
   const [editor, setEditor] = useState<{
     event: CalendarEvent | null;
     day: string;
     hour?: number;
   } | null>(null);
+  useEffect(() => {
+    if (!dayMenu) return;
+    const close = () => setDayMenu(null);
+    const outside = (event: PointerEvent) => {
+      if (!dayMenuRef.current?.contains(event.target as Node)) close();
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    const focus = requestAnimationFrame(() => dayMenuRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus());
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      cancelAnimationFrame(focus);
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", escape);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [dayMenu]);
   const days = calendarDays(anchor, view);
   const from = days[0],
     until = addDays(days.at(-1)!, 1);
@@ -396,7 +422,26 @@ export default function CalendarWorkspace({
                   return (
                     <div
                       key={day}
-                      className={`min-h-28 overflow-hidden border-b border-r border-neutral-100 p-1.5 md:min-h-36 md:p-2 ${day.slice(0, 7) !== anchor.slice(0, 7) ? "bg-neutral-50/70" : ""}`}
+                      // Clicking the empty part of a day opens it; right-click
+                      // offers "New event". The events and the day number inside
+                      // are their own buttons and keep their own behavior.
+                      onClick={(event) => {
+                        if (event.target !== event.currentTarget) return;
+                        setAnchor(day);
+                        setView("day");
+                      }}
+                      onContextMenu={(event) => {
+                        event.preventDefault();
+                        const rect = event.currentTarget.getBoundingClientRect();
+                        // The keyboard's context-menu key reports 0,0: anchor to the cell then.
+                        const keyboard = event.clientX === 0 && event.clientY === 0;
+                        setDayMenu({
+                          day,
+                          x: keyboard ? rect.left + 24 : event.clientX,
+                          y: keyboard ? rect.top + 24 : event.clientY,
+                        });
+                      }}
+                      className={`min-h-28 cursor-pointer overflow-hidden border-b border-r border-neutral-100 p-1.5 transition-colors hover:bg-cyan-50/30 md:min-h-36 md:p-2 ${day.slice(0, 7) !== anchor.slice(0, 7) ? "bg-neutral-50/70" : ""}`}
                     >
                       <button
                         type="button"
@@ -581,6 +626,51 @@ export default function CalendarWorkspace({
             setSelected(null);
           }}
         />
+      )}
+      {dayMenu && (
+        <div
+          ref={dayMenuRef}
+          role="menu"
+          aria-label={`Actions for ${dayMenu.day}`}
+          style={{
+            top: Math.min(dayMenu.y, window.innerHeight - 120),
+            left: Math.min(dayMenu.x, window.innerWidth - 232),
+          }}
+          className="fixed z-50 w-56 rounded-xl border border-neutral-200 bg-white p-1 shadow-xl"
+        >
+          <div className="px-3 pb-1 pt-2 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
+            {new Date(`${dayMenu.day}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}
+          </div>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!editable() || !writableCalendars.length}
+            onClick={() => {
+              setEditor({ event: null, day: dayMenu.day });
+              setDayMenu(null);
+            }}
+            className="block w-full rounded-lg px-3 py-2 text-left text-[12.5px] font-medium text-ink hover:bg-neutral-50 disabled:text-neutral-400 disabled:hover:bg-transparent"
+          >
+            New event
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setAnchor(dayMenu.day);
+              setView("day");
+              setDayMenu(null);
+            }}
+            className="block w-full rounded-lg px-3 py-2 text-left text-[12.5px] text-ink hover:bg-neutral-50"
+          >
+            Open day
+          </button>
+          {!writable && (
+            <p className="px-3 pb-2 pt-1 text-[10.5px] leading-4 text-neutral-500">
+              Enable calendar editing (left panel) to create events.
+            </p>
+          )}
+        </div>
       )}
       {editor && (
         <EventEditor
