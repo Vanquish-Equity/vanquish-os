@@ -29,6 +29,13 @@ an edit button cannot bypass consent. Calendar-list access still comes from
 the existing read grant. A calendar's Google `accessRole` must also be writer
 or owner. The server always enforces scopes and Google enforces its ACL.
 
+In the Month view every day square is clickable: clicking its empty area
+opens that day, and right-clicking it (or pressing the keyboard's context-menu
+key on a focused day number) opens a small menu with **New event** for that
+date and **Open day**. Without calendar editing enabled, **New event** is
+disabled and the menu says so. The events and day number inside a square keep
+their own click behavior.
+
 Create/edit supports title, location, description, timezone-aware dates,
 all-day events, guests, default/custom popup reminder and notification choice.
 New events can repeat daily/weekly/monthly and request Google Meet. Guests
