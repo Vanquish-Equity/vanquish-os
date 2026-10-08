@@ -270,13 +270,18 @@ focus reached controls on each page; withdrawal confirmation/cancel, AI mode
 menu End/Enter, Escape/focus return and collapsed sidebar Documents focus were
 checked. Screenshots were inspected for narrow Documents/Portfolio and the
 AI panel. The review found and fixed a server-rendered comment portal error on
-Inbox/Documents, covered by SSR regression tests.
+Inbox/Documents, covered by SSR regression tests. It also found and fixed unlayered card CSS
+overriding fixed/absolute positioning; the AI panel and SelectMenu now retain
+their intended positions without shifting the page.
 
 Vanquish AI's prompt and Send remain disabled; opening it, selecting a mode and
 closing it triggered **zero external requests**. All review traffic was local;
 no AI provider configuration/call exists in its component. Real Google consent,
 Drive/Gmail mutation, signed Pub/Sub delivery and scheduler/secret-manager
 rotation remain unverified connected flows, not implied by this synthetic UI
-review. Local SQL validation executes the full CI migration/test sequence in a
+review. Final application validation: lint and TypeScript pass, **225 Vitest tests**
+across 47 files pass, and the production build passes. Local SQL validation
+executes 62 migration applications and 38 suite executions (33 distinct SQL
+suites, plus bootstrap), following the full CI migration/test sequence in a
 disposable PostgreSQL-compatible PGlite instance; GitHub CI also runs it on
 PostgreSQL 16. No Supabase migrations were applied.
