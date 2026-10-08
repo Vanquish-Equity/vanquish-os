@@ -17,6 +17,9 @@ function requireEnv(name: "GOOGLE_OAUTH_CLIENT_ID" | "GOOGLE_OAUTH_CLIENT_SECRET
   return value;
 }
 
+// Full Drive write is opt-in only: organizeDriveDocument renames/moves an
+// existing chosen file that was not created by this app (drive.file is not enough).
+// Ordinary mailbox consent requests no Drive grant; import/monitor use readonly.
 export function buildGoogleAuthUrl({ redirectUri, state, calendarWrite = false, drive }: { redirectUri: string; state: string; calendarWrite?: boolean; drive?: "read" | "write" }): string {
   const params = new URLSearchParams({
     client_id: requireEnv("GOOGLE_OAUTH_CLIENT_ID"),

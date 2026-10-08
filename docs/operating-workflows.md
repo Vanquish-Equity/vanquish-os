@@ -196,3 +196,19 @@ access token already fetched by an in-flight worker may remain usable at Google
 until expiry, but its lease cannot publish again. To revoke the Google grant
 itself too, remove Vanquish OS from Google Account permissions; the database RPC
 does not pretend to perform a remote Google HTTP revocation transaction.
+
+## Google scope consent
+
+Ordinary Gmail/Calendar connection does not request full Drive access. The
+explicit Drive read connection requests only `drive.readonly` for import,
+extraction and folder monitoring. Full `drive` is requested separately only
+when the member chooses **Enable Drive management**, to rename/move existing
+chosen Drive files in `organizeDriveDocument`; `drive.file` cannot manage an
+arbitrary pre-existing folder/file selected by ID. Documents permission and an
+explicit confirmed mutation are required; read workflows never auto-escalate.
+
+Update the Google OAuth consent screen's declared scopes/descriptions before
+activation and have affected members reconsent. Reconsenting alone may retain
+an already granted broad scope (`include_granted_scopes=true`); to actually
+downgrade an old full-Drive grant, revoke Vanquish OS in Google Account permissions,
+disconnect and reconnect with read access, then re-enable intended sync consent.
