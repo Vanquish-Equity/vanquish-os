@@ -212,3 +212,28 @@ activation and have affected members reconsent. Reconsenting alone may retain
 an already granted broad scope (`include_granted_scopes=true`); to actually
 downgrade an old full-Drive grant, revoke Vanquish OS in Google Account permissions,
 disconnect and reconnect with read access, then re-enable intended sync consent.
+
+## Company merge and workspace search safeguards
+
+Company merge is one database transaction with stable Company lock order and
+explicit admin, Documents, Portfolio and Deal edit checks. A failing child update
+or final archive rolls back **all** moved links and audit records. Deal IDs,
+restrictions and `deal_access_members` stay unchanged. All actual Company
+foreign keys named `company_id`, People organizations and board source links
+are reassigned; historical audit/document snapshots retain their original facts.
+Both cards survive a same-board collision, keeping a live destination link and
+`merged_source_company_id` provenance rather than clearing either link.
+Reimport skips an already linked destination. The original Company is archived,
+not deleted, and merge writes are audited. Baselines and earlier merge redirects
+are carried forward. Members without Admin cannot merge or gain restricted
+Deal visibility through it; private comments/boards keep their existing visibility.
+
+Search is invoker/RLS, explicitly checks Deal access and Documents/Portfolio
+areas, excludes investor-linked and LP documents even for Admin, and has no
+investor-position category. It returns at most 30 deduplicated results, truncates
+queries to 80 characters and rejects queries shorter than two characters.
+Full-text, substring and trigram candidate paths use separate indexed predicates
+before ranking; document name and extracted-text predicates match their separate
+GIN indexes. Two-character or very broad matches may naturally use sequential
+scans; selective matches are checked with EXPLAIN on 20,000 synthetic Companies
+(with ordinary GIN pending-list maintenance/ANALYZE, never forced index settings).
