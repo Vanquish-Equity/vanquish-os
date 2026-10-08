@@ -31,14 +31,18 @@ export default async function DashboardLayout({
   const noticeKinds = notificationKinds(noticePreference);
   // Unread chat messages and notifications (0 until migration 0018 exists).
   const supabase = await createClient();
-  const [unread, { data: profile }, { data: boards }] = await Promise.all([
+  const [unread, { data: boards }, avatarUrl] = await Promise.all([
     loadUnreadCounts(supabase, access.email, noticeKinds),
-    supabase.from("app_members").select("avatar_path").eq("email", access.email).maybeSingle(),
     supabase.from("crm_boards").select("id,name").is("archived_at", null).order("created_at"),
+    // The avatar path already came with the access lookup; signing runs in
+    // parallel with the other shell queries instead of after them.
+    access.avatarPath
+      ? supabase.storage
+          .from("member-avatars")
+          .createSignedUrl(access.avatarPath, 3600)
+          .then(({ data }) => data?.signedUrl ?? null)
+      : Promise.resolve(null),
   ]);
-  const avatarUrl = profile?.avatar_path
-    ? (await supabase.storage.from("member-avatars").createSignedUrl(profile.avatar_path, 3600)).data?.signedUrl ?? null
-    : null;
 
   return (
     <UnreadCountsProvider key={`${access.email}:${noticePreference}`} me={access.email} initial={unread} noticeKinds={noticeKinds}>

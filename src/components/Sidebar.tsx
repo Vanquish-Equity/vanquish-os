@@ -87,6 +87,14 @@ function Tooltip({ mode, children, anchored = false }: { mode: Mode; children: R
   );
 }
 
+// Pages that are mostly read and whose own edits refresh the router cache
+// (router.refresh / revalidatePath). Hovering one of their links preloads the
+// whole page, so the click is instant; the copy is kept ~30 s (see
+// staleTimes in next.config.ts). Mail, Calendar, Chat, Home and the boards are
+// left out on purpose: they read Google live (People does too, per row) or change
+// under a teammate's hand.
+const WARM_ON_HOVER = new Set(["/overview", "/pipeline", "/companies", "/network", "/portfolio"]);
+
 const FOCUS = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400";
 
 function SidebarBody({
@@ -121,6 +129,7 @@ function SidebarBody({
   const router = useRouter();
   const pathname = usePathname();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [warm, setWarm] = useState<string | null>(null);
   // Sections start open (rows are compact enough to fit); a member can
   // close any section except the one holding the current page.
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
@@ -201,9 +210,11 @@ function SidebarBody({
     return (
       <Link
         href={item.href}
+        prefetch={WARM_ON_HOVER.has(item.href) && warm === item.href ? true : undefined}
         onClick={() => onNavigate(item.href)}
-        onMouseEnter={placeTip}
-        onFocus={placeTip}
+        onMouseEnter={(event) => { placeTip(event); if (WARM_ON_HOVER.has(item.href)) setWarm(item.href); }}
+        onFocus={(event) => { placeTip(event); if (WARM_ON_HOVER.has(item.href)) setWarm(item.href); }}
+        onTouchStart={() => { if (WARM_ON_HOVER.has(item.href)) setWarm(item.href); }}
         aria-current={active ? "page" : undefined}
         className={`group relative flex h-8 items-center gap-2.5 rounded-md text-[13px] transition-colors ${FOCUS} ${
           iconOnly ? "flex-1 justify-center px-0" : center

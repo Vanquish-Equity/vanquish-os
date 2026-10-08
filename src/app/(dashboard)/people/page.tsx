@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import { CellPlaceholder, LastEmailCell, NextMeetingCell } from "./GoogleCells";
 import NewPersonModal from "@/components/NewPersonModal";
 import PersonContactActions from "@/components/PersonContactActions";
 import PeopleViewsBar from "@/components/PeopleViewsBar";
@@ -9,7 +11,6 @@ import { loadMailboxConnection } from "@/lib/connections/queries";
 import { lastEmailDatesForContacts } from "@/lib/google/mail-actions";
 import { nextMeetingsForContacts } from "@/lib/google/calendar-actions";
 import { parsePeopleColumns, visiblePeopleColumns } from "@/lib/views/people-columns";
-import { formatExactDate, formatUpcoming } from "@/lib/dates";
 import { startDevPageTimer } from "@/lib/performance";
 import { loadSavedViews, type PeopleViewFilters } from "@/lib/views/queries";
 
@@ -106,6 +107,8 @@ export default async function PeoplePage({
     { count: lpCount },
     { data: groups },
     savedViews,
+    mailbox,
+    [{ data: lastInteractions }, { data: memberDirectory }],
   ] = await Promise.all([
     peopleQuery.order("name") as unknown as Promise<{ data: PersonRow[] | null }>,
     supabase
@@ -123,10 +126,22 @@ export default async function PeoplePage({
       data: Option[] | null;
     }>,
     loadSavedViews(supabase, "people"),
+    loadMailboxConnection(supabase),
+    // Team relationship history is stored (not a Google call), so it shows
+    // for any list size. Members who never turned sharing on add nothing.
+    shown.has("last_interaction")
+      ? Promise.all([
+          supabase.from("person_last_interaction").select("person_id,member_email,kind,last_at") as unknown as Promise<{
+            data: { person_id: string; member_email: string; kind: string; last_at: string }[] | null;
+          }>,
+          supabase.rpc("deal_assignee_directory") as unknown as Promise<{
+            data: { email: string; display_name: string | null }[] | null;
+          }>,
+        ])
+      : Promise.resolve([{ data: null }, { data: null }] as const),
   ]);
   endTimer();
 
-  const mailbox = await loadMailboxConnection(supabase);
   const rows = people ?? [];
   // Both per-row signals cost a Google round trip, so they only run when
   // their column is visible and the list is small enough (see
@@ -137,26 +152,11 @@ export default async function PeoplePage({
   const contactEmails = rows
     .map((p) => primaryEmail(p.person_emails ?? []))
     .filter((email): email is string => Boolean(email));
-  const [lastEmailResult, nextMeetingResult] = await Promise.all([
-    showLastEmail ? lastEmailDatesForContacts(contactEmails) : null,
-    showNextMeeting ? nextMeetingsForContacts(contactEmails) : null,
-  ]);
-  // Team relationship history is stored (not a Google call), so it shows
-  // for any list size. Members who never turned sharing on add nothing.
-  const [{ data: lastInteractions }, { data: memberDirectory }] = shown.has("last_interaction") && rows.length
-    ? await Promise.all([
-        supabase.from("person_last_interaction").select("person_id,member_email,kind,last_at") as unknown as Promise<{
-          data: { person_id: string; member_email: string; kind: string; last_at: string }[] | null;
-        }>,
-        supabase.rpc("deal_assignee_directory") as unknown as Promise<{
-          data: { email: string; display_name: string | null }[] | null;
-        }>,
-      ])
-    : [{ data: null }, { data: null }];
+  // Started now, awaited by each cell behind its own Suspense boundary.
+  const lastEmailLookup = showLastEmail ? lastEmailDatesForContacts(contactEmails) : null;
+  const nextMeetingLookup = showNextMeeting ? nextMeetingsForContacts(contactEmails) : null;
   const lastInteractionByPerson = new Map((lastInteractions ?? []).map((row) => [row.person_id, row]));
   const memberNames = new Map((memberDirectory ?? []).map((member) => [member.email, member.display_name || member.email.split("@")[0]]));
-  const lastEmailByAddress = lastEmailResult?.ok ? lastEmailResult.data : {};
-  const nextMeetingByAddress = nextMeetingResult?.ok ? nextMeetingResult.data : {};
   const columnCount = 2 + shown.size;
 
   const tabClass = (active: boolean) =>
@@ -303,31 +303,24 @@ export default async function PeoplePage({
                 )}
                 {shown.has("last_email") && (
                 <td className="px-4 py-3 text-neutral-500">
-                  {(() => {
-                    const email = primaryEmail(p.person_emails ?? []);
-                    const last = email ? lastEmailByAddress[email.toLowerCase()] : undefined;
-                    if (!showLastEmail) return <span className="text-neutral-300">—</span>;
-                    if (!last) return <span className="text-neutral-300">—</span>;
-                    return (
-                      <span title={last.subject}>
-                        <RelativeTime date={last.date} />
-                      </span>
-                    );
-                  })()}
+                  {lastEmailLookup ? (
+                    <Suspense fallback={<CellPlaceholder />}>
+                      <LastEmailCell email={primaryEmail(p.person_emails ?? [])} lookup={lastEmailLookup} />
+                    </Suspense>
+                  ) : (
+                    <span className="text-neutral-300">—</span>
+                  )}
                 </td>
                 )}
                 {shown.has("next_meeting") && (
                 <td className="px-4 py-3 text-neutral-500">
-                  {(() => {
-                    const email = primaryEmail(p.person_emails ?? []);
-                    const next = email ? nextMeetingByAddress[email.toLowerCase()] : undefined;
-                    if (!showNextMeeting || !next) return <span className="text-neutral-300">—</span>;
-                    return (
-                      <time dateTime={next.start} title={`${next.summary} · ${formatExactDate(next.start)}`}>
-                        {formatUpcoming(next.start)}
-                      </time>
-                    );
-                  })()}
+                  {nextMeetingLookup ? (
+                    <Suspense fallback={<CellPlaceholder />}>
+                      <NextMeetingCell email={primaryEmail(p.person_emails ?? [])} lookup={nextMeetingLookup} />
+                    </Suspense>
+                  ) : (
+                    <span className="text-neutral-300">—</span>
+                  )}
                 </td>
                 )}
                 {shown.has("last_interaction") && (

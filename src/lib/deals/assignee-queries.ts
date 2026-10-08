@@ -2,10 +2,12 @@ import { createClient } from "@/lib/supabase/server";
 import type { DealMember } from "@/lib/deals/assignee-types";
 
 type Database = Awaited<ReturnType<typeof createClient>>;
-export async function loadDealAssignees(db: Database, dealIds: string[]) {
+// Pass null to read every assignment the caller can see (RLS filters it), so
+// the query can run in parallel with the one that lists the deals.
+export async function loadDealAssignees(db: Database, dealIds: string[] | null) {
   const [{ data: directory, error: directoryError }, { data: assignments, error: assignmentError }] = await Promise.all([
     db.rpc("deal_assignee_directory") as unknown as Promise<{ data: { email: string; display_name: string | null; avatar_path: string | null }[] | null; error: { message: string } | null }>,
-    dealIds.length ? db.from("deal_assignees").select("deal_id,member_email").in("deal_id", dealIds) as unknown as Promise<{ data: { deal_id: string; member_email: string }[] | null; error: { message: string } | null }> : Promise.resolve({ data: [], error: null }),
+    (dealIds === null || dealIds.length) ? (dealIds === null ? db.from("deal_assignees").select("deal_id,member_email") : db.from("deal_assignees").select("deal_id,member_email").in("deal_id", dealIds)) as unknown as Promise<{ data: { deal_id: string; member_email: string }[] | null; error: { message: string } | null }> : Promise.resolve({ data: [], error: null }),
   ]);
   if (directoryError || assignmentError) throw new Error("Could not load Deal assignees.");
   const members: DealMember[] = await Promise.all((directory ?? []).map(async (person) => ({

@@ -79,7 +79,28 @@ and the offline Vanquish AI panel stays fixed without moving the sidebar.
 - **Base polish:** buttons, links, inputs and options ease color, border,
   shadow and opacity over 150 ms (in `@layer base`, so a utility with its own
   transition wins), and scrollbars are thin and quiet.
-- **Router cache:** `experimental.staleTimes.dynamic` stays at its default (0).
-  Mail and Calendar read Google live and their actions do not revalidate, so a
-  client cache would show an archived email or a moved event for several
-  seconds.
+- **Router cache:** `experimental.staleTimes` is `{ dynamic: 0, static: 30 }`.
+  Nothing is cached by default. Hovering (or focusing/touching) a sidebar link to
+  Overview, Pipeline, Companies, Network or Portfolio preloads the whole page
+  (`prefetch={true}`), so the click is instant, and that copy lives 30 s. Own
+  edits still show at once because those screens refresh with
+  `router.refresh()`/`revalidatePath`, which clears the cache. Mail, Calendar,
+  Chat, Home, Action center, the boards and People are excluded on purpose: they
+  read Google live, change under a teammate's hand, or (People) would spend
+  Gmail/Calendar calls on a hover. A page added to `WARM_ON_HOVER` in
+  `Sidebar.tsx` must render without side effects and refresh after its edits.
+
+## Server latency notes
+
+- Measured on the live project (Oct 2026): the largest app table has ~400 rows
+  and app queries average ~0.2 ms, so page time is dominated by sequential
+  network round trips (Vercel `pdx1` to Supabase `us-west-2`), not SQL. Keep
+  independent queries in one `Promise.all`, and do not await a slow third-party
+  call (Gmail, Calendar) before the page can render.
+- The shell reads the avatar path with the access lookup and signs it in
+  parallel with the unread counts and the board list.
+- People starts the Gmail "last email" and Calendar "next meeting" lookups
+  without awaiting them; each cell streams in behind its own `Suspense`
+  boundary, so the table appears at once.
+- Pipeline loads deal assignees in the same batch as the deals
+  (`loadDealAssignees(db, null)` reads every assignment RLS lets the caller see).

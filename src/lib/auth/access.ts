@@ -29,7 +29,7 @@ export const getAccess = cache(async (): Promise<AccessState> => {
   const [{ data: member }, { data: permissionRows }] = await Promise.all([
     supabase
       .from("app_members")
-      .select("email,is_active,display_name")
+      .select("email,is_active,display_name,avatar_path")
       .eq("email", email)
       .maybeSingle(),
     supabase.from("member_permissions").select("permission").eq("email", email),
@@ -42,6 +42,7 @@ export const getAccess = cache(async (): Promise<AccessState> => {
     email,
     permissions: toPermissionSet((permissionRows ?? []).map((row) => row.permission)),
     displayName: member.display_name ?? null,
+    avatarPath: member.avatar_path ?? null,
     providerName,
   };
 });
