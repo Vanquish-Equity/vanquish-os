@@ -1,5 +1,6 @@
 "use client";
 
+import Checkbox from "@/components/Checkbox";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -87,11 +88,9 @@ function FilterMenu({
               key={option}
               className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] text-neutral-600 hover:bg-[#f7f9fa]"
             >
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={selected.includes(option)}
                 onChange={() => onToggle(option)}
-                className="h-3.5 w-3.5 accent-cyan"
               />
               <span className="truncate">{option}</span>
             </label>

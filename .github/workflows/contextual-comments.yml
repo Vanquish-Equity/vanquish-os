@@ -88,3 +88,15 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/tests/crm_board_sharing.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/crm_boards.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/boards_context_comments.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260930100000_saved_people_views.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20260930120000_saved_pipeline_views.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261004100000_people_duplicates.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/saved_people_views.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/saved_pipeline_views.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/people_duplicates.sql > /dev/null
+          for file in supabase/migrations/20261008*.sql; do
+            psql -v ON_ERROR_STOP=1 -f "$file" > /dev/null
+          done
+          for file in operating_workflows crm_sync_jobs workflow_source_access crm_board_sharing crm_boards deal_assignees; do
+            psql -v ON_ERROR_STOP=1 -f "supabase/tests/${file}.sql" > /dev/null
+          done

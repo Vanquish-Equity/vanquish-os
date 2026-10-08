@@ -12,21 +12,12 @@ reuse points and the exceptions found during the September 2026 review.
 | Cards | `.vq-card` and `.vq-card-static` in `src/app/globals.css` | Interactive cards use the hover treatment; static panels use the static treatment. Board card scroll containers need `.vq-card-scroll` so the shadow is not clipped. |
 | Board dialogs | Pipeline and custom board previews | Open over the board with the board still visible; provide an explicit full Deal link and an explicit close action. |
 
-## Known exceptions to address in a focused UI pass
+## Shared controls
 
-- `SettingsPanel`, `TaskRow` and `CommentsSection` still contain native
-  `<select>` elements with differing border, radius and focus classes.
-- `CompaniesExplorer`, `ReviewItemActions`, `DealAssigneePicker`,
-  `NewPersonModal`, `DocumentsCard` and `CommentsSection` include native
-  checkbox/radio controls rather than the shared visual treatment.
-- Keep real HTML inputs or equivalent accessible semantics when consolidating
-  these controls; visual uniformity must not remove keyboard or screen reader
-  operation.
-
-Change these incrementally with a screenshot and keyboard check in each
-affected section. A selector migration should preserve its empty state,
-disabled state and any search behavior; a board card change should verify
-that its shadow is visible within scrolling columns.
+Product selectors use `SelectMenu` or `FormSelectMenu`; checkboxes use the real
+input in `Checkbox`. Duplicate-review choices keep native radio semantics with
+matching cyan borders and keyboard focus. Keep real HTML inputs and preserve
+empty, disabled and form-reset behavior when extending these controls.
 
 
 ## Connected workspace
@@ -42,3 +33,8 @@ movement to mail compose and calendar dialogs. Drag only from the header;
 buttons and inputs do not initiate movement. Recipient autocomplete uses the
 same white/neutral borders and cyan focus/selection as the existing controls,
 with combobox/listbox semantics and visible names plus email addresses.
+
+
+## Operating workflow update
+
+The native selectors in SettingsPanel, TaskRow and CommentsSection now reuse SelectMenu/FormSelectMenu, with Arrow/Home/End/Escape navigation. Product checkboxes reuse Checkbox; duplicate-review radio inputs retain native radio semantics with the cyan OS styling. New workflow cards reuse vq-card/vq-card-static and their existing shadows and rotating cyan border. A signed-in desktop/mobile screenshot and keyboard pass remains a connected-preview check.

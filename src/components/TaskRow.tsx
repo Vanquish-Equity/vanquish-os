@@ -1,4 +1,5 @@
 "use client";
+import SelectMenu from "@/components/SelectMenu";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
@@ -183,17 +184,11 @@ export default function TaskRow({
             </label>
             {canAssign && (
               <label className="flex flex-col gap-1">Assigned to
-                <select value={assignee} onChange={(event) => setAssignee(event.target.value)} className="rounded-md border border-neutral-200 px-2 py-1.5 text-[12px]">
-                  <option value="">Unassigned</option>
-                  {task.assigneeEmail && !members?.some((member) => member.email === task.assigneeEmail) && (
-                    <option value={task.assigneeEmail} disabled>{task.assigneeEmail} (inactive)</option>
-                  )}
-                  {members?.map((member) => (
-                    <option key={member.email} value={member.email}>
-                      {member.email === currentUserEmail ? `${member.name} (you)` : member.name}
-                    </option>
-                  ))}
-                </select>
+                <SelectMenu value={assignee} onChange={setAssignee} options={[
+                  {value:"",label:"Unassigned"},
+                  ...(task.assigneeEmail&&!members?.some(member=>member.email===task.assigneeEmail)?[{value:task.assigneeEmail,label:`${task.assigneeEmail} (inactive)`,disabled:true}]:[]),
+                  ...(members??[]).map(member=>({value:member.email,label:member.email===currentUserEmail?`${member.name} (you)`:member.name})),
+                ]}/>
               </label>
             )}
             <label className="flex flex-col gap-1">{canAssign ? "Owner note" : "Owner"}
@@ -203,10 +198,7 @@ export default function TaskRow({
               <input type="date" value={dueAt} onChange={(event) => setDueAt(event.target.value)} className="rounded-md border border-neutral-200 px-2 py-1.5 text-[12px]" />
             </label>
             <label className="flex flex-col gap-1">Priority
-              <select value={priorityId} onChange={(event) => setPriorityId(event.target.value)} className="rounded-md border border-neutral-200 px-2 py-1.5 text-[12px]">
-                <option value="">None</option>
-                {priorities.map((priority) => <option key={priority.id} value={priority.id}>{priority.name}</option>)}
-              </select>
+              <SelectMenu value={priorityId} onChange={setPriorityId} options={[{value:"",label:"None"},...priorities.map(priority=>({value:priority.id,label:priority.name}))]}/>
             </label>
             <button type="submit" disabled={pending} className="rounded-md bg-ink px-2 py-1.5 font-semibold text-white disabled:opacity-50">Save</button>
             <button type="button" disabled={pending} onClick={() => setEditing(false)} className="px-1 py-1.5 text-neutral-500">Cancel</button>

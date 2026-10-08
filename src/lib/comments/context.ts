@@ -2,7 +2,7 @@ export type ContextScope = { page: string | null; companyId: string | null; deal
 
 // Explicit route allowlist: restricted areas never create or display pins.
 export function contextScope(pathname: string): ContextScope | null {
-  const page = pathname.match(/^\/(home|overview|pipeline|tasks|people|review|companies)\/?$/);
+  const page = pathname.match(/^\/(home|overview|pipeline|tasks|people|review|companies|documents|inbox)\/?$/);
   if (page) return { page: page[1], companyId: null, dealId: null };
   // Boards share one flat page scope across the list and every board's
   // detail page, the same way "pipeline" covers every deal without a

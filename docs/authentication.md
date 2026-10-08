@@ -186,3 +186,8 @@ different email on the Google account): insert the right email into
   person has Documents; for other members the checklist is not created.
 - Membership is matched on the JWT email. Providers must supply verified
   emails (Google does; restrict Microsoft to the company tenant).
+
+
+## Operating workflow update
+
+The operating workflows add an RPC-only machine role with explicit per-account consent, Deal reader/editor controls and protected source comments. See [Operating workflows](operating-workflows.md) for the expanded authorization contract and activation requirements. The prior "only login/auth are public" statement also has a machine-authenticated exception: Gmail Pub/Sub verifies its own signed OIDC token.

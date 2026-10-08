@@ -1,4 +1,5 @@
 "use client";
+import SelectMenu from "@/components/SelectMenu";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -287,19 +288,7 @@ export default function ConversationView({
             <label htmlFor="add-member" className="sr-only">
               Add a member
             </label>
-            <select
-              id="add-member"
-              value={adding}
-              onChange={(event) => setAdding(event.target.value)}
-              className="rounded-lg border border-neutral-200 bg-white px-2 py-1.5 text-[12px]"
-            >
-              <option value="">Add a member…</option>
-              {addable.map((d) => (
-                <option key={d.email} value={d.email}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
+            <SelectMenu id="add-member" value={adding} onChange={setAdding} options={[{value:"",label:"Add a member…"},...addable.map(d=>({value:d.email,label:d.name}))]}/>
             <button
               type="button"
               onClick={addMember}
@@ -355,7 +344,7 @@ export default function ConversationView({
                         <LocalTime date={message.createdAt} mode="smart" />
                       </div>
                       <p className="whitespace-pre-wrap break-words">
-                        {mentionSegments(message.body, message.mentions, dir).map((segment, index) =>
+                        {message.body.match(/^Workspace comment: (\/[a-z0-9/-]+#comment-[0-9a-f-]{36})$/i) ? <Link className="font-semibold text-cyan-800 underline" href={message.body.slice("Workspace comment: ".length)}>Open workspace discussion</Link> : mentionSegments(message.body, message.mentions, dir).map((segment, index) =>
                           segment.mention ? (
                             <span
                               key={index}

@@ -7,7 +7,7 @@ import { DEFAULT_AFTER_LOGIN, safeNextPath } from "@/lib/auth/redirect";
 // dashboard layout then checks membership and area permissions, and RLS
 // enforces the same rules in the database.
 function isPublicPath(pathname: string) {
-  return pathname === "/login" || pathname.startsWith("/auth/");
+  return pathname === "/login" || pathname.startsWith("/auth/") || pathname === "/api/integrations/gmail/push";
 }
 
 function withSessionCookies(target: NextResponse, source: NextResponse) {

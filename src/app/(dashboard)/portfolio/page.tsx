@@ -137,6 +137,7 @@ export default async function PortfolioPage({
         <h1 className="font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">
           Portfolio
         </h1>
+        <Link href="/portfolio/monitoring" className="mt-2 inline-block text-[12px] font-semibold text-cyan-800">KPI monitoring & reports →</Link>
         <p className="mt-1 text-[13px] text-neutral-500">
           Investments, vehicles, investors and legal document health.
         </p>

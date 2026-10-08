@@ -31,12 +31,18 @@ export default function SelectMenu({
 }) {
   const generatedId = useId();
   const listboxId = `${id ?? generatedId}-listbox`;
+  const triggerId = id ?? generatedId;
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const selectedOption = options.find((option) => option.value === value);
 
   useEffect(() => {
     if (!open) return;
+    const frame = requestAnimationFrame(() => {
+      const options = rootRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]:not(:disabled)');
+      const selected = rootRef.current?.querySelector<HTMLButtonElement>('[role="option"][aria-selected="true"]:not(:disabled)');
+      (selected ?? options?.[0])?.focus();
+    });
 
     function handlePointerDown(event: PointerEvent) {
       if (!rootRef.current?.contains(event.target as Node)) {
@@ -47,6 +53,7 @@ export default function SelectMenu({
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setOpen(false);
+        rootRef.current?.querySelector<HTMLButtonElement>("[aria-haspopup]")?.focus();
       }
     }
 
@@ -54,6 +61,7 @@ export default function SelectMenu({
     document.addEventListener("keydown", handleKeyDown);
 
     return () => {
+      cancelAnimationFrame(frame);
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
@@ -62,7 +70,7 @@ export default function SelectMenu({
   return (
     <div ref={rootRef} className={`relative ${rootClassName}`}>
       <button
-        id={id}
+        id={triggerId}
         type="button"
         autoFocus={autoFocus}
         aria-haspopup="listbox"
@@ -70,6 +78,9 @@ export default function SelectMenu({
         aria-controls={listboxId}
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
+        onKeyDown={event => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setOpen(true); }
+        }}
         className={`flex w-full items-center justify-between gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-left text-[12.5px] text-ink outline-none transition hover:border-neutral-200 focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-50 ${buttonClassName}`}
       >
         <span className={selectedOption ? "truncate" : "truncate text-neutral-400"}>
@@ -99,7 +110,23 @@ export default function SelectMenu({
         <div
           id={listboxId}
           role="listbox"
-          aria-labelledby={id}
+          aria-labelledby={triggerId}
+          onKeyDown={event => {
+            const buttons = [...(rootRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]:not(:disabled)') ?? [])];
+            if (!buttons.length) return;
+            const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+            let next: number | undefined;
+            if (event.key === "ArrowDown") next = (index + 1) % buttons.length;
+            if (event.key === "ArrowUp") next = (index - 1 + buttons.length) % buttons.length;
+            if (event.key === "Home") next = 0;
+            if (event.key === "End") next = buttons.length - 1;
+            if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && event.key !== " ") {
+              next = buttons.findIndex((button, i) => i > index && button.textContent?.trim().toLowerCase().startsWith(event.key.toLowerCase()));
+              if (next < 0) next = buttons.findIndex(button => button.textContent?.trim().toLowerCase().startsWith(event.key.toLowerCase()));
+            }
+            if (next !== undefined && next >= 0) { event.preventDefault(); buttons[next]?.focus(); }
+            if (event.key === "Tab") { setOpen(false); rootRef.current?.querySelector<HTMLButtonElement>("[aria-haspopup]")?.focus(); }
+          }}
           className="vq-card-static absolute z-[70] mt-1 max-h-56 w-full overflow-y-auto rounded-xl bg-white p-1"
         >
           {options.map((option) => {
@@ -111,11 +138,13 @@ export default function SelectMenu({
                 type="button"
                 role="option"
                 aria-selected={selected}
+                tabIndex={-1}
                 disabled={option.disabled}
                 onClick={() => {
                   if (option.disabled) return;
                   onChange(option.value);
                   setOpen(false);
+                  rootRef.current?.querySelector<HTMLButtonElement>("[aria-haspopup]")?.focus();
                 }}
                 className={`flex w-full items-center justify-between rounded-[9px] px-2.5 py-2 text-left text-[12.5px] transition ${
                   selected

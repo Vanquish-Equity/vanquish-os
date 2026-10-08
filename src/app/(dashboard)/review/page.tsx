@@ -1,3 +1,4 @@
+import ChangeProposals, { type ChangeProposal, type ChangeTarget } from "@/components/ChangeProposals";
 import ReviewItemActions from "@/components/ReviewItemActions";
 import ScoutingReview, { type ContactRequest, type Suggestion } from "@/components/ScoutingReview";
 import { requireMember } from "@/lib/auth/access";
@@ -61,6 +62,15 @@ export default async function ReviewPage() {
       .maybeSingle(),
   ]);
   const showScouting = !suggestionsError && (Boolean(scouting) || (suggestions ?? []).length > 0 || (requests ?? []).length > 0);
+  const [changes, companyTargets, dealTargets] = await Promise.all([
+    supabase.from("change_proposals").select("*").order("created_at", { ascending: false }).limit(100),
+    supabase.from("companies").select("id,name").is("deleted_at", null).order("name").limit(500),
+    supabase.from("deals").select("id,company_id,name").is("archived_at", null).order("name").limit(500),
+  ]);
+  const changeTargets: ChangeTarget[] = [
+    ...(companyTargets.data ?? []).map(row => ({ companyId: row.id, dealId: null, label: row.name })),
+    ...(dealTargets.data ?? []).map(row => ({ companyId: row.company_id, dealId: row.id, label: `Deal: ${row.name}` })),
+  ];
   endTimer();
   const openItems = (items ?? []).filter((item) => item.status === "open");
   const closedItems = (items ?? []).filter((item) => item.status !== "open");
@@ -75,6 +85,8 @@ export default async function ReviewPage() {
           Companies suggested from your email, contacts waiting for approval, and ambiguous import items.
         </p>
       </header>
+
+      <ChangeProposals available={!changes.error} proposals={(changes.data ?? []) as ChangeProposal[]} targets={changeTargets} />
 
       {showScouting && <ScoutingReview suggestions={suggestions ?? []} requests={requests ?? []} />}
 

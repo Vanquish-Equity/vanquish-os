@@ -13,6 +13,15 @@ Read [`AGENTS.md`](AGENTS.md) before editing and use the
 notes. Work from current `main` on a focused branch and review CI and schema
 readiness before using a preview.
 
+## Operating workflows
+
+Inbox, human-reviewed changes, private source comments, governance, document
+intake, incremental Google delivery and portfolio monitoring are described in
+[Operating workflows](docs/operating-workflows.md). Apply the eight `20261008*`
+migrations before using these pages. Background delivery requires a separately
+configured scheduler and a scoped worker JWT; merging does not activate it.
+Vanquish AI is mounted offline, without a provider.
+
 ## 2. Supabase Migrations
 
 Run the migration files in order in the Supabase SQL Editor:

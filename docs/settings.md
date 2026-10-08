@@ -192,3 +192,8 @@ The SQL workflow runs these checks on pull requests.
 It also reapplies `0023` and runs `supabase/tests/admin_settings.sql` in the
 disposable database.
 
+
+
+## Operating workflow update
+
+CRM synchronization has its own consent controls in Settings and Integration health. It does not turn on People relationship-history sharing. Drive read/manage scopes require Documents permission and deliberate consent. See [Operating workflows](operating-workflows.md).

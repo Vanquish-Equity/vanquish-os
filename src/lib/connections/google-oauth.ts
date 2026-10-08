@@ -17,7 +17,7 @@ function requireEnv(name: "GOOGLE_OAUTH_CLIENT_ID" | "GOOGLE_OAUTH_CLIENT_SECRET
   return value;
 }
 
-export function buildGoogleAuthUrl({ redirectUri, state, calendarWrite = false }: { redirectUri: string; state: string; calendarWrite?: boolean }): string {
+export function buildGoogleAuthUrl({ redirectUri, state, calendarWrite = false, drive }: { redirectUri: string; state: string; calendarWrite?: boolean; drive?: "read" | "write" }): string {
   const params = new URLSearchParams({
     client_id: requireEnv("GOOGLE_OAUTH_CLIENT_ID"),
     redirect_uri: redirectUri,
@@ -27,7 +27,7 @@ export function buildGoogleAuthUrl({ redirectUri, state, calendarWrite = false }
     // if this member connected (and revoked) before.
     prompt: "consent",
     include_granted_scopes: "true",
-    scope: [...GOOGLE_MAILBOX_SCOPES, ...(calendarWrite ? ["https://www.googleapis.com/auth/calendar.events"] : [])].join(" "),
+    scope: [...GOOGLE_MAILBOX_SCOPES, ...(calendarWrite ? ["https://www.googleapis.com/auth/calendar.events"] : []), ...(drive ? [`https://www.googleapis.com/auth/${drive === "write" ? "drive" : "drive.readonly"}`] : [])].join(" "),
     state,
   });
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;

@@ -6,3 +6,5 @@ tsconfig.tsbuildinfo
 data/private/
 supabase/private_seed/
 __pycache__/
+
+supabase/.temp/

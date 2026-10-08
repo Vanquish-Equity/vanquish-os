@@ -1,5 +1,6 @@
 "use server";
 
+import { analyzeDocument } from "./analyze";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity/log";
 import { actionAccessError } from "@/lib/auth/access";
@@ -129,6 +130,7 @@ export async function uploadDocumentAction(
   }
 
   if (insertedDocument) {
+    await analyzeDocument(supabase, insertedDocument.id, file.name, new Uint8Array(await file.arrayBuffer()), file.type).catch(() => false);
     if (requirementId) {
       const { data: updated, error: requirementError } = await supabase
         .from("document_requirements")

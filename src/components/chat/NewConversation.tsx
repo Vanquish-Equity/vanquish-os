@@ -1,5 +1,6 @@
 "use client";
 
+import Checkbox from "@/components/Checkbox";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -124,11 +125,9 @@ export default function NewConversation({ members }: { members: DirectoryEntry[]
               {members.map((member) => (
                 <li key={member.email}>
                   <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-neutral-100 px-3 py-2 text-[12.5px] hover:border-cyan-200">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={picked.has(member.email)}
                       onChange={() => toggle(member.email)}
-                      className="accent-cyan-700"
                     />
                     <span className="font-semibold text-ink">{member.name}</span>
                   </label>
