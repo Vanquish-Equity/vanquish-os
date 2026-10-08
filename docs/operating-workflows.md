@@ -78,7 +78,8 @@ Gmail/Calendar CRM consent and is paused per folder.
 
 ## Activation
 
-1. Apply the eight `20261008*.sql` migrations in filename order to the target
+1. Apply the eleven `20261008*.sql` migrations (eight workflow migrations plus
+   three corrective migrations) in filename order to the target
    database **before** using the new pages. These are forward migrations,
    applied once; they are not a production rollback script. Use the existing
    schema-readiness workflow to confirm the target environment.
@@ -237,3 +238,45 @@ before ranking; document name and extracted-text predicates match their separate
 GIN indexes. Two-character or very broad matches may naturally use sequential
 scans; selective matches are checked with EXPLAIN on 20,000 synthetic Companies
 (with ordinary GIN pending-list maintenance/ANALYZE, never forced index settings).
+
+## Runtime dependencies
+
+- `jose` verifies Google's signed OIDC push tokens against its remote JWKS and
+  parses machine expiry for startup validation. Only the push verifier calls
+  Google's certificate endpoint; Vanquish AI does not import it.
+- `pdf-parse` extracts local PDF text both in the external Drive worker **and**
+  server-side upload/import/reprocessing actions. It is not worker-only. Its
+  dynamic import and `serverExternalPackages` (`pdf-parse`, `pdfjs-dist`) keep
+  the parser out of browser bundles and avoid bundling native/parser machinery
+  into Next server chunks. The server runtime must install the dependency.
+- `tsx` is a development dependency for executing the TypeScript worker with
+  `node --import tsx`; it does not ship in browser bundles. The external worker
+  image must install dev dependencies (or precompile the worker); a production
+  install that omits dev dependencies cannot run that script unchanged.
+
+The known main-branch audit findings for Next, sharp and source-map-js are
+outside this focused PR; no versions are changed here to address them. A fresh
+audit reports eight high dependency entries (also the Next ESLint / braces /
+fast-glob / micromatch chain), identical against main and this branch.
+
+## Review validation (PR #60 corrections)
+
+A production build and `next start` were reviewed in local Chromium 153 against
+an isolated HTTP backend with synthetic auth/session and CRM data (no preview or
+production credentials, migrations or data). Inbox, Network, Documents,
+Governance, Integrations and Portfolio Monitoring returned HTTP 200 at 1440px
+and 390px with no page/main horizontal overflow or browser exceptions. Keyboard
+focus reached controls on each page; withdrawal confirmation/cancel, AI mode
+menu End/Enter, Escape/focus return and collapsed sidebar Documents focus were
+checked. Screenshots were inspected for narrow Documents/Portfolio and the
+AI panel. The review found and fixed a server-rendered comment portal error on
+Inbox/Documents, covered by SSR regression tests.
+
+Vanquish AI's prompt and Send remain disabled; opening it, selecting a mode and
+closing it triggered **zero external requests**. All review traffic was local;
+no AI provider configuration/call exists in its component. Real Google consent,
+Drive/Gmail mutation, signed Pub/Sub delivery and scheduler/secret-manager
+rotation remain unverified connected flows, not implied by this synthetic UI
+review. Local SQL validation executes the full CI migration/test sequence in a
+disposable PostgreSQL-compatible PGlite instance; GitHub CI also runs it on
+PostgreSQL 16. No Supabase migrations were applied.
