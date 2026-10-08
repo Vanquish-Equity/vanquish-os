@@ -14,6 +14,9 @@ insert into public.people(id,name,primary_organization_id) values('aa000000-0000
 insert into public.documents(id,company_id,deal_id,name,source,drive_file_id,uploaded_by) values('aa000000-0000-0000-0000-000000000005','aa000000-0000-0000-0000-000000000002','aa000000-0000-0000-0000-000000000003','Secretneedle document','drive_link','merge-doc','merge.admin@example.com');
 insert into public.interactions(id,company_id,deal_id,type,subject,occurred_at) values('aa000000-0000-0000-0000-000000000006','aa000000-0000-0000-0000-000000000002','aa000000-0000-0000-0000-000000000003','note','Secretneedle note',now());
 insert into public.tasks(id,company_id,deal_id,title) values('aa000000-0000-0000-0000-000000000007','aa000000-0000-0000-0000-000000000002','aa000000-0000-0000-0000-000000000003','Secretneedle task');
+insert into public.investments(id,external_ref,company_id,deal_id) values('aa000000-0000-0000-0000-000000000008','merge-test-investment','aa000000-0000-0000-0000-000000000002','aa000000-0000-0000-0000-000000000003');
+insert into public.investors(id,display_name) values('aa000000-0000-0000-0000-000000000009','Investorpositionneedle');
+insert into public.investor_positions(investment_id,investor_id,amount,notes) values('aa000000-0000-0000-0000-000000000008','aa000000-0000-0000-0000-000000000009',100000,'Investorpositionneedle');
 create temp table ids(k text primary key,v uuid);grant all on ids to authenticated;
 set local role authenticated;
 select set_config('request.jwt.claims','{"role":"authenticated","email":"merge.other@example.com"}',true);
@@ -42,6 +45,8 @@ select pg_temp.expect((select count(*) from public.crm_board_items where merged_
 select pg_temp.expect(public.import_directory_to_board((select v from ids where k='board'),(select v from ids where k='column'),'company',array['aa000000-0000-0000-0000-000000000001']::uuid[],false)=0,'reimport remains idempotent after merge');
 select pg_temp.expect((select company_id from public.deals where id='aa000000-0000-0000-0000-000000000003')='aa000000-0000-0000-0000-000000000001','round reassigned');
 select pg_temp.expect((select company_id from public.documents where id='aa000000-0000-0000-0000-000000000005')='aa000000-0000-0000-0000-000000000001' and (select company_id from public.tasks where id='aa000000-0000-0000-0000-000000000007')='aa000000-0000-0000-0000-000000000001' and (select company_id from public.record_comments where id=(select v from ids where k='comment'))='aa000000-0000-0000-0000-000000000001','documents tasks comments reassigned');
+select pg_temp.expect((select company_id from public.investments where id='aa000000-0000-0000-0000-000000000008')='aa000000-0000-0000-0000-000000000001' and exists(select 1 from public.investor_positions where investment_id='aa000000-0000-0000-0000-000000000008' and amount=100000),'investment reassigned without changing investor positions');
+select pg_temp.expect(not exists(select 1 from public.search_workspace('Investorpositionneedle')),'actual investor/position fixture cannot enter search');
 select pg_temp.expect((select primary_organization_id from public.people where id='aa000000-0000-0000-0000-000000000004')='aa000000-0000-0000-0000-000000000001','People reassigned');
 select pg_temp.expect((select restricted from public.deals where id='aa000000-0000-0000-0000-000000000003') and exists(select 1 from public.deal_access_members where deal_id='aa000000-0000-0000-0000-000000000003' and member_email='merge.docs@example.com' and access_role='viewer'),'Deal restriction and ACL preserved');
 select pg_temp.expect(exists(select 1 from public.audit_log where entity_table='companies' and entity_id='aa000000-0000-0000-0000-000000000002' and after_row->>'merged_into_id'='aa000000-0000-0000-0000-000000000001'),'merge audited');
@@ -60,6 +65,13 @@ select set_config('request.jwt.claims','{"role":"authenticated","email":"merge.a
 select pg_temp.expect(not exists(select 1 from public.search_workspace('Investorprivateneedle')),'investor-private file excluded even for Admin');
 select pg_temp.expect(not exists(select 1 from public.search_workspace('Secretneedle') where kind in ('investor','position','investor_position')),'no investor positions search category');
 reset role;
+-- Assert that no actual company_id FK child still points at the archive.
+do $$declare r record;v_count bigint;begin
+  for r in select distinct t.relname table_name from pg_constraint fk join pg_class t on t.oid=fk.conrelid join pg_namespace n on n.oid=t.relnamespace join pg_attribute a on a.attrelid=t.oid and a.attnum=any(fk.conkey) where fk.contype='f' and fk.confrelid='public.companies'::regclass and n.nspname='public' and a.attname='company_id' loop
+    execute format('select count(*) from public.%I where company_id=$1',r.table_name) into v_count using 'aa000000-0000-0000-0000-000000000002'::uuid;
+    perform pg_temp.expect(v_count=0,'all foreign-key children moved: '||r.table_name);
+  end loop;
+end$$;
 -- Selective search volume: representative 20k companies, not enable_seqscan=off.
 insert into public.companies(name,description) select 'Volume fixture '||g,case when g=9999 then 'selectiveneedle' else 'ordinary fixture' end from generate_series(1,20000)g;
 -- Flush GIN pending lists as normal vacuum maintenance would after bulk load.
