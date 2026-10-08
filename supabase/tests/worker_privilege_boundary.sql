@@ -8,7 +8,7 @@ select pg_temp.expect(not exists(select 1 from pg_class c join pg_namespace n on
 select pg_temp.expect(not exists(select 1 from pg_auth_members a join pg_roles r on r.oid=a.roleid join pg_roles m on m.oid=a.member where m.rolname in ('vanquish_worker','vanquish_gmail_push')),'machine identities inherit no roles');
 do $$declare f regprocedure;begin
   foreach f in array array['public.update_last_activity_from_interaction()'::regprocedure,'public.review_requirements_after_document_archive()'::regprocedure] loop
-    perform pg_temp.expect((select not prosecdef and proconfig @> array['search_path=""'] from pg_proc where oid=f),'historical invoker mode and empty search path');
+    perform pg_temp.expect((select not prosecdef and proconfig @> array['search_path=""'] and proowner=(select relowner from pg_class where oid='public.companies'::regclass) and prolang=(select oid from pg_language where lanname='plpgsql') from pg_proc where oid=f),'historical invoker mode and empty search path');
     perform pg_temp.expect(not has_function_privilege('anon',f,'execute') and not has_function_privilege('authenticated',f,'execute') and not has_function_privilege('vanquish_worker',f,'execute'),'trigger functions are not API endpoints');
   end loop;
 end$$;
