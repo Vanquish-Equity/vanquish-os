@@ -170,3 +170,29 @@ The original `update_last_activity_from_interaction` (0008) and
 The corrective migration preserves invoker execution, uses qualified relations
 and an empty search path, and removes direct API execution grants; triggers
 still execute them. No security-definer privilege is added to these originals.
+
+## Disconnect and withdraw my publications
+
+Integration health has a separate confirmed action, **Disconnect and delete
+what I published**. Disabling consent alone still pauses future runs. The
+`disconnect_and_withdraw_sync` definer RPC (empty search path) instead removes
+the member's relationship history, CRM source events and their interactions,
+Drive sources/jobs/errors, remembered associations and originally owned Drive
+links, including their analysis, versions and source comment discussions.
+Original Drive files and manual Storage uploads are not deleted. Other members'
+publications stay intact, including documents their monitor originally created.
+Document publisher identity cannot be reassigned or impersonated by a member.
+
+Deletion serializes with worker commits, invalidates leases, removes the stored
+OAuth credential and recalculates Company/Deal activity from remaining activity
+and the imported baseline. It succeeds even after the publisher loses Deal or
+Documents access: a private transaction capability authorizes only those exact
+withdrawal rows, not general CRM edits. An active member can withdraw only their
+own data; Admin may specify another member, with actor and target in audit.
+The RPC returns no credential or private source data. Audit records remain;
+this is publication withdrawal, not erasure of the append-only audit trail.
+Removing our encrypted token prevents all subsequent application use. An OAuth
+access token already fetched by an in-flight worker may remain usable at Google
+until expiry, but its lease cannot publish again. To revoke the Google grant
+itself too, remove Vanquish OS from Google Account permissions; the database RPC
+does not pretend to perform a remote Google HTTP revocation transaction.

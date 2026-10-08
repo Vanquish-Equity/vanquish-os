@@ -97,6 +97,6 @@ jobs:
           for file in supabase/migrations/20261008*.sql; do
             psql -v ON_ERROR_STOP=1 -f "$file" > /dev/null
           done
-          for file in operating_workflows crm_sync_jobs workflow_source_access worker_privilege_boundary crm_board_sharing crm_boards deal_assignees; do
+          for file in operating_workflows crm_sync_jobs workflow_source_access worker_privilege_boundary withdraw_sync_publications crm_board_sharing crm_boards deal_assignees; do
             psql -v ON_ERROR_STOP=1 -f "supabase/tests/${file}.sql" > /dev/null
           done
