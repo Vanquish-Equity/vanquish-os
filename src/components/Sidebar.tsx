@@ -20,7 +20,7 @@ type NavSection = { key: string; label: string; hrefs: string[] };
 const NAV_SECTIONS: NavSection[] = [
   { key: "crm", label: "CRM", hrefs: ["/pipeline", "/companies", "/people", "/network", "/lp-board"] },
   { key: "boards", label: "Boards", hrefs: ["/boards"] },
-  { key: "work", label: "Work", hrefs: ["/inbox", "/tasks", "/calendar", "/communications", "/review", "/documents", "/integrations"] },
+  { key: "work", label: "Work", hrefs: ["/inbox", "/tasks", "/calendar", "/communications", "/review"] },
   { key: "fund", label: "Fund", hrefs: ["/portfolio"] },
 ];
 

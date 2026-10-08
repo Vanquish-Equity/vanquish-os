@@ -31,6 +31,11 @@ export function can(access: AccessState, permission: AreaPermission) {
 }
 
 export type NavIcon =
+  | "documents"
+  | "integrations"
+  | "inbox"
+  | "network"
+  | "governance"
   | "home"
   | "chat"
   | "bell"
@@ -69,11 +74,11 @@ export const WORKSPACE_NAV: NavItem[] = [
   { href: "/people", label: "People", icon: "people" },
   { href: "/communications", label: "Communications", icon: "communications" },
   { href: "/calendar", label: "Calendar", icon: "calendar" },
-  { href: "/governance", label: "Governance", icon: "settings", requires: "admin" },
-  { href: "/documents", label: "Documents", icon: "review", requires: "documents" },
-  { href: "/integrations", label: "Integration health", icon: "settings" },
-  { href: "/inbox", label: "Inbox", icon: "bell" },
-  { href: "/network", label: "Network", icon: "people" },
+  { href: "/governance", label: "Governance", icon: "governance", requires: "admin" },
+  { href: "/documents", label: "Documents", icon: "documents", requires: "documents" },
+  { href: "/integrations", label: "Integration health", icon: "integrations" },
+  { href: "/inbox", label: "Inbox", icon: "inbox" },
+  { href: "/network", label: "Network", icon: "network" },
   { href: "/tasks", label: "Tasks", icon: "tasks" },
   { href: "/review", label: "Review", icon: "review" },
   { href: "/portfolio", label: "Portfolio", icon: "portfolio", requires: "portfolio" },

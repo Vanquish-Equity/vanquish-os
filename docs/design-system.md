@@ -38,3 +38,14 @@ with combobox/listbox semantics and visible names plus email addresses.
 ## Operating workflow update
 
 The native selectors in SettingsPanel, TaskRow and CommentsSection now reuse SelectMenu/FormSelectMenu, with Arrow/Home/End/Escape navigation. Product checkboxes reuse Checkbox; duplicate-review radio inputs retain native radio semantics with the cyan OS styling. New workflow cards reuse vq-card/vq-card-static and their existing shadows and rotating cyan border. A signed-in desktop/mobile screenshot and keyboard pass remains a connected-preview check.
+
+### Operating navigation density
+
+Work keeps five daily-action entries: Inbox, Tasks, Calendar, Communications
+and Review. Documents and Integration health sit in More with Governance;
+these are repository/connection management rather than daily task queues.
+Their permission filtering still happens on the server. Primary navigation
+items each have a distinct icon (document, plug, inbox, network and shield),
+so the collapsed rail is unambiguous. More uses the same section component,
+fixed hover/focus tooltip positioning, accessible labels and collapsed/mobile
+rendering as other sections; no extra nested navigation or tooltip variant.
