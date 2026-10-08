@@ -1,20 +1,22 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
+import SelectMenu from "@/components/SelectMenu";
+import Checkbox from "@/components/Checkbox";
 import MentionTextarea, { type MentionCandidate } from "@/components/MentionTextarea";
 import { useUnreadCounts } from "@/components/UnreadCounts";
 import { keptMentions } from "@/lib/chat/format";
 import {
   deleteContextCommentAction, editContextCommentAction, loadContextCommentsAction,
-  postContextCommentAction, setContextResolvedAction, type ContextComment,
+  postContextCommentAction, setContextResolvedAction, shareContextCommentAction, type ContextComment,
 } from "@/lib/comments/context-actions";
 import { contextHref, contextScope, safeTargetKey } from "@/lib/comments/context";
 import { markCommentNotificationsReadAction } from "@/lib/notifications/actions";
 import { useLiveSignal } from "@/lib/realtime/useLiveSignal";
 
-type Anchor = { key: string; label: string };
+type Anchor = { key: string; label: string; snapshot?: string | null };
 type Menu = { x: number; y: number; anchor: Anchor; href: string };
 type Pin = { anchor: Anchor; x: number; y: number; count: number };
 
@@ -28,7 +30,7 @@ function anchorAt(element: Element): Anchor {
   const key = target?.dataset.commentAnchor ?? target?.id;
   if (key && safeTargetKey(key) && key !== "comments" && key !== "documents" && key !== "investments") {
     const label = target?.dataset.commentLabel ?? target?.querySelector("h1,h2,h3")?.textContent?.trim() ?? key;
-    return { key, label: label.slice(0, 140) || key };
+    return { key, label: label.slice(0, 140) || key, snapshot: target?.dataset.commentValue?.slice(0,500) ?? null };
   }
   return { key: "page", label: "This page" };
 }
@@ -38,7 +40,10 @@ function anchorElement(key: string) {
   return document.querySelector(`[data-comment-anchor="${CSS.escape(key)}"]`) ?? document.getElementById(key);
 }
 
+const subscribeToHydration = () => () => {};
+
 export default function ContextComments() {
+  const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
   const pathname = usePathname();
   const router = useRouter();
   const scope = useMemo(() => contextScope(pathname), [pathname]);
@@ -46,6 +51,9 @@ export default function ContextComments() {
   const refreshUnread = unread.refresh;
   const [comments, setComments] = useState<ContextComment[]>([]);
   const [members, setMembers] = useState<MentionCandidate[]>([]);
+  const [conversations,setConversations] = useState<{id:string;name:string}[]>([]);
+  const [sharing,setSharing] = useState<string|null>(null);
+  const [conversation,setConversation] = useState("");
   const [me, setMe] = useState("");
   const [available, setAvailable] = useState(false);
   const [menu, setMenu] = useState<Menu | null>(null);
@@ -54,6 +62,8 @@ export default function ContextComments() {
   const [replying, setReplying] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [selected, setSelected] = useState<MentionCandidate[]>([]);
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [recipients, setRecipients] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [pins, setPins] = useState<Pin[]>([]);
@@ -68,6 +78,7 @@ export default function ContextComments() {
     setAvailable(Boolean(data));
     setComments((data?.comments ?? []).filter((comment) => comment.target_key));
     setMembers(data?.members ?? []);
+    setConversations(data?.conversations ?? []);
     setMe(data?.me ?? "");
   }, [pathname, scope]);
 
@@ -79,6 +90,7 @@ export default function ContextComments() {
       setAvailable(Boolean(data));
       setComments((data?.comments ?? []).filter((comment) => comment.target_key));
       setMembers(data?.members ?? []);
+    setConversations(data?.conversations ?? []);
       setMe(data?.me ?? "");
     });
     return () => { live = false; };
@@ -100,7 +112,8 @@ export default function ContextComments() {
     if (!scope) return;
     function openMenu(event: MouseEvent) {
       const target = event.target as HTMLElement;
-      if (!target.closest("main") || target.closest("input,textarea,select,[contenteditable],[data-context-exclude],#documents,#investments") ) return;
+      if (!target.closest("main") || target.closest("input,textarea,select,[contenteditable],[data-context-exclude],#investments") ) return;
+      if (target.closest("#documents") && !target.closest('[data-comment-anchor^="document:"]')) return;
       if (!available) return;
       event.preventDefault();
       setMenu({ x: event.clientX, y: event.clientY, anchor: anchorAt(target), href: target.closest<HTMLAnchorElement>("a[href]")?.href ?? window.location.href });
@@ -188,22 +201,25 @@ export default function ContextComments() {
     return () => cancelAnimationFrame(frame);
   }, [active, hash, comments]);
 
-  if (!scope) return null;
+  // Client portals must wait until hydration; new Action center/Documents contexts
+  // also render on the server during a production request.
+  if (!scope || !hydrated) return null;
 
   function open(anchor: Anchor) {
-    setActive(anchor); setMenu(null); setText(""); setSelected([]); setEditing(null); setReplying(null); setError("");
+    setActive(anchor); setIsPrivate(false); setRecipients([]); setMenu(null); setText(""); setSelected([]); setEditing(null); setReplying(null); setError("");
   }
 
   async function submit() {
     if (!scope || !active || !text.trim() || busy) return;
     setBusy(true); setError("");
     const mentions = keptMentions(text, selected);
+    if (isPrivate && !replying && !editing && recipients.length === 0) { setBusy(false); setError("Select at least one recipient for a private thread."); return; }
     const result = editing
       ? await editContextCommentAction(pathname, scope, editing, text, mentions)
-      : await postContextCommentAction({ pathname, scope, target: active.key, label: active.label, body: text, mentions, parentId: replying });
+      : await postContextCommentAction({ pathname, scope, target: active.key, label: active.label, body: text, mentions, parentId: replying, snapshot: active.snapshot, recipients: isPrivate ? recipients : null });
     setBusy(false);
     if (!result.ok) { setError("message" in result ? String(result.message) : "Could not save the comment."); return; }
-    setText(""); setSelected([]); setEditing(null); setReplying(null);
+    setText(""); setIsPrivate(false); setRecipients([]); setSelected([]); setEditing(null); setReplying(null);
     await reload(); refreshUnread(); router.refresh();
   }
 
@@ -242,6 +258,8 @@ export default function ContextComments() {
             {shown.length === 0 && <p className="py-4 text-center text-[12px] text-neutral-400">No comments here yet.</p>}
             {shown.map((root) => (
               <div key={root.id} id={`context-${root.id}`} className={`mb-3 rounded-xl border bg-[#f8fafb] p-3 text-[12px] ${hash === `#comment-${root.id}` ? "border-cyan-300 ring-2 ring-cyan-100" : "border-neutral-100"}`}>
+                {root.visible_to && <p className="mb-1 text-[10px] font-semibold text-cyan-800">Private thread · {root.visible_to.length} recipients</p>}
+                {root.value_snapshot && <blockquote className="mb-2 border-l-2 border-cyan-200 pl-2 text-[11px] text-neutral-500">{root.value_snapshot}</blockquote>}
                 <div className="flex items-center justify-between gap-2"><span className="font-semibold text-ink">{members.find((m) => m.email === root.author_email)?.name ?? root.author_email}</span><span className="text-[10px] text-neutral-400">{new Date(root.created_at).toLocaleDateString()}</span></div>
                 <p className="mt-1 whitespace-pre-wrap break-words text-ink">{root.deleted_at ? "Comment deleted by author" : root.body}</p>
                 {root.edited_at && !root.deleted_at && <span className="text-[10px] text-neutral-400">(edited)</span>}
@@ -253,6 +271,8 @@ export default function ContextComments() {
                   {!root.deleted_at && <button type="button" className="text-cyan-800" onClick={async () => { if (!scope) return; const result = await setContextResolvedAction(pathname, scope, root.id, !root.resolved_at); if (result.ok) await reload(); }}>{root.resolved_at ? "Reopen" : "Resolve"}</button>}
                   <button type="button" className="text-neutral-500" onClick={() => void navigator.clipboard.writeText(new URL(contextHref(scope, root.id, root.target_key), window.location.origin).href)}>Copy link</button>
                 </div>
+                {!root.deleted_at && <button type="button" className="mt-2 text-[11px] font-semibold text-cyan-800" onClick={()=>{setSharing(sharing===root.id?null:root.id);setConversation("");}}>Share link to chat</button>}
+                {sharing===root.id && <div className="mt-2 space-y-2"><SelectMenu value={conversation} onChange={setConversation} options={conversations.map(item=>({value:item.id,label:item.name||"Conversation"}))} placeholder="Choose conversation"/><p className="text-[10px] text-neutral-500">Sends a link only. All active participants must already have access.</p><button type="button" className={button} disabled={!conversation||busy} onClick={async()=>{setBusy(true);try{const result=await shareContextCommentAction(root.id,conversation);setError(result.message);if(result.ok)setSharing(null);}finally{setBusy(false);}}}>Send link</button></div>}
                 {comments.filter((reply) => reply.parent_id === root.id).map((reply) => (
                   <div key={reply.id} id={`context-${reply.id}`} className={`mt-2 border-l-2 pl-3 ${hash === `#comment-${reply.id}` ? "rounded-r-lg border-cyan-600 bg-cyan-50" : "border-cyan-100"}`}>
                     <span className="font-semibold">{members.find((m) => m.email === reply.author_email)?.name ?? reply.author_email}</span>
@@ -270,9 +290,10 @@ export default function ContextComments() {
           </div>
           <div className="border-t border-neutral-100 p-3">
             {(editing || replying) && <div className="mb-2 flex justify-between text-[11px] text-cyan-800"><span>{editing ? "Editing comment" : "Replying"}</span><button type="button" onClick={() => { setEditing(null); setReplying(null); setText(""); }}>Cancel</button></div>}
+            {!editing && !replying && <div className="mb-3 text-[12px] text-neutral-600"><label className="flex items-center gap-2"><Checkbox checked={isPrivate} onChange={event => { setIsPrivate(event.target.checked); setSelected([]); }} />Private thread</label>{isPrivate && <div className="mt-2 max-h-32 overflow-auto">{members.filter(m=>m.email!==me).map(member=><label key={member.email} className="flex items-center gap-2 py-1"><Checkbox checked={recipients.includes(member.email)} onChange={event=>setRecipients(current=>event.target.checked?[...current,member.email]:current.filter(email=>email!==member.email))}/>{member.name}</label>)}</div>}</div>}
             <MentionTextarea id="context-comment-body" label="Comment" value={text} onChange={setText}
               onMention={(member) => setSelected((current) => [...current, member])}
-              onSubmit={() => void submit()} candidates={members.filter((m) => m.email !== me)} rows={2}
+              onSubmit={() => void submit()} candidates={members.filter((m) => m.email !== me && (replying ? !comments.find(c=>c.id===replying)?.visible_to || comments.find(c=>c.id===replying)?.visible_to?.includes(m.email) : editing ? !comments.find(c=>c.id===editing)?.visible_to || comments.find(c=>c.id===editing)?.visible_to?.includes(m.email) : !isPrivate || recipients.includes(m.email)))} rows={2}
               placeholder="Write a comment… Type @ to mention someone" />
             {error && <p role="alert" className="mt-1 text-[11px] text-red-600">{error}</p>}
             <div className="mt-2 flex justify-end"><button type="button" className={primary} disabled={!text.trim() || busy} onClick={() => void submit()}>{busy ? "Saving…" : editing ? "Save" : replying ? "Reply" : "Post comment"}</button></div>

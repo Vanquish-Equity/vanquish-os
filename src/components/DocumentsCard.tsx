@@ -1,5 +1,6 @@
 "use client";
 
+import Checkbox from "@/components/Checkbox";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -369,8 +370,7 @@ export default function DocumentsCard({
 
       {matchingRequirement && (
         <label className="mb-3 flex items-center gap-2 text-[12px] text-ink">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={markRequirementReceived}
             onChange={(event) => setMarkRequirementReceived(event.target.checked)}
             disabled={isPending}
@@ -425,6 +425,9 @@ export default function DocumentsCard({
         {documents.map((doc) => (
           <div
             key={doc.id}
+            data-comment-anchor={`document:${doc.id}`}
+            data-comment-label={doc.name}
+            data-comment-value={doc.name}
             className="flex items-center justify-between gap-2 rounded-xl border border-neutral-100 px-3 py-2.5"
           >
             <a

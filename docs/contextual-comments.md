@@ -44,3 +44,8 @@ and checks anonymous/nonmember blocking, route and anchor validation,
 cross-target replies, mentions, resolution, author-only edits, and soft delete.
 Check keyboard, desktop, and phone behavior in preview; it shares production
 data, so test comments written there will be real records.
+
+
+## Operating workflow update
+
+Documents and the Action center now support semantic source anchors. Their source permissions are checked on reads and definer mutations. Private Gmail pages remain excluded. Selected recipients, snapshots and deliberate chat link sharing are described in [Operating workflows](operating-workflows.md).

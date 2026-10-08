@@ -44,3 +44,8 @@ GitHub workflows, so a red readiness result does not itself prevent a preview
 from becoming available. Before treating a preview as ready for review, check
 both CI and schema readiness. A hard pre-deploy gate would additionally need
 the preview hosting pipeline to wait for the schema check.
+
+
+## Operating workflow update
+
+The SQL workflow additionally applies all 20261008 migrations and runs operating_workflows, crm_sync_jobs and workflow_source_access plus regression checks for boards and Deal assignments. These are forward migrations applied once. A configured external worker and real Google connection are separate activation checks; see [Operating workflows](operating-workflows.md).

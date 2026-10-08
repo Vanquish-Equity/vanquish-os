@@ -76,3 +76,8 @@ References: [events.list](https://developers.google.com/workspace/calendar/api/v
 [events.insert](https://developers.google.com/workspace/calendar/api/v3/reference/events/insert),
 [events.patch](https://developers.google.com/workspace/calendar/api/v3/reference/events/patch),
 [recurring events](https://developers.google.com/workspace/calendar/api/guides/recurringevents).
+
+
+## Operating workflow update
+
+A separate consented worker now publishes matched primary-calendar activity to CRM and follows syncToken; its cursor reset, recurrence, cancellation and configuration details are in [Operating workflows](operating-workflows.md). The live Calendar UI still reads on demand; its existing editing restrictions remain.

@@ -1,5 +1,6 @@
 "use client";
 
+import Checkbox from "@/components/Checkbox";
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -216,11 +217,9 @@ export default function LpImporter({ existing }: { existing: ExistingContact[] }
         <section className="vq-card-static rounded-[14px] bg-white p-5">
           <h2 className="text-[13px] font-semibold text-ink">2. Check the columns</h2>
           <label className="mt-2 flex items-center gap-2 text-[12px] text-neutral-600">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={hasHeader}
               onChange={(event) => remap(mapping, event.target.checked)}
-              className="accent-cyan-700"
             />
             The first row has column names
           </label>

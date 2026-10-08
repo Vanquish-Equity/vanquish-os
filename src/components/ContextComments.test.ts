@@ -1,0 +1,11 @@
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
+import { it,expect,vi } from "vitest";
+const state=vi.hoisted(()=>({pathname:"/inbox"}));
+vi.mock("next/navigation",()=>({usePathname:()=>state.pathname,useRouter:()=>({refresh:vi.fn()})}));
+vi.mock("@/components/UnreadCounts",()=>({useUnreadCounts:()=>({refresh:vi.fn()})}));
+vi.mock("@/lib/realtime/useLiveSignal",()=>({useLiveSignal:vi.fn()}));
+vi.mock("@/lib/comments/context-actions",()=>({loadContextCommentsAction:vi.fn(),deleteContextCommentAction:vi.fn(),editContextCommentAction:vi.fn(),postContextCommentAction:vi.fn(),setContextResolvedAction:vi.fn(),shareContextCommentAction:vi.fn()}));
+vi.mock("@/lib/notifications/actions",()=>({markCommentNotificationsReadAction:vi.fn()}));
+import ContextComments from "./ContextComments";
+it.each(["/inbox","/documents","/companies/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"])("defers comment portals during SSR of %s",pathname=>{state.pathname=pathname;expect(renderToString(createElement(ContextComments))).toBe("");});

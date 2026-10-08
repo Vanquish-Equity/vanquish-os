@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { cookies } from "next/headers";
 import { requireMember } from "@/lib/auth/access";
 import { can } from "@/lib/auth/permissions";
@@ -65,6 +66,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         <h1 className="font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">Settings</h1>
         <p className="mt-1 text-[13px] text-neutral-500">Your profile, experience and connected accounts.</p>
       </header>
+      <Link href="/integrations" className="w-fit rounded-full border border-neutral-200 px-4 py-2 text-[12px] font-semibold text-cyan-800">CRM synchronization & integration health →</Link>
       <SettingsPanel
         email={access.email}
         displayName={profile?.display_name ?? access.displayName ?? ""}

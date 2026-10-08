@@ -9,6 +9,9 @@ const KIND_LABEL: Record<SearchResult["kind"], string> = {
   company: "Companies",
   deal: "Deals",
   person: "People",
+  note: "Notes & interactions",
+  document: "Documents",
+  task: "Tasks",
 };
 
 // ⌘K / Ctrl+K (or the button) opens a dialog that searches People,

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity/log";
 import { activeDealInCompanyError } from "@/lib/deals/guards";
 import { createClient } from "@/lib/supabase/server";
+import { getAccess } from "@/lib/auth/access";
 
 export type InteractionActionResult =
   | { ok: true; interactionId?: string }
@@ -16,12 +17,17 @@ function cleanText(value: FormDataEntryValue | string | null | undefined) {
 export async function logInteractionAction(
   formData: FormData
 ): Promise<InteractionActionResult> {
+  const access = await getAccess();
+  if (access.status !== "member") return { ok: false, message: "Access denied." };
   const companyId = cleanText(formData.get("companyId"));
   const dealId = cleanText(formData.get("dealId")) || null;
   const type = cleanText(formData.get("type")) || "note";
   const occurredAt = cleanText(formData.get("occurredAt"));
   const subject = cleanText(formData.get("subject"));
   const summary = cleanText(formData.get("summary"));
+  const date = occurredAt ? new Date(occurredAt) : new Date();
+  if (!Number.isFinite(date.getTime()) || !["note", "email", "meeting", "call", "other"].includes(type) || subject.length > 500 || summary.length > 10000)
+    return { ok: false, message: "Check the date, type and length of the interaction." };
 
   if (!companyId) return { ok: false, message: "Missing company." };
   if (!subject && !summary) {
@@ -40,10 +46,10 @@ export async function logInteractionAction(
       company_id: companyId,
       deal_id: dealId,
       type,
-      occurred_at: occurredAt ? new Date(occurredAt).toISOString() : new Date().toISOString(),
+      occurred_at: date.toISOString(),
       subject: subject || null,
       summary: summary || null,
-      created_by: "anonymous",
+      created_by: access.email,
     })
     .select("id")
     .single()) as unknown as {
@@ -51,7 +57,7 @@ export async function logInteractionAction(
     error: { message: string } | null;
   };
 
-  if (error) return { ok: false, message: error.message };
+  if (error) return { ok: false, message: "Interaction could not be logged." };
   if (!data) return { ok: false, message: "Interaction could not be logged." };
 
   await logActivity(
@@ -60,7 +66,7 @@ export async function logInteractionAction(
       targetType: "interaction",
       targetId: data.id,
       payload: { companyId, dealId, type, subject },
-      actor: "anonymous",
+      actor: access.email,
     },
     supabase
   );

@@ -1,5 +1,7 @@
 "use client";
+import SelectMenu from "@/components/SelectMenu";
 
+import Checkbox from "@/components/Checkbox";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
@@ -444,22 +446,7 @@ function TaskForm({
           <label htmlFor={`${idPrefix}-assignee`} className="text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
             Assign to
           </label>
-          <select
-            id={`${idPrefix}-assignee`}
-            value={assignee}
-            onChange={(event) => {
-              setAssignee(event.target.value);
-              change({ assignee: event.target.value || null });
-            }}
-            className={field}
-          >
-            <option value="">Unassigned</option>
-            {members.map((member) => (
-              <option key={member.email} value={member.email}>
-                {member.email === me ? `${member.name} (you)` : member.name}
-              </option>
-            ))}
-          </select>
+          <SelectMenu id={`${idPrefix}-assignee`} value={assignee} onChange={value=>{setAssignee(value);change({assignee:value||null});}} options={[{value:"",label:"Unassigned"},...members.map(member=>({value:member.email,label:member.email===me?`${member.name} (you)`:member.name}))]} />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor={`${idPrefix}-due`} className="text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
@@ -610,11 +597,9 @@ function Composer({
       <div className="flex flex-wrap items-center gap-2">
         {allowTask && (
           <label className="group inline-flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] font-medium text-neutral-600 transition hover:bg-cyan-50 hover:text-cyan-900">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={withTask}
               onChange={(event) => setWithTask(event.target.checked)}
-              className="peer sr-only"
             />
             <span aria-hidden="true" className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border border-neutral-300 bg-white text-white transition group-hover:border-cyan-500 peer-checked:border-cyan-700 peer-checked:bg-cyan-700 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-cyan-600">
               <svg viewBox="0 0 16 16" fill="none" className="h-3 w-3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5">

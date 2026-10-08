@@ -20,8 +20,11 @@ export async function GET(request: Request) {
   const state = randomUUID();
 
   let authUrl: string;
+  const driveMode = url.searchParams.get("drive");
+  const drive = driveMode === "read" || driveMode === "write" ? driveMode : undefined;
+  if (drive && !access.permissions.has("documents")) return NextResponse.json({ error: "Access denied" }, { status: 403 });
   try {
-    authUrl = buildGoogleAuthUrl({ redirectUri, state, calendarWrite: url.searchParams.get("calendar") === "write" });
+    authUrl = buildGoogleAuthUrl({ redirectUri, state, calendarWrite: url.searchParams.get("calendar") === "write", drive });
   } catch {
     return NextResponse.redirect(new URL("/settings?connect=not_configured#settings-connections", url.origin));
   }

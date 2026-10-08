@@ -158,3 +158,8 @@ References: [Gmail threads](https://developers.google.com/workspace/gmail/api/gu
 [sending MIME](https://developers.google.com/workspace/gmail/api/guides/sending),
 [labels](https://developers.google.com/workspace/gmail/api/guides/labels),
 [scope reference](https://developers.google.com/workspace/gmail/api/auth/scopes).
+
+
+## Operating workflow update
+
+Incremental CRM activity delivery is now available separately from the private mailbox. It requires explicit consent and a configured worker; shared subjects remain opt-in and bodies are never copied. Gmail attachment import to Documents is explicit. Scheduled sending remains informational. See [Operating workflows](operating-workflows.md).

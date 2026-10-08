@@ -133,3 +133,8 @@ have their own navigation.
    production database, so they need `0019` to show comments.
 
 Verification: `supabase/tests/record_comments.sql` (local database only).
+
+
+## Operating workflow update
+
+Contextual threads now support selected recipients, field snapshots, access-aware document/activity anchors and deliberate chat link sharing. Replies inherit privacy and private threads cannot create shared tasks. See [Operating workflows](operating-workflows.md).

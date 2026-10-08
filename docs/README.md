@@ -16,6 +16,7 @@ any change to its contract.
 | Google calendars and event editing | [Calendar](calendar.md) | Calendar route, `src/components/calendar`, `src/lib/google/calendar-*` |
 | Chat, notifications and comments | [Chat](chat.md), [Comments](comments.md), [Contextual comments](contextual-comments.md) | Chat/comment actions and RLS migrations |
 | Member profile and admin settings | [Settings](settings.md) | Settings routes and `src/lib/settings` |
+| Operating Inbox, proposals, sync worker, documents, governance and monitoring | [Operating workflows](operating-workflows.md) | `src/lib/workflows`, `src/lib/sync`, `src/lib/documents`, `scripts/crm-sync-worker.ts`, `20261008*` migrations |
 | Questions requiring business decisions | [Open decisions](open-decisions.md) | Confirm with the team before encoding assumptions |
 | Historical tracker reconciliation | [Migration report](migration-report.md) | Private seed generators and audit, with no private data in Git |
 

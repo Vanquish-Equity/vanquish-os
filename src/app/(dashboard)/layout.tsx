@@ -5,6 +5,7 @@ import UiSounds from "@/components/UiSounds";
 import UnreadCountsProvider from "@/components/UnreadCounts";
 import WorkspaceTopBar from "@/components/WorkspaceTopBar";
 import ContextComments from "@/components/ContextComments";
+import VanquishAI from "@/components/VanquishAI";
 import RelationshipAutoSync from "@/components/RelationshipAutoSync";
 import { loadUnreadCounts } from "@/lib/chat/queries";
 import { createClient } from "@/lib/supabase/server";
@@ -47,6 +48,7 @@ export default async function DashboardLayout({
         <UiSounds />
         <ContextComments />
         <RelationshipAutoSync />
+        <VanquishAI />
         <Sidebar
           userEmail={access.email}
           displayName={access.displayName ?? null}

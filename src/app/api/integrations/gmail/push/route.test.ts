@@ -1,0 +1,13 @@
+import { beforeEach,afterEach,it,expect,vi } from "vitest";
+const mocks=vi.hoisted(()=>({verify:vi.fn(),rpc:vi.fn(),create:vi.fn()}));
+vi.mock("@/lib/sync/push-auth",()=>({verifyGmailPush:mocks.verify}));
+vi.mock("@supabase/supabase-js",()=>({createClient:mocks.create}));
+import { POST } from "./route";
+function jwt(role="vanquish_gmail_push"){return `${Buffer.from('{}').toString('base64url')}.${Buffer.from(JSON.stringify({role,exp:Math.floor(Date.now()/1000)+3600})).toString('base64url')}.fixture`;}
+beforeEach(()=>{vi.clearAllMocks();vi.stubEnv("GMAIL_PUSH_AUDIENCE","https://fixture.example/push");vi.stubEnv("GMAIL_PUSH_SERVICE_ACCOUNT","push@fixture.example");vi.stubEnv("GMAIL_PUSH_JWT",jwt());vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL","https://fixture.supabase.invalid");vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY","fixture-anon");vi.stubEnv("VANQUISH_WORKER_JWT","must-never-be-used");mocks.create.mockReturnValue({rpc:mocks.rpc});mocks.rpc.mockResolvedValue({error:null});});
+afterEach(()=>vi.unstubAllEnvs());
+function request(data:object={emailAddress:"fixture@example.com",historyId:"123"}){return new Request("https://fixture.example/push",{method:"POST",headers:{authorization:"Bearer fixture-google-oidc"},body:JSON.stringify({message:{data:Buffer.from(JSON.stringify(data)).toString('base64')}})});}
+it("rejects unverified Google tokens before accessing the queue",async()=>{mocks.verify.mockResolvedValue(false);expect((await POST(request())).status).toBe(401);expect(mocks.create).not.toHaveBeenCalled();});
+it("queues using only the push identity, and returns no tokens or payload",async()=>{mocks.verify.mockResolvedValue(true);const response=await POST(request());expect(response.status).toBe(204);expect(await response.text()).toBe("");expect(mocks.verify).toHaveBeenCalledWith("fixture-google-oidc","https://fixture.example/push","push@fixture.example");expect(mocks.create).toHaveBeenCalledWith("https://fixture.supabase.invalid","fixture-anon",expect.objectContaining({global:{headers:{Authorization:`Bearer ${jwt()}`}}}));expect(mocks.rpc).toHaveBeenCalledWith("worker_signal_gmail",{p_address:"fixture@example.com",p_history_id:"123"});});
+it("fails closed if an operator supplies the worker role to the webhook",async()=>{vi.stubEnv("GMAIL_PUSH_JWT",jwt("vanquish_worker"));expect((await POST(request())).status).toBe(503);expect(mocks.create).not.toHaveBeenCalled();});
+it("rejects malformed signal bounds after OIDC verification",async()=>{mocks.verify.mockResolvedValue(true);expect((await POST(request({emailAddress:"fixture@example.com",historyId:"not-a-history-id"}))).status).toBe(400);expect(mocks.create).not.toHaveBeenCalled();});

@@ -1,4 +1,5 @@
 "use client";
+import SelectMenu from "@/components/SelectMenu";
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -222,24 +223,16 @@ export default function SettingsPanel({ email, displayName, avatarUrl, profileAv
         <p className="mt-1 text-[12px] text-neutral-500">These choices are saved in this browser for your account.</p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <label className="text-[12px] font-semibold text-ink">Page after sign-in
-            <select value={landing} onChange={(event) => { const value = event.target.value as LandingPage; setLanding(value); saveCookie(landingCookieName(email), value); }} className="mt-1.5 block w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-[12px] font-normal focus:border-cyan-400">
-              <option value="/home">Home</option><option value="/overview">Overview</option><option value="/pipeline">Pipeline</option>
-            </select>
+            <SelectMenu value={landing} onChange={(nextValue) => { const value = nextValue as LandingPage; setLanding(value); saveCookie(landingCookieName(email), value); }} options={[{value:"/home",label:"Home"},{value:"/overview",label:"Overview"},{value:"/pipeline",label:"Pipeline"}]} rootClassName="mt-1.5" />
           </label>
           <label className="text-[12px] font-semibold text-ink">Default Pipeline filter
-            <select value={pipeline} onChange={(event) => { const value = event.target.value as PipelineDefault; setPipeline(value); saveCookie(pipelineCookieName(email), value); router.refresh(); }} className="mt-1.5 block w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-[12px] font-normal focus:border-cyan-400">
-              <option value="all">Show terminal outcomes</option><option value="active">Hide terminal outcomes</option>
-            </select>
+            <SelectMenu value={pipeline} onChange={(nextValue) => { const value = nextValue as PipelineDefault; setPipeline(value); saveCookie(pipelineCookieName(email), value); router.refresh(); }} options={[{value:"all",label:"Show terminal outcomes"},{value:"active",label:"Hide terminal outcomes"}]} rootClassName="mt-1.5" />
           </label>
           <label className="text-[12px] font-semibold text-ink">Time zone
-            <select value={zone} onChange={(event) => setTimePreference("zone", event.target.value as TimeZoneChoice)} className="mt-1.5 block w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-[12px] font-normal focus:border-cyan-400">
-              <option value="browser">Use browser time zone</option><option value="America/Costa_Rica">Costa Rica</option><option value="America/Los_Angeles">Los Angeles</option><option value="UTC">UTC</option>
-            </select>
+            <SelectMenu value={zone} onChange={(nextValue) => setTimePreference("zone", nextValue as TimeZoneChoice)} options={[{value:"browser",label:"Use browser time zone"},{value:"America/Costa_Rica",label:"Costa Rica"},{value:"America/Los_Angeles",label:"Los Angeles"},{value:"UTC",label:"UTC"}]} rootClassName="mt-1.5" />
           </label>
           <label className="text-[12px] font-semibold text-ink">Date format
-            <select value={style} onChange={(event) => setTimePreference("style", event.target.value as DateStyle)} className="mt-1.5 block w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-[12px] font-normal focus:border-cyan-400">
-              <option value="month-first">Month / day / year</option><option value="day-first">Day / month / year</option><option value="iso">Year / month / day</option>
-            </select>
+            <SelectMenu value={style} onChange={(nextValue) => setTimePreference("style", nextValue as DateStyle)} options={[{value:"month-first",label:"Month / day / year"},{value:"day-first",label:"Day / month / year"},{value:"iso",label:"Year / month / day"}]} rootClassName="mt-1.5" />
           </label>
         </div>
         <p className="mt-3 text-[11px] text-neutral-500">Time zone and date format currently apply to chat and notification timestamps. Date-only CRM fields continue to use their original calendar dates.</p>

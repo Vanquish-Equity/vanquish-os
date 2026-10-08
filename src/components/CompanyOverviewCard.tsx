@@ -106,6 +106,7 @@ function EditableText({
   if (!editing) {
     return (
       <FieldFrame label={label} error={error}>
+        <span data-comment-anchor={`field:${label.replaceAll(" ", "-").toLowerCase()}`} data-comment-label={label} data-comment-value={value ?? ""}>
         <button
           type="button"
           onClick={() => {
@@ -117,6 +118,7 @@ function EditableText({
         >
           {displayValue}
         </button>
+        </span>
       </FieldFrame>
     );
   }
@@ -190,6 +192,7 @@ function EditableIndustry({
   if (!editing) {
     return (
       <FieldFrame label="Industry" error={error}>
+        <span data-comment-anchor="field:industry" data-comment-label="Industry" data-comment-value={displayValue}>
         <button
           type="button"
           onClick={() => {
@@ -201,6 +204,7 @@ function EditableIndustry({
         >
           {displayValue}
         </button>
+        </span>
       </FieldFrame>
     );
   }

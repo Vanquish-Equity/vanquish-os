@@ -1,5 +1,6 @@
 "use client";
 
+import Checkbox from "@/components/Checkbox";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createPersonAction } from "@/lib/people/actions";
@@ -198,11 +199,9 @@ export default function NewPersonModal({
               </div>
 
               <label className="flex items-start gap-2.5 rounded-xl border border-neutral-100 bg-[#f7f9fa] px-3 py-2.5 text-[12px] text-neutral-600">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={values.isPotentialLp}
                   onChange={(e) => setValues((v) => ({ ...v, isPotentialLp: e.target.checked }))}
-                  className="mt-0.5 accent-cyan-700"
                 />
                 <span>
                   <span className="font-semibold text-ink">Potential LP</span>

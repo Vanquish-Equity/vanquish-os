@@ -323,3 +323,8 @@ into a horizontal scrollbar.
 Pipeline's board filter supports text, team member (including "me" or unassigned), priority, stage, overdue next action and no next action. It filters displayed cards only and keeps each Deal's underlying stage intact. Team avatars are visible to active Vanquish members, including other members' profile photos; the Storage read policy is scoped to authenticated active members.
 
 Decide who can create shared versus personal boards; whether another Deal board is an independent workflow or a genuine additional investment pipeline; final stage taxonomy; who edits stage rules; and LP outreach stages. Initially, Admin creates shared boards and active members can move their cards. The manual-interaction PR #12 and migration 0024 remain a separate integration; verify their merge state before relying on them.
+
+
+## Operating workflow update
+
+[Operating workflows](operating-workflows.md) adds the Action center, human-reviewed changes, restricted Deal governance, company consolidation, ranked text/document search, Network introduction candidates and Portfolio monitoring. CRM delivery has its own consent and durable worker. Existing People relationship-history sharing remains separate and still uses its prior browser/manual sync.

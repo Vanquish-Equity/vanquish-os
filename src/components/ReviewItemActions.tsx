@@ -43,7 +43,7 @@ export default function ReviewItemActions({ itemId, deals, reviewType }: { itemI
           <div className="flex flex-wrap gap-3">
             {deals.filter((deal) => deal.deal_id).map((deal) => (
               <label key={deal.deal_id} className="flex cursor-pointer items-center gap-1.5">
-                <input type="radio" name={`archive-${itemId}`} checked={archiveDealId === deal.deal_id}
+                <input className="h-4 w-4 appearance-none rounded-full border border-neutral-300 bg-white transition checked:border-[5px] checked:border-cyan-700 hover:border-cyan-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400 disabled:opacity-50" type="radio" name={`archive-${itemId}`} checked={archiveDealId === deal.deal_id}
                   disabled={isPending} onChange={() => setArchiveDealId(deal.deal_id ?? "")} />
                 Tracker row {deal.row}
               </label>
