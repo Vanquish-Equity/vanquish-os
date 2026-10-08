@@ -89,7 +89,7 @@ Gmail/Calendar CRM consent and is paused per folder.
 3. Run `npm run sync:worker` on a server-side scheduler (for example every
    ten minutes). It processes at most twenty batches per invocation. Configure
    `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, Google OAuth
-   client ID/secret, `MAILBOX_TOKEN_ENCRYPTION_KEY`, and `VANQUISH_WORKER_JWT`.
+   client ID/secret, `MAILBOX_TOKEN_ENCRYPTION_KEY`, and `VANQUISH_WORKER_JWT` (worker secret manager only).
    The JWT must be issued using the project's trusted signing configuration
    with role `vanquish_worker`, a short expiry and scheduled renewal. An admin
    must provision that issuer/scheduler; this repo does not mint JWTs or ship
@@ -100,7 +100,9 @@ Gmail/Calendar CRM consent and is paused per folder.
    Set `GMAIL_PUBSUB_TOPIC` to its full topic name on the worker. Configure an
    authenticated Pub/Sub push subscription to `/api/integrations/gmail/push`;
    set `GMAIL_PUSH_AUDIENCE`, `GMAIL_PUSH_SERVICE_ACCOUNT` and the renewable
-   worker JWT on the web server. The endpoint verifies Google's signed OIDC
+   `GMAIL_PUSH_JWT` on the web server, using the separate `vanquish_gmail_push` role.
+   Never set `VANQUISH_WORKER_JWT` on Vercel. The push identity can only call
+   `worker_signal_gmail`; it cannot obtain OAuth tokens, read tables or claim leases. The endpoint verifies Google's signed OIDC
    token, issuer, audience, verified service-account email and signal bounds.
    This is the only new unauthenticated route; it verifies its own machine auth.
 5. In each account, connect Google, save CRM consent and optionally monitor
@@ -114,7 +116,7 @@ Gmail/Calendar CRM consent and is paused per folder.
 
 Application checks: lint, TypeScript, Vitest and production build.
 SQL CI applies the historical migration/test sequence on disposable PostgreSQL,
-then all eight new migrations and the operating, sync, source-access and affected
+then all new migrations and the operating, sync, source-access and affected
 board/assignment checks. Local PostgreSQL-compatible PGlite runs the same new
 migrations and focused checks without production credentials.
 
@@ -134,3 +136,37 @@ report distribution. Scheduled Gmail sending is outside this change.
 Connected Google flows, signed Pub/Sub delivery, worker credential renewal and
 visual checks with real authenticated users require the configured environment.
 They must not be described as validated in production from passing unit tests.
+
+## Worker credential boundary and rotation
+
+`VANQUISH_WORKER_JWT` lives **only in the external worker's secret manager**;
+never in Vercel, this repository, browser configuration or logs. The issuer's
+signing key stays with the trusted issuer. Issue role `vanquish_worker` with
+`exp` at most **one day** ahead (prefer one hour); the worker fails before any
+RPC when `exp` is missing, expired or beyond the one-day ceiling. This preflight
+is not signature validation: Supabase still validates the signed token.
+
+Rotate automatically before expiry: request a new token from the trusted issuer,
+validate role/expiry, atomically replace the secret manager version, restart
+worker invocations and run a disposable lease smoke check. Retire the previous
+secret version after in-flight five-minute leases finish; signed old tokens
+remain valid until their short expiry. For compromise, stop the scheduler and
+revoke the role's RPC grants / authenticator membership until the issuer and
+credential are recovered. Do not rotate a project-wide signing key casually.
+The push-only `GMAIL_PUSH_JWT` follows the same short-expiry renewal, separately.
+
+`20261008200449_worker_privilege_boundary.sql` removes inherited PUBLIC execute
+from application functions while preserving existing anon/member grants.
+Machine roles inherit no member roles and have no direct access to business,
+investor-position, private credential/document or Storage tables. The worker's
+only executable application functions are the `worker_*` RPCs. The webhook
+accepts signed Google RS256 OIDC tokens with the configured audience, Google
+issuer, expiry, issued-at and verified exact service-account email; malformed,
+expired, wrong issuer/audience/account tokens fail closed. It never uses a
+service-role key or the worker identity.
+
+The original `update_last_activity_from_interaction` (0008) and
+`review_requirements_after_document_archive` (0013) were invoker functions.
+The corrective migration preserves invoker execution, uses qualified relations
+and an empty search path, and removes direct API execution grants; triggers
+still execute them. No security-definer privilege is added to these originals.

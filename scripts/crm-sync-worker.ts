@@ -1,5 +1,6 @@
 // Run under an external scheduler with a short-lived vanquish_worker JWT.
 // Never use the service-role key. All database calls are lease-bound RPCs.
+import { requireMachineToken, MachineTokenError } from "../src/lib/sync/machine-token";
 import { createClient } from "@supabase/supabase-js";
 import { googleClientFromSecret,GoogleError,type GoogleSecret } from "../src/lib/google/transport";
 import { gmailBatch,calendarBatch,type SyncCursor } from "../src/lib/sync/engine";
@@ -11,6 +12,7 @@ async function main() {
   const key=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const jwt=process.env.VANQUISH_WORKER_JWT;
   if(!url||!key||!jwt)throw new Error("Worker configuration is incomplete.");
+  requireMachineToken(jwt,"vanquish_worker");
   const db=createClient(url,key,{global:{headers:{Authorization:`Bearer ${jwt}`}},auth:{persistSession:false,autoRefreshToken:false}});
   for(let count=0;count<20;count++) {
     const {data,error}=await db.rpc("worker_claim_sync");if(error)throw new Error("Could not claim a sync lease.");
@@ -35,4 +37,4 @@ async function main() {
     }
   }
 }
-main().catch(()=>{console.error("Worker stopped. Check its configuration and workspace health.");process.exitCode=1;});
+main().catch(error=>{console.error(error instanceof MachineTokenError ? error.message : "Worker stopped. Check its configuration and workspace health.");process.exitCode=1;});

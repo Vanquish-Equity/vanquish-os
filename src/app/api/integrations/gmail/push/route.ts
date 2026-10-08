@@ -1,10 +1,12 @@
 import {NextResponse} from "next/server";
 import {createClient} from "@supabase/supabase-js";
+import {requireMachineToken} from "@/lib/sync/machine-token";
 import {verifyGmailPush} from "@/lib/sync/push-auth";
 export async function POST(request:Request){
   const audience=process.env.GMAIL_PUSH_AUDIENCE,account=process.env.GMAIL_PUSH_SERVICE_ACCOUNT;
-  const workerJwt=process.env.VANQUISH_WORKER_JWT;
-  if(!audience||!account||!workerJwt)return NextResponse.json({error:"Push is not configured"},{status:503});
+  const pushJwt=process.env.GMAIL_PUSH_JWT;
+  if(!audience||!account||!pushJwt)return NextResponse.json({error:"Push is not configured"},{status:503});
+  try { requireMachineToken(pushJwt,"vanquish_gmail_push"); } catch { return NextResponse.json({error:"Push credential requires rotation"},{status:503}); }
   const token=request.headers.get("authorization")?.match(/^Bearer (.+)$/)?.[1]??"";
   if(!await verifyGmailPush(token,audience,account))return NextResponse.json({error:"Unauthorized"},{status:401});
   let signal:{emailAddress:string;historyId:string};
@@ -17,7 +19,7 @@ export async function POST(request:Request){
   }catch{return NextResponse.json({error:"Invalid signal"},{status:400});}
   const url=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if(!url||!key)return NextResponse.json({error:"Push is not configured"},{status:503});
-  const db=createClient(url,key,{global:{headers:{Authorization:`Bearer ${workerJwt}`}},auth:{persistSession:false,autoRefreshToken:false}});
+  const db=createClient(url,key,{global:{headers:{Authorization:`Bearer ${pushJwt}`}},auth:{persistSession:false,autoRefreshToken:false}});
   const {error}=await db.rpc("worker_signal_gmail",{p_address:signal.emailAddress,p_history_id:signal.historyId});
   return error?NextResponse.json({error:"Queue unavailable"},{status:503}):new NextResponse(null,{status:204});
 }
