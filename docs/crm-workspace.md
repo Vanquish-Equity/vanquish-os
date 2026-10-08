@@ -327,4 +327,4 @@ Decide who can create shared versus personal boards; whether another Deal board 
 
 ## Operating workflow update
 
-[Operating workflows](operating-workflows.md) adds the operating Inbox, human-reviewed changes, restricted Deal governance, company consolidation, ranked text/document search, Network introduction candidates and Portfolio monitoring. CRM delivery has its own consent and durable worker. Existing People relationship-history sharing remains separate and still uses its prior browser/manual sync.
+[Operating workflows](operating-workflows.md) adds the Action center, human-reviewed changes, restricted Deal governance, company consolidation, ranked text/document search, Network introduction candidates and Portfolio monitoring. CRM delivery has its own consent and durable worker. Existing People relationship-history sharing remains separate and still uses its prior browser/manual sync.

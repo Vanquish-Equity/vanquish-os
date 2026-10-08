@@ -48,4 +48,4 @@ data, so test comments written there will be real records.
 
 ## Operating workflow update
 
-Documents and the operating Inbox now support semantic source anchors. Their source permissions are checked on reads and definer mutations. Private Gmail pages remain excluded. Selected recipients, snapshots and deliberate chat link sharing are described in [Operating workflows](operating-workflows.md).
+Documents and the Action center now support semantic source anchors. Their source permissions are checked on reads and definer mutations. Private Gmail pages remain excluded. Selected recipients, snapshots and deliberate chat link sharing are described in [Operating workflows](operating-workflows.md).

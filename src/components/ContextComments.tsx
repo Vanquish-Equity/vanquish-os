@@ -201,7 +201,7 @@ export default function ContextComments() {
     return () => cancelAnimationFrame(frame);
   }, [active, hash, comments]);
 
-  // Client portals must wait until hydration; new Inbox/Documents contexts
+  // Client portals must wait until hydration; new Action center/Documents contexts
   // also render on the server during a production request.
   if (!scope || !hydrated) return null;
 

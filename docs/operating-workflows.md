@@ -1,7 +1,7 @@
 # Operating workflows
 
 This change adds human-reviewed workflows and incremental integration delivery.
-Vanquish AI has an offline panel only: there is no provider, prompt submission,
+Vanquish AI (the ✦ button) has an offline panel only: there is no provider, prompt submission,
 embedding service, or automatic AI decision. Company remains separate from Deal.
 
 ## Product surfaces
@@ -9,7 +9,7 @@ embedding service, or automatic AI decision. Company remains separate from Deal.
 | Surface | Behavior |
 | --- | --- |
 | Review → Suggest changes | Propose Company name/legal name/website/description or Deal name/notes/round/source. Review old and proposed values; accept or reject. A later edit marks the proposal as a conflict. Decisions are recorded and repeated decisions are idempotent. |
-| Inbox | Shared CRM email/meeting activity, pending document analysis (with Documents permission), notifications, open tasks and decisions. It never copies a Gmail body. Lists are bounded and link to the source workspace. |
+| Action center (`/inbox`) | Shared CRM email/meeting activity, pending document analysis (with Documents permission), notifications, open tasks and decisions. It never copies a Gmail body. Lists are bounded and link to the source workspace. |
 | Integration health | Separate opt-in for publishing CRM activity; subject/title sharing is a second choice, off by default. Queue runs, inspect outcomes and resolve ambiguous associations. Remember an explicit participant correction for future matching. |
 | Documents | Import a Drive file or Gmail attachment, monitor a chosen Drive folder, extract PDF/text locally and review suggested type/date. Apply canonical CRM metadata only after approval. A changed metadata revision prevents stale approval. Rename/move the actual Drive file only through an explicit, confirmed action with the extra OAuth scope. |
 | Network | Teammate → contact introduction candidates ranked by shared activity days and recency. Only existing opt-in relationship history contributes. This is an activity indicator, not a claim of a personal relationship or a multi-hop social graph. |
@@ -263,14 +263,14 @@ fast-glob / micromatch chain), identical against main and this branch.
 
 A production build and `next start` were reviewed in local Chromium 153 against
 an isolated HTTP backend with synthetic auth/session and CRM data (no preview or
-production credentials, migrations or data). Inbox, Network, Documents,
+production credentials, migrations or data). Action center, Network, Documents,
 Governance, Integrations and Portfolio Monitoring returned HTTP 200 at 1440px
 and 390px with no page/main horizontal overflow or browser exceptions. Keyboard
 focus reached controls on each page; withdrawal confirmation/cancel, AI mode
 menu End/Enter, Escape/focus return and collapsed sidebar Documents focus were
 checked. Screenshots were inspected for narrow Documents/Portfolio and the
 AI panel. The review found and fixed a server-rendered comment portal error on
-Inbox/Documents, covered by SSR regression tests. It also found and fixed unlayered card CSS
+Action center/Documents, covered by SSR regression tests. It also found and fixed unlayered card CSS
 overriding fixed/absolute positioning; the AI panel and SelectMenu now retain
 their intended positions without shifting the page.
 
