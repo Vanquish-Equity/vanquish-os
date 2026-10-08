@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import SelectMenu from "@/components/SelectMenu";
 import Checkbox from "@/components/Checkbox";
@@ -40,7 +40,10 @@ function anchorElement(key: string) {
   return document.querySelector(`[data-comment-anchor="${CSS.escape(key)}"]`) ?? document.getElementById(key);
 }
 
+const subscribeToHydration = () => () => {};
+
 export default function ContextComments() {
+  const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
   const pathname = usePathname();
   const router = useRouter();
   const scope = useMemo(() => contextScope(pathname), [pathname]);
@@ -198,7 +201,9 @@ export default function ContextComments() {
     return () => cancelAnimationFrame(frame);
   }, [active, hash, comments]);
 
-  if (!scope) return null;
+  // Client portals must wait until hydration; new Inbox/Documents contexts
+  // also render on the server during a production request.
+  if (!scope || !hydrated) return null;
 
   function open(anchor: Anchor) {
     setActive(anchor); setIsPrivate(false); setRecipients([]); setMenu(null); setText(""); setSelected([]); setEditing(null); setReplying(null); setError("");
