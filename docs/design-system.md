@@ -49,3 +49,8 @@ items each have a distinct icon (document, plug, inbox, network and shield),
 so the collapsed rail is unambiguous. More uses the same section component,
 fixed hover/focus tooltip positioning, accessible labels and collapsed/mobile
 rendering as other sections; no extra nested navigation or tooltip variant.
+
+Card helpers preserve shadow/isolation/border visuals but apply relative
+positioning only when `absolute`, `fixed` or `sticky` is absent. Unlayered CSS
+must not override those utility positions: SelectMenu popovers stay absolute
+and the offline Vanquish AI panel stays fixed without moving the sidebar.
