@@ -54,3 +54,32 @@ Card helpers preserve shadow/isolation/border visuals but apply relative
 positioning only when `absolute`, `fixed` or `sticky` is absent. Unlayered CSS
 must not override those utility positions: SelectMenu popovers stay absolute
 and the offline Vanquish AI panel stays fixed without moving the sidebar.
+
+## Motion and perceived speed
+
+- **Route changes:** `NavigationProgress` (dashboard layout) shows a thin cyan
+  bar when an internal link is clicked. It appears only if the route takes
+  longer than ~120 ms, finishes when the new route commits, and ignores links
+  to the same page, new tabs, downloads and modified clicks. The Sidebar already
+  highlights the target immediately. Routes without a bespoke skeleton use the
+  group `loading.tsx`; Boards, My LPs, Action center, Network and Documents have
+  their own.
+- **Entrances:** `main.vq-page > *` fades and rises 6 px in 260 ms when a route
+  (or its skeleton replaced by the page) mounts. Menus, selectors and popovers
+  (`role="menu"`, `role="listbox"` and `role="dialog"` when `absolute`) grow
+  from their anchor in 140 ms. Centered dialogs, the Vanquish AI panel and
+  `<dialog>` rise in 200 ms; the dimmed backdrop of a modal fades in 160 ms.
+  These are CSS only (`globals.css`), so new components get them by using the
+  right ARIA role, and use the individual `opacity`, `translate` and `scale`
+  properties so they never fight a utility such as `-translate-x-1/2`.
+- **Not animated on exit:** unmounting is instant on purpose; nothing waits for
+  an exit animation. Add one only with a real reason.
+- **Reduced motion:** every entrance above is disabled under
+  `prefers-reduced-motion: reduce`.
+- **Base polish:** buttons, links, inputs and options ease color, border,
+  shadow and opacity over 150 ms (in `@layer base`, so a utility with its own
+  transition wins), and scrollbars are thin and quiet.
+- **Router cache:** `experimental.staleTimes.dynamic` stays at its default (0).
+  Mail and Calendar read Google live and their actions do not revalidate, so a
+  client cache would show an archived email or a moved event for several
+  seconds.

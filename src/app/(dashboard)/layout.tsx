@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import EntranceIntro from "@/components/EntranceIntro";
+import NavigationProgress from "@/components/NavigationProgress";
 import Sidebar from "@/components/Sidebar";
 import UiSounds from "@/components/UiSounds";
 import UnreadCountsProvider from "@/components/UnreadCounts";
@@ -46,6 +47,7 @@ export default async function DashboardLayout({
         <script dangerouslySetInnerHTML={{ __html: entranceBootScript(introEnabled) }} />
         <EntranceIntro />
         <UiSounds />
+        <NavigationProgress />
         <ContextComments />
         <RelationshipAutoSync />
         <VanquishAI />
@@ -64,7 +66,7 @@ export default async function DashboardLayout({
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <WorkspaceTopBar />
-          <main className="min-h-0 min-w-0 flex-1 overflow-auto">{children}</main>
+          <main className="vq-page min-h-0 min-w-0 flex-1 overflow-auto">{children}</main>
         </div>
       </div>
     </UnreadCountsProvider>
