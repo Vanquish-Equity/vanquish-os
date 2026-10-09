@@ -72,7 +72,14 @@ and the offline Vanquish AI panel stays fixed without moving the sidebar.
   These are CSS only (`globals.css`), so new components get them by using the
   right ARIA role, and use the individual `opacity`, `translate` and `scale`
   properties so they never fight a utility such as `-translate-x-1/2`.
-- **Not animated on exit:** unmounting is instant on purpose; nothing waits for
+- **Vanquish AI:** its bottom-center circle expands from its measured screen
+  bounds into the existing responsive panel in 420 ms, with a cyan glow and
+  rounded corners. Content fades in at the end without scaling text. Closing
+  reverses the shape in 340 ms, then restores the circle; Escape/Close return
+  focus, closing content is inert, and resize finishes the transition into the
+  responsive layout. Reduced motion opens/closes immediately. The panel stays
+  offline, with the existing controls and disabled prompt/Send.
+- **Other surfaces are not animated on exit:** unmounting is instant on purpose; nothing waits for
   an exit animation. Add one only with a real reason.
 - **Reduced motion:** every entrance above is disabled under
   `prefers-reduced-motion: reduce`.

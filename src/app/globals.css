@@ -530,6 +530,9 @@ main.vq-page > * {
 }
 #vanquish-ai-panel {
   transform-origin: bottom center;
+  /* The assistant owns its reversible circle-to-panel morph in Web Animations. */
+  animation: none;
+  border: 1px solid rgb(0 194 209 / .35);
 }
 
 /* The dimmed backdrop of a modal fades in. */
