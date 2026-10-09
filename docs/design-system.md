@@ -72,16 +72,19 @@ and the offline Vanquish AI panel stays fixed without moving the sidebar.
   These are CSS only (`globals.css`), so new components get them by using the
   right ARIA role, and use the individual `opacity`, `translate` and `scale`
   properties so they never fight a utility such as `-translate-x-1/2`.
-- **Vanquish AI:** a viewport SVG surface morphs through a circle, stretched
-  droplet, broad organic shape and rounded panel in 820 ms. Its cyan outline
-  and soft glow follow the shape. The star stays inside the surface, rotates
-  during travel and settles into the panel heading. Closing reverses the same
-  path in 700 ms, carrying the star back into the trigger (no empty circle).
-  Panel content crossfades only during the final settling phase and never
-  stretches. Escape/Close return focus; content stays inert until opening
-  completes. Interrupted motion resumes from its current progress; resize
-  finishes into the responsive layout. Reduced motion skips the morph. AI
-  remains offline with the existing disabled Prompt/Send controls.
+- **Vanquish AI:** Motion shared-layout IDs connect the circle and panel,
+  including their star icon. A fixed `layoutRoot` and scoped `LayoutGroup`
+  keep projection stable; the popup expands directly above the centered trigger
+  rather than travelling sideways. Radius and shadows are provided as styles
+  for Motion's scale correction. A restrained spring controls both directions;
+  content fades after expansion starts and quickly leaves before contraction.
+  `layout="position"` prevents text distortion; overflow is clipped during
+  projection and restored for the mode selector when settled. `AnimatePresence`
+  retains the departing surface, and its completion restores trigger focus.
+  Closing content is inert. Reduced motion removes projection and timing delays.
+  LazyMotion uses `domMax` for layout features with `motion/react-m` elements;
+  the assistant stays a client component, offline with disabled Prompt/Send.
+  Component-owned animations override generic CSS entrances/transitions locally.
 - **Other surfaces are not animated on exit:** unmounting is instant on purpose; nothing waits for
   an exit animation. Add one only with a real reason.
 - **Reduced motion:** every entrance above is disabled under

@@ -528,11 +528,14 @@ main.vq-page > * {
 [role="dialog"]:not(.absolute):not(.inset-0) {
   animation: vq-rise-in 200ms var(--vq-ease-out) backwards;
 }
+/* Motion owns projection transforms, radius correction and crossfades. */
+.vq-ai-root [data-ai-motion],
 #vanquish-ai-panel {
-  transform-origin: bottom center;
-  /* The assistant owns its reversible circle-to-panel morph in Web Animations. */
   animation: none;
-  border: 1px solid rgb(0 194 209 / .35);
+  transition: none;
+}
+.vq-ai-surface {
+  border: 1px solid rgb(0 194 209 / .3);
 }
 
 /* The dimmed backdrop of a modal fades in. */
