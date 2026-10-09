@@ -4,6 +4,8 @@ on:
     paths:
       - 'supabase/migrations/**'
       - 'supabase/tests/**'
+      - 'supabase/phase-sql/**'
+      - 'scripts/check_phase_sql.py'
       - '.github/workflows/contextual-comments.yml'
 jobs:
   sql:
@@ -27,6 +29,8 @@ jobs:
       PGDATABASE: vanquish_test
     steps:
       - uses: actions/checkout@v4
+      - name: Check combined phase SQL matches migration sources
+        run: python3 scripts/check_phase_sql.py
       - name: Apply migrations twice and test access
         shell: bash
         run: |

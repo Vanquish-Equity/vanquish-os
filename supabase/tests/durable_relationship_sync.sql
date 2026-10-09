@@ -29,7 +29,7 @@ insert into test_lease select id,lease,service from public.worker_claim_sync();
 select pg_temp.expect((select service='gmail' from test_lease),'claim relationship-only Gmail');
 select pg_temp.expect((public.worker_sync_context((select id from test_lease),(select lease from test_lease))->>'publishCrm')::boolean=false,'context denies CRM sink');
 select pg_temp.expect(public.worker_sync_context((select id from test_lease),(select lease from test_lease))->'domains'='[]','relationship-only context has no Company resolution catalog');
-select pg_temp.expect(jsonb_array_length(public.worker_sync_context((select id from test_lease),(select lease from test_lease))->'relationshipPeople')=1,'known active People provided privately');
+select pg_temp.expect(not (public.worker_sync_context((select id from test_lease),(select lease from test_lease)) ? 'relationshipPeople'),'relationship-only context does not export unused People directory');
 select pg_temp.expect(pg_temp.denied('select * from public.google_mailbox_connections'),'worker has no direct token table');
 select public.worker_commit_sync((select id from test_lease),(select lease from test_lease),
  '[{"id":"m1","status":"ignored","occurredAt":"2026-09-01T10:00:00Z","subject":"Must not persist","relationshipParticipants":["contact@external.test"]},{"id":"m2","status":"ignored","occurredAt":"2026-09-01T15:00:00Z","relationshipParticipants":["CONTACT@external.test"]}]',
@@ -127,7 +127,7 @@ reset role;
 update public.crm_sync_jobs set next_run_at=now()+interval '1 day' where service='calendar' and status='pending';
 truncate test_lease;set local role vanquish_worker;
 insert into test_lease select id,lease,service from public.worker_claim_sync();
-select pg_temp.expect(public.worker_sync_context((select id from test_lease),(select lease from test_lease))->'relationshipPeople'='[]','CRM-only context withholds relationship directory');
+select pg_temp.expect(not (public.worker_sync_context((select id from test_lease),(select lease from test_lease)) ? 'relationshipPeople'),'CRM context has no unused relationship directory');
 select public.worker_commit_sync((select id from test_lease),(select lease from test_lease),'[{"id":"crm-only","status":"ignored","occurredAt":"2026-09-03","relationshipParticipants":["contact@external.test"]}]','{}',true);
 reset role;
 select pg_temp.expect(not exists(select 1 from public.relationship_interactions where member_email='durable.one@example.test'),'CRM-only cannot publish relationship history');

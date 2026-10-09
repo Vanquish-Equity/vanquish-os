@@ -4,6 +4,17 @@ This is a reviewable operating procedure, not evidence of activation. No remote
 migration, scheduler, issuer, Pub/Sub subscription or secret is created by this
 change. A queued job is not proof of a functioning worker.
 
+## Activation gate before switching delivery
+
+Keep this PR in draft and leave its SQL unapplied until an external scheduler
+and trusted issuer are ready for an agreed test environment. The old browser
+path remains available on current main. After schema and application deployment
+in that test environment, verify worker completion with a disposable connected
+account **before** switching production delivery. Without a running worker,
+Queue sync only enqueues work: People's Last interaction (team) and Network
+retain old data but receive no fresh relationship activity. Passing CI is not
+proof that this activation gate is satisfied.
+
 ## Preconditions and owner decisions
 
 The owner first reviews and merges the implementation PR and separately decides
@@ -138,3 +149,8 @@ into a private baseline, not mass deleted. It drops/recreates one checkpoint
 trigger, revokes browser write grants, and moves three existing function bodies
 into private delegates before installing wrappers. It drops no table, column
 or stored history. The migration does not turn on any previously disabled sink.
+
+The worker context does not export an unused People email directory.
+Relationship email matching runs inside the lease-bound commit RPC. Generate
+this phase's combined SQL with `python3 scripts/check_phase_sql.py --write`;
+CI checks the committed copy against the exact migration sources.

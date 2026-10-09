@@ -187,8 +187,7 @@ begin
   select enabled into v_relationship from public.relationship_sync where member_email=j.email;
   if coalesce(v_crm,false) then v_context:=private.worker_crm_context(p_id,p_lease);
   else v_context:=jsonb_build_object('connection',(select to_jsonb(c) from public.google_mailbox_connections c where c.email=j.email),'domains','[]'::jsonb,'people','[]'::jsonb,'deals','[]'::jsonb);end if;
-  return v_context || jsonb_build_object('publishCrm',coalesce(v_crm,false),'publishRelationships',coalesce(v_relationship,false),
-    'relationshipPeople',case when v_relationship then (select coalesce(jsonb_agg(jsonb_build_object('email',e.email,'personId',p.id)),'[]') from public.person_emails e join public.people p on p.id=e.person_id and p.archived_at is null) else '[]'::jsonb end);
+  return v_context || jsonb_build_object('publishCrm',coalesce(v_crm,false),'publishRelationships',coalesce(v_relationship,false));
 end$$;
 revoke all on function public.worker_sync_context(uuid,uuid) from public,anon,authenticated,vanquish_worker,vanquish_gmail_push;
 grant execute on function public.worker_sync_context(uuid,uuid) to vanquish_worker;

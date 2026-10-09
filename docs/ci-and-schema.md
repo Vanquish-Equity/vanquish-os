@@ -59,3 +59,7 @@ phase-only SQL is `supabase/phase-sql/phase-1-durable-relationship-sync.sql`;
 it requires the preceding full migration chain. Local verification uses a
 fresh PGlite PostgreSQL 18.3 instance; CI uses native PostgreSQL 16. Neither is
 a migration or activation of preview/production.
+
+Combined phase SQL is generated from explicit ordered migration sources with
+`python3 scripts/check_phase_sql.py --write`. CI runs the same script without
+`--write` and fails on drift; edit migrations first, never the combined copy.
