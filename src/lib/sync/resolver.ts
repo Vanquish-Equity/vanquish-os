@@ -1,4 +1,4 @@
-export type ResolutionIndex = { domains:{companyId:string;domain:string}[]; people:{email:string;companyId:string|null}[]; deals:{id:string|null;companyId:string;blocked?:boolean}[]; aliases?:{companyId:string;name:string}[]; rules?:{email:string;companyId:string;dealId:string|null}[] };
+export type ResolutionIndex = { publishCrm?:boolean; domains:{companyId:string;domain:string}[]; people:{email:string;companyId:string|null}[]; deals:{id:string|null;companyId:string;blocked?:boolean}[]; aliases?:{companyId:string;name:string}[]; rules?:{email:string;companyId:string;dealId:string|null}[] };
 export function resolveParticipants(addresses:string[], index:ResolutionIndex,subject="") {
   const candidates=new Set<string>();let inferred=false;
   for(const raw of addresses) {

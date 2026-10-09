@@ -49,14 +49,14 @@ Gmail/Calendar CRM consent and is paused per folder.
 
 ## Permissions and privacy
 
-- Mailbox access still belongs to its user. Enabling CRM sync explicitly permits
+- Mailbox access still belongs to its user. Enabling CRM activity or relationship history explicitly permits
   a machine worker to read that account's encrypted token through lease-bound
   RPCs. No member, admin or worker can directly select the credential table.
 - `vanquish_worker` is an RPC-only role. It can claim consented jobs and get the
   context for a current five-minute lease; it has no direct table, Storage,
   sending or CRM editing privileges. Jobs retry with backoff, stop after five
   attempts and can be queued again from Integration health.
-- Opting out invalidates Gmail/Calendar leases. Existing shared activity stays;
+- Changing either publication consent invalidates Gmail/Calendar leases and restarts eligible delivery. Existing shared activity stays;
   turning subject sharing off removes those integration subjects. No email
   bodies are stored. Folder monitoring needs its own explicit opt-out.
 - Thread recipients constrain reads, replies, edits, resolves and mentions.
@@ -285,3 +285,31 @@ executes 62 migration applications and 38 suite executions (33 distinct SQL
 suites, plus bootstrap), following the full CI migration/test sequence in a
 disposable PostgreSQL-compatible PGlite instance; GitHub CI also runs it on
 PostgreSQL 16. No Supabase migrations were applied.
+
+## Durable relationship delivery (phase 1)
+
+Migration `20261009171254_durable_relationship_sync.sql` shares Gmail/Calendar
+jobs between independent CRM and relationship-history sinks. Neither enables
+the other. A new sink starts a full 90-day replay rather than adopting a cursor
+that may already have skipped its history. The worker rereads current active
+membership, connection and consent under transaction locks before publishing.
+Relationship-only context contains no Company/Deal resolution catalog and
+requests no Gmail Subject metadata. Company scouting remains a separate,
+private browser/manual flow; its request/skip automation policy is unchanged.
+
+Integration health shows each member's service/source last successful run,
+checkpoint age, dead-run count and active-run count. Retry is own-account only,
+requires current consent/source access and preserves the failed run's committed
+cursor. A duplicate click cannot create a second active stream. Queue state does
+not prove an external scheduler is running. Dead runs caused by consent changes
+remain visible as historical outcomes.
+
+Private contributions identify provider events only to support replacement,
+cancellation and delayed meetings; shared daily rows contain no provider IDs.
+The one-time legacy baseline preserves history that lacked provenance. Removing
+an old provider event cannot prove which legacy daily row it contributed to.
+Withdrawal and Delete my history remove that member's private baseline too.
+
+See [Sync activation runbook](runbook-sync-activation.md) for owner-controlled
+provisioning and acceptance. This PR does not provision an issuer, scheduler,
+Pub/Sub, secrets or Google accounts, or apply any remote migration.

@@ -7,7 +7,7 @@ import { resolveParticipants, type ResolutionIndex } from "./resolver";
 
 type Item={id:string;deleted?:boolean};
 export type SyncCursor={mailboxAddress?:string;watchExpiration?:string;historyId?:string;baseline?:string;syncToken?:string;pageToken?:string;mode?:"full"|"history";pending?:Item[];nextHistoryId?:string;nextPageToken?:string};
-export type SourceEvent={id:string;companyId:string|null;dealId:string|null;candidates:string[];status:"matched"|"review"|"ignored"|"deleted";occurredAt:string|null;participants?:string[];subject?:string};
+export type SourceEvent={id:string;companyId:string|null;dealId:string|null;candidates:string[];status:"matched"|"review"|"ignored"|"deleted";occurredAt:string|null;participants?:string[];relationshipParticipants?:string[];subject?:string};
 export type SyncBatch={events:SourceEvent[];cursor:SyncCursor;complete:boolean};
 function removed(id:string):SourceEvent{return {id,companyId:null,dealId:null,candidates:[],status:"deleted",occurredAt:null};}
 function occurred(value:string|undefined) { if(!value)return null;const date=new Date(value);return Number.isFinite(date.getTime())?date.toISOString():null; }
@@ -39,7 +39,7 @@ export async function gmailBatch(client:GoogleClient,index:ResolutionIndex,me:st
       // Capture history before the full listing; changes during pagination
       // will be replayed on the next history run, without a gap.
       if(!cursor.baseline)cursor.baseline=(await client.request<{historyId:string}>("gmail","/profile")).historyId;
-      const params=new URLSearchParams({maxResults:"100",q:"newer_than:90d -in:spam -in:trash"});if(cursor.pageToken)params.set("pageToken",cursor.pageToken);
+      const params=new URLSearchParams({maxResults:"100",q:"newer_than:90d -in:spam -in:trash -in:chats"});if(cursor.pageToken)params.set("pageToken",cursor.pageToken);
       const page=await client.request<{messages?:{id:string}[];nextPageToken?:string}>("gmail",`/messages?${params}`);
       items=page.messages??[];cursor.mode="full";cursor.nextPageToken=page.nextPageToken;
     }
@@ -50,14 +50,14 @@ export async function gmailBatch(client:GoogleClient,index:ResolutionIndex,me:st
   for(const item of items.slice(0,10)) {
     if(item.deleted){events.push(removed(item.id));continue;}
     let message:GmailMessage;
-    try {message=await client.request<GmailMessage>("gmail",`/messages/${encodeURIComponent(item.id)}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Cc&metadataHeaders=Subject`);}
+    try {message=await client.request<GmailMessage>("gmail",`/messages/${encodeURIComponent(item.id)}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Cc${index.publishCrm === false ? "" : "&metadataHeaders=Subject"}`);}
     catch(error){if(error instanceof GoogleError&&error.code==="not_found"){events.push(removed(item.id));continue;}throw error;}
-    if(message.labelIds?.some(label=>["TRASH","SPAM"].includes(label))){events.push(removed(item.id));continue;}
+    if(message.labelIds?.some(label=>["TRASH","SPAM","CHAT"].includes(label))){events.push(removed(item.id));continue;}
     const emails=new Set<string>();
     for(const name of ["From","To","Cc"]) {try{for(const email of parseAddresses(header(message,name)))if(email.toLowerCase()!==me.toLowerCase())emails.add(email);}catch{/* Malformed external header provides no matching evidence. */}}
     const resolution=resolveParticipants([...emails],index,header(message,"Subject"));
     const at=occurred(message.internalDate && Number.isFinite(Number(message.internalDate)) ? String(new Date(Number(message.internalDate))) : undefined);
-    events.push({id:item.id,...resolution,occurredAt:at,participants:[...emails].map(email=>email.toLowerCase()),subject:header(message,"Subject").slice(0,500)});
+    events.push({id:item.id,...resolution,occurredAt:at,participants:[...emails].map(email=>email.toLowerCase()),relationshipParticipants:message.labelIds?.includes("DRAFT")?[]:[...emails].map(email=>email.toLowerCase()),subject:index.publishCrm===false?undefined:header(message,"Subject").slice(0,500)});
   }
   const remaining=items.slice(10);
   if(remaining.length){cursor.pending=remaining;return {events,cursor,complete:false};}
@@ -82,7 +82,7 @@ export async function calendarBatch(client:GoogleClient,index:ResolutionIndex,me
     if(event.organizer?.email&&!event.organizer.self&&event.organizer.email.toLowerCase()!==me.toLowerCase())emails.push(event.organizer.email);
     const resolution=resolveParticipants(emails,index,event.summary);
     const at=occurred(event.start?.dateTime??event.start?.date);
-    return {id:event.id,...resolution,occurredAt:at,participants:emails.map(email=>email.toLowerCase()),subject:event.summary?.slice(0,500)};
+    return {id:event.id,...resolution,occurredAt:at,participants:emails.map(email=>email.toLowerCase()),relationshipParticipants:emails.filter(email=>!event.attendees?.some(a=>a.email.toLowerCase()===email.toLowerCase()&&a.responseStatus==="declined")).map(email=>email.toLowerCase()),subject:index.publishCrm===false?undefined:event.summary?.slice(0,500)};
   });
   if(!page.nextPageToken&&!page.nextSyncToken)throw new GoogleError("unavailable","Calendar did not return a durable cursor.");
   return {events,cursor:page.nextPageToken?{...cursor,pageToken:page.nextPageToken}:{syncToken:page.nextSyncToken??cursor.syncToken},complete:!page.nextPageToken};

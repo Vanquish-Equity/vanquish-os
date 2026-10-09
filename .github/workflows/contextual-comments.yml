@@ -4,6 +4,8 @@ on:
     paths:
       - 'supabase/migrations/**'
       - 'supabase/tests/**'
+      - 'supabase/phase-sql/**'
+      - 'scripts/check_phase_sql.py'
       - '.github/workflows/contextual-comments.yml'
 jobs:
   sql:
@@ -27,6 +29,8 @@ jobs:
       PGDATABASE: vanquish_test
     steps:
       - uses: actions/checkout@v4
+      - name: Check combined phase SQL matches migration sources
+        run: python3 scripts/check_phase_sql.py
       - name: Apply migrations twice and test access
         shell: bash
         run: |
@@ -100,3 +104,10 @@ jobs:
           for file in operating_workflows crm_sync_jobs workflow_source_access worker_privilege_boundary withdraw_sync_publications merge_search_hardening crm_board_sharing crm_boards deal_assignees; do
             psql -v ON_ERROR_STOP=1 -f "supabase/tests/${file}.sql" > /dev/null
           done
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261009171254_durable_relationship_sync.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/durable_relationship_sync.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/crm_sync_jobs.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/worker_privilege_boundary.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/withdraw_sync_publications.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261009171254_durable_relationship_sync.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/durable_relationship_sync.sql > /dev/null

@@ -149,25 +149,27 @@ Decided with Mario on 2026-10-05: the team may share **that** a member
 emailed or met someone in People and on which day — nothing else. Each member
 turns it on in Settings → **Relationship history**; it is off by default.
 
-- `relationship_interactions` (migration `20261005140000`) has one row per
-  Person, member, kind (`email`/`meeting`) and day, with the latest time that
-  day. No subject, body, meeting title, other participants or provider IDs
-  are stored. Only addresses already in People are matched; the member's own
-  address is ignored. Declined and cancelled meetings don't count.
-- RLS: every member can read the history; a member can only write their own
-  rows, only while their `relationship_sync` row is enabled, and can always
-  delete their own rows (**Delete my history** also turns sync off).
-  `relationship_sync` is visible only to its owner.
-- Sync (`src/lib/relationships/actions.ts`) uses the member's own Google
-  connection. The first run covers the last 90 days; later runs start a day
-  before the previous sync. Gmail is searched in batches of 20 People
-  addresses (from/to/cc, outside Trash/Spam/Chats) and reads only the
-  From/To/Cc headers of at most 400 messages per run — when a run hits that
-  cap the oldest messages in the window are skipped and Settings says so.
-  The primary Calendar is read for the same window. It runs when sharing is
-  turned on, from **Sync now**, and quietly once per browser tab when the
-  last sync is over 6 hours old. There is no background worker, so a member
-  who doesn't open Vanquish OS isn't synced.
+- `relationship_interactions` keeps one shared row per Person, member, kind and
+  UTC day, with the latest time. No subject, body, meeting title, participant
+  list or provider ID is shared. Only existing active People emails match;
+  the member's own account/mailbox address is excluded. Drafts, chats, declined
+  contacts and cancelled meetings do not count.
+- Members read shared history. Writes and consent changes now use bounded
+  definer RPCs; the browser cannot insert/update history or consent directly.
+  **Delete my history** disables only relationship sharing and removes this
+  member's history and private contributions. `relationship_sync` is private.
+- Migration `20261009171254` moves delivery to the existing durable queue.
+  Gmail and primary Calendar share one job stream with CRM activity, but the
+  two publication consents remain independent and off by default. Enabling
+  either sink starts a 90-day replay; subsequent runs use Google cursors.
+  **Queue sync** requests delivery; opening a browser is no longer required.
+  The existing external worker must be provisioned separately.
+- Private provider-event contributions allow replacement/cancellation to
+  recompute a day's latest interaction without deleting another meeting.
+  Pre-worker history is copied once into a private baseline because it has no
+  provider provenance. A cancellation cannot reliably retract that baseline;
+  deletion/withdrawal removes it explicitly. Future meetings remain private
+  until due. These records never contain subjects, titles or message bodies.
 - Shown as People's **Last interaction (team)** column (any list size; it
   reads stored rows, not Google) and on Company pages under each person:
   last touch, by whom, and up to three members who know them, ranked by days
@@ -327,4 +329,4 @@ Decide who can create shared versus personal boards; whether another Deal board 
 
 ## Operating workflow update
 
-[Operating workflows](operating-workflows.md) adds the Action center, human-reviewed changes, restricted Deal governance, company consolidation, ranked text/document search, Network introduction candidates and Portfolio monitoring. CRM delivery has its own consent and durable worker. Existing People relationship-history sharing remains separate and still uses its prior browser/manual sync.
+[Operating workflows](operating-workflows.md) adds the Action center, human-reviewed changes, restricted Deal governance, company consolidation, ranked text/document search, Network introduction candidates and Portfolio monitoring. CRM delivery has its own consent and durable worker. People relationship-history sharing keeps separate consent and now uses the same durable worker queue. See [Sync activation runbook](runbook-sync-activation.md).

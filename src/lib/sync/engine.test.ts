@@ -28,3 +28,22 @@ describe('incremental Google sync',()=>{
   const result=await calendarBatch(client(()=>({items:[{id:'cancelled',status:'cancelled'}],nextSyncToken:'next'})),index,'me@test.test',{});expect(result.events[0]).toMatchObject({id:'cancelled',status:'deleted',companyId:null});expect(result.cursor.syncToken).toBe('next');
  });
 });
+
+describe('independent relationship sink',()=>{
+ it('does not request or pass subjects in relationship-only runs and excludes drafts',async()=>{
+  vi.stubEnv('GMAIL_PUBSUB_TOPIC','');const paths:string[]=[];
+  const google=client((_service,path)=>{paths.push(path);return {internalDate:'1790812800000',labelIds:path.includes('/draft?')?['DRAFT']:[],payload:{headers:[{name:'From',value:'contact@external.test'},{name:'Subject',value:'Private subject'}]}};});
+  const result=await gmailBatch(google,{domains:[],people:[],deals:[],publishCrm:false},'me@test.test',{mailboxAddress:'me@test.test',mode:'full',baseline:'20',pending:[{id:'sent'},{id:'draft'}]});
+  expect(paths).toHaveLength(2);expect(paths.every(path=>path.includes('format=metadata')&&!path.includes('metadataHeaders=Subject'))).toBe(true);
+  expect(result.events[0].relationshipParticipants).toEqual(['contact@external.test']);expect(result.events[0].subject).toBeUndefined();expect(result.events[1].relationshipParticipants).toEqual([]);
+ });
+ it('excludes declined contacts and retains a cancellation without matching evidence',async()=>{
+  const result=await calendarBatch(client(()=>({items:[{id:'meeting',summary:'Private title',start:{dateTime:'2026-09-01T10:00:00Z'},attendees:[{email:'yes@external.test',responseStatus:'accepted'},{email:'no@external.test',responseStatus:'declined'}]},{id:'removed',status:'cancelled'}],nextSyncToken:'next'})),{domains:[],people:[],deals:[],publishCrm:false},'me@test.test',{});
+  expect(result.events[0].relationshipParticipants).toEqual(['yes@external.test']);expect(result.events[0].subject).toBeUndefined();expect(result.events[1]).toMatchObject({id:'removed',status:'deleted'});
+ });
+ it('reads each message once when both sinks publish',async()=>{
+  vi.stubEnv('GMAIL_PUBSUB_TOPIC','');const google=client(()=>({internalDate:'1790812800000',payload:{headers:[{name:'From',value:'x@alpha.test'},{name:'Subject',value:'Round'}]}}));
+  const result=await gmailBatch(google,{...index,publishCrm:true},'me@test.test',{mailboxAddress:'me@test.test',mode:'full',baseline:'20',pending:[{id:'both'}]});
+  expect(google.request).toHaveBeenCalledTimes(1);expect(result.events[0]).toMatchObject({companyId:'a',subject:'Round',relationshipParticipants:['x@alpha.test']});
+ });
+});
