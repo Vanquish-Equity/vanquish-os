@@ -72,7 +72,20 @@ and the offline Vanquish AI panel stays fixed without moving the sidebar.
   These are CSS only (`globals.css`), so new components get them by using the
   right ARIA role, and use the individual `opacity`, `translate` and `scale`
   properties so they never fight a utility such as `-translate-x-1/2`.
-- **Not animated on exit:** unmounting is instant on purpose; nothing waits for
+- **Vanquish AI:** Motion shared-layout IDs connect the circle and panel,
+  including their star icon. A fixed `layoutRoot` and scoped `LayoutGroup`
+  keep projection stable; the popup expands directly above the centered trigger
+  rather than travelling sideways. Radius and shadows are provided as styles
+  for Motion's scale correction. A restrained spring controls both directions;
+  content fades after expansion starts and quickly leaves before contraction.
+  `layout="position"` prevents text distortion; overflow is clipped during
+  projection and restored for the mode selector when settled. `AnimatePresence`
+  retains the departing surface, and its completion restores trigger focus.
+  Closing content is inert. Reduced motion removes projection and timing delays.
+  LazyMotion uses `domMax` for layout features with `motion/react-m` elements;
+  the assistant stays a client component, offline with disabled Prompt/Send.
+  Component-owned animations override generic CSS entrances/transitions locally.
+- **Other surfaces are not animated on exit:** unmounting is instant on purpose; nothing waits for
   an exit animation. Add one only with a real reason.
 - **Reduced motion:** every entrance above is disabled under
   `prefers-reduced-motion: reduce`.
