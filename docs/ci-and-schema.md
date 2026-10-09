@@ -49,3 +49,13 @@ the preview hosting pipeline to wait for the schema check.
 ## Operating workflow update
 
 The SQL workflow additionally applies all 20261008 migrations and runs operating_workflows, crm_sync_jobs and workflow_source_access plus regression checks for boards and Deal assignments. These are forward migrations applied once. A configured external worker and real Google connection are separate activation checks; see [Operating workflows](operating-workflows.md).
+
+Phase 1 explicitly registers migration `20261009171254` and
+`supabase/tests/durable_relationship_sync.sql` after the historical workflow
+sequence. SQL CI repeats the existing queue, machine privilege and withdrawal
+regressions, reapplies the new migration and repeats the new suite. Tests raise
+on failed assertions and use rolled-back synthetic fixtures. The combined
+phase-only SQL is `supabase/phase-sql/phase-1-durable-relationship-sync.sql`;
+it requires the preceding full migration chain. Local verification uses a
+fresh PGlite PostgreSQL 18.3 instance; CI uses native PostgreSQL 16. Neither is
+a migration or activation of preview/production.
