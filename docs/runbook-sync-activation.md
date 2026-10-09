@@ -25,14 +25,52 @@ manager. The JWT has role `vanquish_worker`, expiry at most one day ahead
 (prefer one hour), and automatic renewal before expiry. Its signing key stays
 only at the trusted issuer. Never use the service-role key. Never put the worker
 JWT in Vercel, browser variables, Git, PRs or logs. Verify expiry/role failures
-before a disposable lease smoke check; rotate with overlapping short-lived
-issuance and retire the previous issuer key only after the overlap ends.
+before a disposable lease smoke check. Rotate the issued token, not the
+project-wide signing key: atomically replace the secret version, restart new
+invocations and retire the old version after in-flight five-minute leases finish.
+Old signed tokens remain valid until expiry. For compromise stop the scheduler
+and revoke the affected role's RPC grants/authenticator membership until recovery.
 
 Each member connects their own Google account. CRM activity and relationship
 history are separate choices, both off by default; subject/title sharing needs
 its separate explicit CRM choice. Relationship-only access fetches no Gmail
 Subject header and never publishes CRM activity. Drive remains separately
 consented, Documents-permission gated, and restricted to chosen folders.
+
+### Create and rotate the two machine tokens
+
+1. After the role migrations are owner-applied, verify both machine roles are
+   NOLOGIN and RPC-only, with authenticator membership from the reviewed role
+   migration. Keep the existing project's accepted JWT signing configuration;
+   do not create a new project-wide signing key for this feature.
+2. Configure the trusted server-side issuer to sign separate tokens with
+   `role: vanquish_worker` and `role: vanquish_gmail_push`. Use the project's
+   accepted audience/issuer, issuance time and an expiry at most one day after
+   issuance (prefer one hour). Include no member impersonation email. Supabase
+   verifies the signature; the application's role/expiry preflight alone does not.
+3. Deliver the worker token only to the external worker secret manager and the
+   push token only to the web server's `GMAIL_PUSH_JWT`. Verify each expected
+   role/expiry without logging the token, then verify a disposable RPC access
+   matrix: worker may claim/context/commit; push may only signal.
+4. Schedule renewal before expiry, atomically replace each secret independently,
+   restart new invocations/deploy the web secret, and confirm a synthetic run
+   plus authenticated push when configured. An expired token must fail closed.
+5. On rollback stop scheduler/push delivery and pause the relevant application
+   consent. If compromised, also revoke machine RPC access; never restore broad
+   table grants, substitute a service-role token or drop published data.
+
+### Google scopes and consent audit
+
+The existing Connect flow requests Gmail `gmail.send`, `gmail.readonly` and
+`gmail.modify`, plus `calendar.readonly`; this PR does not narrow that broader
+interactive-mailbox grant. The read worker sends no mail and edits no events.
+Calendar write is a separate deliberate grant of `calendar.events`. Ordinary
+mailbox connection grants no Drive access. Documents import/monitor defaults to
+`drive.readonly`; only explicit rename/move requests full `drive` and still needs
+Documents permission. Register the exact application origin's fixed
+`/api/connections/google/callback` URI in Google OAuth. State is random,
+HTTP-only and short-lived, checked before member-scoped token persistence.
+OAuth sign-in, Google connection and publication consent are separate choices.
 
 ## Optional Gmail push
 
