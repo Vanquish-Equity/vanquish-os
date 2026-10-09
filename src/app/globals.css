@@ -487,3 +487,93 @@ html[data-vq-intro="play"] .vq-intro-card::before {
 .vq-rich-text p:last-child {
   margin-bottom: 0;
 }
+
+/* ---------------------------------------------------------------------------
+   Motion. Short, decelerating entrances for pages, menus, selectors and
+   dialogs. They only animate in (nothing waits on an exit), use opacity and
+   the individual translate/scale properties, and are switched off below for
+   people who prefer reduced motion.
+   ------------------------------------------------------------------------ */
+:root {
+  --vq-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes vq-page-in {
+  from { opacity: 0; translate: 0 6px; }
+}
+@keyframes vq-fade-in {
+  from { opacity: 0; }
+}
+@keyframes vq-pop-in {
+  from { opacity: 0; scale: 0.97; translate: 0 -4px; }
+}
+@keyframes vq-rise-in {
+  from { opacity: 0; scale: 0.985; translate: 0 10px; }
+}
+
+/* A new route (or its loading skeleton replaced by the page) settles in. */
+main.vq-page > * {
+  animation: vq-page-in 260ms var(--vq-ease-out) backwards;
+}
+
+/* Menus, selectors and small popovers grow from their anchor. */
+[role="menu"],
+[role="listbox"].absolute,
+[role="dialog"].absolute {
+  transform-origin: top center;
+  animation: vq-pop-in 140ms var(--vq-ease-out) backwards;
+}
+
+/* Floating panels (Vanquish AI, comments) and centred dialogs rise in. */
+[role="dialog"]:not(.absolute):not(.inset-0) {
+  animation: vq-rise-in 200ms var(--vq-ease-out) backwards;
+}
+#vanquish-ai-panel {
+  transform-origin: bottom center;
+}
+
+/* The dimmed backdrop of a modal fades in. */
+.fixed.inset-0:is(:has([role="dialog"]), :has(> button[aria-label^="Close"]), [role="dialog"]) {
+  animation: vq-fade-in 160ms ease-out backwards;
+}
+
+dialog[open] {
+  animation: vq-rise-in 200ms var(--vq-ease-out) backwards;
+}
+dialog[open]::backdrop {
+  animation: vq-fade-in 160ms ease-out backwards;
+}
+
+@layer base {
+  /* Hover, focus and selected states ease instead of snapping. Utilities that
+     set their own transition still win over this layer. */
+  button,
+  a,
+  input,
+  textarea,
+  select,
+  [role="option"],
+  [role="menuitem"] {
+    transition-property: color, background-color, border-color, box-shadow, opacity, fill, stroke;
+    transition-duration: 150ms;
+    transition-timing-function: ease;
+  }
+
+  /* Thin, quiet scrollbars. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(10 14 16 / 0.2) transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  main.vq-page > *,
+  [role="menu"],
+  [role="listbox"].absolute,
+  [role="dialog"],
+  dialog[open],
+  dialog[open]::backdrop,
+  .fixed.inset-0:is(:has([role="dialog"]), :has(> button[aria-label^="Close"])) {
+    animation: none;
+  }
+}

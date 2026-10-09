@@ -16,6 +16,9 @@ export type AccessState =
       displayName?: string | null;
       // Name from the sign-in provider (Google), when there is one.
       providerName?: string | null;
+      // Storage path of the member's avatar, so the shell can sign it without
+      // a second profile query.
+      avatarPath?: string | null;
     };
 
 export function toPermissionSet(values: Array<string | null | undefined>) {

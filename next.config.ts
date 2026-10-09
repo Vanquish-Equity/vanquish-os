@@ -8,6 +8,9 @@ const nextConfig: NextConfig = {
     serverFunctions: false,
   },
   experimental: {
+    // Only links opted in to a full prefetch (the sidebar's read-mostly pages,
+    // on hover) use `static`; everything else stays uncached (`dynamic: 0`).
+    staleTimes: { dynamic: 0, static: 30 },
     serverActions: {
       bodySizeLimit: "4mb",
     },

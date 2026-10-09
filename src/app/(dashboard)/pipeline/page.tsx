@@ -102,6 +102,7 @@ export default async function PipelinePage({
     priorities,
     rounds,
     savedPipelineViews,
+    { members, byDeal: assigneesByDeal },
   ] = await Promise.all([
     getPipelineStages() as Promise<Stage[]>,
     showArchived
@@ -145,9 +146,10 @@ export default async function PipelinePage({
     getPriorityOptions() as Promise<Option[]>,
     getDealRoundOptions() as Promise<Option[]>,
     loadPipelineSavedViews(supabase),
+    // Independent of the deal list, so it runs alongside it.
+    loadDealAssignees(supabase, null),
   ]);
   endTimer();
-  const { members, byDeal: assigneesByDeal } = await loadDealAssignees(supabase, (deals ?? []).map((deal) => deal.id));
 
   const companies: NewDealCompanyOption[] = (companyRows ?? []).map((company) => ({
     id: company.id,
