@@ -13,8 +13,10 @@ the next phase only after the previous phase's application and applicable SQL
 CI are green at its exact head commit. Never merge these PRs or apply their
 migrations to preview/production. A dependent phase must name its prerequisite
 PR/commit explicitly; do not silently copy unmerged implementation into another
-phase's PR. If a prerequisite is absent from main, hold dependent implementation
-for the owner's integration; independent design work can still be prepared.
+phase's PR. A dependent draft may be stacked explicitly on its prerequisite
+branch, using that branch as the PR base, after its exact-head CI passes. This
+keeps the phase-specific diff reviewable without merging or activating either
+phase. Retarget/rebase onto main only after the owner integrates prerequisites.
 
 Read AGENTS.md, the documentation map and the installed Next.js guide relevant
 to each API before editing. Reuse existing server membership checks, RLS,
