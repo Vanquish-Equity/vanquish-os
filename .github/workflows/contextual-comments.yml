@@ -104,6 +104,7 @@ jobs:
           for file in operating_workflows crm_sync_jobs workflow_source_access worker_privilege_boundary withdraw_sync_publications merge_search_hardening crm_board_sharing crm_boards deal_assignees; do
             psql -v ON_ERROR_STOP=1 -f "supabase/tests/${file}.sql" > /dev/null
           done
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/phase1_rollback_snapshot.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261009171254_durable_relationship_sync.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/durable_relationship_sync.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/crm_sync_jobs.sql > /dev/null
@@ -111,3 +112,18 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/tests/withdraw_sync_publications.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261009171254_durable_relationship_sync.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/durable_relationship_sync.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261012175553_auth_service_worker.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/auth_worker_identity.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/auth_worker_publication.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261012175553_auth_service_worker.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/auth_worker_identity.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/auth_worker_publication.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/phase1_rollback_data.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/phase-sql/phase-1-rollback.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/phase-sql/phase-1-rollback.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/phase1_rollback_assert.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/relationship_interactions.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/crm_sync_jobs.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/workflow_source_access.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/worker_privilege_boundary.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/withdraw_sync_publications.sql > /dev/null

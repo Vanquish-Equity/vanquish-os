@@ -47,3 +47,13 @@ describe('independent relationship sink',()=>{
   expect(google.request).toHaveBeenCalledTimes(1);expect(result.events[0]).toMatchObject({companyId:'a',subject:'Round',relationshipParticipants:['x@alpha.test']});
  });
 });
+
+
+describe('polling-only worker',()=>{
+ it('never creates a Gmail watch even when an old topic remains configured',async()=>{
+  vi.stubEnv('GMAIL_PUBSUB_TOPIC','projects/synthetic/topics/disabled');const paths:string[]=[];
+  try{const google=client((_service,path)=>{paths.push(path);return {internalDate:'1790812800000',payload:{headers:[{name:'From',value:'contact@external.test'}]}};});
+  await gmailBatch(google,{domains:[],people:[],deals:[],publishCrm:false},'me@test.test',{mailboxAddress:'me@test.test',mode:'full',baseline:'20',pending:[{id:'synthetic'}]});
+  expect(paths).toHaveLength(1);expect(paths[0]).not.toContain('/watch');}finally{vi.unstubAllEnvs();}
+ });
+});

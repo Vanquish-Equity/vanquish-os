@@ -1,15 +1,17 @@
 """Generate/review phase SQL from migration sources; default mode checks drift."""
 import argparse
+from adapt_auth_worker_tests import check_generated
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PHASES = {
+    "phase-1-rollback.sql": ("-- Owner-reviewed full phase 1 rollback. Stop worker; reject phase 2.\n\n", ["../rollback/phase-1-durable-relationship-sync.sql"]),
     "phase-1-durable-relationship-sync.sql": (
-        "-- Combined phase 1 SQL. Source: migrations/20261009171254_durable_relationship_sync.sql\n"
+        "-- Combined phase 1 SQL. Sources: durable_relationship_sync + auth_service_worker migrations.\n"
         "-- Prerequisite: entire preceding migration chain through 20261008201057.\n"
         "-- Review DELETE/trigger DROP impact in docs/runbook-sync-activation.md.\n"
         "-- No preview/production execution is authorized by this artifact.\n\n",
-        ["20261009171254_durable_relationship_sync.sql"],
+        ["20261009171254_durable_relationship_sync.sql", "20261012175553_auth_service_worker.sql"],
     ),
 }
 
@@ -18,6 +20,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--write", action="store_true", help="Regenerate committed phase SQL locally")
     args = parser.parse_args()
+    check_generated(args.write)
     failed = []
     for name, (header, sources) in PHASES.items():
         expected = header + "\n".join((ROOT / "supabase/migrations" / source).read_text() for source in sources)

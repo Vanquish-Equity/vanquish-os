@@ -17,10 +17,7 @@ export async function gmailBatch(client:GoogleClient,index:ResolutionIndex,me:st
   const cursor={...input};
   if(!cursor.mailboxAddress){const profile=await client.request<{emailAddress:string}>("gmail","/profile");cursor.mailboxAddress=profile.emailAddress;}
   me=cursor.mailboxAddress;
-  const topic=process.env.GMAIL_PUBSUB_TOPIC;
-  if(topic&&(!cursor.watchExpiration||Number(cursor.watchExpiration)<Date.now()+86400000)) {
-    const watch=await client.request<{expiration:string}>("gmail","/watch",{method:"POST",body:JSON.stringify({topicName:topic})});cursor.watchExpiration=watch.expiration;
-  }
+  // Gmail push/watch is disabled. Poll /history or perform the bounded full scan.
   let items=cursor.pending;
   if(!items?.length) {
     if(cursor.historyId && cursor.mode!=="full") {

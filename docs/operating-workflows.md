@@ -22,9 +22,8 @@ embedding service, or automatic AI decision. Company remains separate from Deal.
 The first Gmail pass covers the previous 90 days, excluding Trash/Spam.
 It captures a history baseline before listing and then follows `historyId`.
 Only ten message metadata requests are made per lease; a pending ID list prevents
-advancing the cursor before processing the rest. Gmail watch is optional and
-renewed when its expiry is within one day. Pub/Sub is only a wake-up signal:
-notifications never directly advance the durable history cursor.
+advancing the cursor before processing the rest. Gmail push/watch is disabled;
+this worker polls history/list endpoints without creating a watch.
 
 Calendar incrementally reads the primary calendar, initially from 90 days ago,
 expands recurring occurrences and follows `syncToken`. A 410 resets the cursor.
@@ -52,10 +51,12 @@ Gmail/Calendar CRM consent and is paused per folder.
 - Mailbox access still belongs to its user. Enabling CRM activity or relationship history explicitly permits
   a machine worker to read that account's encrypted token through lease-bound
   RPCs. No member, admin or worker can directly select the credential table.
-- `vanquish_worker` is an RPC-only role. It can claim consented jobs and get the
-  context for a current five-minute lease; it has no direct table, Storage,
-  sending or CRM editing privileges. Jobs retry with backoff, stop after five
-  attempts and can be queued again from Integration health.
+- The worker signs in as an Auth service user and must have its UUID enabled
+  in `private.machine_identities`. Each worker RPC validates that subject first.
+  Members/unregistered users/legacy custom roles are denied. Service subjects
+  are isolated by restrictive public/Storage RLS and invoker views; they have no
+  direct credential/registry access and are excluded from app membership. Jobs
+  use five-minute leases and bounded backoff.
 - Changing either publication consent invalidates Gmail/Calendar leases and restarts eligible delivery. Existing shared activity stays;
   turning subject sharing off removes those integration subjects. No email
   bodies are stored. Folder monitoring needs its own explicit opt-out.
@@ -87,25 +88,16 @@ Gmail/Calendar CRM consent and is paused per folder.
    required. Enable Drive API and add the additional scopes to the same OAuth
    consent configuration. Reading requests `drive.readonly`; management asks
    for `drive`. Only members with Documents can request those additional grants.
-3. Run `npm run sync:worker` on a server-side scheduler (for example every
-   ten minutes). It processes at most twenty batches per invocation. Configure
-   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, Google OAuth
-   client ID/secret, `MAILBOX_TOKEN_ENCRYPTION_KEY`, and `VANQUISH_WORKER_JWT` (worker secret manager only).
-   The JWT must be issued using the project's trusted signing configuration
-   with role `vanquish_worker`, a short expiry and scheduled renewal. An admin
-   must provision that issuer/scheduler; this repo does not mint JWTs or ship
-   signing keys. Never substitute a service-role key or put worker credentials
-   in a `NEXT_PUBLIC_*` variable. A queued job alone is not an active worker.
-4. Optional Gmail Pub/Sub: create a topic in the Google OAuth project's GCP
-   project; grant Gmail's publishing service account permission to publish.
-   Set `GMAIL_PUBSUB_TOPIC` to its full topic name on the worker. Configure an
-   authenticated Pub/Sub push subscription to `/api/integrations/gmail/push`;
-   set `GMAIL_PUSH_AUDIENCE`, `GMAIL_PUSH_SERVICE_ACCOUNT` and the renewable
-   `GMAIL_PUSH_JWT` on the web server, using the separate `vanquish_gmail_push` role.
-   Never set `VANQUISH_WORKER_JWT` on Vercel. The push identity can only call
-   `worker_signal_gmail`; it cannot obtain OAuth tokens, read tables or claim leases. The endpoint verifies Google's signed OIDC
-   token, issuer, audience, verified service-account email and signal bounds.
-   This is the only new unauthenticated route; it verifies its own machine auth.
+3. Run `npm run sync:worker` on the owner's computer for the production
+   relationships-only canary, later under an owner-provisioned scheduler.
+   It uses the project's public URL/anon or publishable key, service Auth
+   email/password/expected UUID, Google OAuth client and encryption secrets.
+   The process uses in-memory normal Auth sessions and explicit pre-expiry refresh;
+   no local JWT signing secret, service-role key or worker JWT is accepted.
+   See the runbook for hidden-prompt Bash/PowerShell commands.
+4. Gmail push is disabled: the endpoint returns 503 and the worker creates no
+   watch. Polling is sufficient. A future signal-only identity and Google OIDC/
+   Pub/Sub lifecycle must be separately designed and reviewed.
 5. In each account, connect Google, save CRM consent and optionally monitor
    a Drive folder. Confirm a job becomes complete, associate a test email and
    meeting, and check the Company's/Deal's Last Activity. Confirm opt-out and
@@ -140,31 +132,25 @@ They must not be described as validated in production from passing unit tests.
 
 ## Worker credential boundary and rotation
 
-`VANQUISH_WORKER_JWT` lives **only in the external worker's secret manager**;
-never in Vercel, this repository, browser configuration or logs. The issuer's
-signing key stays with the trusted issuer. Issue role `vanquish_worker` with
-`exp` at most **one day** ahead (prefer one hour); the worker fails before any
-RPC when `exp` is missing, expired or beyond the one-day ceiling. This preflight
-is not signature validation: Supabase still validates the signed token.
+The old custom-role JWT contract is superseded by migration
+`20261012175553_auth_service_worker.sql`. Register only the service user's Auth
+UUID via owner SQL; never add its email to `app_members`. Each public worker RPC
+locks and checks the enabled identity before calling a private reviewed delegate.
 
-Rotate automatically before expiry: request a new token from the trusted issuer,
-validate role/expiry, atomically replace the secret manager version, restart
-worker invocations and run a disposable lease smoke check. Retire the previous
-secret version after in-flight five-minute leases finish; signed old tokens
-remain valid until their short expiry. For compromise, stop the scheduler and
-revoke the role's RPC grants / authenticator membership until the issuer and
-credential are recovered. Do not rotate a project-wide signing key casually.
-The push-only `GMAIL_PUSH_JWT` follows the same short-expiry renewal, separately.
+The worker signs in with password, verifies normal Auth `authenticated` role,
+expected UUID/email and future expiry, and refreshes near expiry before calls.
+Only Auth issues/signs tokens; no project signing key or service-role secret is
+involved. Password rotation disables identity first, revokes refresh sessions,
+sets a minimum accepted token issuance time and starts a fresh process. Disabled
+registry rows still enforce table isolation. The runbook gives the owner SQL.
 
-`20261008200449_worker_privilege_boundary.sql` removes inherited PUBLIC execute
-from application functions while preserving existing anon/member grants.
-Machine roles inherit no member roles and have no direct access to business,
-investor-position, private credential/document or Storage tables. The worker's
-only executable application functions are the `worker_*` RPCs. The webhook
-accepts signed Google RS256 OIDC tokens with the configured audience, Google
-issuer, expiry, issued-at and verified exact service-account email; malformed,
-expired, wrong issuer/audience/account tokens fail closed. It never uses a
-service-role key or the worker identity.
+Service calls use the member owning the leased source as the publication/audit
+actor. Deal-access checks, publisher immutability and withdrawal capability
+remain enforced with the service's `authenticated` database role. No member can
+call worker RPCs or acquire that actor context through them. Auth subject checks
+are live database checks, so an unexpired old JWT cannot bypass revocation.
+The production canary defaults to relationships-only and refuses every worker
+RPC when any CRM sink or Drive source is enabled. Push remains disabled.
 
 The original `update_last_activity_from_interaction` (0008) and
 `review_requirements_after_document_archive` (0013) were invoker functions.
@@ -313,3 +299,21 @@ Withdrawal and Delete my history remove that member's private baseline too.
 See [Sync activation runbook](runbook-sync-activation.md) for owner-controlled
 provisioning and acceptance. This PR does not provision an issuer, scheduler,
 Pub/Sub, secrets or Google accounts, or apply any remote migration.
+
+## Phase 1 reversal and verification
+
+[Full rollback](../supabase/phase-sql/phase-1-rollback.sql) reverses both durable
+relationships and Auth identity migrations; source is `supabase/rollback/` and
+combined copies are drift-checked. It invalidates Gmail/Calendar leases, restores
+exact prior function bodies/ACLs, browser relationship writes and pre-existing
+RLS/view/DDL-grant settings. Visible history remains; private provenance/future
+contributions, machine registrations and phase-only columns are dropped. It
+rejects a phase 2 schema. Stop workers and restore the previous application as
+part of the owner-controlled reversal; no rollback is applied by this PR.
+
+CI compares pre-phase function definitions/ACLs and relation security, exercises
+service login-independent SQL identity/revocation/rotation-fence checks and legacy
+business scenarios with synthetic Auth identities, rolls back twice, checks
+visible-data preservation and reruns the original relationship/sync/#60 withdrawal
+and boundary tests. Original legacy tests remain before the new migration and
+after rollback. No real credentials, accounts or Google calls are in fixtures.
