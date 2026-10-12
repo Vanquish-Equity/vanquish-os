@@ -528,6 +528,17 @@ main.vq-page > * {
 [role="dialog"]:not(.absolute):not(.inset-0) {
   animation: vq-rise-in 200ms var(--vq-ease-out) backwards;
 }
+/* The assistant sits above the intro (z-90 over z-60), so it is hidden while
+   the welcome plays (html[data-vq-intro="play"]) and fades in when it ends or
+   is skipped. visibility switches at once on the way in, opacity eases. */
+.vq-ai-root {
+  transition: opacity 450ms ease, visibility 0s linear;
+}
+html[data-vq-intro="play"] .vq-ai-root {
+  visibility: hidden;
+  opacity: 0;
+  transition: none;
+}
 /* Motion owns projection transforms, radius correction and crossfades. */
 .vq-ai-root [data-ai-motion],
 #vanquish-ai-panel {
@@ -573,6 +584,9 @@ dialog[open]::backdrop {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .vq-ai-root {
+    transition: none;
+  }
   main.vq-page > *,
   [role="menu"],
   [role="listbox"].absolute,
