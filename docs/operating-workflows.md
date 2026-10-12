@@ -317,3 +317,13 @@ business scenarios with synthetic Auth identities, rolls back twice, checks
 visible-data preservation and reruns the original relationship/sync/#60 withdrawal
 and boundary tests. Original legacy tests remain before the new migration and
 after rollback. No real credentials, accounts or Google calls are in fixtures.
+
+### Auth worker isolation policy execution
+
+Machine isolation predicates use a scalar SELECT in both USING and WITH CHECK
+so the row-independent identity check becomes a per-statement InitPlan. Storage
+isolation targets only objects and buckets; unexpected authenticated access to
+other Storage relations aborts the migration rather than leaving a service-access
+gap. Any unhandled Storage ownership/DDL error rolls back the Auth migration
+transaction. The activation runbook includes a member-session check of team
+activity through the invoker `person_last_interaction` view.

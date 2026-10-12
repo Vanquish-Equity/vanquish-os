@@ -1,6 +1,17 @@
 begin;
 create function pg_temp.expect(ok boolean,label text) returns void language plpgsql as $$begin if not coalesce(ok,false) then raise exception 'AUTH WORKER TEST: %',label;end if;end$$;
 create function pg_temp.denied(q text) returns boolean language plpgsql as $$begin execute q;return false;exception when insufficient_privilege then return true;end$$;
+-- Reject regressions to a per-row machine identity check in either predicate.
+select pg_temp.expect(not exists(select 1 from pg_policy where polname='machine_identity_isolation'
+ and (pg_get_expr(polqual,polrelid) not like '%SELECT%is_machine_identity()%'
+ or pg_get_expr(polwithcheck,polrelid) not like '%SELECT%is_machine_identity()%')),'both policy predicates use an initplan');
+select pg_temp.expect((select count(*)=2 from pg_policy p join pg_class c on c.oid=p.polrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='storage' and p.polname='machine_identity_isolation'),'only Storage objects and buckets are isolated');
+select pg_temp.expect(not exists(select 1 from private.machine_rls_baselines where relation_id='storage.internal_service_metadata'::regclass),'Storage internals are not captured/altered');
+select pg_temp.expect(not (select relrowsecurity from pg_class where oid='storage.internal_service_metadata'::regclass),'Storage internal RLS remains unchanged');
+insert into public.app_members(email) values('colleague@machine.test');
+insert into public.people(id,name) values('dddddddd-0000-0000-0000-000000000097','Synthetic Team Person');
+insert into public.relationship_interactions(person_id,member_email,kind,occurred_on,last_at)
+ values('dddddddd-0000-0000-0000-000000000097','colleague@machine.test','email','2026-01-01','2026-01-01');
 insert into auth.users values('aaaaaaaa-0000-0000-0000-000000000099','service@machine.test'),('bbbbbbbb-0000-0000-0000-000000000098','member@machine.test');
 insert into private.machine_identities(sub) values('aaaaaaaa-0000-0000-0000-000000000099');
 insert into public.app_members(email) values('member@machine.test');
@@ -10,6 +21,11 @@ insert into public.crm_sync_accounts(email) values('member@machine.test');
 create temp table owned_lease(id uuid,lease uuid);grant all on owned_lease to authenticated;
 set local role authenticated;
 select set_config('request.jwt.claims','{"role":"authenticated","sub":"bbbbbbbb-0000-0000-0000-000000000098","email":"member@machine.test"}',true);
+select pg_temp.expect((select member_email='colleague@machine.test' from public.person_last_interaction where person_id='dddddddd-0000-0000-0000-000000000097'),'invoker view retains another team member activity');
+do $$declare plan json;begin
+ execute 'explain (analyze,format json) select count(*) from public.relationship_interactions' into plan;
+ perform pg_temp.expect(plan::text like '%InitPlan%','member read uses InitPlan');
+end$$;
 select pg_temp.expect(pg_temp.denied('select public.worker_claim_sync()'),'member cannot claim');
 select pg_temp.expect(pg_temp.denied('select public.worker_sync_context(gen_random_uuid(),gen_random_uuid())'),'member cannot get credentials');
 select pg_temp.expect(pg_temp.denied('select public.worker_commit_sync(gen_random_uuid(),gen_random_uuid(),''[]'',''{}'',true)'),'member cannot publish');

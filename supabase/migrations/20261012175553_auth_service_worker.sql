@@ -41,8 +41,18 @@ $$;
 create table if not exists private.machine_rls_baselines(relation_id oid primary key,enabled boolean not null,auth_ddl text[] not null);
 create table if not exists private.machine_view_baselines(relation_id oid primary key,options text[]);
 revoke all on private.machine_rls_baselines,private.machine_view_baselines from public,anon,authenticated,vanquish_worker,vanquish_gmail_push;
+-- Storage internals remain service-owned. Fail closed if an excluded relation
+-- is API-readable/writable: expanding the reviewed policy scope is then required.
+-- No exception handler: any ownership/DDL error aborts this entire transaction.
+do $$begin
+ if exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace
+   where n.nspname='storage' and c.relkind in ('r','p','v','m')
+   and c.relname not in ('objects','buckets')
+   and has_table_privilege('authenticated',c.oid,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'))
+ then raise exception 'Unexpected authenticated Storage access; review isolation scope' using errcode='42501';end if;
+end$$;
 do $$declare t record;original boolean;begin
- for t in select n.nspname,c.relname,c.oid,c.relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('public','storage') and c.relkind in ('r','p') loop
+ for t in select n.nspname,c.relname,c.oid,c.relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where (n.nspname='public' or (n.nspname='storage' and c.relname in ('objects','buckets'))) and c.relkind in ('r','p') loop
   insert into private.machine_rls_baselines values(t.oid,t.relrowsecurity,array(select v from unnest(array['TRUNCATE','REFERENCES','TRIGGER'])v where has_table_privilege('authenticated',t.oid,v))) on conflict do nothing;
   select enabled into original from private.machine_rls_baselines where relation_id=t.oid;
   execute format('revoke truncate,references,trigger on %I.%I from authenticated',t.nspname,t.relname);
@@ -52,9 +62,9 @@ do $$declare t record;original boolean;begin
    execute format('create policy machine_previous_access on %I.%I for all to public using (true) with check (true)',t.nspname,t.relname);
   end if;
   execute format('drop policy if exists machine_identity_isolation on %I.%I',t.nspname,t.relname);
-  execute format('create policy machine_identity_isolation on %I.%I as restrictive for all to authenticated using (not private.is_machine_identity()) with check (not private.is_machine_identity())',t.nspname,t.relname);
+  execute format('create policy machine_identity_isolation on %I.%I as restrictive for all to authenticated using ((select not private.is_machine_identity())) with check ((select not private.is_machine_identity()))',t.nspname,t.relname);
  end loop;
- for t in select n.nspname,c.relname,c.oid,c.reloptions from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('public','storage') and c.relkind='v' loop
+ for t in select n.nspname,c.relname,c.oid,c.reloptions from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='v' loop
   insert into private.machine_view_baselines values(t.oid,t.reloptions) on conflict do nothing;
   execute format('alter view %I.%I set (security_invoker=true)',t.nspname,t.relname);
  end loop;

@@ -24,3 +24,7 @@ grant select,insert,delete on storage.objects to authenticated;
 -- migrations narrow it per object. Plain PostgreSQL needs that baseline.
 alter default privileges in schema public grant all on tables to authenticated;
 alter default privileges in schema public grant usage on sequences to authenticated;
+
+-- Synthetic service-owned Storage internal relation: never API-granted.
+create table storage.internal_service_metadata(id integer primary key);
+insert into storage.internal_service_metadata values(1);

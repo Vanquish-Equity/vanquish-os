@@ -37,7 +37,10 @@ service user must not be in `app_members`; accidental membership rejects its
 worker access and registered service subjects remain excluded from member RLS.
 
 Registered subjects, including disabled identities, have restrictive table
-isolation across public and Storage tables. Existing unprotected tables retain
+isolation across public tables and `storage.objects`/`storage.buckets`.
+Each machine predicate uses `(select not private.is_machine_identity())` in
+both USING and WITH CHECK so PostgreSQL evaluates the row-independent check
+once per statement through an InitPlan, rather than once per row. Existing unprotected tables retain
 their prior access contract for other roles, but service access is denied.
 Views use invoker RLS. Shared `authenticated` grants cannot distinguish users,
 so no-data/no-write tests check actual RLS outcomes, not just SQL GRANT bits.
@@ -90,6 +93,82 @@ a member RPC with the protected transaction capability, not a worker capability.
 The service Auth account is different from a disposable Google test account:
 the owner uses the existing Google connection; the service account only runs RPCs.
 There are no consent or identity changes executed by these instructions.
+
+## Storage ownership and migration failure
+
+The Auth worker migration touches only `storage.objects` and `storage.buckets`:
+these contain file/bucket metadata reachable through Storage access control.
+It does not alter Storage internal migrations, multipart-upload or analytics
+relations, or Storage views. Before changing policies it checks effective
+`authenticated` privileges (including privileges inherited from PUBLIC) on all
+other Storage tables/views. Any such access aborts the migration: review that
+relation and explicitly extend the isolation design before trying again. This
+keeps service isolation fail-closed without changing all service-owned tables.
+See [Storage schema](https://supabase.com/docs/guides/storage/schema/design)
+and [platform permissions](https://supabase.com/docs/guides/platform/permissions).
+
+Supabase owns Storage relations as `supabase_storage_admin`. A disposable CI
+owner is not proof that the project's migration connection can change those
+relations. If ALTER TABLE, REVOKE or CREATE POLICY fails (including an ownership
+or permission error), the Auth migration **must fail completely and revert**.
+Its BEGIN/COMMIT surrounds every change; there is no exception handler that
+swallows errors. Do not skip Storage statements, continue with warnings about a
+failed statement, change service ownership, or enable the worker after failure.
+With psql, use `-v ON_ERROR_STOP=1`: the failed connection closes and rolls back.
+In a SQL editor/session left in an aborted transaction, execute ROLLBACK before
+any further query. Correct the supported migration-role permissions with the
+owner/provider, then retry the entire reviewed migration, not its suffix.
+
+The combined forward file contains two separate migration transactions. An Auth
+migration failure rolls back **that migration**, including registry, policies,
+privileges and function changes; it does not undo the earlier durable-relationship
+migration if that transaction already committed. Keep the worker stopped and
+use the reviewed full phase rollback/previous deployment if abandoning phase 1.
+The full rollback itself also fails atomically on an unhandled Storage DDL error.
+
+## Post-migration team-history check
+
+Before enabling the worker, confirm the view option as database owner:
+
+```sql
+select reloptions from pg_class
+where oid='public.person_last_interaction'::regclass;
+```
+
+It must contain `security_invoker=true`. Then verify **under a normal active
+member's authenticated session**, not the owner postgres role or the service
+user, that People/Network shows the existing latest interaction. After the
+owner's polling run, confirm the updated `last_at` and member attribution agree
+with the latest row in `relationship_interactions` for a known Person. Invoker
+views require both view/base-table SELECT grants and the caller's RLS to allow
+team history; an empty view as postgres is not an acceptance check.
+
+For an owner-operated SQL diagnostic, substitute the real member UUID/email and
+known Person UUID locally, never commit them. This only reads data and rolls back:
+
+```sql
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"role":"authenticated","sub":"00000000-0000-0000-0000-000000000001","email":"member@example.test"}',true);
+select person_id,member_email,kind,last_at
+from public.person_last_interaction
+where person_id='00000000-0000-0000-0000-000000000002';
+select member_email,kind,last_at
+from public.relationship_interactions
+where person_id='00000000-0000-0000-0000-000000000002'
+order by last_at desc;
+rollback;
+```
+
+The view must return the same latest team interaction as the base-table query.
+Today there is only one connected member, so verify that member's existing row
+and new activity without provisioning another account. When another member has
+history, repeat as a different active member: the latest team row must still be
+visible, even if attributed to the other member. CI already exercises this with
+two synthetic members, and verifies that the service identity sees no rows.
+If grants/RLS hide the expected row or an error occurs, stop activation and
+review the affected grants/policies; do not remove `security_invoker` to bypass it.
 
 ## Run from a computer
 

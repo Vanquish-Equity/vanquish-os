@@ -6,9 +6,11 @@ do $$begin if to_regclass('public.lp_scouting_settings') is not null then raise 
 lock table public.crm_sync_jobs in access exclusive mode;
 update public.crm_sync_jobs set status='dead',lease=null,locked_until=null,error_code='phase1_rollback' where service in ('gmail','calendar') and status in ('pending','running','retry');
 drop trigger if exists sync_checkpoint_time on public.crm_sync_jobs;
--- Remove only policies introduced by the Auth worker migration.
+-- Remove only policies introduced by the Auth worker migration, including
+-- SELECT-wrapped predicates. Include older Storage baselines when reversing
+-- the earlier broad-scope version; restore only relations actually captured.
 do $$declare t record;begin
- for t in select p.polname,n.nspname,c.relname from pg_policy p join pg_class c on c.oid=p.polrelid join pg_namespace n on n.oid=c.relnamespace where p.polname in ('machine_identity_isolation','machine_previous_access') loop
+ for t in select p.polname,n.nspname,c.relname from pg_policy p join pg_class c on c.oid=p.polrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('public','storage') and p.polname in ('machine_identity_isolation','machine_previous_access') loop
   execute format('drop policy %I on %I.%I',t.polname,t.nspname,t.relname);
  end loop;
 end$$;

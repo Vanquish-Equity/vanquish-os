@@ -7,6 +7,7 @@ do $$declare r record;p oid;acl jsonb;begin
  end loop;
  if exists(select 1 from private.phase1_rollback_relation_snapshot s join pg_class c on c.oid=s.oid where c.relrowsecurity is distinct from s.relrowsecurity or c.reloptions is distinct from s.reloptions) then raise exception 'ROLLBACK: RLS/view baseline not restored';end if;
  if not has_table_privilege('authenticated','public.relationship_interactions','SELECT,INSERT,UPDATE,DELETE') or not has_table_privilege('authenticated','public.relationship_sync','SELECT,INSERT,UPDATE') then raise exception 'ROLLBACK: browser grants missing';end if;
+ if exists(select 1 from pg_policy where polname in ('machine_identity_isolation','machine_previous_access')) then raise exception 'ROLLBACK: machine policy remains';end if;
  if to_regclass('private.machine_identities') is not null or to_regclass('private.relationship_source_contributions') is not null then raise exception 'ROLLBACK: private phase tables remain';end if;
  if (select count(*) from public.relationship_interactions where member_email='rollback@machine.test')<>2
  or exists(select 1 from public.relationship_interactions where member_email='rollback@machine.test' and occurred_on not in ('2026-01-01','2026-02-01'))
