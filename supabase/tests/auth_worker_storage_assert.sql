@@ -1,0 +1,7 @@
+-- Also runs after BOTH rollback executions: role/ownership/RLS/ACLs unchanged.
+do $$begin
+ if current_user<>'phase1_migrator' or (select rolsuper or rolbypassrls from pg_roles where rolname=current_user) then raise exception 'CI forward/rollback role must be non-superuser';end if;
+ if exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='storage' and c.relowner<>(select oid from pg_roles where rolname='fixture_storage_owner')) then raise exception 'Storage ownership changed';end if;
+ if exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='storage' and c.relkind in ('r','p') and c.relname<>'internal_service_metadata' and not c.relrowsecurity) then raise exception 'Storage RLS changed: %',(select string_agg(c.relname,',') from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='storage' and c.relkind in ('r','p') and c.relname<>'internal_service_metadata' and not c.relrowsecurity);end if;
+ if exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='storage' and c.relname in ('buckets_analytics','buckets_vectors','s3_multipart_uploads','s3_multipart_uploads_parts','vector_indexes') and (not has_table_privilege('authenticated',c.oid,'SELECT,INSERT,UPDATE,DELETE') or exists(select 1 from pg_policy p where p.polrelid=c.oid))) then raise exception 'Storage deny-all internal fixture changed';end if;
+end$$;

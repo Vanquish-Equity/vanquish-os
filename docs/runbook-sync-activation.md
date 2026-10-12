@@ -4,7 +4,11 @@ This procedure reflects the owner's choice: one production Supabase project,
 one member with Google connected and one existing relationship-history row.
 No second project/account is required. The row count is an owner-provided
 starting point, not independently inspected here. Preparing this PR applies
-nothing and creates no Auth user. CI uses only disposable PostgreSQL fixtures.
+no further production SQL and creates no Auth user. The owner reports that
+step 1 is now committed in production and the previous step 2 failed and rolled
+back completely. For that state, review and retry only the corrected
+`20261012175553_auth_service_worker.sql`; the forward combined file still
+contains both steps for a fresh phase installation. CI uses only disposable PostgreSQL fixtures.
 
 ## Signing configuration and worker identity
 
@@ -44,8 +48,10 @@ once per statement through an InitPlan, rather than once per row. Existing unpro
 their prior access contract for other roles, but service access is denied.
 Views use invoker RLS. Shared `authenticated` grants cannot distinguish users,
 so no-data/no-write tests check actual RLS outcomes, not just SQL GRANT bits.
-TRUNCATE/REFERENCES/TRIGGER grants are removed from authenticated because they
-can bypass row policies; the rollback restores their exact previous presence.
+TRUNCATE/REFERENCES/TRIGGER grants on public tables are removed from
+authenticated because they bypass row policies; rollback restores their prior
+presence. Storage ACLs remain provider-managed and unchanged; the migration
+does not depend on an attempted REVOKE there.
 Private tables/credentials and internal delegates have no direct service grants.
 
 Deal guards, event publication, Drive publisher immutability and audit actor
@@ -96,28 +102,64 @@ There are no consent or identity changes executed by these instructions.
 
 ## Storage ownership and migration failure
 
-The Auth worker migration touches only `storage.objects` and `storage.buckets`:
-these contain file/bucket metadata reachable through Storage access control.
-It does not alter Storage internal migrations, multipart-upload or analytics
-relations, or Storage views. Before changing policies it checks effective
-`authenticated` privileges (including privileges inherited from PUBLIC) on all
-other Storage tables/views. Any such access aborts the migration: review that
-relation and explicitly extend the isolation design before trying again. This
-keeps service isolation fail-closed without changing all service-owned tables.
-See [Storage schema](https://supabase.com/docs/guides/storage/schema/design)
+The owner verified the following against this Supabase project with operations
+that were undone: `postgres` is not the owner of Storage tables;
+`supabase_storage_admin` is. CREATE POLICY works on `storage.objects` and
+`storage.buckets`, but ALTER TABLE ... ENABLE ROW LEVEL SECURITY fails with
+"must be owner". REVOKE may emit no error yet leave permissions unchanged.
+These are observed project facts, not results from our local CI database.
+
+The Auth migration therefore **only drops/creates its own
+`machine_identity_isolation` policy** on objects/buckets. It checks that each
+already has `relrowsecurity=true`, otherwise aborting with a clear prerequisite
+error. It never enables/disables Storage RLS, changes Storage ACLs, adds the
+public-table compatibility policy there, or records a Storage RLS/ACL baseline.
+The rollback only removes our policy from objects/buckets and leaves existing
+Storage policies, permissions, ownership and RLS untouched. Public-table and
+public-view restoration remains unchanged.
+
+The following internal relations were observed with authenticated privileges,
+RLS enabled and no policies, which is deny-all for ordinary authenticated users:
+
+| Internal Storage table | Observed state |
+| --- | --- |
+| `buckets_analytics` | Privileges present; RLS on; zero policies |
+| `buckets_vectors` | Privileges present; RLS on; zero policies |
+| `s3_multipart_uploads` | Privileges present; RLS on; zero policies |
+| `s3_multipart_uploads_parts` | Privileges present; RLS on; zero policies |
+| `vector_indexes` | Privileges present; RLS on; zero policies |
+
+The preflight accepts that deny-all state. It rejects an excluded relation only
+when authenticated has effective privileges (including PUBLIC/inherited grants)
+**and** RLS is off, any policy exists, or the relation is a view/materialized view.
+A policy is conservatively treated as a possible access path even if its current
+predicate appears restrictive. No internal table or view is altered. If the
+provider later adds a policy or changes the access state, re-review isolation
+before reapplying the migration. See [Storage schema](https://supabase.com/docs/guides/storage/schema/design)
 and [platform permissions](https://supabase.com/docs/guides/platform/permissions).
 
-Supabase owns Storage relations as `supabase_storage_admin`. A disposable CI
-owner is not proof that the project's migration connection can change those
-relations. If ALTER TABLE, REVOKE or CREATE POLICY fails (including an ownership
-or permission error), the Auth migration **must fail completely and revert**.
-Its BEGIN/COMMIT surrounds every change; there is no exception handler that
-swallows errors. Do not skip Storage statements, continue with warnings about a
-failed statement, change service ownership, or enable the worker after failure.
-With psql, use `-v ON_ERROR_STOP=1`: the failed connection closes and rolls back.
-In a SQL editor/session left in an aborted transaction, execute ROLLBACK before
-any further query. Correct the supported migration-role permissions with the
-owner/provider, then retry the entire reviewed migration, not its suffix.
+Any failed guard or policy command **fails the entire Auth transaction and
+reverts it**; BEGIN/COMMIT surrounds all changes and no exception handler
+swallows the failure. With psql use `-v ON_ERROR_STOP=1`; closing the failed
+connection rolls back. In an editor left in an aborted transaction execute
+ROLLBACK before any further query. Keep the worker stopped, correct the
+supported prerequisite/permissions and retry the entire step 2, never its suffix.
+Do not change Storage ownership or rely on a silent REVOKE to make it pass.
+
+CI executes the exact forward migration and full rollback as `phase1_migrator`,
+a non-superuser without BYPASSRLS or membership in the distinct Storage-owner
+role. Five synthetic internal tables have authenticated DML privileges, active
+RLS and no policies. It also tests an added policy that must reject the Auth
+migration, and disabled objects RLS that must reject it without silently enabling
+RLS. Catalog assertions verify ownership, RLS, ACL preservation and no Storage
+baseline; the migration reapplies and rollback runs twice under that role.
+
+Plain PostgreSQL 16 has no Supabase policy-only ownership exemption. A disposable
+CI-only event-trigger bridge explicitly emulates it: ownership is lent only while
+a CREATE/DROP POLICY command executes and immediately restored. ALTER TABLE is
+still denied to the migration role, and its attempted REVOKE is verified to leave
+the grant intact. This harness is not installed by either phase SQL file; it is
+an emulation of the observed permission boundary, not a hosted Supabase test.
 
 The combined forward file contains two separate migration transactions. An Auth
 migration failure rolls back **that migration**, including registry, policies,

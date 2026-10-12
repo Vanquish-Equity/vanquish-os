@@ -323,7 +323,16 @@ after rollback. No real credentials, accounts or Google calls are in fixtures.
 Machine isolation predicates use a scalar SELECT in both USING and WITH CHECK
 so the row-independent identity check becomes a per-statement InitPlan. Storage
 isolation targets only objects and buckets; unexpected authenticated access to
-other Storage relations aborts the migration rather than leaving a service-access
+other Storage relations with a possible row-access path aborts the migration rather than leaving a service-access
 gap. Any unhandled Storage ownership/DDL error rolls back the Auth migration
 transaction. The activation runbook includes a member-session check of team
 activity through the invoker `person_last_interaction` view.
+
+Storage internals with authenticated privileges, enabled RLS and no policies
+remain deny-all and pass the preflight. Objects/buckets require pre-enabled RLS;
+forward and rollback SQL only change our isolation policy there, never owner DDL
+or ACLs. CI emulates Supabase policy-only DDL for a non-superuser under a separate
+Storage owner, checks the denied ALTER/no-op REVOKE boundary, and exercises a
+policy-bearing internal table that must abort the complete Auth transaction.
+The runbook records the owner's production observation: step 1 committed, step 2
+failed and fully reverted; only the corrected second migration needs retry.

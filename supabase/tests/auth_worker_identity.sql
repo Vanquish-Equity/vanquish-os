@@ -6,7 +6,7 @@ select pg_temp.expect(not exists(select 1 from pg_policy where polname='machine_
  and (pg_get_expr(polqual,polrelid) not like '%SELECT%is_machine_identity()%'
  or pg_get_expr(polwithcheck,polrelid) not like '%SELECT%is_machine_identity()%')),'both policy predicates use an initplan');
 select pg_temp.expect((select count(*)=2 from pg_policy p join pg_class c on c.oid=p.polrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='storage' and p.polname='machine_identity_isolation'),'only Storage objects and buckets are isolated');
-select pg_temp.expect(not exists(select 1 from private.machine_rls_baselines where relation_id='storage.internal_service_metadata'::regclass),'Storage internals are not captured/altered');
+select pg_temp.expect(not exists(select 1 from private.machine_rls_baselines b join pg_class c on c.oid=b.relation_id join pg_namespace n on n.oid=c.relnamespace where n.nspname='storage'),'no Storage RLS/ACL baseline');
 select pg_temp.expect(not (select relrowsecurity from pg_class where oid='storage.internal_service_metadata'::regclass),'Storage internal RLS remains unchanged');
 insert into public.app_members(email) values('colleague@machine.test');
 insert into public.people(id,name) values('dddddddd-0000-0000-0000-000000000097','Synthetic Team Person');
@@ -48,7 +48,7 @@ do $$declare t record;n bigint;changed bigint;column_name text;begin
     begin execute format('update %I.%I set %I=%I',t.nspname,t.relname,column_name,column_name);get diagnostics changed=row_count;perform pg_temp.expect(changed=0,'service write isolation '||t.relname);exception when insufficient_privilege or feature_not_supported or object_not_in_prerequisite_state then null;end;
    end if;
    begin execute format('delete from %I.%I',t.nspname,t.relname);get diagnostics changed=row_count;perform pg_temp.expect(changed=0,'service delete isolation '||t.relname);exception when insufficient_privilege or feature_not_supported or object_not_in_prerequisite_state then null;end;
-   if t.relkind in ('r','p') then perform pg_temp.expect(not has_table_privilege('authenticated',t.oid,'TRUNCATE'),'no RLS-bypassing truncate grant '||t.relname);end if;
+   if t.nspname='public' and t.relkind in ('r','p') then perform pg_temp.expect(not has_table_privilege('authenticated',t.oid,'TRUNCATE'),'no RLS-bypassing truncate grant '||t.relname);end if;
   end if;
  end loop;
 end$$;

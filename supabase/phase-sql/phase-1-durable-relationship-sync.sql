@@ -390,17 +390,19 @@ create table if not exists private.machine_rls_baselines(relation_id oid primary
 create table if not exists private.machine_view_baselines(relation_id oid primary key,options text[]);
 revoke all on private.machine_rls_baselines,private.machine_view_baselines from public,anon,authenticated,vanquish_worker,vanquish_gmail_push;
 -- Storage internals remain service-owned. Fail closed if an excluded relation
--- is API-readable/writable: expanding the reviewed policy scope is then required.
+-- has privileges plus a possible row-access path: review scope before proceeding.
+-- Enabled RLS with no policies is deny-all and needs no added isolation policy.
 -- No exception handler: any ownership/DDL error aborts this entire transaction.
 do $$begin
  if exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace
    where n.nspname='storage' and c.relkind in ('r','p','v','m')
    and c.relname not in ('objects','buckets')
-   and has_table_privilege('authenticated',c.oid,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'))
+   and has_table_privilege('authenticated',c.oid,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+   and (not c.relrowsecurity or c.relkind in ('v','m') or exists(select 1 from pg_policy p where p.polrelid=c.oid)))
  then raise exception 'Unexpected authenticated Storage access; review isolation scope' using errcode='42501';end if;
 end$$;
 do $$declare t record;original boolean;begin
- for t in select n.nspname,c.relname,c.oid,c.relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where (n.nspname='public' or (n.nspname='storage' and c.relname in ('objects','buckets'))) and c.relkind in ('r','p') loop
+ for t in select n.nspname,c.relname,c.oid,c.relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind in ('r','p') loop
   insert into private.machine_rls_baselines values(t.oid,t.relrowsecurity,array(select v from unnest(array['TRUNCATE','REFERENCES','TRIGGER'])v where has_table_privilege('authenticated',t.oid,v))) on conflict do nothing;
   select enabled into original from private.machine_rls_baselines where relation_id=t.oid;
   execute format('revoke truncate,references,trigger on %I.%I from authenticated',t.nspname,t.relname);
@@ -411,6 +413,14 @@ do $$declare t record;original boolean;begin
   end if;
   execute format('drop policy if exists machine_identity_isolation on %I.%I',t.nspname,t.relname);
   execute format('create policy machine_identity_isolation on %I.%I as restrictive for all to authenticated using ((select not private.is_machine_identity())) with check ((select not private.is_machine_identity()))',t.nspname,t.relname);
+ end loop;
+ -- Supabase permits policy DDL but not table-owner DDL for these relations.
+ -- Storage RLS/ACLs are provider-managed: never ALTER TABLE, REVOKE or baseline them.
+ for t in select c.relname,c.relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace
+   where n.nspname='storage' and c.relname in ('objects','buckets') and c.relkind in ('r','p') loop
+  if not t.relrowsecurity then raise exception 'Storage %. RLS must already be enabled; Auth migration aborted',t.relname using errcode='42501';end if;
+  execute format('drop policy if exists machine_identity_isolation on storage.%I',t.relname);
+  execute format('create policy machine_identity_isolation on storage.%I as restrictive for all to authenticated using ((select not private.is_machine_identity())) with check ((select not private.is_machine_identity()))',t.relname);
  end loop;
  for t in select n.nspname,c.relname,c.oid,c.reloptions from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='v' loop
   insert into private.machine_view_baselines values(t.oid,t.reloptions) on conflict do nothing;

@@ -9,10 +9,10 @@ lock table public.crm_sync_jobs in access exclusive mode;
 update public.crm_sync_jobs set status='dead',lease=null,locked_until=null,error_code='phase1_rollback' where service in ('gmail','calendar') and status in ('pending','running','retry');
 drop trigger if exists sync_checkpoint_time on public.crm_sync_jobs;
 -- Remove only policies introduced by the Auth worker migration, including
--- SELECT-wrapped predicates. Include older Storage baselines when reversing
--- the earlier broad-scope version; restore only relations actually captured.
+-- SELECT-wrapped predicates. Storage reversal only removes our isolation policy;
+-- provider-owned RLS/ACLs and existing policies are never changed.
 do $$declare t record;begin
- for t in select p.polname,n.nspname,c.relname from pg_policy p join pg_class c on c.oid=p.polrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('public','storage') and p.polname in ('machine_identity_isolation','machine_previous_access') loop
+ for t in select p.polname,n.nspname,c.relname from pg_policy p join pg_class c on c.oid=p.polrelid join pg_namespace n on n.oid=c.relnamespace where (n.nspname='public' and p.polname in ('machine_identity_isolation','machine_previous_access')) or (n.nspname='storage' and c.relname in ('objects','buckets') and p.polname='machine_identity_isolation') loop
   execute format('drop policy %I on %I.%I',t.polname,t.nspname,t.relname);
  end loop;
 end$$;
@@ -271,13 +271,13 @@ begin
 end$$;
 do $$declare t record;privilege text;begin
  if to_regclass('private.machine_rls_baselines') is not null then
-  for t in select b.enabled,b.auth_ddl,n.nspname,c.relname from private.machine_rls_baselines b join pg_class c on c.oid=b.relation_id join pg_namespace n on n.oid=c.relnamespace loop
+  for t in select b.enabled,b.auth_ddl,n.nspname,c.relname from private.machine_rls_baselines b join pg_class c on c.oid=b.relation_id join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' loop
    if not t.enabled then execute format('alter table %I.%I disable row level security',t.nspname,t.relname);end if;
    foreach privilege in array t.auth_ddl loop execute format('grant %s on %I.%I to authenticated',privilege,t.nspname,t.relname);end loop;
   end loop;
  end if;
  if to_regclass('private.machine_view_baselines') is not null then
-  for t in select b.options,n.nspname,c.relname from private.machine_view_baselines b join pg_class c on c.oid=b.relation_id join pg_namespace n on n.oid=c.relnamespace loop
+  for t in select b.options,n.nspname,c.relname from private.machine_view_baselines b join pg_class c on c.oid=b.relation_id join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' loop
    if t.options @> array['security_invoker=true'] then execute format('alter view %I.%I set (security_invoker=true)',t.nspname,t.relname);
    elsif t.options @> array['security_invoker=false'] then execute format('alter view %I.%I set (security_invoker=false)',t.nspname,t.relname);
    else execute format('alter view %I.%I reset (security_invoker)',t.nspname,t.relname);end if;
