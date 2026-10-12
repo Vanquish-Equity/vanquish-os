@@ -16,7 +16,11 @@ create table storage_ci.owners(relation_name text primary key);
 insert into storage_ci.owners values('objects'),('buckets');
 do $$declare r record;begin
  for r in select c.oid::regclass relation,c.relkind from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('public','private') and c.relkind in ('r','p','v','m','S') loop
-  if r.relkind='S' then execute format('alter sequence %s owner to phase1_migrator',r.relation);
+  if r.relkind='S' then
+   -- Linked serial/identity sequences follow their table owner automatically.
+   if not exists(select 1 from pg_depend d where d.classid='pg_class'::regclass and d.objid=r.relation and d.deptype in ('a','i')) then
+    execute format('alter sequence %s owner to phase1_migrator',r.relation);
+   end if;
   elsif r.relkind='v' then execute format('alter view %s owner to phase1_migrator',r.relation);
   elsif r.relkind='m' then execute format('alter materialized view %s owner to phase1_migrator',r.relation);
   else execute format('alter table %s owner to phase1_migrator',r.relation);end if;
