@@ -117,6 +117,12 @@ and the offline Vanquish AI panel stays fixed without moving the sidebar.
   boundary, so the table appears at once.
 - Pipeline loads deal assignees in the same batch as the deals
   (`loadDealAssignees(db, null)` reads every assignment RLS lets the caller see).
+- **Vanquish AI and the welcome intro:** the assistant button sits above the
+  intro layer, so `globals.css` hides `.vq-ai-root` while
+  `html[data-vq-intro="play"]` is set (first sign-in, or "Replay intro") and
+  fades it in over 450 ms when the intro ends or is skipped. Reduced motion
+  shows it without the fade.
+
 
 Integration health reuses `vq-card-static` and responsive two-column service
 cards with text timestamps/statuses. Retry uses a native keyboard/touch button,
