@@ -15,6 +15,13 @@ export async function queueSync() {
   const {error}=await (await createClient()).rpc("request_crm_sync");revalidatePath("/integrations");
   return {ok:!error,message:error?"Could not queue a run. Enable CRM sync first.":"Run queued for the external worker."};
 }
+export async function retrySyncJob(id: string) {
+  if ((await getAccess()).status !== "member") return { ok: false, message: "Access denied." };
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return { ok: false, message: "Run unavailable." };
+  const { error } = await (await createClient()).rpc("retry_crm_sync_job", { p_id: id });
+  if (!error) revalidatePath("/integrations");
+  return { ok: !error, message: error ? "Could not retry. Check current consent, connection and run status." : "Read sync queued safely. An active run is not duplicated." };
+}
 export async function resolveSync(id:string,companyId:string|null,dealId:string|null,ignore=false,rememberParticipant?:string) {
   if((await getAccess()).status!=="member")return {ok:false,message:"Access denied."};
   const {error}=await (await createClient()).rpc("resolve_sync_event",{p_id:id,p_company:companyId,p_deal:dealId,p_ignore:ignore});

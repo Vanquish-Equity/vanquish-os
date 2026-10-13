@@ -191,3 +191,16 @@ different email on the Google account): insert the right email into
 ## Operating workflow update
 
 The operating workflows add an RPC-only machine role with explicit per-account consent, Deal reader/editor controls and protected source comments. See [Operating workflows](operating-workflows.md) for the expanded authorization contract and activation requirements. The prior "only login/auth are public" statement also has a machine-authenticated exception: Gmail Pub/Sub verifies its own signed OIDC token.
+
+## Durable relationship sync boundary
+
+Phase 1 reuses the existing `vanquish_worker` and `vanquish_gmail_push` roles.
+No new direct table/Storage privileges are granted. Public wrappers revoke
+PUBLIC/anon/member/machine execute before granting only the intended role.
+Private CRM delegates, relationship provenance and legacy history are not
+member- or machine-readable. Definers set an empty search path.
+`configure_relationship_sync`, `delete_my_relationship_history`,
+`retry_crm_sync_job` and `my_sync_health` use verified active membership and
+own-account scope. Commit serializes with consent changes/withdrawal and rejects
+revoked leases and inactive members. Either independent sink may authorize the
+shared read stream; only its current consent permits its publication.

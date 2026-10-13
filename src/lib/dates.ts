@@ -105,3 +105,14 @@ export function daysBetween(
 
   return Math.max(0, Math.floor((laterDate.getTime() - earlierDate.getTime()) / DAY_MS));
 }
+
+// Operational checkpoint age needs minute/hour precision, not just a date label.
+export function formatElapsed(value: string, now: Date = new Date()) {
+  const elapsed = now.getTime() - toDate(value).getTime();
+  if (!Number.isFinite(elapsed)) return "Unknown";
+  const minutes = Math.max(0, Math.floor(elapsed / 60000));
+  if (minutes < 1) return "Less than a minute";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  return hours < 48 ? `${hours} hr` : `${Math.floor(hours / 24)} days`;
+}

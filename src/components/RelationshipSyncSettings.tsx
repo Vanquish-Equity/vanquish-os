@@ -33,7 +33,7 @@ export default function RelationshipSyncSettings({
       <p className="mt-1 max-w-[720px] text-[12px] text-neutral-500">
         Shares with the team <em>that</em> you emailed or met someone in People, and on which day — never the subject,
         content, meeting title or other participants. It reads your connected Gmail and primary Calendar (first sync: the
-        last 90 days), only for addresses already in People, then again every few hours while you use Vanquish OS. It
+        last 90 days), only for addresses already in People, then incrementally by the external worker, even while your browser is closed. It
         powers the Last interaction column in People and &ldquo;who knows them&rdquo; on Company pages.
       </p>
       {!googleConnected ? (
@@ -60,7 +60,7 @@ export default function RelationshipSyncSettings({
               onClick={() => run(syncRelationshipsNow)}
               className="rounded-lg border border-neutral-200 px-2.5 py-1.5 text-[11px] font-semibold text-ink hover:border-cyan-300 disabled:opacity-40"
             >
-              {pending ? "Syncing…" : "Sync now"}
+              {pending ? "Queuing…" : "Queue sync"}
             </button>
           )}
           {lastSyncedAt && (

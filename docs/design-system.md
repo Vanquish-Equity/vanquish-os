@@ -122,3 +122,9 @@ and the offline Vanquish AI panel stays fixed without moving the sidebar.
   `html[data-vq-intro="play"]` is set (first sign-in, or "Replay intro") and
   fades it in over 450 ms when the intro ends or is skipped. Reduced motion
   shows it without the fade.
+
+
+Integration health reuses `vq-card-static` and responsive two-column service
+cards with text timestamps/statuses. Retry uses a native keyboard/touch button,
+visible pending disablement and a live result message. It does not introduce a
+new selector, checkbox or animation. Narrow layouts wrap job diagnostics.
