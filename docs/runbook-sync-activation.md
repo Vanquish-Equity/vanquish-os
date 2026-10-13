@@ -347,3 +347,18 @@ GitHub CI runs native PostgreSQL 16. No actual production canary is executed her
 The #65 branch must be rebased/adapted to this new Auth worker contract before
 activation. Its LP worker RPCs must receive the same subject guard and its runner
 must keep Auth-session login; this PR does not silently change or activate #65.
+
+## Scheduled worker (GitHub Actions)
+
+`.github/workflows/sync-worker.yml` runs `npm run sync:worker` every 15 minutes
+(and on demand from the Actions tab). It needs these repository secrets, under
+Settings → Secrets and variables → Actions: `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_WORKER_EMAIL`,
+`SUPABASE_WORKER_PASSWORD`, `SUPABASE_WORKER_USER_ID`,
+`GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` and
+`MAILBOX_TOKEN_ENCRYPTION_KEY` (the same value the app uses). The workflow is
+skipped outside this repository and never uses the service-role key. Scheduled
+workflows in a public repository are paused after 60 days without repository
+activity; re-enable them from the Actions tab. The OAuth consent screen must
+stay *Internal* (or *In production*): in *Testing*, Google expires refresh
+tokens after 7 days and the worker reports `disconnected`.
