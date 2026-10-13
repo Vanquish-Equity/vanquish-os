@@ -3,6 +3,7 @@
 create role anon nologin;
 create role authenticated nologin;
 create schema auth;
+create table auth.users(id uuid primary key,email text);
 create function auth.jwt() returns jsonb language sql stable as $$
   select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb
 $$;
@@ -16,6 +17,7 @@ create schema storage;
 create table storage.buckets(id text primary key,name text,public boolean not null default false);
 create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text not null,name text not null);
 alter table storage.objects enable row level security;
+alter table storage.buckets enable row level security;
 grant usage on schema public,auth,storage to anon,authenticated;
 grant execute on function auth.jwt(),auth.role(),auth.uid() to anon,authenticated;
 grant select,insert,delete on storage.objects to authenticated;
@@ -23,3 +25,7 @@ grant select,insert,delete on storage.objects to authenticated;
 -- migrations narrow it per object. Plain PostgreSQL needs that baseline.
 alter default privileges in schema public grant all on tables to authenticated;
 alter default privileges in schema public grant usage on sequences to authenticated;
+
+-- Synthetic service-owned Storage internal relation: never API-granted.
+create table storage.internal_service_metadata(id integer primary key);
+insert into storage.internal_service_metadata values(1);

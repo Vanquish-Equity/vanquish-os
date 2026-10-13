@@ -197,3 +197,11 @@ disposable database.
 ## Operating workflow update
 
 CRM synchronization has its own consent controls in Settings and Integration health. It does not turn on People relationship-history sharing. Drive read/manage scopes require Documents permission and deliberate consent. See [Operating workflows](operating-workflows.md).
+
+Relationship history now queues the external durable worker instead of reading
+Gmail/Calendar in the browser. Its consent stays independent of CRM activity
+and subject/title sharing. Pause retains published history; Delete my history
+removes only this member's relationship publication and private provenance and
+turns that sink off. Company scouting keeps its existing browser/manual path.
+Integration health exposes own-account success/checkpoint times and safe retry;
+see [Sync activation runbook](runbook-sync-activation.md).

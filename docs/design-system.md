@@ -117,3 +117,8 @@ and the offline Vanquish AI panel stays fixed without moving the sidebar.
   boundary, so the table appears at once.
 - Pipeline loads deal assignees in the same batch as the deals
   (`loadDealAssignees(db, null)` reads every assignment RLS lets the caller see).
+
+Integration health reuses `vq-card-static` and responsive two-column service
+cards with text timestamps/statuses. Retry uses a native keyboard/touch button,
+visible pending disablement and a live result message. It does not introduce a
+new selector, checkbox or animation. Narrow layouts wrap job diagnostics.
