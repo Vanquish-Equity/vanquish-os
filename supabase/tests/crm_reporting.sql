@@ -57,6 +57,8 @@ insert into public.capital_events(id,event_type,event_date,investor_id,amount,fu
  ('f3000000-0000-0000-0000-000000000082','wire_out','2026-01-01','f3000000-0000-0000-0000-000000000080',40,'f3000000-0000-0000-0000-000000000004','USD','distribution');
 set local role authenticated;
 create temp table metric_fixture as select public.reporting_fund_inputs('f3000000-0000-0000-0000-000000000004','2026-01-01','net') v;
+-- Test-only grant: the non-inheriting migration role reads this Auth-owned temp fixture.
+grant select on metric_fixture to phase1_migrator;
 reset role;
 insert into public.fund_metric_reviews(fund_id,as_of,basis,currency,nav,nav_on,reconciled,flow_fingerprint)
  select 'f3000000-0000-0000-0000-000000000004','2026-01-01','net','USD',80,'2026-01-01',true,v->>'fingerprint' from metric_fixture;

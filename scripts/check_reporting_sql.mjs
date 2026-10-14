@@ -32,6 +32,8 @@ async function execute(file) {
   return runSql(readFileSync(file, "utf8"), file);
 }
 async function runSql(sql, file) {
+  if (migrate)
+    sql = sql.replace(/^reset role;$/gm, "set role phase1_migrator;");
   if (sql.includes("\\set ON_ERROR_STOP off")) {
     const m = sql.match(
       /([\s\S]*?)\\set ON_ERROR_STOP off\s+\\ir ([^\n]+)\s+\\set ON_ERROR_STOP on([\s\S]*)/,

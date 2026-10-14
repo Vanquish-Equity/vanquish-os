@@ -6,7 +6,9 @@ Reproduce with `npm install --prefix /tmp/crm-sql @electric-sql/pglite@0.5.10`
 and `node scripts/check_reporting_sql.mjs`. The helper expands the existing CI
 shell order; it executes every file, including expected rejection, idempotence,
 prior-phase regression and rollback cases. It does not contact Supabase.
-Native PostgreSQL 16 runs the same SQL in CI; native plans are printed by
+The initial native PostgreSQL 16 run stopped on a test-only temp-table ACL
+before reaching this benchmark; that fixture ACL and local RESET ROLE emulation
+were corrected. Native PostgreSQL 16 runs the same SQL in CI; native plans are printed by
 `supabase/tests/reporting_explain.sql`. WASM times below are development
 observations, **not** production latency or capacity claims.
 

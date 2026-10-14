@@ -171,3 +171,9 @@ both were corrected. The first narrow UI run exposed a long-name selector
 overflow; explicit one-column/min-width constraints fixed it and the rerun passed.
 Native PostgreSQL installation was blocked by this container's user namespace;
 local SQL uses actual WASM Postgres, with native PostgreSQL 16 verification in CI.
+
+First native CI run: Application checks passed; SQL failed because the Auth-owned
+`metric_fixture` temp table lacked SELECT for the non-inheriting CI migration
+role. The test now grants only that disposable fixture read. The local runner
+restores the fresh-psql migration role on RESET ROLE instead of retaining the
+bootstrap superuser. No production grant or application function changed.
