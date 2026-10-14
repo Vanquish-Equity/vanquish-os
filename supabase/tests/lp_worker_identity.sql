@@ -1,0 +1,68 @@
+begin;
+create function pg_temp.expect(ok boolean,label text) returns void language plpgsql as $$begin if not coalesce(ok,false) then raise exception 'LP AUTH TEST: %',label;end if;end$$;
+create function pg_temp.denied(q text) returns boolean language plpgsql as $$begin execute q;return false;exception when insufficient_privilege then return true;end$$;
+create function pg_temp.lp_denied() returns void language plpgsql as $$begin
+ perform pg_temp.expect(pg_temp.denied('select public.worker_claim_lp_scan()'),'claim denied');
+ perform pg_temp.expect(pg_temp.denied('select public.worker_lp_scan_context(gen_random_uuid(),gen_random_uuid())'),'context denied');
+ perform pg_temp.expect(pg_temp.denied('select public.worker_commit_lp_scan(gen_random_uuid(),gen_random_uuid(),''[]'',''{}'',true)'),'commit denied');
+ perform pg_temp.expect(pg_temp.denied('select public.worker_fail_lp_scan(gen_random_uuid(),gen_random_uuid())'),'fail denied');
+end$$;
+insert into auth.users values('af000000-0000-0000-0000-000000000099','service@lp.test');
+insert into private.machine_identities(sub) values('af000000-0000-0000-0000-000000000099');
+insert into public.app_members(email) values('member@lp.test'),('admin@lp.test');
+insert into public.member_permissions(email,permission) values('admin@lp.test','admin');
+insert into public.google_mailbox_connections(email,refresh_token_encrypted,refresh_token_iv,refresh_token_tag) values('member@lp.test','synthetic','synthetic','synthetic');
+set local role authenticated;
+select set_config('request.jwt.claims','{"role":"authenticated","sub":"af000000-0000-0000-0000-000000000001","email":"admin@lp.test"}',true);
+select public.admin_set_member_permission('member@lp.test','lp_scouting',true);
+select set_config('request.jwt.claims','{"role":"authenticated","sub":"af000000-0000-0000-0000-000000000002","email":"member@lp.test"}',true);
+select pg_temp.expect(private.has_permission('lp_scouting'),'Admin toggle and member access share permission source');
+select public.configure_lp_scouting(true,'request',false,30,100);
+select pg_temp.lp_denied();
+select set_config('request.jwt.claims','{"role":"authenticated","sub":"af000000-0000-0000-0000-000000000098","email":"unregistered@lp.test"}',true);
+select pg_temp.lp_denied();
+select set_config('request.jwt.claims','{"role":"authenticated","sub":"af000000-0000-0000-0000-000000000099","email":"service@lp.test"}',true);
+select pg_temp.lp_denied();
+reset role;
+update private.machine_identities set lp_scanning_enabled=true where sub='af000000-0000-0000-0000-000000000099';
+set local role authenticated;
+select pg_temp.lp_denied(); -- relationships_only still denies LP even with LP flag.
+reset role;
+update private.machine_identities set relationships_only=false where sub='af000000-0000-0000-0000-000000000099';
+create temp table lp_lease(id uuid,lease uuid);grant all on lp_lease to authenticated;
+set local role authenticated;
+insert into lp_lease select id,lease from public.worker_claim_lp_scan();
+select pg_temp.expect((select count(*)=1 from lp_lease),'explicit LP machine capability can claim');
+select pg_temp.expect(public.worker_lp_scan_context((select id from lp_lease),(select lease from lp_lease)) is not null,'authorized lease context');
+select pg_temp.expect(pg_temp.denied('select public.decide_lp_contact(gen_random_uuid(),true)'),'machine cannot make human contact decisions');
+do $$declare t record;n bigint;begin
+ for t in select n.nspname,c.relname,c.oid from pg_class c join pg_namespace n on n.oid=c.relnamespace
+ where n.nspname='public' and c.relname in ('lp_scouting_settings','lp_scout_keywords','lp_suggestions','lp_scout_jobs','lp_contact_requests','fundraising_funds','lp_pipeline_entries','lp_stage_history','lp_commitments','lp_preferences','lp_tasks','lp_board_investor_links') and c.relkind='r' loop
+  begin execute format('select count(*) from %I.%I',t.nspname,t.relname) into n;perform pg_temp.expect(n=0,'LP table read denied '||t.relname);exception when insufficient_privilege then null;end;
+  perform pg_temp.expect(pg_temp.denied(format('insert into %I.%I default values',t.nspname,t.relname)),'LP insert denied '||t.relname);
+  perform pg_temp.expect(pg_temp.denied(format('delete from %I.%I',t.nspname,t.relname)),'LP delete denied '||t.relname);
+  perform pg_temp.expect(not has_table_privilege('authenticated',t.oid,'TRUNCATE,REFERENCES,TRIGGER'),'LP DDL privileges absent');
+ end loop;
+end$$;
+select public.worker_commit_lp_scan((select id from lp_lease),(select lease from lp_lease),'[]','{}',true);
+reset role;
+update private.machine_identities set lp_scanning_enabled=false where sub='af000000-0000-0000-0000-000000000099';
+set local role authenticated;
+select pg_temp.lp_denied();
+reset role;
+update private.machine_identities set lp_scanning_enabled=true,enabled=false where sub='af000000-0000-0000-0000-000000000099';
+set local role authenticated;
+select pg_temp.lp_denied();
+reset role;
+update private.machine_identities set enabled=true where sub='af000000-0000-0000-0000-000000000099';
+set local role authenticated;
+select set_config('request.jwt.claims','{"role":"authenticated","email":"admin@lp.test"}',true);
+select public.admin_set_member_permission('member@lp.test','lp_scouting',false);
+select set_config('request.jwt.claims','{"role":"authenticated","email":"member@lp.test"}',true);
+select pg_temp.expect(not private.has_permission('lp_scouting'),'member access reflects admin revocation');
+select pg_temp.expect(pg_temp.denied('select public.claim_my_lp_scan()'),'member scan denied after revocation');
+reset role;
+set local role vanquish_worker;
+select pg_temp.lp_denied();
+reset role;
+rollback;

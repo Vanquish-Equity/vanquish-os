@@ -31,6 +31,7 @@ jobs:
       - name: Run worker
         run: npm run sync:worker
         env:
+          LP_SCOUTING_WORKER_ENABLED: ${{ vars.LP_SCOUTING_WORKER_ENABLED }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_WORKER_EMAIL: ${{ secrets.SUPABASE_WORKER_EMAIL }}

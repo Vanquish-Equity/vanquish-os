@@ -21,7 +21,7 @@ const NAV_SECTIONS: NavSection[] = [
   { key: "crm", label: "CRM", hrefs: ["/pipeline", "/companies", "/people", "/network", "/lp-board"] },
   { key: "boards", label: "Boards", hrefs: ["/boards"] },
   { key: "work", label: "Work", hrefs: ["/inbox", "/tasks", "/calendar", "/communications", "/review"] },
-  { key: "fund", label: "Fund", hrefs: ["/portfolio"] },
+  { key: "fund", label: "Fund", hrefs: ["/portfolio", "/portfolio/fundraising"] },
 ];
 
 // Home, Notifications, Chat and Overview: checked constantly, so they sit

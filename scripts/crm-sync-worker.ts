@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { googleClientFromSecret,GoogleError,type GoogleSecret } from "../src/lib/google/transport";
 import { gmailBatch,calendarBatch,type SyncCursor } from "../src/lib/sync/engine";
 import {driveBatch,type DriveCursor,type DriveContext} from "../src/lib/sync/drive-engine";
+import {runLpWorker} from "../src/lib/lp-scouting/worker";
 import type { ResolutionIndex } from "../src/lib/sync/resolver";
 
 async function main() {
@@ -19,7 +20,7 @@ async function main() {
     await renewWorkerSession(db,credentials);
     const {data,error}=await db.rpc("worker_claim_sync");if(error)throw new Error("Could not claim a sync lease.");
     const job=(data as {id:string;email:string;service:"gmail"|"calendar"|"drive";lease:string;cursor:SyncCursor}[]|null)?.[0];
-    if(!job)return;
+    if(!job)break;
     try {
       await renewWorkerSession(db,credentials);
       const {data:context,error:contextError}=await db.rpc("worker_sync_context",{p_id:job.id,p_lease:job.lease});
@@ -45,5 +46,6 @@ async function main() {
       console.error(`Sync batch deferred (${code}).`);
     }
   }
+  await runLpWorker(db,credentials,process.env.LP_SCOUTING_WORKER_ENABLED==="true");
 }
 main().catch(error=>{console.error(error instanceof WorkerIdentityError ? error.message : "Worker stopped. Check its configuration and workspace health.");process.exitCode=1;});

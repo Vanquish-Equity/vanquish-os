@@ -3,7 +3,7 @@
 Vanquish OS requires a Supabase Auth session **and** an active row in
 `public.app_members` for the account's email. Portfolio and Documents also
 require an explicit row in `public.member_permissions`. Signing in with
-Google, receiving an email link, or having an `@vanquishequity.com` address
+Google, receiving an email link, or having an `@company.example.test` address
 does **not** grant access by itself.
 
 ## How it is enforced
@@ -44,23 +44,23 @@ come from the verified JWT email, not from the client.
 ```sql
 -- Authorize a member (no Portfolio or Documents by default)
 insert into public.app_members (email, display_name)
-values ('pedro@vanquishequity.com', 'Pedro');
+values ('member@example.test', 'Synthetic Member');
 
 -- Grant an area explicitly
 insert into public.member_permissions (email, permission)
-values ('pedro@vanquishequity.com', 'portfolio');   -- or 'documents'
+values ('member@example.test', 'portfolio');   -- or 'documents'
 
 -- Remove an area
 delete from public.member_permissions
-where email = 'pedro@vanquishequity.com' and permission = 'portfolio';
+where email = 'member@example.test' and permission = 'portfolio';
 
 -- Suspend a member without deleting the row
 update public.app_members set is_active = false
-where email = 'pedro@vanquishequity.com';
+where email = 'member@example.test';
 ```
 
-Emails are stored in lowercase. Migration `0015` authorizes
-`marios@vanquishequity.com` with both permissions.
+Emails are stored in lowercase. Existing owner permissions are managed by
+owner SQL; Phase 2 seeds no real member or service identity.
 
 ## The two URLs (do not mix them up)
 
@@ -99,7 +99,7 @@ identity or session data.
      - `https://<production-domain>/auth/callback**`
      - `https://*-<vercel-team-slug>.vercel.app/auth/callback**` (previews)
      - `http://localhost:3000/auth/callback**` (local development)
-3. Email provider: leave enabled if the email link is used (Pedro, until
+3. Email provider: leave enabled if the email link is used (members, until
    Microsoft is added). Configure custom SMTP; the built-in sender is heavily
    rate limited.
 4. Keep “Allow new users to sign up” enabled. New accounts are harmless
@@ -135,7 +135,7 @@ permanent lock-out.
    live. This removes the anon policies. Until it runs, the anon key can
    still read the database directly (the pre-existing exposure), so do it
    immediately.
-5. Mario signs in with Google and checks Overview, Pipeline, a company,
+5. The owner signs in with Google and checks Overview, Pipeline, a company,
    Portfolio and a document download.
 6. Verify in the SQL Editor:
    ```sql
@@ -146,7 +146,7 @@ permanent lock-out.
    ```
 7. Add other members (and only then, if ever, extra permissions).
 
-If Mario is locked out after step 4, the fix is in SQL (for example, a
+If the owner is locked out after step 4, the fix is in SQL (for example, a
 different email on the Google account): insert the right email into
 `app_members` and `member_permissions`. Never restore the anon policies.
 
@@ -168,7 +168,7 @@ different email on the Google account): insert the right email into
   default-deny permissions, navigation and providers).
 - Database: `supabase/tests/access_control.sql` exercises anon, an
   authenticated non-member, a deactivated member, a member without
-  permissions and Mario against tables, Storage, the review RPC and
+  permissions and a privileged synthetic member against tables, Storage, the review RPC and
   self-escalation. Run it only on a disposable database with migrations
   `0001`–`0015` applied (for example a local Postgres or a Supabase branch);
   it runs in one transaction and rolls back.
@@ -190,17 +190,23 @@ different email on the Google account): insert the right email into
 
 ## Operating workflow update
 
-The operating workflows add an RPC-only machine role with explicit per-account consent, Deal reader/editor controls and protected source comments. See [Operating workflows](operating-workflows.md) for the expanded authorization contract and activation requirements. The prior "only login/auth are public" statement also has a machine-authenticated exception: Gmail Pub/Sub verifies its own signed OIDC token.
+The operating workflows add an RPC-only machine role with explicit per-account consent, Deal reader/editor controls and protected source comments. See [Operating workflows](operating-workflows.md) for the expanded authorization contract and activation requirements. Gmail push remains disabled; worker delivery uses the Auth service account.
 
-## Durable relationship sync boundary
+## Durable relationship and LP sync boundary
 
-Phase 1 reuses the existing `vanquish_worker` and `vanquish_gmail_push` roles.
-No new direct table/Storage privileges are granted. Public wrappers revoke
-PUBLIC/anon/member/machine execute before granting only the intended role.
-Private CRM delegates, relationship provenance and legacy history are not
-member- or machine-readable. Definers set an empty search path.
-`configure_relationship_sync`, `delete_my_relationship_history`,
-`retry_crm_sync_job` and `my_sync_health` use verified active membership and
-own-account scope. Commit serializes with consent changes/withdrawal and rejects
-revoked leases and inactive members. Either independent sink may authorize the
-shared read stream; only its current consent permits its publication.
+The deployed Phase 1 worker signs in as a dedicated Supabase Auth user and renews
+its normal authenticated token. `private.machine_identities` stores the owner's
+SQL-managed subject registry; `require_worker_identity()` locks/checks the enabled
+identity on every RPC. Service identities are excluded from membership, UI and
+RLS even if disabled. Legacy machine roles and Gmail push are inactive.
+
+Phase 2 adds default-false `lp_scanning_enabled`. LP worker RPCs first call the
+same identity guard, then require that capability and `relationships_only=false`.
+No direct LP/fundraising table grants or decision RPCs are available to machines.
+Each new table includes scalar-SELECT machine isolation in USING/WITH CHECK.
+Admin settings, Members & access and server access read `member_permissions`;
+`lp_scouting` is supported by its CHECK, Admin RPC and client permission parser.
+It is separate from Portfolio, email scouting and personal scan/metadata consent.
+Admin status never grants another member's private suggestions. Only the owner
+member can accept initial candidates; commitments/flows are explicit Portfolio
+records. See [LP management](lp-management.md) and the sync activation runbook.
