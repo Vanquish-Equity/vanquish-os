@@ -210,3 +210,14 @@ It is separate from Portfolio, email scouting and personal scan/metadata consent
 Admin status never grants another member's private suggestions. Only the owner
 member can accept initial candidates; commitments/flows are explicit Portfolio
 records. See [LP management](lp-management.md) and the sync activation runbook.
+
+## Phase 3 reporting authorization
+
+Reporting readers are INVOKER RPCs under current RLS. Each export batch checks
+active membership, resource permission and feature state; restricted Deals are
+explicitly filtered. Portfolio gates fund inputs; Documents gates allowlisted
+shared metadata. There is no private scouting/position/file export. New tables
+have restrictive scalar-SELECT machine isolation; the Auth worker gains no
+reporting capability. Weekly references belong only to the active subscribed
+member, and generation rechecks opt-in. Only SQL owners attest fund reconciliation
+or activate features. See [reporting](crm-reporting.md) for the complete contract.

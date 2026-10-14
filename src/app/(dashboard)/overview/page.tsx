@@ -1,3 +1,4 @@
+import ReportingOverview from "@/components/ReportingOverview";
 import Link from "next/link";
 import { hasPermission } from "@/lib/auth/access";
 import OverviewAttentionPanel from "@/components/OverviewAttentionPanel";
@@ -243,6 +244,7 @@ export default async function OverviewPage() {
 
   return (
     <div className="flex flex-col gap-4 px-7 py-6">
+      <ReportingOverview />
       <header>
         <h1 className="font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">
           Overview

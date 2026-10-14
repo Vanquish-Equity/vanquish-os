@@ -16,10 +16,9 @@ See [CRM workspace](crm-workspace.md) for configurable boards, Deal preview, sav
 
 ## Portfolio reconciliation
 
-- Martie: confirm Scott's $200k structure and whether it belongs under an existing shared vehicle or a direct/to-confirm position.
-- Jones: reconcile Andregos at $200k vs. $250k before treating the position as final.
-- Wizard Wellness: manager authorization exists, but funding is not verified. Keep funding status as authorization-only until resolved.
-- Devoted Health: confirm the investment structure and vehicle before exposing document health as final.
+Pendientes de conciliación; el detalle vive en el registro privado del dueño.
+
+Decisiones de Fase 3: [reporting y métricas del fondo](reporting-open-decisions.md).
 
 ## Confidentiality
 

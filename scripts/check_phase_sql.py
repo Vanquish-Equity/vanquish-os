@@ -5,6 +5,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PHASES = {
+    "phase-3-crm-reporting.sql": ("-- Combined Phase 3; prerequisite: main through 20261014173500. All feature flags remain off.\n\n", ["20261014184050_crm_reporting.sql"]),
+    "phase-3-rollback.sql": ("-- Unused Phase 3 rollback; pause first; refuses metric reviews.\n\n", ["../rollback/phase-3-crm-reporting.sql"]),
     "phase-2-lp-management.sql": ("-- Combined Phase 2 SQL; run whole file after main Phase 1/Auth and owner-reviewed 20261012200002.\n\n", ["20261014173500_lp_management.sql"]),
     "phase-2-rollback.sql": ("-- Full Phase 2 schema rollback; refuses durable financial/accepted records.\n\n", ["../rollback/phase-2-lp-management.sql"]),
     "phase-1-rollback.sql": ("-- Owner-reviewed full phase 1 rollback. Stop worker; reject phase 2.\n\n", ["../rollback/phase-1-durable-relationship-sync.sql"]),
