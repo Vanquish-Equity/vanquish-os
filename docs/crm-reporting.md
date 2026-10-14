@@ -177,3 +177,9 @@ First native CI run: Application checks passed; SQL failed because the Auth-owne
 role. The test now grants only that disposable fixture read. The local runner
 restores the fresh-psql migration role on RESET ROLE instead of retaining the
 bootstrap superuser. No production grant or application function changed.
+
+Native PostgreSQL 16 CI passed at `9d8fadbd` after the fixture correction.
+The 20,000-row native benchmark measured 60.525 ms selective, 11058.287 ms
+broad and 11124.390 ms for the broad RPC. Broad-range latency is a known limit,
+not a production readiness/SLO claim; see the complete plans and discussion in
+`reporting-query-plans.md`. No prior-phase policy was rewritten to improve it.
