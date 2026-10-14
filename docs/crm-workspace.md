@@ -1,6 +1,6 @@
 # CRM workspace expansion
 
-Product direction discussed with Mario on 2026-09-28. This extends the Product Context, Technical Blueprint and Implementation Architecture. Company, Deal and People remain distinct records. A board is a view or workflow over those records; it never duplicates them.
+Product direction discussed with the owner on 2026-09-28. This extends the Product Context, Technical Blueprint and Implementation Architecture. Company, Deal and People remain distinct records. A board is a view or workflow over those records; it never duplicates them.
 
 ## Navigation and board types
 
@@ -16,7 +16,7 @@ Three behaviors must remain explicit:
 
 Users can create, rename, archive and reorder boards; create, rename and reorder whole columns with their displayed cards; add/remove existing records without deleting them; and drag cards across columns. Reordering a column does not change card status. Removing a populated column must require reassignment or an explicit safe archive. Card fields, filters, sorting and counts should be configurable. Provide a select/dropdown alternative to dragging for keyboard and touch use. Personal and shared views require explicit permissions on the underlying records.
 
-The current implementation includes shared general boards with native cards and optional Deal links. Their columns are not investment stages. The principal Pipeline remains backed by `pipeline_stages` and `deals.stage_id`. Task boards (To do / Doing / Done) need a richer task status model than today's open/done. LP outreach should use People/LP relationships, not investment Deals. Additional genuine investment pipelines with distinct stage sets require an explicit process model. Scott and Francis must confirm final stages, including `IC Review`, `Closing`, and the meaning of `Completed`.
+The current implementation includes shared general boards with native cards and optional Deal links. Their columns are not investment stages. The principal Pipeline remains backed by `pipeline_stages` and `deals.stage_id`. Task boards (To do / Doing / Done) need a richer task status model than today's open/done. LP outreach should use People/LP relationships, not investment Deals. Additional genuine investment pipelines with distinct stage sets require an explicit process model. The team must confirm final stages, including `IC Review`, `Closing`, and the meaning of `Completed`.
 
 As of the current board implementation, native cards support team assignees,
 due dates, descriptions and checklists. Linked Deals support multiple team
@@ -145,7 +145,7 @@ People Data Labs, ...) and a decision about sending contact emails to it.
 
 ## Relationship history (shared, opt-in)
 
-Decided with Mario on 2026-10-05: the team may share **that** a member
+Decided with the owner on 2026-10-05: the team may share **that** a member
 emailed or met someone in People and on which day — nothing else. Each member
 turns it on in Settings → **Relationship history**; it is off by default.
 
@@ -330,3 +330,13 @@ Decide who can create shared versus personal boards; whether another Deal board 
 ## Operating workflow update
 
 [Operating workflows](operating-workflows.md) adds the Action center, human-reviewed changes, restricted Deal governance, company consolidation, ranked text/document search, Network introduction candidates and Portfolio monitoring. CRM delivery has its own consent and durable worker. People relationship-history sharing keeps separate consent and now uses the same durable worker queue. See [Sync activation runbook](runbook-sync-activation.md).
+
+## Phase 2 LP discovery and fundraising
+
+Private LP scouting has its own `lp_scouting` permission and personal consent.
+Only explicit approval publishes an initial candidate to People/the member's LP
+board; mailbox evidence never creates a commitment. Portfolio permission controls
+fundraising records and LP 360; Documents is additionally required for linked
+files. See [LP management](lp-management.md) for activation and safe reversal.
+The optional Actions worker requires an independent SQL capability and scheduler
+variable, both off by default; manual own-account scans remain available.

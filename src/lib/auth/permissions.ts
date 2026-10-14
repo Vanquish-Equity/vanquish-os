@@ -2,7 +2,7 @@
 // database, where RLS enforces them; the app uses them to hide and block
 // the same areas. Nothing is granted by default.
 
-export const AREA_PERMISSIONS = ["portfolio", "documents", "admin"] as const;
+export const AREA_PERMISSIONS = ["portfolio", "documents", "admin", "email_scouting", "lp_scouting"] as const;
 export type AreaPermission = (typeof AREA_PERMISSIONS)[number];
 
 export type AccessState =
@@ -84,6 +84,7 @@ export const WORKSPACE_NAV: NavItem[] = [
   { href: "/network", label: "Network", icon: "network" },
   { href: "/tasks", label: "Tasks", icon: "tasks" },
   { href: "/review", label: "Review", icon: "review" },
+  { href: "/portfolio/fundraising", label: "LP fundraising", icon: "lp", requires: "portfolio" },
   { href: "/portfolio", label: "Portfolio", icon: "portfolio", requires: "portfolio" },
 ];
 

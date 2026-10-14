@@ -23,7 +23,7 @@ export async function setMemberActive(email: string, active: boolean): Promise<R
 
 export async function setMemberPermission(
   email: string,
-  permission: "portfolio" | "documents" | "email_scouting",
+  permission: "portfolio" | "documents" | "email_scouting" | "lp_scouting",
   enabled: boolean
 ): Promise<Result> {
   const supabase = await adminClient();
@@ -31,6 +31,7 @@ export async function setMemberPermission(
   const { error } = await supabase.rpc("admin_set_member_permission", { p_email: email, p_permission: permission, p_enabled: enabled });
   if (error) return { ok: false, message: "Could not update this permission." };
   revalidatePath("/settings");
+  revalidatePath("/lp-scouting");
   return { ok: true };
 }
 

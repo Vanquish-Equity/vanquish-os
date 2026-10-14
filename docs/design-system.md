@@ -105,11 +105,8 @@ and the offline Vanquish AI panel stays fixed without moving the sidebar.
 
 ## Server latency notes
 
-- Measured on the live project (Oct 2026): the largest app table has ~400 rows
-  and app queries average ~0.2 ms, so page time is dominated by sequential
-  network round trips (Vercel `pdx1` to Supabase `us-west-2`), not SQL. Keep
-  independent queries in one `Promise.all`, and do not await a slow third-party
-  call (Gmail, Calendar) before the page can render.
+- Batch independent queries in one `Promise.all`; avoid sequential network
+  round trips and do not await slow Gmail/Calendar calls before page rendering.
 - The shell reads the avatar path with the access lookup and signs it in
   parallel with the unread counts and the board list.
 - People starts the Gmail "last email" and Calendar "next meeting" lookups
@@ -128,3 +125,9 @@ Integration health reuses `vq-card-static` and responsive two-column service
 cards with text timestamps/statuses. Retry uses a native keyboard/touch button,
 visible pending disablement and a live result message. It does not introduce a
 new selector, checkbox or animation. Narrow layouts wrap job diagnostics.
+
+LP scouting and fundraising reuse SelectMenu, Checkbox and vq-card-static.
+Personal scan consent differs from the Admin permission switch: the first opts
+the member's mailbox into scanning; the second grants feature access. Responsive
+forms wrap selectors/actions, decisions have visible pending/live feedback, and
+fundraising UUIDs survive retries. No new design-system exception is introduced.

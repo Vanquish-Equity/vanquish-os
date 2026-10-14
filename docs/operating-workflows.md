@@ -79,31 +79,21 @@ Gmail/Calendar CRM consent and is paused per folder.
 
 ## Activation
 
-1. Apply the eleven `20261008*.sql` migrations (eight workflow migrations plus
-   three corrective migrations) in filename order to the target
-   database **before** using the new pages. These are forward migrations,
-   applied once; they are not a production rollback script. Use the existing
-   schema-readiness workflow to confirm the target environment.
-2. Existing Gmail/Calendar OAuth configuration and encryption key remain
-   required. Enable Drive API and add the additional scopes to the same OAuth
-   consent configuration. Reading requests `drive.readonly`; management asks
-   for `drive`. Only members with Documents can request those additional grants.
-3. Run `npm run sync:worker` on the owner's computer for the production
-   relationships-only canary, later under an owner-provisioned scheduler.
-   It uses the project's public URL/anon or publishable key, service Auth
-   email/password/expected UUID, Google OAuth client and encryption secrets.
-   The process uses in-memory normal Auth sessions and explicit pre-expiry refresh;
-   no local JWT signing secret, service-role key or worker JWT is accepted.
-   See the runbook for hidden-prompt Bash/PowerShell commands.
-4. Gmail push is disabled: the endpoint returns 503 and the worker creates no
-   watch. Polling is sufficient. A future signal-only identity and Google OIDC/
-   Pub/Sub lifecycle must be separately designed and reviewed.
-5. In each account, connect Google, save CRM consent and optionally monitor
-   a Drive folder. Confirm a job becomes complete, associate a test email and
-   meeting, and check the Company's/Deal's Last Activity. Confirm opt-out and
-   disconnected accounts fail closed. Test file rename/move only with agreed
-   disposable files. No production migration or Google mutation is performed
-   merely by merging this implementation PR.
+The Phase 1/Auth schema is already deployed. The existing GitHub Actions
+workflow is the only worker runner; do not start a local worker or re-provision
+its identity for Phase 2. It signs in with Supabase Auth and refreshes tokens
+in memory. Credentials remain in the existing Actions secrets, never in code,
+repository variables or output. No custom/legacy JWT or service-role key is used.
+
+Phase 2 follows [LP activation and rollback](lp-management.md): owner-reviewed
+whole Phase 2 SQL → merge/deploy → grant `lp_scouting` → owner manual test.
+Scheduled LP scanning needs a separate SQL capability and repository-variable
+opt-in, both off by default. No migration, consent or live scan is executed by
+this PR. Existing CRM/Drive publication requires its own explicit consent and
+permission; it is not enabled by granting LP scouting.
+
+Gmail push remains disabled (503; no watch). A future signal-only identity,
+Google OIDC checks and Pub/Sub lifecycle require separate implementation/review.
 
 ## Validation and limits
 
@@ -240,37 +230,10 @@ scans; selective matches are checked with EXPLAIN on 20,000 synthetic Companies
   image must install dev dependencies (or precompile the worker); a production
   install that omits dev dependencies cannot run that script unchanged.
 
-The known main-branch audit findings for Next, sharp and source-map-js are
-outside this focused PR; no versions are changed here to address them. A fresh
-audit reports eight high dependency entries (also the Next ESLint / braces /
-fast-glob / micromatch chain), identical against main and this branch.
-
-## Review validation (PR #60 corrections)
-
-A production build and `next start` were reviewed in local Chromium 153 against
-an isolated HTTP backend with synthetic auth/session and CRM data (no preview or
-production credentials, migrations or data). Action center, Network, Documents,
-Governance, Integrations and Portfolio Monitoring returned HTTP 200 at 1440px
-and 390px with no page/main horizontal overflow or browser exceptions. Keyboard
-focus reached controls on each page; withdrawal confirmation/cancel, AI mode
-menu End/Enter, Escape/focus return and collapsed sidebar Documents focus were
-checked. Screenshots were inspected for narrow Documents/Portfolio and the
-AI panel. The review found and fixed a server-rendered comment portal error on
-Action center/Documents, covered by SSR regression tests. It also found and fixed unlayered card CSS
-overriding fixed/absolute positioning; the AI panel and SelectMenu now retain
-their intended positions without shifting the page.
-
-Vanquish AI's prompt and Send remain disabled; opening it, selecting a mode and
-closing it triggered **zero external requests**. All review traffic was local;
-no AI provider configuration/call exists in its component. Real Google consent,
-Drive/Gmail mutation, signed Pub/Sub delivery and scheduler/secret-manager
-rotation remain unverified connected flows, not implied by this synthetic UI
-review. Final application validation: lint and TypeScript pass, **225 Vitest tests**
-across 47 files pass, and the production build passes. Local SQL validation
-executes 62 migration applications and 38 suite executions (33 distinct SQL
-suites, plus bootstrap), following the full CI migration/test sequence in a
-disposable PostgreSQL-compatible PGlite instance; GitHub CI also runs it on
-PostgreSQL 16. No Supabase migrations were applied.
+Dependency versions are unchanged by this phase. Synthetic UI checks exercise
+actual components with stubbed actions and fictional data; they do not validate
+real Google consent, external mutations or Auth sessions. Current per-head
+lint/type/test/build and disposable SQL results are recorded on the PR.
 
 ## Durable relationship delivery (phase 1)
 
@@ -297,8 +260,8 @@ an old provider event cannot prove which legacy daily row it contributed to.
 Withdrawal and Delete my history remove that member's private baseline too.
 
 See [Sync activation runbook](runbook-sync-activation.md) for owner-controlled
-provisioning and acceptance. This PR does not provision an issuer, scheduler,
-Pub/Sub, secrets or Google accounts, or apply any remote migration.
+identity administration and acceptance. This PR reuses the existing Actions
+runner and does not provision accounts, change secrets or apply remote SQL.
 
 ## Phase 1 reversal and verification
 
@@ -334,5 +297,13 @@ forward and rollback SQL only change our isolation policy there, never owner DDL
 or ACLs. CI emulates Supabase policy-only DDL for a non-superuser under a separate
 Storage owner, checks the denied ALTER/no-op REVOKE boundary, and exercises a
 policy-bearing internal table that must abort the complete Auth transaction.
-The runbook records the owner's production observation: step 1 committed, step 2
-failed and fully reverted; only the corrected second migration needs retry.
+Phase 1/Auth is already deployed; Phase 2 does not repeat those migrations.
+The runbook describes the existing Actions-only runner and recovery boundaries.
+
+## Phase 2 LP compatibility
+
+LP worker RPCs use the deployed Auth identity guard and a SQL-only default-off
+capability, plus scheduler opt-in. New LP tables have restrictive machine RLS.
+Admin and member access share the `lp_scouting` permission row; personal scouting
+consent remains independent. See [LP management](lp-management.md) for the main
+base, whole SQL activation order and guarded/data-preserving rollback.
