@@ -340,3 +340,12 @@ fundraising records and LP 360; Documents is additionally required for linked
 files. See [LP management](lp-management.md) for activation and safe reversal.
 The optional Actions worker requires an independent SQL capability and scheduler
 variable, both off by default; manual own-account scans remain available.
+
+## Phase 3 reporting
+
+`/reporting` provides bounded, permission-checked CSV, member-only opt-in weekly
+generation/download and explicit fund metrics. Overview adds RLS SQL stage counts
+for recent Deal creation. Feature activation defaults off; no emails or reporting
+worker capability are introduced. Private boards/mailbox/LP evidence and positions
+are excluded from shared exports. See [reporting](crm-reporting.md), including
+concurrent-export limits, reviewed NAV/flow requirements and rollback.

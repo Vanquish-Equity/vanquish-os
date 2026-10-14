@@ -155,3 +155,17 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/tests/relationship_interactions.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/crm_sync_jobs.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/withdraw_sync_publications.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261009171254_durable_relationship_sync.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261012175553_auth_service_worker.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261014173500_lp_management.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261014184050_crm_reporting.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/crm_reporting.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261014184050_crm_reporting.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/crm_reporting.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/reporting_rollback_guard.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/reporting_explain.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/phase-sql/phase-3-rollback.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/phase-sql/phase-3-rollback.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/reporting_rollback_assert.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/lp_management.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/lp_worker_identity.sql > /dev/null
