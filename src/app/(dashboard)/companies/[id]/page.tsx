@@ -362,7 +362,7 @@ export default async function CompanyDetailPage({
   endTimer();
 
   const personIds = (people ?? []).map((person) => person.id);
-  const [{ data: relationshipRows }, { data: memberDirectory }] = !intelligence.enabled && personIds.length
+  const [{ data: relationshipRows }, { data: memberDirectory }] = personIds.length
     ? await Promise.all([
         supabase
           .from("relationship_interactions")
@@ -768,7 +768,7 @@ export default async function CompanyDetailPage({
         </div>
       </section>
 
-      {intelligence.enabled && <RelationshipIntelligenceSection people={(people??[]).map(p=>({id:p.id,name:p.name})).slice(0,50)} allowed={intelligence.allowed} partial={(people?.length??0)>50} />}
+      {intelligence.enabled && intelligence.allowed && <RelationshipIntelligenceSection people={(people??[]).map(p=>({id:p.id,name:p.name})).slice(0,50)} allowed={intelligence.allowed} partial={(people?.length??0)>50} />}
 
       <section id="people" className="vq-card rounded-[14px] bg-white p-5 scroll-mt-16">
         <h2 className="mb-3 text-[14.5px] font-semibold text-ink">People</h2>
