@@ -27,3 +27,5 @@ mentioned in older notes are outside this repository. This map covers the
 documentation available in the codebase; do not assume an external document
 has been read or is current.
 
+
+- Phase 4 relationships: [contract and activation](relationships.md), [open decisions](relationships-open-decisions.md), [synthetic query plans](relationships-query-plans.md).
