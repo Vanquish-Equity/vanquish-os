@@ -1,3 +1,5 @@
+import RelationshipIntelligenceSection from "@/components/RelationshipIntelligenceSection";
+import { relationshipIntelligenceState } from "@/lib/relationships/intelligence-queries";
 import Link from "next/link";
 import { hasPermission, requireMember } from "@/lib/auth/access";
 import CommentsSection from "@/components/comments/CommentsSection";
@@ -125,6 +127,7 @@ export default async function CompanyDetailPage({
     hasPermission("portfolio"),
     requireMember(),
   ]);
+  const intelligence = await relationshipIntelligenceState();
   const supabase = await createClient();
   // Company-level comments (null until migration 0019 is applied).
   const commentsPromise = Promise.all([loadComments(supabase, id, null), loadDirectory(supabase)]);
@@ -359,7 +362,7 @@ export default async function CompanyDetailPage({
   endTimer();
 
   const personIds = (people ?? []).map((person) => person.id);
-  const [{ data: relationshipRows }, { data: memberDirectory }] = personIds.length
+  const [{ data: relationshipRows }, { data: memberDirectory }] = !intelligence.enabled && personIds.length
     ? await Promise.all([
         supabase
           .from("relationship_interactions")
@@ -764,6 +767,8 @@ export default async function CompanyDetailPage({
           />
         </div>
       </section>
+
+      {intelligence.enabled && <RelationshipIntelligenceSection people={(people??[]).map(p=>({id:p.id,name:p.name})).slice(0,50)} allowed={intelligence.allowed} partial={(people?.length??0)>50} />}
 
       <section id="people" className="vq-card rounded-[14px] bg-white p-5 scroll-mt-16">
         <h2 className="mb-3 text-[14.5px] font-semibold text-ink">People</h2>

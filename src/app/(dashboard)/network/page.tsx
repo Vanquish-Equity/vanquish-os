@@ -1,3 +1,5 @@
+import RelationshipIntelligenceSection from "@/components/RelationshipIntelligenceSection";
+import { relationshipIntelligenceState } from "@/lib/relationships/intelligence-queries";
 import Link from "next/link";
 import { requireMember } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/server";
@@ -10,6 +12,13 @@ export default async function NetworkPage({searchParams}:{searchParams:Promise<{
   await requireMember();
   const {q=""} = await searchParams;
   const db = await createClient();
+  const intelligence = await relationshipIntelligenceState();
+  if (intelligence.enabled) {
+    let visible = db.from("people").select("id,name").is("archived_at",null).order("name").order("id").limit(51);
+    if (q.trim()) visible=visible.ilike("name",`%${escapeLike(q.trim().slice(0,80))}%`);
+    const {data, error} = intelligence.allowed ? await visible : {data:[],error:null};
+    return <div className="min-w-0 px-4 py-6 sm:px-7"><h1 className="text-[23px] font-semibold text-ink">Network</h1><form className="my-5 flex gap-2"><input aria-label="Find a contact" name="q" defaultValue={q} placeholder="Find a contact…" className="min-w-0 flex-1 rounded-xl border p-3 text-sm"/><button className="min-h-11 rounded-full bg-ink px-4 text-xs text-white">Search</button></form><RelationshipIntelligenceSection people={(data??[]).slice(0,50)} allowed={intelligence.allowed && !error} partial={(data?.length??0)>50}/><div className="mt-4 flex flex-wrap gap-3">{(data??[]).slice(0,50).map(p=><Link key={p.id} href={`/people/${p.id}`} className="min-h-11 rounded-xl border p-3 text-xs">{p.name}</Link>)}</div></div>;
+  }
   let query = db.from("people").select("id,name,title,primary_organization_id,organization:companies(name)").is("archived_at",null).order("name").limit(200);
   if (q.trim()) query=query.ilike("name",`%${escapeLike(q.trim().slice(0,80))}%`);
   const [people,directory] = await Promise.all([query,loadDirectory(db)]);
