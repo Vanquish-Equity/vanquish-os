@@ -55,7 +55,7 @@ export default function RelationshipIntelligence({
   return (
     <section
       aria-label="Relationship intelligence"
-      className="vq-card-static min-w-0 rounded-[14px] bg-white p-4 sm:p-5"
+      className="vq-card-static min-w-0 rounded-[14px] bg-white p-4 sm:p-5 motion-reduce:[&_*]:animate-none motion-reduce:[&_*]:transition-none"
     >
       <h2 className="text-[15px] font-semibold text-ink">
         Relationship intelligence · v1

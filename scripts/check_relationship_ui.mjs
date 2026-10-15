@@ -74,10 +74,22 @@ await build({
     },
   ],
 });
-const css = fs
-  .readdirSync(repo + "/.next/static/chunks")
-  .filter((f) => f.endsWith(".css"))
-  .map((f) => fs.readFileSync(repo + "/.next/static/chunks/" + f, "utf8"))
+// Use the active Network manifest, never stale CSS left by an earlier build.
+const manifest = fs.readFileSync(
+  repo +
+    "/.next/server/app/(dashboard)/network/page_client-reference-manifest.js",
+  "utf8",
+);
+const cssPaths = [
+  ...new Set(
+    [...manifest.matchAll(/"path":"(static\/chunks\/[^"]+\.css)"/g)].map(
+      (m) => m[1],
+    ),
+  ),
+];
+assert.ok(cssPaths.length, "Active Network CSS missing; rebuild first.");
+const css = cssPaths
+  .map((p) => fs.readFileSync(repo + "/.next/" + p, "utf8"))
   .join("\n");
 fs.writeFileSync(
   join(output, "ui.html"),
@@ -104,6 +116,12 @@ try {
       name: "Starting member (sharing enabled)",
       exact: true,
     });
+    assert.equal(
+      await start
+        .locator("svg")
+        .evaluate((e) => getComputedStyle(e).transitionProperty),
+      "none",
+    );
     await start.focus();
     await page.keyboard.press("ArrowDown");
     await page

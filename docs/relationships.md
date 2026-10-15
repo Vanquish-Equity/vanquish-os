@@ -57,6 +57,10 @@ Flag on: Network searches at most 50 visible target choices; use a person record
 
 Local full-chain validation uses disposable PGlite (PostgreSQL compiled to WASM); CI runs the exact same ordered SQL files on native PostgreSQL 16. Run `TZ=UTC node scripts/check_relationship_sql.mjs` after installing the test-only PGlite runtime under `/tmp/crm-sql`. It extracts the workflow order, includes earlier phases, storage-role simulation, idempotence and rollback. No remote database is contacted. See the harness header for runtime installation. SQL tests and benchmarks must **never** be pasted into Supabase's production or preview editor.
 
+## Verification history
+
+Local checks exposed three harness/build issues before publication: an obsolete pre-Auth browser-write regression was replaced by the existing Auth business suite; a corrupted generated Turbopack cache was removed and the build rerun; UI selectors were corrected to use accessible labels, and the harness now loads only active Network CSS from the build manifest instead of mixing stale CSS chunks. The reduced-motion assertion checks that the arrow's effective transition property is none. The new panel suppresses descendant animations/transitions under reduced motion without changing shared controls. All final application, full-chain SQL and both-width synthetic UI checks are rerun before updating the PR. Native CI results and exact benchmark source commits are recorded in the query-plan document.
+
 ## Owner activation and pause/rollback
 
 Nothing in this PR applies SQL or enables a flag remotely. Preview shares production: a preview is not a disposable migration target.
