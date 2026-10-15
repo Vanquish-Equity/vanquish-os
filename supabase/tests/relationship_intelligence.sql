@@ -54,6 +54,7 @@ select set_config('request.jwt.claims','{"role":"authenticated","email":"relatio
 insert into relationship_result select public.relationship_intelligence_graph('f4000000-0000-0000-0000-000000000011',md5('relationship-member:relation.one@synthetic.test'));
 select pg_temp.expect((select v->>'status'='ready' from relationship_result),'ready graph');
 select pg_temp.expect((select jsonb_array_length(v->'edges')=3 from relationship_result),'three bipartite edges only');
+select pg_temp.expect((select (v->>'nodesVisited')::int=4 from relationship_result),'root and target counted once with bridge and other member');
 select pg_temp.expect((select (e->>'days')::int=2 and (e->>'meetings')::int=1 and e->>'lastOn'=(current_date-1)::text from relationship_result,jsonb_array_elements(v->'edges')e where e->>'person'='f4000000-0000-0000-0000-000000000011'),'distinct days, same-day meeting, inclusive 180-day window, future excluded');
 select pg_temp.expect((select v->>'reciprocity'='unavailable' and v->>'version'='v1' from relationship_result),'version and no reciprocity');
 select pg_temp.expect((public.relationship_intelligence_graph('f4000000-0000-0000-0000-000000000012',md5('relationship-member:relation.one@synthetic.test'))->>'status')='unavailable','hidden target unavailable');

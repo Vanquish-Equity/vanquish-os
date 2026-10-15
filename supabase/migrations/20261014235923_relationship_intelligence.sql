@@ -100,6 +100,8 @@ begin
  if jsonb_array_length(publishers)>500 then partial:=true;reasons:=array_append(reasons,'publisher_budget');end if;
  select e->>'email' into root_email from jsonb_array_elements(publishers) with ordinality x(e,n) where n<=500 and e->>'member_key'=p_member;
  if root_email is null then return jsonb_build_object('status','unavailable','edges','[]'::jsonb);end if;
+ -- Count the selected root and target even when no edge can be admitted.
+ nodes:=array['m:'||p_member,'p:'||p_person::text];
  begin
   for r in
    with publishers_visible as materialized (
