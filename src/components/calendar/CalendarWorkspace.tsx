@@ -1,11 +1,15 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, startTransition } from "react";
 import { useTimePreferences } from "@/lib/settings/time";
 import Checkbox from "@/components/Checkbox";
 import SelectMenu from "@/components/SelectMenu";
 import EventDetails from "./EventDetails";
 import EventEditor from "./EventEditor";
+import CompletionEventEditor from "./CompletionEventEditor";
+import CalendarMoveResize from "./CalendarMoveResize";
+import CalendarCompletionTools from "./CalendarCompletionTools";
+import { calendarCompletionState } from "@/lib/google/calendar-completion-actions";
 import {
   listCalendars,
   listCalendarEvents,
@@ -33,6 +37,21 @@ export default function CalendarWorkspace({
   connected: boolean;
 }) {
   const preference = useTimePreferences();
+  const [completion, setCompletion] = useState(false);
+  const [taskView, setTaskView] = useState<{
+    key: string;
+    tasks: { id: string; title: string; due_at: string }[];
+  } | null>(null);
+  useEffect(() => {
+    let live = true;
+    startTransition(async () => {
+      const value = await calendarCompletionState();
+      if (live) setCompletion(value);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
   const timeline = useRef<HTMLDivElement>(null);
   const [calendars, setCalendars] = useState<GoogleCalendar[]>([]);
   const [enabled, setEnabled] = useState<string[]>([]);
@@ -50,12 +69,17 @@ export default function CalendarWorkspace({
   const [selected, setSelected] = useState<CalendarEvent | null>(null);
   // Right-click (or the keyboard's context-menu key) on a day in the month
   // grid: a small menu to create an event on that day.
-  const [dayMenu, setDayMenu] = useState<{ day: string; x: number; y: number } | null>(null);
+  const [dayMenu, setDayMenu] = useState<{
+    day: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const dayMenuRef = useRef<HTMLDivElement | null>(null);
   const [editor, setEditor] = useState<{
     event: CalendarEvent | null;
     day: string;
     hour?: number;
+    proposed?: { start: CalendarEvent["start"]; end: CalendarEvent["end"] };
   } | null>(null);
   useEffect(() => {
     if (!dayMenu) return;
@@ -66,7 +90,11 @@ export default function CalendarWorkspace({
     const escape = (event: KeyboardEvent) => {
       if (event.key === "Escape") close();
     };
-    const focus = requestAnimationFrame(() => dayMenuRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus());
+    const focus = requestAnimationFrame(() =>
+      dayMenuRef.current
+        ?.querySelector<HTMLButtonElement>("button:not(:disabled)")
+        ?.focus(),
+    );
     document.addEventListener("pointerdown", outside);
     document.addEventListener("keydown", escape);
     window.addEventListener("resize", close);
@@ -166,6 +194,23 @@ export default function CalendarWorkspace({
   useEffect(() => {
     if (timeline.current) timeline.current.scrollTop = 7 * 52;
   }, [view]);
+  const taskKey = JSON.stringify([enabled, from, until, zone]);
+  const dayTasks = (day: string) =>
+    completion && taskView?.key === taskKey
+      ? taskView.tasks.filter((t) => t.due_at === day)
+      : [];
+  const taskCards = (day: string) =>
+    dayTasks(day)
+      .slice(0, 3)
+      .map((t) => (
+        <article
+          key={t.id}
+          className="mb-1 truncate rounded bg-violet-50 px-2 py-1 text-[11px] text-violet-900"
+          title={t.title}
+        >
+          CRM task · {t.title}
+        </article>
+      ));
   const editable = (event?: CalendarEvent) =>
     writable &&
     !!calendars.find(
@@ -274,6 +319,16 @@ export default function CalendarWorkspace({
           Refresh
         </button>
       </header>
+      {completion && (
+        <CalendarCompletionTools
+          key={JSON.stringify([enabled, from, until, zone])}
+          onTasks={(tasks) => setTaskView({ key: taskKey, tasks })}
+          ids={enabled}
+          from={from}
+          until={until}
+          zone={zone}
+        />
+      )}
       <div className="flex flex-col lg:flex-row">
         <aside className="shrink-0 space-y-4 border-b border-neutral-100 p-4 lg:w-52 lg:border-b-0 lg:border-r">
           <form
@@ -432,9 +487,11 @@ export default function CalendarWorkspace({
                       }}
                       onContextMenu={(event) => {
                         event.preventDefault();
-                        const rect = event.currentTarget.getBoundingClientRect();
+                        const rect =
+                          event.currentTarget.getBoundingClientRect();
                         // The keyboard's context-menu key reports 0,0: anchor to the cell then.
-                        const keyboard = event.clientX === 0 && event.clientY === 0;
+                        const keyboard =
+                          event.clientX === 0 && event.clientY === 0;
                         setDayMenu({
                           day,
                           x: keyboard ? rect.left + 24 : event.clientX,
@@ -454,6 +511,7 @@ export default function CalendarWorkspace({
                         {Number(day.slice(8))}
                       </button>
                       {items.slice(0, 3).map((e) => eventButton(e))}
+                      {taskCards(day)}
                       {items.length > 3 && (
                         <button
                           type="button"
@@ -477,7 +535,7 @@ export default function CalendarWorkspace({
                 .filter((d) => d.slice(0, 7) === anchor.slice(0, 7))
                 .map((day) => {
                   const items = events.filter((e) => eventOnDay(e, day, zone));
-                  return items.length ? (
+                  return items.length || dayTasks(day).length ? (
                     <section
                       key={day}
                       className="mb-4 flex gap-4 border-b border-neutral-100 pb-4"
@@ -495,6 +553,7 @@ export default function CalendarWorkspace({
                       </h3>
                       <div className="min-w-0 flex-1">
                         {items.map((e) => eventButton(e))}
+                        {taskCards(day)}
                       </div>
                     </section>
                   ) : null;
@@ -538,6 +597,7 @@ export default function CalendarWorkspace({
                           (e) => !!e.start.date && eventOnDay(e, day, zone),
                         )
                         .map((e) => eventButton(e, true))}
+                      {taskCards(day)}
                     </div>
                   ))}
                 </div>
@@ -578,6 +638,32 @@ export default function CalendarWorkspace({
                         {timedEventLanes(events, day, zone).map(
                           ({ event: e, start, end, lane, lanes }, index) => {
                             const width = 100 / lanes;
+                            if (completion && editable(e))
+                              return (
+                                <CalendarMoveResize
+                                  key={`${e.calendarId}-${e.id}-${index}`}
+                                  event={e}
+                                  style={{
+                                    top: (start / 60) * 52,
+                                    height: Math.max(
+                                      44,
+                                      ((end - start) / 60) * 52,
+                                    ),
+                                    left: `${lane * width}%`,
+                                    width: `${width}%`,
+                                  }}
+                                  onOpen={() => setSelected(e)}
+                                  onPropose={(proposed) =>
+                                    setEditor({ event: e, day, proposed })
+                                  }
+                                >
+                                  <span className="font-semibold">
+                                    {e.summary || "(No title)"}
+                                  </span>
+                                  <br />
+                                  {eventTimeLabel(e.start, zone)}
+                                </CalendarMoveResize>
+                              );
                             return (
                               <button
                                 key={`${e.calendarId}-${e.id}-${index}`}
@@ -639,7 +725,12 @@ export default function CalendarWorkspace({
           className="fixed z-50 w-56 rounded-xl border border-neutral-200 bg-white p-1 shadow-xl"
         >
           <div className="px-3 pb-1 pt-2 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
-            {new Date(`${dayMenu.day}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}
+            {new Date(`${dayMenu.day}T12:00:00Z`).toLocaleDateString("en-US", {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+              timeZone: "UTC",
+            })}
           </div>
           <button
             type="button"
@@ -672,20 +763,35 @@ export default function CalendarWorkspace({
           )}
         </div>
       )}
-      {editor && (
-        <EventEditor
-          event={editor.event}
-          day={editor.day}
-          hour={editor.hour}
-          calendars={writableCalendars}
-          timeZone={zone}
-          onClose={() => setEditor(null)}
-          onSaved={() => {
-            setEditor(null);
-            setRevision((v) => v + 1);
-          }}
-        />
-      )}
+      {editor &&
+        (completion ? (
+          <CompletionEventEditor
+            event={editor.event}
+            proposed={editor.proposed}
+            day={editor.day}
+            hour={editor.hour}
+            calendars={writableCalendars}
+            timeZone={zone}
+            onClose={() => setEditor(null)}
+            onSaved={() => {
+              setEditor(null);
+              setRevision((v) => v + 1);
+            }}
+          />
+        ) : (
+          <EventEditor
+            event={editor.event}
+            day={editor.day}
+            hour={editor.hour}
+            calendars={writableCalendars}
+            timeZone={zone}
+            onClose={() => setEditor(null)}
+            onSaved={() => {
+              setEditor(null);
+              setRevision((v) => v + 1);
+            }}
+          />
+        ))}
     </div>
   );
 }

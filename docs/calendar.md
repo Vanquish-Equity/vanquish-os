@@ -81,3 +81,7 @@ References: [events.list](https://developers.google.com/workspace/calendar/api/v
 ## Operating workflow update
 
 A separate consented worker now publishes matched primary-calendar activity to CRM and follows syncToken; its cursor reset, recurrence, cancellation and configuration details are in [Operating workflows](operating-workflows.md). The live Calendar UI still reads on demand; its existing editing restrictions remain.
+
+## Phase 5B optional completion
+
+The separately gated [Calendar completion](calendar-completion.md) adds reviewed series edits, move/resize proposals, own RSVP, busy-only availability and an RLS task view. Without the owner flag and explicit calendar_completion permission, the Calendar above remains unchanged, including occurrence-only editing. The new flow distinguishes definite rejections from uncertain outcomes and never retries automatically; see its scope, activation and protected rollback contract.

@@ -5,6 +5,7 @@ export class GoogleError extends Error {
     public code:
       "disconnected" | "permission" | "unavailable" | "not_found" | "conflict" | "expired_cursor",
     message: string,
+    public status?: number,
   ) {
     super(message);
   }
@@ -114,31 +115,37 @@ export async function googleClientFromSecret(secret:GoogleSecret):Promise<Google
           throw new GoogleError(
             "disconnected",
             "Reconnect Google in Settings.",
+            res.status,
           );
         if (res.status === 403)
           throw new GoogleError(
             "permission",
             "Google denied access. Check the account permissions or reconnect Google.",
+            res.status,
           );
         if (res.status === 404)
           throw new GoogleError(
             "not_found",
             "This item is no longer available in Google.",
+            res.status,
           );
-        if (res.status === 410) throw new GoogleError("expired_cursor", "Google requires a fresh synchronization.");
+        if (res.status === 410) throw new GoogleError("expired_cursor", "Google requires a fresh synchronization.", res.status);
         if (res.status === 412)
           throw new GoogleError(
             "conflict",
             "This event changed in Google. Refresh it before saving again.",
+            res.status,
           );
         if (res.status === 429)
           throw new GoogleError(
             "unavailable",
             "Google's request limit was reached. Try again shortly.",
+            res.status,
           );
         throw new GoogleError(
           "unavailable",
           "Google could not confirm the operation. Refresh before retrying.",
+          res.status,
         );
       }
       if (responseType) {

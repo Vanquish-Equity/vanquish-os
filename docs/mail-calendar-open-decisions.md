@@ -14,3 +14,16 @@ This document covers **5A only**. Calendar 5B is not started or authorized by th
 | Optional rollout | Enable globally; per-member owner provisioning | Global flag false and canonical mail_completion permission absent. Owner can canary only approved internal Workspace test accounts. Each real mutation needs the user's separate explicit confirmation. |
 
 The existing relationship-only GitHub Actions worker remains read-only and unchanged. A future scheduled sender must be a **different purpose-bound job**, not an extension of that worker or a generic HTTP/MIME sender. The future job must accept one reviewed queue UUID, validate its immutable revision/alias/attachments/due time, obtain a single-use claim, revalidate immediately before dispatch, send once, and settle or quarantine uncertainty. No such job exists here. The current design table cannot be written through the Data API and the scheduling button stays disabled even when mail completion is enabled.
+
+## Phase 5B additions (authorized separately after 5A)
+
+The earlier 5A-only description is retained as its original phase record. These rows concern Calendar only; no Gmail behavior or retention decision is changed.
+
+| Decision | Options | Recommendation / safe default |
+| --- | --- | --- |
+| Calendar rollout | Global activation; owner-provisioned member canary | calendar_completion plus private singleton flag, both absent/off by default. Existing Calendar stays unchanged without both. Internal Workspace disposable account and owner approval for every real mutation. |
+| Recurrence subset and exception semantics | Full RFC5545; bounded subset; delegate complex series to Google | Bounded DAILY/WEEKLY/MONTHLY COUNT/UNTIL subset with explicit occurrence/master choice. Complex rules fail visibly; confirm actual exception behavior with approved disposable series before enabling. |
+| Calendar definitive versus uncertain outcomes | Permanently block all failures; retry automatically; require a new human review for clear rejection | Clear 4xx except 408 closes only that review; corrected input needs a NEW confirmation. Unknown outcomes quarantine resource metadata, never retry automatically. Transport exposes optional HTTP status while retaining existing mappings/no retries. |
+| Calendar metadata retention / uncertain resolution | TTL delete; retain protected decisions; owner-reviewed reconciliation/archival | Ten-minute approval expiry never reclaims. Keep protected metadata and pause/retain schema. No UI or automatic operation relabels uncertain as rejected/completed to unlock it; a future reconciliation/retention contract requires owner review. |
+| Availability scope and display | Arbitrary attendee email lookup; caller CalendarList only; shared event-detail aggregation | Caller calendars only, up to twelve and 31 days, busy intervals only. Unavailable calendars are never assumed free. UI labels the UTC slice; no disclosure of other event details. |
+| Task overlay ownership | All team tasks; own canonical assignments; infer legacy owner text | Open own assignee_email tasks under RLS/parent visibility, first 200 per bounded range with partial marker. No legacy conversion, task mutation or Google event/Tasks API creation. |

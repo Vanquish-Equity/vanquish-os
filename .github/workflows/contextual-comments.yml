@@ -196,3 +196,16 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/tests/auth_worker_publication.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/auth_worker_identity.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/relationship_intelligence.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261016013701_mail_completion.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/calendar_rollback_snapshot.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261016211212_calendar_completion.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/calendar_completion.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261016211212_calendar_completion.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/calendar_completion.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/calendar_rollback_guard.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/phase-sql/phase-5b-rollback.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/phase-sql/phase-5b-rollback.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/calendar_rollback_assert.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/mail_completion.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/auth_worker_identity.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/relationship_intelligence.sql > /dev/null
