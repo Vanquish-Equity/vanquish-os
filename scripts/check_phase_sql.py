@@ -5,6 +5,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PHASES = {
+    "phase-5b-calendar-completion.sql": ("-- Combined Phase 5B; main through 20261016013701 required. Defaults off.\n\n", ["20261016211212_calendar_completion.sql"]),
+    "phase-5b-rollback.sql": ("-- Phase 5B: pause first; protected metadata prevents removal.\n\n", ["../rollback/phase-5b-calendar-completion.sql"]),
     "phase-5a-mail-completion.sql": ("-- Combined Phase 5A. Main through 20261014235923 required. Defaults off; no sender.\n\n", ["20261016013701_mail_completion.sql"]),
     "phase-5a-rollback.sql": ("-- Pause first; protected review records prevent schema removal.\n\n", ["../rollback/phase-5a-mail-completion.sql"]),
     "phase-4-relationships.sql": ("-- Combined Phase 4; prerequisite main through 20261014184050. Flag remains off.\n\n", ["20261014235923_relationship_intelligence.sql"]),
