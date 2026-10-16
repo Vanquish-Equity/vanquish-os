@@ -307,3 +307,7 @@ capability, plus scheduler opt-in. New LP tables have restrictive machine RLS.
 Admin and member access share the `lp_scouting` permission row; personal scouting
 consent remains independent. See [LP management](lp-management.md) for the main
 base, whole SQL activation order and guarded/data-preserving rollback.
+
+## Phase 5A isolation
+
+[Mail completion](mail-completion.md) is an optional interactive Gmail workflow. It adds no worker capability, scheduler, watch or body store. The relationship-only read worker and push-disabled route stay unchanged. Any future scheduled sender needs a separate purpose-bound design and explicit privacy approval; [decisions](mail-calendar-open-decisions.md) remain open.

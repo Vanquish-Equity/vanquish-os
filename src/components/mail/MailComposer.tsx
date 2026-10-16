@@ -1,5 +1,24 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
+import MailReviewHistory from "./MailReviewHistory";
+import MailReviewPanel from "./MailReviewPanel";
+import {
+  mailCompletionState,
+  mailCompletionAliases,
+  startMailUpload,
+  uploadMailChunk,
+  removeMailUpload,
+  reviewMailMutation,
+  executeMailMutation,
+  cancelMailReview,
+} from "@/lib/google/mail-completion-actions";
+import {
+  MAIL_CHUNK_LIMIT,
+  type ForwardSource,
+  type MailReview,
+  type MailCompletionOperation,
+  type VerifiedAlias,
+} from "@/lib/google/mail-completion-types";
 import RichTextEditor from "@/components/RichTextEditor";
 import SelectMenu from "@/components/SelectMenu";
 import Checkbox from "@/components/Checkbox";
@@ -21,6 +40,7 @@ export type ComposeSeed = ComposeInput & {
   draftId?: string;
   draftMessageId?: string;
   attachments?: MailAttachment[];
+  forwardSource?: ForwardSource;
 };
 const inputClass =
   "w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100";
@@ -40,6 +60,14 @@ export default function MailComposer({
   onSent: () => void;
 }) {
   const [senderEmail, setSenderEmail] = useState("");
+  const [completion, setCompletion] = useState(false);
+  const [aliases, setAliases] = useState<VerifiedAlias[]>([]);
+  const [alias, setAlias] = useState("");
+  const [review, setReview] = useState<MailReview | null>(null);
+  const [reviewForm, setReviewForm] = useState<FormData | null>(null);
+  const uploadRef = useRef("");
+  const forwardRef = useRef(seed.forwardSource);
+
   const dialog = useRef<HTMLDialogElement>(null);
   const [message, setMessage] = useState<ComposeInput>(seed);
   const [previousMessageId, setPreviousMessageId] = useState(
@@ -64,10 +92,191 @@ export default function MailComposer({
   const [chosen, setChosen] = useState<string[]>([]);
   const [confirmSend, setConfirmSend] = useState(false);
   const [uncertain, setUncertain] = useState(false);
+  const reviewIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    startTransition(async () => {
+      const enabled = await mailCompletionState();
+      if (!alive) return;
+      setCompletion(enabled);
+      if (enabled) {
+        const result = await mailCompletionAliases();
+        if (!alive) return;
+        if (result.ok) {
+          setAliases(result.data);
+          setAlias(
+            (
+              result.data.find((a) => a.default) ||
+              result.data.find((a) => a.primary) ||
+              result.data[0]
+            )?.email ?? "",
+          );
+        } else setStatus(result.message);
+      }
+    });
+    return () => {
+      alive = false;
+      const id = reviewIdRef.current;
+      if (id)
+        startTransition(() => {
+          void cancelMailReview(id);
+        });
+      const upload = uploadRef.current;
+      if (upload)
+        startTransition(() => {
+          void removeMailUpload(upload);
+        });
+    };
+  }, []);
+  function clearReview() {
+    const id = reviewIdRef.current;
+    reviewIdRef.current = null;
+    setReview(null);
+    setReviewForm(null);
+    if (id)
+      startTransition(() => {
+        void cancelMailReview(id);
+      });
+  }
+  async function prepareEnhanced(operation: MailCompletionOperation) {
+    if (busyRef.current || uncertain) return;
+    busyRef.current = true;
+    setBusy(true);
+    setStatus("");
+    clearReview();
+    try {
+      const form = new FormData();
+      form.set("draftId", draftId);
+      form.set("message", JSON.stringify(message));
+      form.set("previousMessageId", previousMessageId);
+      form.set("keepParts", JSON.stringify(keepParts));
+      form.set("alias", alias);
+      if (forwardRef.current && !draftId)
+        form.set(
+          "forwardSource",
+          JSON.stringify({
+            ...forwardRef.current,
+            partIds: forwardRef.current.partIds.filter((id) =>
+              keepParts.includes(id),
+            ),
+          }),
+        );
+      if (operation === "save" && files.length) {
+        if (uploadRef.current) await removeMailUpload(uploadRef.current);
+        const begun = await startMailUpload(
+          files.map((f) => ({ name: f.name, type: f.type, size: f.size })),
+        );
+        if (!begun.ok) {
+          setStatus(begun.message);
+          return;
+        }
+        uploadRef.current = begun.data.id;
+        for (let index = 0; index < files.length; index++)
+          for (
+            let offset = 0;
+            offset < files[index].size;
+            offset += MAIL_CHUNK_LIMIT
+          ) {
+            const bytes = new Uint8Array(
+              await files[index]
+                .slice(offset, offset + MAIL_CHUNK_LIMIT)
+                .arrayBuffer(),
+            );
+            const chunk = await uploadMailChunk(
+              begun.data.id,
+              index,
+              offset,
+              bytes,
+            );
+            if (!chunk.ok) {
+              setStatus(chunk.message);
+              return;
+            }
+          }
+        form.set("uploadId", begun.data.id);
+      }
+      const prepared = await reviewMailMutation(operation, form);
+      if (!prepared.ok) {
+        setStatus(prepared.message);
+        return;
+      }
+      reviewIdRef.current = prepared.data.id;
+      setReview(prepared.data);
+      setReviewForm(form);
+    } catch {
+      setStatus("Review unavailable. No Google write was requested.");
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+  async function confirmEnhanced() {
+    if (!review || !reviewForm || busyRef.current || uncertain) return;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const result = await executeMailMutation(
+        review.id,
+        review.operation,
+        reviewForm,
+        true,
+      );
+      if (!result.ok) {
+        reviewIdRef.current = null;
+        setStatus(result.message);
+        if (result.code === "uncertain") setUncertain(true);
+        setReview(null);
+        return;
+      }
+      reviewIdRef.current = null;
+      if (review.operation === "save") {
+        setDraftId(result.data.id);
+        setFiles([]);
+        uploadRef.current = "";
+        forwardRef.current = undefined;
+        // Provider normalization must be reloaded before another edit/send; no automatic provider write.
+        setStatus(
+          "Saved in Gmail. Close and reopen this draft to review its current content before sending.",
+        );
+        setDirty(false);
+        setUncertain(true);
+      } else if (review.operation === "send") {
+        setStatus(
+          "Sent. Source draft retained in Gmail; do not send it again.",
+        );
+        setDirty(false);
+        setUncertain(true);
+      } else onClose();
+      setReview(null);
+    } catch {
+      setUncertain(true);
+      setStatus(
+        "The write result is uncertain. Do not retry; review Gmail with the owner.",
+      );
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+  async function cancelEnhanced() {
+    if (!review || busyRef.current) return;
+    const result = await cancelMailReview(review.id);
+    reviewIdRef.current = null;
+    setReview(null);
+    if (!result.ok) setStatus(result.message);
+    else if (result.data === "uncertain") {
+      setUncertain(true);
+      setStatus(
+        "Cancellation arrived after dispatch began. Outcome uncertain; do not retry.",
+      );
+    }
+  }
   // New messages and replies start with the Gmail signature, like Gmail;
   // a reopened draft already contains whatever the member kept.
   const wantsSignature = !seed.draftId;
-  const [initialHtml, setInitialHtml] = useState<string | null>(wantsSignature ? null : seed.html);
+  const [initialHtml, setInitialHtml] = useState<string | null>(
+    wantsSignature ? null : seed.html,
+  );
   useEffect(() => {
     dialog.current?.showModal();
   }, []);
@@ -89,7 +298,9 @@ export default function MailComposer({
       .then((result) => {
         if (canceled) return;
         const signature = result.ok ? result.data.html : "";
-        const html = signature ? `<br><br>${signature}${seed.html ? `<br>${seed.html}` : ""}` : seed.html;
+        const html = signature
+          ? `<br><br>${signature}${seed.html ? `<br>${seed.html}` : ""}`
+          : seed.html;
         setMessage((current) => ({ ...current, html }));
         setInitialHtml(html);
       })
@@ -117,6 +328,7 @@ export default function MailComposer({
     key: K,
     value: ComposeInput[K],
   ) {
+    clearReview();
     setMessage((m) => ({ ...m, [key]: value }));
     setDirty(true);
     setConfirmSend(false);
@@ -131,6 +343,10 @@ export default function MailComposer({
     onClose();
   }
   async function save(send: boolean) {
+    if (completion) {
+      await prepareEnhanced(send ? "send" : "save");
+      return;
+    }
     if (busyRef.current || uncertain || !senderEmail) return;
     try {
       validateCompose(message, send);
@@ -200,6 +416,11 @@ export default function MailComposer({
     }
   }
   async function discard() {
+    if (completion) {
+      if (draftId) await prepareEnhanced("discard");
+      else close();
+      return;
+    }
     if (
       busyRef.current ||
       !window.confirm(
@@ -230,15 +451,25 @@ export default function MailComposer({
         event.preventDefault();
         close();
       }}
-      className={`${full ? "h-[94vh] w-[96vw] max-w-none" : "w-[760px] max-w-[94vw]"} max-h-[94vh] rounded-2xl border border-neutral-200 bg-white p-0 text-ink shadow-2xl backdrop:bg-ink/35`}
+      className={`${full ? "h-[94vh] w-[96vw] max-w-none" : "w-[760px] max-w-[94vw]"} max-h-[94vh] rounded-2xl border border-neutral-200 bg-white p-0 text-ink shadow-2xl backdrop:bg-ink/35${completion ? " motion-reduce:[&_*]:transition-none motion-reduce:[&_*]:animate-none" : ""}`}
       aria-labelledby="mail-compose-title"
     >
-      <div {...movable.handleProps} aria-label="Move composer" className={`flex items-center justify-between border-b border-neutral-100 px-5 py-4 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300 ${full ? "" : "touch-none select-none cursor-grab active:cursor-grabbing"}`}>
+      <div
+        {...movable.handleProps}
+        aria-label="Move composer"
+        className={`flex items-center justify-between border-b border-neutral-100 px-5 py-4 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-300 ${full ? "" : "touch-none select-none cursor-grab active:cursor-grabbing"}`}
+      >
         <h2 id="mail-compose-title" className="font-semibold">
           {seed.threadId ? "Reply" : "New message"}
         </h2>
         <div className="flex gap-3 text-[12px]">
-          <button type="button" onClick={() => { movable.resetPosition(); setFull((v) => !v); }}>
+          <button
+            type="button"
+            onClick={() => {
+              movable.resetPosition();
+              setFull((v) => !v);
+            }}
+          >
             {full ? "Restore" : "Full screen"}
           </button>
           <button type="button" onClick={close} aria-label="Close composer">
@@ -250,9 +481,45 @@ export default function MailComposer({
         <p className="rounded-xl bg-neutral-50 px-3 py-2 text-[12px] text-neutral-500">
           From:{" "}
           <span className="font-medium text-ink">
-            {senderEmail || "Checking your Google connection…"}
+            {(completion ? alias : senderEmail) ||
+              "Checking your Google connection…"}
           </span>
         </p>
+        {completion && (
+          <div className="space-y-2">
+            <label htmlFor="mail-send-as" className="block text-xs">
+              Verified Google send-as
+            </label>
+            <SelectMenu
+              id="mail-send-as"
+              buttonClassName="min-h-11"
+              value={alias}
+              options={aliases.map((a) => ({ value: a.email, label: a.email }))}
+              disabled={busy || uncertain}
+              onChange={(value) => {
+                clearReview();
+                setAlias(value);
+                setDirty(true);
+              }}
+            />
+            <p className="text-xs text-neutral-500">
+              Each save, send or deletion needs its own review. Save and reopen
+              a changed draft before sending.
+            </p>
+            <button
+              type="button"
+              disabled
+              className="min-h-11 rounded-full border px-4 text-xs opacity-50"
+            >
+              Schedule send — unavailable
+            </button>
+            <p className="text-xs text-neutral-500">
+              No dispatcher or message-body store is active. Push refresh is
+              also off.
+            </p>
+            <MailReviewHistory />
+          </div>
+        )}
         {(["to", "cc", "bcc"] as const).map((key) => (
           <div key={key} className="flex items-center gap-3">
             <label
@@ -408,6 +675,7 @@ export default function MailComposer({
                 setStatus("Attach up to 10 files, 2 MB combined.");
                 return;
               }
+              clearReview();
               setFiles(next);
               setDirty(true);
               e.target.value = "";
@@ -425,6 +693,7 @@ export default function MailComposer({
                 type="button"
                 className="rounded-lg border px-2 py-1 text-xs"
                 onClick={() => {
+                  clearReview();
                   setKeepParts((v) => v.filter((id) => id !== a.partId));
                   setDirty(true);
                 }}
@@ -439,6 +708,7 @@ export default function MailComposer({
               type="button"
               className="rounded-lg border px-2 py-1 text-xs"
               onClick={() => {
+                clearReview();
                 setFiles((v) => v.filter((_, j) => i !== j));
                 setDirty(true);
               }}
@@ -455,7 +725,24 @@ export default function MailComposer({
             {status}
           </p>
         )}
-        {confirmSend && !uncertain && (
+        {review && (
+          <MailReviewPanel
+            key={review.id}
+            review={review}
+            busy={busy}
+            onConfirm={() =>
+              startTransition(async () => {
+                await confirmEnhanced();
+              })
+            }
+            onCancel={() =>
+              startTransition(async () => {
+                await cancelEnhanced();
+              })
+            }
+          />
+        )}
+        {!completion && confirmSend && !uncertain && (
           <p className="rounded-xl bg-cyan-50 px-3 py-2 text-[12px] text-cyan-900">
             Ready to send now from your connected Google account. Review To, CC,
             BCC and attachments, then confirm.
@@ -465,19 +752,43 @@ export default function MailComposer({
       <footer className="flex flex-wrap items-center gap-2 border-t border-neutral-100 px-5 py-4">
         <button
           type="button"
-          disabled={busy || uncertain || !senderEmail}
-          onClick={() => void save(true)}
+          disabled={
+            busy ||
+            uncertain ||
+            !senderEmail ||
+            (completion && (dirty || !draftId))
+          }
+          onClick={() =>
+            startTransition(async () => {
+              await save(true);
+            })
+          }
           className="rounded-full bg-ink px-5 py-2 text-[12px] font-semibold text-white disabled:opacity-40"
         >
-          {busy ? "Working…" : confirmSend ? "Confirm send" : "Send"}
+          {busy
+            ? "Working…"
+            : completion
+              ? "Review send"
+              : confirmSend
+                ? "Confirm send"
+                : "Send"}
         </button>
         <button
           type="button"
-          disabled={busy || uncertain || !senderEmail}
-          onClick={() => void save(false)}
+          disabled={
+            busy ||
+            uncertain ||
+            !senderEmail ||
+            (completion && initialHtml === null)
+          }
+          onClick={() =>
+            startTransition(async () => {
+              await save(false);
+            })
+          }
           className="rounded-full border border-neutral-200 px-4 py-2 text-[12px]"
         >
-          Save to Gmail
+          {completion ? "Review save to Gmail" : "Save to Gmail"}
         </button>
         <span className="flex-1 text-[11px] text-neutral-400">
           {dirty ? "Unsaved changes" : draftId ? "Saved in Gmail" : ""}
@@ -485,7 +796,11 @@ export default function MailComposer({
         <button
           type="button"
           disabled={busy || uncertain}
-          onClick={() => void discard()}
+          onClick={() =>
+            startTransition(async () => {
+              await discard();
+            })
+          }
           className="text-[12px] text-neutral-500"
         >
           Discard

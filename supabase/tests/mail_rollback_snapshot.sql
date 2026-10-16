@@ -1,0 +1,1 @@
+create table private.mail5a_test_snapshot as select pg_get_constraintdef(oid) permission_check,(select count(*) from public.relationship_interactions) history_count from pg_constraint where conrelid='public.member_permissions'::regclass and conname='member_permissions_permission_check';
