@@ -1,6 +1,10 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import {
+  mailCompletionState,
+  prepareCompleteForward,
+} from "@/lib/google/mail-completion-actions";
+import { startTransition, useEffect, useRef, useState } from "react";
 import SelectMenu from "@/components/SelectMenu";
 import Checkbox from "@/components/Checkbox";
 import MailThreadReader from "./MailThreadReader";
@@ -46,6 +50,17 @@ export default function MailWorkspace({
   me: string;
 }) {
   const [mailboxEmail, setMailboxEmail] = useState(me);
+  const [completion, setCompletion] = useState(false);
+  useEffect(() => {
+    let active = true;
+    startTransition(async () => {
+      const enabled = await mailCompletionState();
+      if (active) setCompletion(enabled);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
   useEffect(() => {
     let canceled = false;
     if (connected)
@@ -309,7 +324,7 @@ export default function MailWorkspace({
     });
   }
   async function editDraft(message: MailMessage) {
-    const result = await findGmailDraft(message.id);
+    const result = await findGmailDraft(message.id, completion ? 4 : 0);
     if (!result.ok) {
       setNotice(result.message);
       return;
@@ -470,6 +485,15 @@ export default function MailWorkspace({
               reply={reply}
               editDraft={editDraft}
               setComposer={setComposer}
+              forwardComplete={
+                completion
+                  ? async (message) => {
+                      const result = await prepareCompleteForward(message.id);
+                      if (result.ok) setComposer(result.data);
+                      else setNotice(result.message);
+                    }
+                  : undefined
+              }
             />
           ) : (
             <>

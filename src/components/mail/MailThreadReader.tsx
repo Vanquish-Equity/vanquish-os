@@ -1,4 +1,5 @@
 "use client";
+import { startTransition } from "react";
 import MailBody from "./MailBody";
 import { button, sender, empty } from "./mail-ui";
 import { plainTextToHtml } from "@/lib/communications/rich-text";
@@ -14,6 +15,7 @@ type Props = {
   reply: (message: MailMessage, all?: boolean) => void;
   editDraft: (message: MailMessage) => Promise<void>;
   setComposer: (seed: ComposeSeed) => void;
+  forwardComplete?: (message: MailMessage) => Promise<void>;
 };
 export default function MailThreadReader({
   threadId,
@@ -25,6 +27,7 @@ export default function MailThreadReader({
   reply,
   editDraft,
   setComposer,
+  forwardComplete,
 }: Props) {
   return (
     <div className="p-5">
@@ -118,15 +121,21 @@ export default function MailThreadReader({
                     <button
                       type="button"
                       className={button}
-                      onClick={() =>
+                      onClick={() => {
+                        if (forwardComplete) {
+                          startTransition(async () => {
+                            await forwardComplete(m);
+                          });
+                          return;
+                        }
                         setComposer({
                           ...empty,
                           subject: `Fwd: ${m.subject}`,
                           html: `<p>Forwarded message from ${plainTextToHtml(m.from)}</p>${plainTextToHtml(m.text || "[Original HTML message — open the conversation to read it]")}`,
-                        })
-                      }
+                        });
+                      }}
                     >
-                      Forward
+                      {forwardComplete ? "Forward with attachments" : "Forward"}
                     </button>
                   </>
                 )}

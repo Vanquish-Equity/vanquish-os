@@ -385,13 +385,15 @@ export async function sendGmailDraft(id: string) {
     return { id: message.id, threadId: message.threadId };
   });
 }
-export async function findGmailDraft(messageId: string) {
+export async function findGmailDraft(messageId: string, maxPages = 0) {
   return googleResult(async () => {
     resourceId(messageId);
     const client = await googleClient();
     requireScope(client, "gmail.modify");
-    let pageToken = "";
+    if(!Number.isInteger(maxPages)||maxPages<0||maxPages>8)throw new Error("Invalid draft lookup budget.");
+    let pageToken = "", pages=0;
     do {
+      if(maxPages && pages++>=maxPages)throw new GoogleError("unavailable","Draft lookup reached its limit. Open the draft in Gmail directly.");
       const params = new URLSearchParams({ maxResults: "500" });
       if (pageToken) params.set("pageToken", pageToken);
       const page = await client.request<{

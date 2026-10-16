@@ -163,3 +163,7 @@ References: [Gmail threads](https://developers.google.com/workspace/gmail/api/gu
 ## Operating workflow update
 
 Incremental CRM activity delivery is now available separately from the private mailbox. It requires explicit consent and a configured worker; shared subjects remain opt-in and bodies are never copied. Gmail attachment import to Documents is explicit. Scheduled sending remains informational. See [Operating workflows](operating-workflows.md).
+
+## Phase 5A optional completion
+
+With the owner flag and explicit mail_completion permission, the composer adds verified aliases, strict full forwarding, transient bounded chunks and per-operation reviewed mutations. The prior UI remains without both gates. Scheduled send and push remain disabled; no body store or sender worker is added. See [Mail completion](mail-completion.md) for exact scopes, source-draft retention, uncertain outcomes, activation and protected rollback, and [open decisions](mail-calendar-open-decisions.md).
