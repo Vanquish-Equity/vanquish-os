@@ -181,7 +181,7 @@ describe("Gmail mailbox operations", () => {
               headers: [
                 { name: "Subject", value: "First note" },
                 { name: "From", value: "Jane Doe <jane@example.com>" },
-                { name: "To", value: "me@vanquishequity.com" },
+                { name: "To", value: "me@synthetic.test" },
               ],
             },
           },
@@ -197,7 +197,7 @@ describe("Gmail mailbox operations", () => {
             payload: {
               headers: [
                 { name: "Subject", value: "Follow-up" },
-                { name: "From", value: "me@vanquishequity.com" },
+                { name: "From", value: "me@synthetic.test" },
                 { name: "To", value: "Jane Doe <jane@example.com>" },
               ],
             },
@@ -215,7 +215,7 @@ describe("Gmail mailbox operations", () => {
               headers: [
                 { name: "Subject", value: "Someone else" },
                 { name: "From", value: "other@example.com" },
-                { name: "To", value: "me@vanquishequity.com" },
+                { name: "To", value: "me@synthetic.test" },
               ],
             },
           },

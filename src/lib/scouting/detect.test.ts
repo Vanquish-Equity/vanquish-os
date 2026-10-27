@@ -20,23 +20,23 @@ describe("address helpers", () => {
 });
 
 describe("detectCompanies", () => {
-  const options = { ownEmail: "me@vanquishequity.com", excludedDomains: new Set(["vendor.com"]), knownEmails: new Set(["known@known.com"]) };
+  const options = { ownEmail: "me@synthetic.test", excludedDomains: new Set(["vendor.com"]), knownEmails: new Set(["known@known.com"]) };
   const msg = (threadId: string, from: string, to: string, at = "2026-10-01T10:00:00Z") => ({ threadId, at, from, to, cc: "" });
 
   it("suggests two-way conversations and repeat senders, skipping noise", () => {
     const found = detectCompanies(
       [
-        msg("t1", "Ana <ana@acme.com>", "me@vanquishequity.com"),
-        msg("t1", "me@vanquishequity.com", "ana@acme.com", "2026-10-02T10:00:00Z"),
-        msg("t2", "news@beta.io", "me@vanquishequity.com"),
-        msg("t3", "x@gamma.io", "me@vanquishequity.com"),
-        msg("t4", "y@gamma.io", "me@vanquishequity.com"),
-        msg("t5", "pal@gmail.com", "me@vanquishequity.com"),
-        msg("t6", "boss@vendor.com", "me@vanquishequity.com"),
-        msg("t7", "known@known.com", "me@vanquishequity.com"),
-        msg("t8", "me@vanquishequity.com", "known@known.com"),
-        msg("t9", "colleague@vanquishequity.com", "me@vanquishequity.com"),
-        msg("t10", "solo@once.io", "me@vanquishequity.com"),
+        msg("t1", "Ana <ana@acme.com>", "me@synthetic.test"),
+        msg("t1", "me@synthetic.test", "ana@acme.com", "2026-10-02T10:00:00Z"),
+        msg("t2", "news@beta.io", "me@synthetic.test"),
+        msg("t3", "x@gamma.io", "me@synthetic.test"),
+        msg("t4", "y@gamma.io", "me@synthetic.test"),
+        msg("t5", "pal@gmail.com", "me@synthetic.test"),
+        msg("t6", "boss@vendor.com", "me@synthetic.test"),
+        msg("t7", "known@known.com", "me@synthetic.test"),
+        msg("t8", "me@synthetic.test", "known@known.com"),
+        msg("t9", "colleague@synthetic.test", "me@synthetic.test"),
+        msg("t10", "solo@once.io", "me@synthetic.test"),
       ],
       options,
     );
