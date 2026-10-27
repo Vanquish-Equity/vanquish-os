@@ -41,6 +41,13 @@ describe("area permissions", () => {
     expect(marioNav).toContain("Portfolio");
   });
 
+  it("lists Reporting for every member, with no permission requirement", () => {
+    const reporting = WORKSPACE_NAV.find((item) => item.href === "/reporting");
+    expect(reporting).toMatchObject({ label: "Reporting", icon: "reporting" });
+    expect(reporting?.requires).toBeUndefined();
+    expect(visibleNav(WORKSPACE_NAV, toPermissionSet([])).map((item) => item.href)).toContain("/reporting");
+  });
+
   it("starts with Home, the inbox and Chat, then Overview, and gives every item an icon", () => {
     expect(WORKSPACE_NAV.slice(0, 4).map((item) => item.href)).toEqual(["/home", "/notifications", "/chat", "/overview"]);
     expect(WORKSPACE_NAV.filter((item) => item.badge).map((item) => item.badge)).toEqual(["notifications", "chat"]);

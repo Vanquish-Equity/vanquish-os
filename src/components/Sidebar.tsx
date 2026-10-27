@@ -18,7 +18,7 @@ export type SidebarNavItem = { href: string; label: string; icon: NavIconName; b
 // or drawn under the wrong heading.
 type NavSection = { key: string; label: string; hrefs: string[] };
 const NAV_SECTIONS: NavSection[] = [
-  { key: "crm", label: "CRM", hrefs: ["/pipeline", "/companies", "/people", "/network", "/lp-board"] },
+  { key: "crm", label: "CRM", hrefs: ["/pipeline", "/companies", "/people", "/network", "/lp-board", "/reporting"] },
   { key: "boards", label: "Boards", hrefs: ["/boards"] },
   { key: "work", label: "Work", hrefs: ["/inbox", "/tasks", "/calendar", "/communications", "/review"] },
   { key: "fund", label: "Fund", hrefs: ["/portfolio", "/portfolio/fundraising"] },

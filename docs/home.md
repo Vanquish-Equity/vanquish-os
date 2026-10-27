@@ -50,7 +50,7 @@ and Home says My tasks needs the migration.
   Settings, Replay intro and Sign out are in its menu.
 - Items sit under explicit sections, each drawn as one block so an item can
   never appear under the wrong heading: **CRM** (Pipeline, Companies,
-  People, LP follow-up), **Boards** (All boards, then each board indented on
+  People, LP follow-up, Reporting), **Boards** (All boards, then each board indented on
   a guide line), **Work** (Tasks, Calendar, Communications, Review) and
   **Fund** (Portfolio, only with that permission). `NAV_SECTIONS` in
   `src/components/Sidebar.tsx` is the single place that assigns pages to

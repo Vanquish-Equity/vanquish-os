@@ -46,6 +46,13 @@ const PATHS: Record<NavIconName | "collapse" | "expand" | "signout" | "sound-on"
       <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" />
     </>
   ),
+  reporting: (
+    <>
+      <path d="M4 20.5h16" />
+      <path d="M6.5 20.5v-6M12 20.5V8.5M17.5 20.5v-9" />
+      <path d="m5 9 4-3.5 3.5 2L19 3.5" />
+    </>
+  ),
   pipeline: (
     <>
       <rect x="3.5" y="4" width="4.5" height="16" rx="1.2" />
