@@ -52,6 +52,6 @@ describe("mentions", () => {
     expect(activeMentionQuery("hola @Pe", 8)).toEqual({ query: "Pe", start: 5 });
     expect(activeMentionQuery("@", 1)).toEqual({ query: "", start: 0 });
     expect(activeMentionQuery("correo a@b", 10)).toBeNull();
-    expect(activeMentionQuery("hola @Beta ", 12)).toBeNull();
+    expect(activeMentionQuery("hola @Beta ", 11)).toBeNull();
   });
 });
