@@ -63,7 +63,7 @@ function Bar() {
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none fixed left-0 top-0 z-[2000] h-[2px] bg-cyan shadow-[0_0_8px_rgb(0_194_209/0.6)]"
+      className="pointer-events-none fixed left-0 top-0 z-[2000] h-[2px] bg-cyan shadow-[0_0_8px_rgb(0_194_209/0.6)] motion-reduce:transition-none!"
       style={{ width, opacity: phase === "running" ? 1 : 0, transition }}
     />
   );

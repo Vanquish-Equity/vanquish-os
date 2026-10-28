@@ -89,6 +89,12 @@ and the offline Vanquish AI panel stays fixed without moving the sidebar.
   an exit animation. Add one only with a real reason.
 - **Reduced motion:** every entrance above is disabled under
   `prefers-reduced-motion: reduce`.
+- **Cards, touch and focus:** `vq-card` lift, glow and neighbour dimming apply
+  only under `(hover: hover) and (pointer: fine)`, so a tap never leaves a card
+  raised. Keyboard focus shows a 2 px cyan ring (`:focus-visible`) and `:active`
+  presses the card back down. Highlighted comments and task rows, skeleton
+  pulses and the route progress bar stop animating under reduced motion (the
+  highlight stays as a static background).
 - **Base polish:** buttons, links, inputs and options ease color, border,
   shadow and opacity over 150 ms (in `@layer base`, so a utility with its own
   transition wins), and scrollbars are thin and quiet.

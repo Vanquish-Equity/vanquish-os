@@ -9,7 +9,7 @@ import type { nextMeetingsForContacts } from "@/lib/google/calendar-actions";
 const NONE = <span className="text-neutral-300">—</span>;
 
 export function CellPlaceholder() {
-  return <span className="inline-block h-3 w-12 animate-pulse rounded bg-neutral-100 align-middle" aria-label="Loading" />;
+  return <span className="inline-block h-3 w-12 animate-pulse motion-reduce:animate-none rounded bg-neutral-100 align-middle" aria-label="Loading" />;
 }
 
 export async function LastEmailCell({
