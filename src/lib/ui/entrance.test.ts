@@ -3,12 +3,12 @@ import { accountLabel, greetingFor, greetingName, sidebarCookieName } from "./en
 
 describe("accountLabel", () => {
   it("shows the part before @ in capitals", () => {
-    expect(accountLabel("marios@vanquishequity.com")).toBe("MARIOS");
-    expect(accountLabel("pbp@vanquishequity.com")).toBe("PBP");
+    expect(accountLabel("membera@synthetic.test")).toBe("MEMBERA");
+    expect(accountLabel("memberb@synthetic.test")).toBe("MEMBERB");
   });
   it("uses an edited profile name in the account menu", () => {
-    expect(accountLabel("marios@vanquishequity.com", "Mario Salas")).toBe("MARIO SALAS");
-    expect(accountLabel("marios@vanquishequity.com", "  ")).toBe("MARIOS");
+    expect(accountLabel("membera@synthetic.test", "Synthetic Member")).toBe("SYNTHETIC MEMBER");
+    expect(accountLabel("membera@synthetic.test", "  ")).toBe("MEMBERA");
   });
 });
 
@@ -25,18 +25,18 @@ describe("greetingFor", () => {
 
 describe("greetingName", () => {
   it("prefers the member display name, then the provider name, never the email", () => {
-    expect(greetingName("Mario", "Mario Salas Sandí")).toBe("Mario");
-    expect(greetingName("Juan Pablo", null)).toBe("Juan Pablo");
-    expect(greetingName(null, "Pedro Pérez")).toBe("Pedro");
+    expect(greetingName("Alpha", "Alpha Test Sample")).toBe("Alpha");
+    expect(greetingName("Gamma Delta", null)).toBe("Gamma Delta");
+    expect(greetingName(null, "Beta Pérez")).toBe("Beta");
     expect(greetingName("  ", undefined)).toBe("");
   });
 });
 
 describe("sidebarCookieName", () => {
   it("is stable per member, case-insensitive, and does not contain the email", () => {
-    const a = sidebarCookieName("marios@vanquishequity.com");
-    expect(a).toBe(sidebarCookieName(" MARIOS@vanquishequity.com "));
-    expect(a).not.toBe(sidebarCookieName("scott@vanquishequity.com"));
+    const a = sidebarCookieName("membera@synthetic.test");
+    expect(a).toBe(sidebarCookieName(" MEMBERA@synthetic.test "));
+    expect(a).not.toBe(sidebarCookieName("memberd@synthetic.test"));
     expect(a).toMatch(/^vq_sidebar_[0-9a-z]+$/);
   });
 });

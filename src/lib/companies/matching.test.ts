@@ -5,7 +5,7 @@ const companies = [
   { id: "twin-co", name: "Twin Rounds Co" },
   { id: "twin-capital", name: "Twin Rounds Capital" },
   { id: "acme", name: "Acme Inc.", aliases: ["Acme Foods"] },
-  { id: "bawi", name: "Bawi" },
+  { id: "zorp", name: "Zorp" },
 ];
 
 describe("company matching", () => {
@@ -36,7 +36,7 @@ describe("company matching", () => {
   });
 
   it("catches small typos and aliases", () => {
-    expect(findCompanyMatches(companies, "Bawii")[0]?.company.id).toBe("bawi");
+    expect(findCompanyMatches(companies, "Zorpp")[0]?.company.id).toBe("zorp");
     expect(findCompanyMatches(companies, "acme foods")[0]?.company.id).toBe("acme");
   });
 

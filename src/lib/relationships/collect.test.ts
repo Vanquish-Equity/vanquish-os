@@ -11,15 +11,15 @@ describe("collectInteractions", () => {
     const rows = collectInteractions(
       people,
       [
-        { at: "2026-10-01T09:00:00Z", addresses: ["Ana@acme.com", "me@vanquish.com"] },
+        { at: "2026-10-01T09:00:00Z", addresses: ["Ana@acme.com", "me@synthetic.test"] },
         { at: "2026-10-01T17:00:00Z", addresses: ["ana@acme.com"] },
         { at: "2026-10-02T08:00:00Z", addresses: ["stranger@x.com"] },
       ],
       [
-        { at: "2026-10-03T15:00:00Z", attendees: ["bo@acme.com", "me@vanquish.com"] },
+        { at: "2026-10-03T15:00:00Z", attendees: ["bo@acme.com", "me@synthetic.test"] },
         { at: "2026-10-04T15:00:00Z", status: "cancelled", attendees: ["bo@acme.com"] },
       ],
-      "me@vanquish.com",
+      "me@synthetic.test",
     );
     expect(rows).toEqual([
       { person_id: "p-ana", kind: "email", occurred_on: "2026-10-01", last_at: "2026-10-01T17:00:00.000Z" },
