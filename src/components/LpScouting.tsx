@@ -90,7 +90,7 @@ export default function LpScouting({
           My LPs
         </Link>
       </p>
-      <section className="vq-card-static space-y-4 p-5">
+      <section className="vq-card-static rounded-[14px] bg-white space-y-4 p-5">
         <h2 className="font-semibold">Your consent and limits</h2>
         <label className="flex items-center gap-2">
           <Checkbox
@@ -186,7 +186,10 @@ export default function LpScouting({
         <h2 className="font-semibold">Suggestions · latest 100</h2>
         {!suggestions.length && <p>No suggestions awaiting review.</p>}
         {suggestions.map((s) => (
-          <article key={s.id} className="vq-card-static space-y-3 p-5">
+          <article
+            key={s.id}
+            className="vq-card-static rounded-[14px] bg-white space-y-3 p-5"
+          >
             <div className="flex flex-wrap justify-between gap-2">
               <p className="break-all font-semibold">{s.email}</p>
               <span className="text-sm">
@@ -270,7 +273,7 @@ export default function LpScouting({
           </article>
         ))}
       </section>
-      <section className="vq-card-static space-y-3 p-5">
+      <section className="vq-card-static rounded-[14px] bg-white space-y-3 p-5">
         <h2 className="font-semibold">Private contact requests</h2>
         {!contacts.length && <p className="text-sm">No pending requests.</p>}
         {contacts.map((c) => (
@@ -293,7 +296,7 @@ export default function LpScouting({
           </div>
         ))}
       </section>
-      <section className="vq-card-static p-5">
+      <section className="vq-card-static rounded-[14px] bg-white p-5">
         <h2 className="font-semibold">Recent scan jobs · latest 20</h2>
         {jobs.map((j) => (
           <p key={j.id} className="text-sm">
@@ -303,7 +306,7 @@ export default function LpScouting({
         ))}
       </section>
       {admin && (
-        <section className="vq-card-static space-y-3 p-5">
+        <section className="vq-card-static rounded-[14px] bg-white space-y-3 p-5">
           <h2 className="font-semibold">Admin keywords</h2>
           <div className="flex flex-wrap gap-2">
             {keywords.map((k) => (
