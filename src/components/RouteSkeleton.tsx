@@ -6,7 +6,7 @@ export default function RouteSkeleton({
   const rows = variant === "board" ? 3 : variant === "table" ? 7 : 4;
 
   return (
-    <div className="animate-pulse p-6 lg:p-8" aria-busy="true" aria-label="Loading">
+    <div className="animate-pulse p-6 motion-reduce:animate-none lg:p-8" aria-busy="true" aria-label="Loading">
       <div className="mb-7 flex items-center justify-between gap-4">
         <div>
           <div className="h-7 w-44 rounded bg-neutral-200" />

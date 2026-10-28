@@ -33,7 +33,7 @@ export default function MailThreadRows({
     <div role="status" className="space-y-3 p-5">
       <span className="sr-only">Loading Gmail…</span>
       {Array.from({ length: 8 }, (_, i) => (
-        <div key={i} className="h-10 animate-pulse rounded-lg bg-neutral-50" />
+        <div key={i} className="h-10 animate-pulse rounded-lg motion-reduce:animate-none bg-neutral-50" />
       ))}
     </div>
   ) : error ? (
