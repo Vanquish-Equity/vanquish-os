@@ -91,7 +91,7 @@ export default async function ReviewPage() {
       {showScouting && <ScoutingReview suggestions={suggestions ?? []} requests={requests ?? []} />}
 
       {showScouting && <h2 className="mt-2 text-[14.5px] font-semibold text-ink">Import review</h2>}
-      <div className="vq-card-grid flex flex-col gap-3">
+      <div className="flex flex-col gap-3">
         {openItems.length === 0 && (
           <div className="vq-card-static rounded-[14px] bg-white p-8 text-center text-[12.5px] text-neutral-400">
             No open review items.
@@ -102,7 +102,7 @@ export default async function ReviewPage() {
             key={item.id}
             data-comment-anchor={`review:${item.id}`}
             data-comment-label={item.payload.company_name ?? "Review item"}
-            className="vq-card rounded-[14px] bg-white p-5"
+            className="vq-card-static rounded-[14px] bg-white p-5"
           >
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>

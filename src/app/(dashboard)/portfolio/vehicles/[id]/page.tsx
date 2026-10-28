@@ -122,7 +122,7 @@ function RequirementTable({
   path: string;
 }) {
   return (
-    <div className="vq-card rounded-[14px] bg-white p-5">
+    <div className="vq-card-static rounded-[14px] bg-white p-5">
       <h2 className="mb-3 text-[14.5px] font-semibold text-ink">{title}</h2>
       <div className="flex flex-col gap-2">
         {rows.length === 0 && (
@@ -311,7 +311,7 @@ export default async function VehiclePage({
       </header>
 
       <div className="grid grid-cols-[1fr_1fr] gap-3.5">
-        <div className="vq-card rounded-[14px] bg-white p-5">
+        <div className="vq-card-static rounded-[14px] bg-white p-5">
           <div className="mb-3 flex items-start justify-between gap-3">
             <h2 className="text-[14.5px] font-semibold text-ink">Vehicle Details</h2>
             <ApplyPortfolioTemplateButton
@@ -336,11 +336,11 @@ export default async function VehiclePage({
           </dl>
         </div>
 
-        <div className="vq-card rounded-[14px] bg-white p-5">
+        <div className="vq-card-static rounded-[14px] bg-white p-5">
           <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
             Investments Held
           </h2>
-          <div className="vq-card-grid flex flex-col gap-2">
+          <div className="flex flex-col gap-2">
             {vehicleInvestments.map((investment) => (
               <div key={investment.id} className="rounded-xl border border-neutral-100 px-3 py-2.5">
                 <Link
