@@ -1,4 +1,5 @@
 "use client";
+import CustomFieldsRecord from "@/components/custom-fields/CustomFieldsRecord";
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
@@ -206,6 +207,7 @@ function EditContactDialog({
             </button>
           </div>
         </form>
+        <CustomFieldsRecord object="people" recordId={personId} />
       </div>
     </div>,
     document.body

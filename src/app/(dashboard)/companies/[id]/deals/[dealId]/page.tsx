@@ -1,3 +1,4 @@
+import CustomFieldsRecord from "@/components/custom-fields/CustomFieldsRecord";
 import Link from "next/link";
 import { getAccess, hasPermission } from "@/lib/auth/access";
 import { loadAssignableMembers } from "@/lib/communications/queries";
@@ -615,6 +616,7 @@ export default async function DealDetailPage({
         ))}
       </nav>
 
+      <CustomFieldsRecord object="deals" recordId={dealId} />
       <section id="deal-overview" className="grid grid-cols-[1.3fr_0.7fr] gap-3.5 scroll-mt-16">
         {isArchived ? (
           <div className="vq-card-static rounded-[14px] bg-white p-5">

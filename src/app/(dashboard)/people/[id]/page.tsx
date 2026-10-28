@@ -1,3 +1,5 @@
+import { customFieldsEnabled } from "@/lib/custom-fields/actions";
+import CustomFieldsRecord from "@/components/custom-fields/CustomFieldsRecord";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireMember } from "@/lib/auth/access";
@@ -12,8 +14,11 @@ export default async function PersonRelationshipPage({
 }) {
   await requireMember();
   const { id } = await params;
-  const state = await relationshipIntelligenceState();
-  if (!state.enabled || !/^[0-9a-f-]{36}$/i.test(id)) notFound();
+  const [state, fields] = await Promise.all([
+    relationshipIntelligenceState(),
+    customFieldsEnabled(),
+  ]);
+  if ((!state.enabled && !fields) || !/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const { data: person } = await (
     await createClient()
   )
@@ -54,10 +59,13 @@ export default async function PersonRelationshipPage({
           Open company
         </Link>
       )}
-      <RelationshipIntelligenceSection
-        people={[{ id: person.id, name: person.name }]}
-        allowed={state.allowed}
-      />
+      <CustomFieldsRecord object="people" recordId={id} />
+      {state.enabled && (
+        <RelationshipIntelligenceSection
+          people={[{ id: person.id, name: person.name }]}
+          allowed={state.allowed}
+        />
+      )}
     </main>
   );
 }

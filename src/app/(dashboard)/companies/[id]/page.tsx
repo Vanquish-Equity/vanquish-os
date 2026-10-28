@@ -1,3 +1,4 @@
+import CustomFieldsRecord from "@/components/custom-fields/CustomFieldsRecord";
 import RelationshipIntelligenceSection from "@/components/RelationshipIntelligenceSection";
 import { relationshipIntelligenceState } from "@/lib/relationships/intelligence-queries";
 import Link from "next/link";
@@ -626,6 +627,7 @@ export default async function CompanyDetailPage({
         )}
       </section>
 
+      <CustomFieldsRecord object="companies" recordId={id} />
       <section id="deals" className="grid grid-cols-2 gap-3.5 scroll-mt-16">
         <CompanyOverviewCard
           company={{

@@ -1,3 +1,4 @@
+import CustomFieldsAdmin from "@/components/custom-fields/CustomFieldsAdmin";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { requireMember } from "@/lib/auth/access";
@@ -95,6 +96,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           googleConnected={mailbox.connected}
         />
       )}
+      {isAdmin && <CustomFieldsAdmin />}
       {isAdmin && !membersResult.error && !permissionsResult.error && !domainsResult.error && (
         <AdminSettings
           me={access.email}

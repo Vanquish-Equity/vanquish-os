@@ -1,3 +1,4 @@
+import CustomFieldFilter from "@/components/custom-fields/CustomFieldFilter";
 import { cookies } from "next/headers";
 import { requireMember } from "@/lib/auth/access";
 import { pipelineCookieName, pipelineDefault } from "@/lib/settings/preferences";
@@ -229,6 +230,7 @@ export default async function PipelinePage({
         />
       </header>
 
+      {!showArchived && <CustomFieldFilter object="deals" />}
       {showArchived ? (
         <div className="vq-card-static flex flex-wrap items-center gap-2 rounded-[14px] bg-white px-3 py-2">
           <Link href="/pipeline" className={tabClass(!showArchived)}>
