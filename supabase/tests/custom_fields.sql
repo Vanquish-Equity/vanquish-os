@@ -1,9 +1,15 @@
 -- Disposable PostgreSQL only. Every new person/company/member/value here is synthetic.
 begin;
 create function pg_temp.expect(ok boolean,label text) returns void language plpgsql as $$begin if not coalesce(ok,false) then raise exception 'CUSTOM FIELDS TEST: %',label;end if;end$$;
-create function pg_temp.rejected(q text) returns boolean language plpgsql as $$begin execute q;return false;exception when others then return true;end$$;
+create function pg_temp.rejected(q text,expected_state text default '42501',expected_message text default null) returns boolean language plpgsql as $$begin
+ execute q;return false;
+exception when others then
+ if sqlstate<>expected_state or (expected_message is not null and strpos(sqlerrm,expected_message)=0) then
+  raise exception 'Unexpected SQLSTATE %, expected % (%): %',sqlstate,expected_state,expected_message,sqlerrm;
+ end if;return true;
+end$$;
 create function pg_temp.run(q text,label text) returns void language plpgsql as $$begin execute q;exception when others then raise exception 'CUSTOM FIELD POSITIVE STEP %: %',label,sqlerrm;end$$;
-create function pg_temp.hidden(q text) returns boolean language plpgsql as $$declare n bigint;begin execute q;get diagnostics n=row_count;return n=0;exception when others then return true;end$$;
+create function pg_temp.hidden(q text) returns boolean language plpgsql as $$declare n bigint;begin execute q;get diagnostics n=row_count;return n=0;exception when insufficient_privilege then return true;end$$;
 insert into public.app_members(email,is_active) values('fields.admin@synthetic.test',true),('fields.one@synthetic.test',true),('fields.two@synthetic.test',true),('fields.off@synthetic.test',false);
 insert into public.member_permissions(email,permission) values('fields.admin@synthetic.test','admin');
 create temp table fields_ctx(k text primary key,id uuid);grant all on fields_ctx to authenticated;
@@ -37,8 +43,9 @@ insert into fields_ctx select 'company',public.custom_field_save_definition(null
 insert into fields_ctx select 'deal',public.custom_field_save_definition(null,'deals','Synthetic deal field','text',0,false,true,0);
 insert into fields_ctx select 'option',public.custom_field_save_option(null,(select id from fields_ctx where k='select'),'Synthetic option',0,0);
 insert into fields_ctx select 'multi-option',public.custom_field_save_option(null,(select id from fields_ctx where k='multi'),'Synthetic multi option',0,0);
-select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_save_definition(null,'investments','Synthetic excluded','text',0,false,false,0)$q$),'Portfolio excluded');
-select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_save_definition(null,'lp_tasks','Synthetic excluded','text',0,false,false,0)$q$),'LP excluded');
+select public.custom_field_save_option(null,(select id from fields_ctx where k='multi'),'Synthetic extra multi '||i,i,0) from generate_series(1,21)i;
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_save_definition(null,'investments','Synthetic excluded','text',0,false,false,0)$q$,'23514'),'Portfolio excluded');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_save_definition(null,'lp_tasks','Synthetic excluded','text',0,false,false,0)$q$,'23514'),'LP excluded');
 select pg_temp.expect(pg_temp.rejected($q$update public.custom_field_definitions set field_type='date' where id=(select id from fields_ctx where k='text')$q$),'type cannot change');
 select set_config('request.jwt.claims','{"role":"authenticated","email":"fields.one@synthetic.test"}',true);
 select pg_temp.run($cf$select public.custom_field_set_value((select id from fields_ctx where k='text'),'f7000000-0000-0000-0000-000000000010',1,null,true,'Synthetic text value')$cf$,'value step 43');
@@ -47,23 +54,33 @@ select pg_temp.run($cf$select public.custom_field_set_value((select id from fiel
 select pg_temp.run($cf$select public.custom_field_set_value((select id from fields_ctx where k='boolean'),'f7000000-0000-0000-0000-000000000010',1,null,true,p_boolean=>false)$cf$,'value step 46');
 select pg_temp.run($cf$select public.custom_field_set_value((select id from fields_ctx where k='select'),'f7000000-0000-0000-0000-000000000010',(select version from public.custom_field_definitions where id=(select id from fields_ctx where k='select')),null,true,p_option=>(select id from fields_ctx where k='option'))$cf$,'value step 47');
 select pg_temp.run($cf$select public.custom_field_set_value((select id from fields_ctx where k='multi'),'f7000000-0000-0000-0000-000000000010',(select version from public.custom_field_definitions where id=(select id from fields_ctx where k='multi')),null,true,p_multi=>array[(select id from fields_ctx where k='multi-option')])$cf$,'value step 48');
-select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_set_value((select id from fields_ctx where k='text'),'f7000000-0000-0000-0000-000000000011',1,null,true,p_number=>1)$q$),'wrong SQL type denied');
-select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_set_value((select id from fields_ctx where k='select'),'f7000000-0000-0000-0000-000000000011',(select version from public.custom_field_definitions where id=(select id from fields_ctx where k='select')),null,true,p_option=>'f7000000-0000-0000-0000-000000000099')$q$),'nonexistent option denied');
-select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_set_value((select id from fields_ctx where k='select'),'f7000000-0000-0000-0000-000000000011',(select version from public.custom_field_definitions where id=(select id from fields_ctx where k='select')),null,true,p_option=>(select id from fields_ctx where k='multi-option'))$q$),'cross-definition option denied');
-select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_set_value((select id from fields_ctx where k='number'),'f7000000-0000-0000-0000-000000000011',1,null,true,p_number=>1.00001)$q$),'extra numeric precision denied');
-select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_set_value((select id from fields_ctx where k='text'),'f7000000-0000-0000-0000-000000000010',1,null,true,'Synthetic overwrite')$q$),'stale token denied');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_set_value((select id from fields_ctx where k='text'),'f7000000-0000-0000-0000-000000000011',1,null,true,p_number=>1)$q$,'22023' , 'Field type mismatch'),'wrong SQL type denied');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_set_value((select id from fields_ctx where k='select'),'f7000000-0000-0000-0000-000000000011',(select version from public.custom_field_definitions where id=(select id from fields_ctx where k='select')),null,true,p_option=>'f7000000-0000-0000-0000-000000000099')$q$,'22023' , 'Option unavailable'),'nonexistent option denied');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_set_value((select id from fields_ctx where k='select'),'f7000000-0000-0000-0000-000000000011',(select version from public.custom_field_definitions where id=(select id from fields_ctx where k='select')),null,true,p_option=>(select id from fields_ctx where k='multi-option'))$q$,'22023' , 'Option unavailable'),'cross-definition option denied');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_set_value((select id from fields_ctx where k='number'),'f7000000-0000-0000-0000-000000000011',1,null,true,p_number=>1.00001)$q$,'23514'),'extra numeric precision denied');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_set_value((select id from fields_ctx where k='text'),'f7000000-0000-0000-0000-000000000010',1,null,true,'Synthetic overwrite')$q$,'40001' , 'Value changed; reload'),'stale token denied');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_set_value((select id from fields_ctx where k='multi'),'f7000000-0000-0000-0000-000000000011',(select version from public.custom_field_definitions where id=(select id from fields_ctx where k='multi')),null,true,p_multi=>array[(select id from fields_ctx where k='multi-option'),(select id from fields_ctx where k='multi-option')])$q$,'22023','Invalid option selection'),'duplicate multi rejected');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_set_value((select id from fields_ctx where k='multi'),'f7000000-0000-0000-0000-000000000011',(select version from public.custom_field_definitions where id=(select id from fields_ctx where k='multi')),null,true,p_multi=>(select array_agg(id) from (select id from public.custom_field_options where definition_id=(select id from fields_ctx where k='multi') order by id limit 21)o))$q$,'22023','Invalid option selection'),'over 20 valid distinct options rejected');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_set_value((select id from fields_ctx where k='date'),'f7000000-0000-0000-0000-000000000011',1,null,true,p_date=>'1899-12-31')$q$,'23514'),'date below range rejected');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_set_value((select id from fields_ctx where k='date'),'f7000000-0000-0000-0000-000000000011',1,null,true,p_date=>'2201-01-01')$q$,'23514'),'date above range rejected');
+select pg_temp.expect(pg_temp.rejected($q$insert into public.custom_field_audit_metadata(id,definition_id,object_type,operation,change_hash,actor_email) values(gen_random_uuid(),(select id from fields_ctx where k='text'),'people','INSERT',repeat('a',64),'fields.one@synthetic.test')$q$,'42501','row-level security'),'direct audit insert rejected');
+select pg_temp.expect(private.cf_parent_read('people','f7000000-0000-0000-0000-000000000010'),'visible person helper');
+select pg_temp.expect((public.custom_field_record('people','f7000000-0000-0000-0000-000000000010')->>'canEdit')::boolean,'visible person record RPC');
 select pg_temp.expect((select count(*)=1 from public.custom_field_search((select id from fields_ctx where k='text'),'eq','Synthetic text value')),'typed filter under caller RLS');
-select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_search((select id from fields_ctx where k='text'),'eq'') OR true --','Synthetic text value')$q$),'operator injection denied');
-select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_search((select id from fields_ctx where k='number'),'eq')$q$),'missing typed operand denied');
-select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_search((select id from fields_ctx where k='text'),'eq','Synthetic text value',p_limit=>10000)$q$),'query cap enforced');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_search((select id from fields_ctx where k='text'),'eq'') OR true --','Synthetic text value')$q$,'P0001' , 'Invalid typed filter'),'operator injection denied');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_search((select id from fields_ctx where k='number'),'eq')$q$,'P0001' , 'Invalid typed filter'),'missing typed operand denied');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_search((select id from fields_ctx where k='text'),'eq','Synthetic text value',p_limit=>10000)$q$,'P0001' , 'Invalid filter budget'),'query cap enforced');
 select pg_temp.run($cf$select public.custom_field_set_value((select id from fields_ctx where k='deal'),'f7000000-0000-0000-0000-000000000020',1,null,true,'Synthetic restricted sentinel 947')$cf$,'value step 58');
+select pg_temp.expect((public.custom_field_record('deals','f7000000-0000-0000-0000-000000000020')->>'canEdit')::boolean,'authorized Deal record RPC');
+select pg_temp.expect((public.custom_field_record('companies','f7000000-0000-0000-0000-000000000001')->>'canEdit')::boolean,'authorized company record RPC');
 insert into public.saved_views(object_type,name,owner,is_shared,filters) values('people','Synthetic shared field reference','fields.one@synthetic.test',true,jsonb_build_object('customField',(select id from fields_ctx where k='deal')));
 select set_config('request.jwt.claims','{"role":"authenticated","email":"fields.two@synthetic.test"}',true);
+select pg_temp.expect(not private.cf_parent_read('deals','f7000000-0000-0000-0000-000000000020'),'restricted Deal parent helper');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_record('deals','f7000000-0000-0000-0000-000000000020')$q$,'42501','Record unavailable'),'restricted Deal record RPC');
 select pg_temp.expect((select count(*)=0 from public.custom_field_values where deal_id='f7000000-0000-0000-0000-000000000020'),'restricted values hidden');
 select pg_temp.expect((select count(*)=0 from public.custom_field_search((select id from fields_ctx where k='deal'),'eq','Synthetic restricted sentinel 947')),'shared field filter does not reveal restricted record');
 select pg_temp.expect((select count(*)=0 from public.custom_field_search((select (filters->>'customField')::uuid from public.saved_views where name='Synthetic shared field reference'),'eq','Synthetic restricted sentinel 947')),'shared reference never widens source ACL');
 select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_set_value((select id from fields_ctx where k='deal'),'f7000000-0000-0000-0000-000000000020',1,null,true,'Synthetic unauthorized')$q$),'restricted write denied');
-select pg_temp.expect(pg_temp.rejected($q$select * from public.audit_log$q$)=false,'audit table accessible but filtered');
 select pg_temp.expect((select count(*)=0 from public.audit_log),'nonadmin audit denied');
 reset role;
 -- Future granular restrictions must continue to win even over an admin's baseline Deal access.
@@ -78,10 +95,66 @@ select pg_temp.expect(not exists(select 1 from public.audit_log where entity_tab
 select pg_temp.expect(not exists(select 1 from public.audit_log where entity_table='custom_field_audit_metadata' and (coalesce(before_row::text,'')||coalesce(after_row::text,'')) like '%Synthetic restricted sentinel%'),'admin audit never copies restricted values');
 select pg_temp.expect(not exists(select 1 from public.audit_log where entity_table='custom_field_audit_metadata' and (coalesce(before_row::text,'')||coalesce(after_row::text,'')) like '%f7000000-0000-0000-0000-000000000020%'),'audit contains no restricted parent ID');
 select pg_temp.expect(exists(select 1 from public.audit_log where entity_table='custom_field_audit_metadata'),'edits are audited');
-select pg_temp.expect(pg_temp.rejected($q$insert into public.custom_field_definitions(object_type,name,field_type) select 'people','Synthetic over-budget '||i,'text' from generate_series(1,31)i$q$),'definition budget enforced');
-select pg_temp.expect(pg_temp.rejected($q$insert into public.custom_field_options(definition_id,label) select (select id from fields_ctx where k='select'),'Synthetic over-budget option '||i from generate_series(1,51)i$q$),'option budget enforced');
+select pg_temp.expect(pg_temp.rejected($q$insert into public.custom_field_definitions(object_type,name,field_type) select 'people','Synthetic over-budget '||i,'text' from generate_series(1,31)i$q$,'P0001' , 'Maximum 30 definitions'),'definition budget enforced');
+select pg_temp.expect(pg_temp.rejected($q$insert into public.custom_field_options(definition_id,label) select (select id from fields_ctx where k='select'),'Synthetic over-budget option '||i from generate_series(1,51)i$q$,'P0001' , 'Maximum 50 options'),'option budget enforced');
 select public.custom_field_save_option((select id from fields_ctx where k='option'),(select id from fields_ctx where k='select'),'Synthetic renamed option',1,1);
 select pg_temp.expect(exists(select 1 from public.custom_field_values v join public.custom_field_options o on o.id=v.option_value where o.label='Synthetic renamed option'),'option rename retains values');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_set_value((select id from fields_ctx where k='select'),'f7000000-0000-0000-0000-000000000010',2,(select token from public.custom_field_values where definition_id=(select id from fields_ctx where k='select')),true,p_option=>(select id from fields_ctx where k='option'))$q$,'40001','Field schema changed; reload'),'option change explains stale schema');
+-- Parent lifecycle checks use real supported columns (Companies has deleted_at, no archived_at).
+reset role;
+update public.deals set archived_at=now() where id='f7000000-0000-0000-0000-000000000020';
+set local role authenticated;
+select set_config('request.jwt.claims','{"role":"authenticated","email":"fields.one@synthetic.test"}',true);
+select pg_temp.expect(not private.cf_parent_read('deals','f7000000-0000-0000-0000-000000000020'),'archived Deal helper');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_record('deals','f7000000-0000-0000-0000-000000000020')$q$,'42501','Record unavailable'),'archived Deal record RPC');
+reset role;
+update public.deals set archived_at=null where id='f7000000-0000-0000-0000-000000000020';
+update public.people set archived_at=now() where id='f7000000-0000-0000-0000-000000000010';
+set local role authenticated;
+select pg_temp.expect(not private.cf_parent_read('people','f7000000-0000-0000-0000-000000000010'),'archived person helper');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_record('people','f7000000-0000-0000-0000-000000000010')$q$,'42501','Record unavailable'),'archived person record RPC');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_set_value((select id from fields_ctx where k='number'),'f7000000-0000-0000-0000-000000000010',1,null,true,p_number=>7)$q$,'42501','Field or record changed/unavailable'),'archived person write denied');
+reset role;
+update public.people set archived_at=null where id='f7000000-0000-0000-0000-000000000010';
+update public.companies set deleted_at=now() where id='f7000000-0000-0000-0000-000000000001';
+set local role authenticated;
+select pg_temp.expect(not private.cf_parent_read('companies','f7000000-0000-0000-0000-000000000001'),'deleted company helper');
+select pg_temp.expect(not private.cf_parent_read('deals','f7000000-0000-0000-0000-000000000020'),'Deal with deleted company helper');
+select pg_temp.expect(not private.cf_parent_read('people','f7000000-0000-0000-0000-000000000010'),'person with deleted company helper');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_record('companies','f7000000-0000-0000-0000-000000000001')$q$,'42501','Record unavailable'),'deleted company record RPC');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_record('people','f7000000-0000-0000-0000-000000000010')$q$,'42501','Record unavailable'),'person with deleted company RPC');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_record('deals','f7000000-0000-0000-0000-000000000020')$q$,'42501','Record unavailable'),'Deal with deleted company RPC');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_set_value((select id from fields_ctx where k='number'),'f7000000-0000-0000-0000-000000000010',1,null,true,p_number=>7)$q$,'42501','Field or record changed/unavailable'),'person with deleted company write denied');
+reset role;
+update public.companies set deleted_at=null where id='f7000000-0000-0000-0000-000000000001';
+-- Hard-deleted IDs must also be uniformly unavailable.
+insert into public.companies(id,name) values('f7000000-0000-0000-0000-000000000003','Synthetic hard-delete company');
+insert into public.deals(id,company_id,name,stage_id) values('f7000000-0000-0000-0000-000000000021','f7000000-0000-0000-0000-000000000003','Synthetic hard-delete Deal',(select id from public.pipeline_stages order by id limit 1));
+set local role authenticated;
+select public.custom_field_set_value((select id from fields_ctx where k='company'),'f7000000-0000-0000-0000-000000000003',1,null,true,'Synthetic company value');
+select public.custom_field_set_value((select id from fields_ctx where k='deal'),'f7000000-0000-0000-0000-000000000021',1,null,true,'Synthetic Deal value');
+reset role;
+-- DELETE: disposable synthetic Deal fixture only; tests FK/audit cascade.
+delete from public.deals where id='f7000000-0000-0000-0000-000000000021';
+-- DELETE: disposable synthetic Company fixture only; tests FK/audit cascade.
+delete from public.companies where id='f7000000-0000-0000-0000-000000000003';
+set local role authenticated;
+select pg_temp.expect(not private.cf_parent_read('deals','f7000000-0000-0000-0000-000000000021'),'hard-deleted Deal helper');
+select pg_temp.expect(not private.cf_parent_read('companies','f7000000-0000-0000-0000-000000000003'),'hard-deleted company helper');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_record('deals','f7000000-0000-0000-0000-000000000021')$q$,'42501','Record unavailable'),'hard-deleted Deal RPC');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_record('companies','f7000000-0000-0000-0000-000000000003')$q$,'42501','Record unavailable'),'hard-deleted company RPC');
+reset role;
+-- Same authenticated session, no cached flag: pause immediately hides/denies the next request.
+update private.custom_fields_configuration set enabled=false;
+set local role authenticated;
+select pg_temp.expect(not public.custom_fields_state(),'same session observes pause');
+select pg_temp.expect((select count(*)=0 from public.custom_field_values),'pause hides values');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_record('people','f7000000-0000-0000-0000-000000000010')$q$,'42501','Custom fields paused'),'pause denies record RPC');
+select pg_temp.expect(pg_temp.rejected($q$select public.custom_field_set_value((select id from fields_ctx where k='number'),'f7000000-0000-0000-0000-000000000010',1,null,true,p_number=>7)$q$,'42501','Custom fields paused'),'pause denies write');
+reset role;
+update private.custom_fields_configuration set enabled=true;
+set local role authenticated;
+select set_config('request.jwt.claims','{"role":"authenticated","email":"fields.admin@synthetic.test"}',true);
 select public.custom_field_save_definition((select id from fields_ctx where k='text'),'people','Synthetic text','text',0,true,true,1);
 select pg_temp.expect(not exists(select 1 from public.custom_field_values where definition_id=(select id from fields_ctx where k='text')),'archive hides values even for admin');
 reset role;

@@ -38,13 +38,24 @@ update private.custom_fields_configuration set enabled = false where singleton;
 commit;
 ```
 
-Configuration reads lock the singleton FOR SHARE. Metadata changes lock it FOR
-UPDATE, serializing definition/option changes against value requests and against
-pause. Active membership and admin permission rows are locked until transaction
-end where needed. An already-running transaction can finish before pause commits;
-requests beginning after pause commits are denied. There is no process-memory
-state or cross-request cache. Missing migration, failed flag read or authorization
-failure renders no new widgets; existing controls remain available.
+Read policies and `custom_fields_state` are lock-free with respect to **row** locks,
+including in `BEGIN READ ONLY` (PostgREST GET/HEAD). `cf_enabled` is STABLE and never
+uses FOR SHARE, even in read-write transactions. Ordinary AccessShare relation
+locks still apply. Reads observe their statement snapshot; a read already underway
+can finish after a concurrent pause/revocation.
+
+Server page gates read this lightweight state once per RSC render via React cache,
+not per session or across requests. When paused/missing they omit client widgets,
+so those widgets issue no load actions. Pages without custom-field widgets have
+no added state calls. The contact edit dialog probes only when opened. There is
+no cached authorization across requests and no stale session flag to bypass pause.
+
+`cf_require` still locks active membership and the singleton FOR SHARE for record
+RPCs/writes; admin metadata changes take FOR UPDATE, serializing schema edits
+against value writes and pause. Admin permission rows are locked where needed.
+An in-flight write can finish before pause commits; later writes are denied.
+Missing migration, failed flag read or authorization failure renders no new widgets;
+existing controls remain available.
 
 ## Typed schema and limits
 
@@ -65,7 +76,10 @@ failure renders no new widgets; existing controls remain available.
 
 Definitions have an incrementing version. Field type/object/identity are immutable.
 Renaming an option preserves its UUID and all selections, and increments schema
-version. Definition archival preserves values and hides them from records and
+version. A value form with an older version reports “The field schema changed.
+Reload before saving.” and retains that message until the member explicitly
+reloads fields. It does not silently discard it by automatically remounting.
+Definition archival preserves values and hides them from records and
 filters (admins still manage archived definitions). Shared labels are authored
 schema, not suggestions derived from private records: do not put confidential
 record details in labels. A hidden record never exposes its selected option IDs
@@ -120,9 +134,15 @@ ID, object kind, operation, actor, timestamp and a SHA-256 change hash with a fr
 discarded random salt. There is no value, selection, parent record UUID or
 recoverable salt. The salt prevents guessing low-entropy boolean/enum values from
 a plain hash. Generic admin audit records only this journal and shared schema
-changes. Members cannot insert journal entries directly through the Data API;
-trigger-origin/actor checks apply. This is a metadata journal, not a recoverable
-history of private values or a cryptographic proof of their contents.
+changes. Direct Data API inserts into the journal fail RLS (covered by SQL tests).
+However, `cf_audit_insert` checks only `pg_trigger_depth()>0` plus active member and
+actor equality: **depth is not proof that the originating trigger is
+`cf_value_audit`**. That function itself validates TG_RELID against the values
+table, but the journal policy cannot attest to the entire call stack. A caller
+able to install/invoke another suitable trigger could forge metadata entries.
+This is a content-free operational journal, not a tamper-proof history,
+recoverable record snapshot or cryptographic proof of values. No stronger trigger
+origin guarantee is claimed.
 
 ## Rollback and verification
 
@@ -135,8 +155,9 @@ objects without CASCADE and retains generic audit records. Existing permissions,
 saved views, stages, task rules, workers and earlier migrations remain unchanged.
 
 The contextual SQL chain reapplies Calendar after its existing rollback check,
-then applies/tests 6A twice, benchmarks synthetic data, checks protected rollback
-rejection and pause, rolls back twice, compares baselines, and reruns Calendar and
+then applies/tests 6A twice, tests committed nonempty tables in read-only
+transactions as member/admin, benchmarks synthetic data, checks protected rollback
+rejection and pause (including audit-only protection), rolls back twice, compares baselines, and reruns Calendar and
 Auth-worker regressions. Tests raise on failure. `check_phase_sql.py` verifies
 combined SQL matches the sources. `scripts/check_custom_fields_sql.mjs` runs the
 workflow's full ordered chain in disposable PGlite PostgreSQL; native PostgreSQL

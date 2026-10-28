@@ -57,7 +57,6 @@ function EditValue({
       });
       if (!result.ok) {
         setStatus(result.message);
-        await onReload();
         return;
       }
       await onReload();
@@ -73,7 +72,12 @@ function EditValue({
       }}
     >
       <label
-        htmlFor={"cf-" + definition.id}
+        id={"cf-label-" + definition.id}
+        htmlFor={
+          definition.field_type === "multi_select"
+            ? undefined
+            : "cf-" + definition.id
+        }
         className="block text-sm font-semibold"
       >
         {definition.name}
@@ -83,6 +87,7 @@ function EditValue({
       </p>
       <FieldInput
         id={"cf-" + definition.id}
+        labelledBy={"cf-label-" + definition.id}
         definition={definition}
         value={value}
         onChange={setValue}
@@ -116,6 +121,14 @@ function EditValue({
       {status && (
         <p role="status" className="text-xs">
           {status}
+          <button
+            type="button"
+            className="ml-2 min-h-11 underline"
+            disabled={pending}
+            onClick={() => run(onReload)}
+          >
+            Reload fields
+          </button>
         </p>
       )}
     </form>

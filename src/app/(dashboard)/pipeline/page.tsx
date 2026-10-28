@@ -1,3 +1,5 @@
+import { readCustomFieldsState } from "@/lib/custom-fields/state";
+import CustomFieldsGate from "@/components/custom-fields/CustomFieldsGate";
 import CustomFieldFilter from "@/components/custom-fields/CustomFieldFilter";
 import { cookies } from "next/headers";
 import { requireMember } from "@/lib/auth/access";
@@ -230,7 +232,7 @@ export default async function PipelinePage({
         />
       </header>
 
-      {!showArchived && <CustomFieldFilter object="deals" />}
+      {!showArchived && <CustomFieldsGate enabled={await readCustomFieldsState()}><CustomFieldFilter object="deals" /></CustomFieldsGate>}
       {showArchived ? (
         <div className="vq-card-static flex flex-wrap items-center gap-2 rounded-[14px] bg-white px-3 py-2">
           <Link href="/pipeline" className={tabClass(!showArchived)}>

@@ -1,3 +1,5 @@
+import { readCustomFieldsState } from "@/lib/custom-fields/state";
+import CustomFieldsGate from "@/components/custom-fields/CustomFieldsGate";
 import CustomFieldsRecord from "@/components/custom-fields/CustomFieldsRecord";
 import Link from "next/link";
 import { getAccess, hasPermission } from "@/lib/auth/access";
@@ -616,7 +618,7 @@ export default async function DealDetailPage({
         ))}
       </nav>
 
-      <CustomFieldsRecord object="deals" recordId={dealId} />
+      <CustomFieldsGate enabled={await readCustomFieldsState()}><CustomFieldsRecord object="deals" recordId={dealId} /></CustomFieldsGate>
       <section id="deal-overview" className="grid grid-cols-[1.3fr_0.7fr] gap-3.5 scroll-mt-16">
         {isArchived ? (
           <div className="vq-card-static rounded-[14px] bg-white p-5">

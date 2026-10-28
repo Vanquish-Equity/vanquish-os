@@ -215,6 +215,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/tests/custom_fields.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261028190337_custom_fields.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/custom_fields.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/custom_fields_read_only.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/custom_fields_explain.sql
           psql -v ON_ERROR_STOP=1 -f supabase/tests/custom_fields_rollback_guard.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/phase-sql/phase-6a-rollback.sql > /dev/null

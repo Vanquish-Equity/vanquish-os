@@ -59,7 +59,7 @@ export default async function PersonRelationshipPage({
           Open company
         </Link>
       )}
-      <CustomFieldsRecord object="people" recordId={id} />
+      {fields && <CustomFieldsRecord object="people" recordId={id} />}
       {state.enabled && (
         <RelationshipIntelligenceSection
           people={[{ id: person.id, name: person.name }]}

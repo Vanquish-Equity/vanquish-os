@@ -1,3 +1,5 @@
+import { readCustomFieldsState } from "@/lib/custom-fields/state";
+import CustomFieldsGate from "@/components/custom-fields/CustomFieldsGate";
 import CustomFieldFilter from "@/components/custom-fields/CustomFieldFilter";
 import { Suspense } from "react";
 import { hasPermission } from "@/lib/auth/access";
@@ -139,7 +141,6 @@ export default async function CompaniesPage() {
 
   return (
     <div className="flex flex-col gap-4 px-7 py-6">
-      <CustomFieldFilter object="companies" />
       <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">
@@ -156,6 +157,8 @@ export default async function CompaniesPage() {
           Trash
         </Link>
       </header>
+
+      <CustomFieldsGate enabled={await readCustomFieldsState()}><CustomFieldFilter object="companies" /></CustomFieldsGate>
 
       <Suspense
         fallback={

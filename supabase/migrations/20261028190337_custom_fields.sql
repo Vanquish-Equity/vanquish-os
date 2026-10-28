@@ -33,12 +33,12 @@ create index if not exists cf_values_option on public.custom_field_values(defini
 create table if not exists public.custom_field_audit_metadata(
  id uuid primary key,definition_id uuid not null,object_type text not null check(object_type in('people','companies','deals')),operation text not null check(operation in('INSERT','UPDATE','DELETE')),change_hash text not null check(change_hash ~ '^[a-f0-9]{64}$'),actor_email text,occurred_at timestamptz not null default now()
 );
-create or replace function private.cf_enabled() returns boolean language plpgsql security definer set search_path='' as $$
+-- Read policies and state probes must also work in PostgREST GET/HEAD read-only transactions.
+-- No row locks here, even in read-write transactions. Mutations lock/revalidate via cf_require.
+create or replace function private.cf_enabled() returns boolean language plpgsql stable security definer set search_path='' as $$
 declare flag boolean;begin
  if (select private.is_machine_identity()) or not (select private.is_member()) then raise exception 'Custom fields unavailable' using errcode='42501';end if;
- perform 1 from public.app_members where email=private.current_email() and is_active for share;
- if not found then raise exception 'Custom fields unavailable' using errcode='42501';end if;
- select enabled into flag from private.custom_fields_configuration where singleton for share;return coalesce(flag,false);
+ select enabled into flag from private.custom_fields_configuration where singleton;return coalesce(flag,false);
 end$$;
 create or replace function private.cf_require(p_admin boolean default false) returns void language plpgsql security definer set search_path='' as $$
 declare flag boolean;begin
@@ -161,7 +161,7 @@ do $$begin if not exists(select 1 from pg_trigger where tgrelid='public.custom_f
 do $$begin if not exists(select 1 from pg_trigger where tgrelid='public.custom_field_audit_metadata'::regclass and tgname='cf_metadata_audit') then create trigger cf_metadata_audit after insert on public.custom_field_audit_metadata for each row execute function private.audit_record();end if;end$$;
 do $$begin if not exists(select 1 from pg_trigger where tgrelid='public.custom_field_definitions'::regclass and tgname='cf_definition_audit') then create trigger cf_definition_audit after insert or update on public.custom_field_definitions for each row execute function private.audit_record();end if;end$$;
 do $$begin if not exists(select 1 from pg_trigger where tgrelid='public.custom_field_options'::regclass and tgname='cf_option_audit') then create trigger cf_option_audit after insert or update on public.custom_field_options for each row execute function private.audit_record();end if;end$$;
-create or replace function public.custom_fields_state() returns boolean language plpgsql security invoker set search_path='' as $$begin if (select private.is_machine_identity()) then raise exception 'Custom fields unavailable' using errcode='42501';end if;return private.cf_enabled();end$$;
+create or replace function public.custom_fields_state() returns boolean language plpgsql stable security invoker set search_path='' as $$begin if (select private.is_machine_identity()) then raise exception 'Custom fields unavailable' using errcode='42501';end if;return private.cf_enabled();end$$;
 create or replace function public.custom_field_save_definition(p_id uuid,p_object text,p_name text,p_type text,p_order integer,p_archived boolean,p_filterable boolean,p_version integer) returns uuid language plpgsql security invoker set search_path='' as $$
 declare r uuid;begin
  if (select private.is_machine_identity()) then raise exception 'Custom fields unavailable' using errcode='42501';end if;perform private.cf_require(true);
@@ -178,7 +178,8 @@ create or replace function public.custom_field_set_value(p_definition uuid,p_rec
 declare d public.custom_field_definitions%rowtype;v public.custom_field_values%rowtype;r uuid;begin
  if (select private.is_machine_identity()) then raise exception 'Custom fields unavailable' using errcode='42501';end if;perform private.cf_require();
  select * into d from public.custom_field_definitions where id=p_definition and not archived;
- if d.id is null or d.version<>p_version or not private.cf_parent_write(d.object_type,p_record) then raise exception 'Field or record changed/unavailable' using errcode='42501';end if;
+ if d.id is null or not private.cf_parent_write(d.object_type,p_record) then raise exception 'Field or record changed/unavailable' using errcode='42501';end if;
+ if d.version is distinct from p_version then raise exception 'Field schema changed; reload' using errcode='40001';end if;
  perform pg_advisory_xact_lock(hashtextextended('cf-value:'||p_definition::text||':'||p_record::text,0));
  select * into v from public.custom_field_values where definition_id=p_definition and record_id=p_record for update;
  if v.id is not null then

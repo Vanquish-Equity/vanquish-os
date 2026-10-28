@@ -1,5 +1,13 @@
 # Custom fields query plans — Phase 6A
 
+## Read-policy review correction
+
+The complete plans below are the explicitly identified **pre-review baseline**.
+The review fix makes `cf_enabled` STABLE with no row locks; writes still use
+`cf_require`. The same 20,000-person/10-definition benchmark remains in every SQL
+CI run; follow the PR's final-head database run for the revised native plans.
+The bounds and the warning about rows examined versus returned remain in force.
+
 ## Reproduction and limits
 
 `supabase/tests/custom_fields_explain.sql` creates 20,000 **synthetic** People and

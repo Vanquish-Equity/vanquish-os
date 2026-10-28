@@ -1,5 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { readCustomFieldsState } from "./state";
 import { createClient } from "@/lib/supabase/server";
 import { getAccess } from "@/lib/auth/access";
 import {
@@ -19,15 +20,12 @@ const unavailable = {
   message:
     "Custom fields unavailable, paused or changed. Reload and check record access before saving.",
 };
+const schemaChanged = {
+  ok: false as const,
+  message: "The field schema changed. Reload before saving.",
+};
 export async function customFieldsEnabled() {
-  try {
-    const { data, error } = await (
-      await createClient()
-    ).rpc("custom_fields_state");
-    return !error && data === true;
-  } catch {
-    return false;
-  }
+  return readCustomFieldsState();
 }
 async function schema(object: FieldObject, admin = false) {
   objectType(object);
@@ -177,7 +175,7 @@ export async function saveRecordField(input: {
       return unavailable;
     const defs = await schema(input.object),
       def = defs.find((d) => d.id === input.definitionId);
-    if (!def || def.version !== input.version) return unavailable;
+    if (!def || def.version !== input.version) return schemaChanged;
     const values = typedValue(def, input.value, input.clear);
     const { error } = await (
       await createClient()
@@ -188,8 +186,15 @@ export async function saveRecordField(input: {
       p_token: input.token,
       ...values,
     });
-    if (error) return unavailable;
-    revalidatePath("/" + input.object);
+    if (error) {
+      if (
+        error.code === "40001" &&
+        error.message === "Field schema changed; reload"
+      )
+        return schemaChanged;
+      return unavailable;
+    }
+    revalidatePath(input.object === "deals" ? "/pipeline" : "/" + input.object);
     return { ok: true as const };
   } catch {
     return unavailable;

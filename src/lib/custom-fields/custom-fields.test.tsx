@@ -27,6 +27,8 @@ import {
   saveFieldDefinition,
   searchFieldRecords,
 } from "./actions";
+import CustomFieldsGate from "@/components/custom-fields/CustomFieldsGate";
+import FieldInput from "@/components/custom-fields/FieldInput";
 import CustomFieldsRecord from "@/components/custom-fields/CustomFieldsRecord";
 import CustomFieldsAdmin from "@/components/custom-fields/CustomFieldsAdmin";
 import CustomFieldFilter from "@/components/custom-fields/CustomFieldFilter";
@@ -246,7 +248,88 @@ describe("typed custom fields, no query language or external providers", () => {
     expect(JSON.stringify(r)).not.toContain("hidden record detail");
     expect(m.refresh).not.toHaveBeenCalled();
   });
-  it("stale definition version never reaches the write RPC", async () => {
+  it("paused server gate omits the client widgets and their load actions", async () => {
+    m.rpc.mockResolvedValue({ data: false, error: null });
+    expect(
+      CustomFieldsGate({
+        enabled: await customFieldsEnabled(),
+        children: <CustomFieldFilter object="people" />,
+      }),
+    ).toBeNull();
+    expect(m.rpc).toHaveBeenCalledTimes(1);
+    expect(m.rpc).toHaveBeenCalledWith("custom_fields_state");
+    expect(m.from).not.toHaveBeenCalled();
+  });
+  it("multi-select group is named by its visible label, not label-for on a div", () => {
+    const html = renderToStaticMarkup(
+      <>
+        <label id="synthetic-field-label">Synthetic multiple</label>
+        <FieldInput
+          id="synthetic-multiple"
+          labelledBy="synthetic-field-label"
+          definition={{ ...def, field_type: "multi_select" }}
+          value={[]}
+          onChange={() => {}}
+        />
+      </>,
+    );
+    expect(html).toContain('aria-labelledby="synthetic-field-label"');
+    expect(html).toContain('role="group"');
+    expect(html).not.toContain('for="synthetic-multiple"');
+  });
+  it("a schema-version race at the SQL write returns a clear reload message", async () => {
+    m.rpc.mockImplementation(async (name: string) =>
+      name === "custom_field_set_value"
+        ? {
+            data: null,
+            error: { code: "40001", message: "Field schema changed; reload" },
+          }
+        : { data: true, error: null },
+    );
+    const r = await saveRecordField({
+      object: "people",
+      recordId: record,
+      definitionId: id,
+      version: 1,
+      token: null,
+      value: "Synthetic value",
+      clear: false,
+    });
+    expect(r).toMatchObject({
+      ok: false,
+      message: expect.stringContaining("schema changed"),
+    });
+    expect(m.refresh).not.toHaveBeenCalled();
+  });
+  it("deal writes revalidate the actual pipeline route, never /deals", async () => {
+    m.defs = [{ ...def, object_type: "deals" }];
+    const r = await saveRecordField({
+      object: "deals",
+      recordId: record,
+      definitionId: id,
+      version: 1,
+      token: null,
+      value: "Synthetic value",
+      clear: false,
+    });
+    expect(r.ok).toBe(true);
+    expect(m.refresh).toHaveBeenCalledWith("/pipeline");
+    expect(m.refresh).not.toHaveBeenCalledWith("/deals");
+  });
+  it("stale definition version never reaches the write RPC and explains the reload", async () => {
+    const result = await saveRecordField({
+      object: "people",
+      recordId: record,
+      definitionId: id,
+      version: 2,
+      token: null,
+      value: "Synthetic value",
+      clear: false,
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      message: expect.stringContaining("schema changed"),
+    });
     expect(
       (
         await saveRecordField({

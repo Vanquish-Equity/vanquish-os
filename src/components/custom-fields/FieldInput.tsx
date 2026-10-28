@@ -8,12 +8,14 @@ export default function FieldInput({
   onChange,
   disabled = false,
   id,
+  labelledBy,
 }: {
   definition: FieldDefinition;
   value: unknown;
   onChange: (value: unknown) => void;
   disabled?: boolean;
   id: string;
+  labelledBy?: string;
 }) {
   const input =
     "min-h-11 w-full min-w-0 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-cyan-300";
@@ -50,7 +52,8 @@ export default function FieldInput({
         id={id}
         className="max-h-52 overflow-auto rounded-xl border p-2"
         role="group"
-        aria-label={definition.name}
+        aria-labelledby={labelledBy}
+        aria-label={labelledBy ? undefined : definition.name}
       >
         {definition.options.map((o) => (
           <label
