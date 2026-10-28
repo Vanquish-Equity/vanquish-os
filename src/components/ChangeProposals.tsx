@@ -17,7 +17,7 @@ export default function ChangeProposals({ proposals, targets, available }: { pro
   const [message, setMessage] = useState("");
   const [busy, start] = useTransition();
   const target = targets[Number(targetIndex)];
-  return <section className="vq-card rounded-[14px] bg-white p-5" id="suggested-changes">
+  return <section className="vq-card-static rounded-[14px] bg-white p-5" id="suggested-changes">
     <h2 className="text-[15px] font-semibold text-ink">Suggest changes</h2>
     <p className="mt-1 text-[12px] text-neutral-500">Review the old and proposed values before accepting. A newer edit causes a conflict instead of being overwritten.</p>
     {!available ? <p className="mt-3 text-[13px] text-neutral-500">Change review is awaiting the workspace schema update.</p> : <>
