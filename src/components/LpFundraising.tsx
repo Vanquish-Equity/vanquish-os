@@ -54,7 +54,7 @@ function RecordForm({
     [pending, start] = useTransition(),
     [message, setMessage] = useState("");
   return (
-    <details className="vq-card-static p-4">
+    <details className="vq-card-static rounded-[14px] bg-white p-4">
       <summary className="cursor-pointer font-semibold">{title}</summary>
       <form
         className="mt-4 grid gap-3 sm:grid-cols-2"
@@ -138,7 +138,7 @@ function Records({
   labels: Record<string, string>;
 }) {
   return (
-    <section className="vq-card-static space-y-3 p-5">
+    <section className="vq-card-static rounded-[14px] bg-white space-y-3 p-5">
       <h2 className="font-semibold">
         {title} · {rows.length} records
       </h2>
@@ -417,7 +417,7 @@ export default function LpFundraising({
           },
         ]}
       />
-      <section className="vq-card-static p-5">
+      <section className="vq-card-static rounded-[14px] bg-white p-5">
         <h2 className="font-semibold">Investors</h2>
         <div className="mt-3 flex flex-wrap gap-3">
           {data.investors.map((i) => (
