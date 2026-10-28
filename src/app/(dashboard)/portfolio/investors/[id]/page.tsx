@@ -124,7 +124,7 @@ export default async function InvestorPage({
       </header>
 
       <div className="grid grid-cols-[1fr_1.4fr] gap-3.5">
-        <div className="vq-card rounded-[14px] bg-white p-5">
+        <div className="vq-card-static rounded-[14px] bg-white p-5">
           <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
             Investor Details
           </h2>
@@ -138,7 +138,7 @@ export default async function InvestorPage({
           </dl>
         </div>
 
-        <div className="vq-card rounded-[14px] bg-white p-5">
+        <div className="vq-card-static rounded-[14px] bg-white p-5">
           <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
             Positions
           </h2>
@@ -195,7 +195,7 @@ export default async function InvestorPage({
         <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
           Investor to SPV Documents
         </h2>
-        <div className="vq-card-grid flex flex-col gap-2">
+        <div className="flex flex-col gap-2">
           {(requirements ?? []).length === 0 && (
             <p className="rounded-xl border border-dashed border-neutral-200 px-3 py-4 text-center text-[12px] text-neutral-400">
               No investor-specific requirements loaded.
