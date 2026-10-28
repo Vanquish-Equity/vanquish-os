@@ -234,3 +234,213 @@ Function Scan on custom_field_search  (cost=0.25..10.25 rows=1000 width=16) (act
 Planning Time: 0.050 ms
 Execution Time: 167.815 ms
 ```
+
+## Native PostgreSQL 16 CI measurement
+
+Measured by the same synthetic SQL on GitHub Actions, source commit
+`6aa6d18ca703e9c2fae202b628dd19ec0e32c42d`,
+[successful SQL run 40755712979](https://github.com/Vanquish-Equity/vanquish-os/actions/runs/40755712979).
+The query/schema fixture is unchanged in the documentation-only follow-up.
+
+| Case | Execution time |
+| --- | --- |
+| Direct selective (20 visible rows) | 363.386 ms |
+| Direct broad count (20,000 visible rows) | 309.992 ms |
+| Actual RPC selective (20 visible rows) | 319.805 ms |
+| Actual RPC broad (101-row sentinel) | 323.586 ms |
+
+Native PostgreSQL 16 also checks 20,000 parent rows for the selective predicate.
+The native direct plans report JIT totals of 324.510 ms (selective) and
+285.742 ms (broad), which dominate their execution times. Default JIT/settings
+were left unchanged; no plan or index forcing was used. Parent RLS work remains
+visible separately from this compilation cost.
+These results reinforce the one-field/100-result restriction; they do not validate
+production latency or simultaneous traffic. This host is slower for these plans
+than the local WASM run, so neither set of absolute timings should be generalized.
+
+### Native: Direct selective number = 777
+
+```text
+Limit  (cost=0.94..959964.91 rows=1 width=20) (actual time=343.350..348.427 rows=20 loops=1)
+  Buffers: shared hit=80186
+  InitPlan 1 (returns $0)
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.271..0.272 rows=1 loops=1)
+  InitPlan 2 (returns $1)
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.416..0.416 rows=1 loops=1)
+          Buffers: shared hit=6
+  ->  Index Scan using cf_values_number on custom_field_values v  (cost=0.42..959964.39 rows=1 width=20) (actual time=27.351..32.425 rows=20 loops=1)
+        Index Cond: (definition_id = 'ca5e7788-78b4-24a2-b9f0-cdde7485c02d'::uuid)
+        Filter: ($0 AND $1 AND (hashed SubPlan 10) AND (((person_id IS NOT NULL) AND (SubPlan 19)) OR ((company_id IS NOT NULL) AND (hashed SubPlan 36)) OR ((deal_id IS NOT NULL) AND (hashed SubPlan 50))) AND (number_value = '777'::numeric))
+        Rows Removed by Filter: 19980
+        Buffers: shared hit=80186
+        SubPlan 10
+          ->  Seq Scan on custom_field_definitions f  (cost=0.78..2.88 rows=2 width=16) (actual time=7.300..7.303 rows=10 loops=1)
+                Filter: ($7 AND $8 AND ($9 OR (NOT archived)) AND (NOT archived))
+                Buffers: shared hit=17
+                InitPlan 7 (returns $7)
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.160..0.160 rows=1 loops=1)
+                InitPlan 8 (returns $8)
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.222..0.223 rows=1 loops=1)
+                        Buffers: shared hit=6
+                InitPlan 9 (returns $9)
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.136..0.136 rows=1 loops=1)
+                        Buffers: shared hit=9
+        SubPlan 19
+          ->  Index Scan using people_pkey on people p  (cost=0.81..17.63 rows=1 width=0) (actual time=0.001..0.001 rows=1 loops=20000)
+                Index Cond: (id = v.person_id)
+                Filter: ($17 AND $18 AND (archived_at IS NULL) AND ((primary_organization_id IS NULL) OR (hashed SubPlan 16)))
+                Buffers: shared hit=60001
+                InitPlan 17 (returns $17)
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.039..0.039 rows=1 loops=1)
+                InitPlan 18 (returns $18)
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.096..0.096 rows=1 loops=1)
+                        Buffers: shared hit=1
+                SubPlan 16
+                  ->  Index Scan using companies_deleted_at_idx on companies c  (cost=0.79..8.81 rows=1 width=16) (never executed)
+                        Index Cond: (deleted_at IS NULL)
+                        Filter: ($14 AND $15)
+                        InitPlan 14 (returns $14)
+                          ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                        InitPlan 15 (returns $15)
+                          ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+        SubPlan 36
+          ->  Index Scan using companies_deleted_at_idx on companies c_1  (cost=0.79..9.07 rows=1 width=16) (never executed)
+                Index Cond: (deleted_at IS NULL)
+                Filter: ($34 AND $35 AND (SubPlan 33))
+                InitPlan 34 (returns $34)
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                InitPlan 35 (returns $35)
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                SubPlan 33
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+        SubPlan 50
+          ->  Nested Loop  (cost=1.58..18.41 rows=1 width=16) (never executed)
+                InitPlan 46 (returns $48)
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                InitPlan 47 (returns $49)
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                InitPlan 48 (returns $50)
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                InitPlan 49 (returns $51)
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                ->  Index Scan using companies_deleted_at_idx on companies c_2  (cost=0.27..8.29 rows=1 width=16) (never executed)
+                      Index Cond: (deleted_at IS NULL)
+                      Filter: ($50 AND $51)
+                ->  Index Scan using deals_company_id_idx on deals d  (cost=0.27..9.07 rows=1 width=32) (never executed)
+                      Index Cond: (company_id = c_2.id)
+                      Filter: ($48 AND $49 AND (archived_at IS NULL) AND private.can_access_deal(id, false) AND (SubPlan 44) AND (SubPlan 45))
+                      SubPlan 44
+                        ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                      SubPlan 45
+                        ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+Planning:
+  Buffers: shared hit=478 read=10
+Planning Time: 1.209 ms
+JIT:
+  Functions: 128
+  Options: Inlining true, Optimization true, Expressions true, Deforming true
+  Timing: Generation 1.721 ms, Inlining 39.263 ms, Optimization 152.503 ms, Emission 131.023 ms, Total 324.510 ms
+Execution Time: 363.386 ms
+```
+
+### Native: Direct broad count number >= 0 (diagnostic only)
+
+```text
+Aggregate  (cost=959778.45..959778.46 rows=1 width=8) (actual time=307.618..307.627 rows=1 loops=1)
+  Buffers: shared hit=80116 read=1
+  InitPlan 1 (returns $0)
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.265..0.266 rows=1 loops=1)
+  InitPlan 2 (returns $1)
+    ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.296..0.297 rows=1 loops=1)
+          Buffers: shared hit=6
+  ->  Index Scan using custom_field_values_definition_id_record_id_key on custom_field_values v  (cost=0.42..959776.39 rows=616 width=0) (actual time=284.850..306.937 rows=20000 loops=1)
+        Index Cond: (definition_id = 'ca5e7788-78b4-24a2-b9f0-cdde7485c02d'::uuid)
+        Filter: ($0 AND $1 AND is_set AND (hashed SubPlan 10) AND (((person_id IS NOT NULL) AND (SubPlan 19)) OR ((company_id IS NOT NULL) AND (hashed SubPlan 36)) OR ((deal_id IS NOT NULL) AND (hashed SubPlan 50))) AND (number_value >= '0'::numeric))
+        Buffers: shared hit=80116 read=1
+        SubPlan 10
+          ->  Seq Scan on custom_field_definitions f  (cost=0.78..2.88 rows=2 width=16) (actual time=7.259..7.262 rows=10 loops=1)
+                Filter: ($7 AND $8 AND ($9 OR (NOT archived)) AND (NOT archived))
+                Buffers: shared hit=9
+                InitPlan 7 (returns $7)
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.160..0.160 rows=1 loops=1)
+                InitPlan 8 (returns $8)
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.235..0.235 rows=1 loops=1)
+                        Buffers: shared hit=6
+                InitPlan 9 (returns $9)
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.125..0.125 rows=1 loops=1)
+                        Buffers: shared hit=1
+        SubPlan 19
+          ->  Index Scan using people_pkey on people p  (cost=0.81..17.63 rows=1 width=0) (actual time=0.001..0.001 rows=1 loops=20000)
+                Index Cond: (id = v.person_id)
+                Filter: ($17 AND $18 AND (archived_at IS NULL) AND ((primary_organization_id IS NULL) OR (hashed SubPlan 16)))
+                Buffers: shared hit=60001
+                InitPlan 17 (returns $17)
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.040..0.041 rows=1 loops=1)
+                InitPlan 18 (returns $18)
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (actual time=0.097..0.097 rows=1 loops=1)
+                        Buffers: shared hit=1
+                SubPlan 16
+                  ->  Index Scan using companies_deleted_at_idx on companies c  (cost=0.79..8.81 rows=1 width=16) (never executed)
+                        Index Cond: (deleted_at IS NULL)
+                        Filter: ($14 AND $15)
+                        InitPlan 14 (returns $14)
+                          ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                        InitPlan 15 (returns $15)
+                          ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+        SubPlan 36
+          ->  Index Scan using companies_deleted_at_idx on companies c_1  (cost=0.79..9.07 rows=1 width=16) (never executed)
+                Index Cond: (deleted_at IS NULL)
+                Filter: ($34 AND $35 AND (SubPlan 33))
+                InitPlan 34 (returns $34)
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                InitPlan 35 (returns $35)
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                SubPlan 33
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+        SubPlan 50
+          ->  Nested Loop  (cost=1.58..18.41 rows=1 width=16) (never executed)
+                InitPlan 46 (returns $48)
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                InitPlan 47 (returns $49)
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                InitPlan 48 (returns $50)
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                InitPlan 49 (returns $51)
+                  ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                ->  Index Scan using companies_deleted_at_idx on companies c_2  (cost=0.27..8.29 rows=1 width=16) (never executed)
+                      Index Cond: (deleted_at IS NULL)
+                      Filter: ($50 AND $51)
+                ->  Index Scan using deals_company_id_idx on deals d  (cost=0.27..9.07 rows=1 width=32) (never executed)
+                      Index Cond: (company_id = c_2.id)
+                      Filter: ($48 AND $49 AND (archived_at IS NULL) AND private.can_access_deal(id, false) AND (SubPlan 44) AND (SubPlan 45))
+                      SubPlan 44
+                        ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+                      SubPlan 45
+                        ->  Result  (cost=0.00..0.26 rows=1 width=1) (never executed)
+Planning:
+  Buffers: shared hit=4
+Planning Time: 0.591 ms
+JIT:
+  Functions: 127
+  Options: Inlining true, Optimization true, Expressions true, Deforming true
+  Timing: Generation 2.257 ms, Inlining 6.958 ms, Optimization 148.837 ms, Emission 127.690 ms, Total 285.742 ms
+Execution Time: 309.992 ms
+```
+
+### Native: Actual RPC selective equals 777
+
+```text
+Function Scan on custom_field_search  (cost=0.25..10.25 rows=1000 width=16) (actual time=319.796..319.797 rows=20 loops=1)
+  Buffers: shared hit=80470
+Planning Time: 0.055 ms
+Execution Time: 319.805 ms
+```
+
+### Native: Actual RPC broad less than 1000, value ascending
+
+```text
+Function Scan on custom_field_search  (cost=0.25..10.25 rows=1000 width=16) (actual time=323.571..323.575 rows=101 loops=1)
+  Buffers: shared hit=80136
+Planning Time: 0.060 ms
+Execution Time: 323.586 ms
+```
