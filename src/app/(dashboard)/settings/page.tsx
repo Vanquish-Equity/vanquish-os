@@ -1,3 +1,6 @@
+import { readCustomFieldsState } from "@/lib/custom-fields/state";
+import CustomFieldsGate from "@/components/custom-fields/CustomFieldsGate";
+import CustomFieldsAdmin from "@/components/custom-fields/CustomFieldsAdmin";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { requireMember } from "@/lib/auth/access";
@@ -95,6 +98,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           googleConnected={mailbox.connected}
         />
       )}
+      {isAdmin && <CustomFieldsGate enabled={await readCustomFieldsState()}><CustomFieldsAdmin /></CustomFieldsGate>}
       {isAdmin && !membersResult.error && !permissionsResult.error && !domainsResult.error && (
         <AdminSettings
           me={access.email}

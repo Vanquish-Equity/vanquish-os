@@ -1,0 +1,1 @@
+create table private.cf6a_test_snapshot as select pg_get_constraintdef(oid) permission_check,(select count(*) from public.saved_views) views_count,(select count(*) from public.stage_task_rules) rules_count,(select count(*) from public.deals) deals_count from pg_constraint where conrelid='public.member_permissions'::regclass and conname='member_permissions_permission_check';

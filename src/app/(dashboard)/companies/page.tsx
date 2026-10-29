@@ -1,3 +1,6 @@
+import { readCustomFieldsState } from "@/lib/custom-fields/state";
+import CustomFieldsGate from "@/components/custom-fields/CustomFieldsGate";
+import CustomFieldFilter from "@/components/custom-fields/CustomFieldFilter";
 import { Suspense } from "react";
 import { hasPermission } from "@/lib/auth/access";
 import Link from "next/link";
@@ -154,6 +157,8 @@ export default async function CompaniesPage() {
           Trash
         </Link>
       </header>
+
+      <CustomFieldsGate enabled={await readCustomFieldsState()}><CustomFieldFilter object="companies" /></CustomFieldsGate>
 
       <Suspense
         fallback={

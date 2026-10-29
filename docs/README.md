@@ -31,3 +31,5 @@ has been read or is current.
 - Phase 4 relationships: [contract and activation](relationships.md), [open decisions](relationships-open-decisions.md), [synthetic query plans](relationships-query-plans.md).
 - Phase 5A Gmail: [contract, scopes and activation](mail-completion.md), [mail/calendar open decisions](mail-calendar-open-decisions.md). Calendar 5B remains separate.
 - Phase 5B Calendar: [contract, exact scopes, verification and activation](calendar-completion.md); separate permission/flag, no sender or read-worker changes.
+
+- [Customization: typed CRM fields (Phase 6A)](customization.md), [open decisions](customization-open-decisions.md), and [query plans](custom-fields-query-plans.md).

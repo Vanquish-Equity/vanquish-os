@@ -1,3 +1,6 @@
+import { readCustomFieldsState } from "@/lib/custom-fields/state";
+import CustomFieldsGate from "@/components/custom-fields/CustomFieldsGate";
+import CustomFieldFilter from "@/components/custom-fields/CustomFieldFilter";
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
@@ -195,6 +198,7 @@ export default async function PeoplePage({
         </div>
       </header>
 
+      <CustomFieldsGate enabled={await readCustomFieldsState()}><CustomFieldFilter object="people" /></CustomFieldsGate>
       <PeopleViewsBar
         tabs={
           <div className="flex flex-wrap items-center gap-3">
