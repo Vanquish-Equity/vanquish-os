@@ -17,6 +17,14 @@ create unique index if not exists crm_template_application_run on public.crm_tem
 create index if not exists crm_template_application_parent on public.crm_template_applications(company_id,deal_id,created_at desc);
 -- Generic admin audit receives only this content-free receipt, never application parent/card IDs.
 create table if not exists public.crm_template_audit_metadata(id uuid primary key default gen_random_uuid(),template_id uuid not null,actor text not null,task_count integer not null check(task_count between 0 and 25),checklist_count integer not null check(checklist_count between 0 and 20),change_hash text not null check(change_hash ~ '^[a-f0-9]{64}$'),occurred_at timestamptz not null default now());
+-- Private, statement-local command envelope, not an application receipt or queue.
+-- Only input columns are writable. BEFORE runs as caller and creates real items;
+-- AFTER alone has owner privileges to record that completed work, then removes the envelope.
+create table if not exists private.vt_application_commands(
+ id uuid primary key default gen_random_uuid(),template_id uuid not null,template_version integer not null,
+ company_id uuid not null,deal_id uuid,card_id uuid,request_id uuid not null,repeat_requested boolean not null,confirmed boolean not null,
+ actor text not null,application_id uuid not null,run_number integer not null,task_count integer not null,checklist_count integer not null,already_applied boolean not null
+);
 create or replace function private.vt_enabled(p_cap text) returns boolean language plpgsql stable security definer set search_path='' as $$declare flag boolean;begin
  if (select private.is_machine_identity()) or not (select private.is_member()) then raise exception 'Customization unavailable' using errcode='42501';end if;
  select case p_cap when 'views' then views_enabled when 'kanban' then views_enabled and kanban_enabled when 'templates' then templates_enabled else false end into flag from private.customization_configuration where singleton;return coalesce(flag,false);
@@ -144,31 +152,49 @@ create or replace function public.save_task_template(p_id uuid,p_name text,p_tas
  else update public.crm_task_templates set name=btrim(p_name),task_titles=p_tasks,checklist_titles=p_checklist,archived=p_archived where id=p_id and version=p_version returning id into rid;end if;
  if rid is null then raise exception 'Template changed; reload' using errcode='40001';end if;return rid;
 end$$;
-create or replace function public.apply_task_template(p_template uuid,p_version integer,p_company uuid,p_deal uuid,p_card uuid,p_request uuid,p_repeat boolean,p_confirmed boolean) returns jsonb language plpgsql security invoker set search_path='' as $$
-declare t public.crm_task_templates%rowtype;a public.crm_template_applications%rowtype;title text;run integer;begin
+create or replace function private.vt_execute_command() returns trigger language plpgsql security invoker set search_path='' as $$
+declare t public.crm_task_templates%rowtype;a public.crm_template_applications%rowtype;title text;run integer;created integer;item uuid;begin
+ if tg_relid<>'private.vt_application_commands'::regclass or tg_op<>'INSERT' then raise exception 'Invalid command origin' using errcode='42501';end if;
+ new.id:=gen_random_uuid();new.actor:=private.current_email();new.already_applied:=false;
  if (select private.is_machine_identity()) then raise exception 'Customization unavailable' using errcode='42501';end if;perform private.vt_require('templates');
- if p_confirmed is distinct from true or p_request is null or p_repeat is null then raise exception 'Confirmation required' using errcode='22023';end if;
- if not private.cf_parent_write(case when p_deal is null then 'companies' else 'deals' end,coalesce(p_deal,p_company)) or p_deal is not null and not exists(select 1 from public.deals where id=p_deal and company_id=p_company) then raise exception 'Target unavailable' using errcode='42501';end if;
- select * into t from public.crm_task_templates where id=p_template and not archived;if not found then raise exception 'Template unavailable' using errcode='42501';end if;
- if t.version is distinct from p_version then raise exception 'Template changed; reload' using errcode='40001';end if;
- if cardinality(t.checklist_titles)>0 and p_card is null then raise exception 'Select a Company-linked board card for the checklist' using errcode='22023';end if;
- if p_card is not null then
-  perform 1 from public.crm_board_items i join public.crm_boards b on b.id=i.board_id where i.id=p_card and i.source_company_id=p_company and b.archived_at is null for update of i;if not found then raise exception 'Card unavailable' using errcode='42501';end if;
-  if (select count(*) from public.crm_board_item_checklist_items where item_id=p_card)+cardinality(t.checklist_titles)>200 then raise exception 'Card checklist capacity exceeded' using errcode='22023';end if;
+ if new.confirmed is distinct from true or new.request_id is null or new.repeat_requested is null then raise exception 'Confirmation required' using errcode='22023';end if;
+ if not private.cf_parent_write(case when new.deal_id is null then 'companies' else 'deals' end,coalesce(new.deal_id,new.company_id)) or new.deal_id is not null and not exists(select 1 from public.deals where id=new.deal_id and company_id=new.company_id) then raise exception 'Target unavailable' using errcode='42501';end if;
+ select * into t from public.crm_task_templates where id=new.template_id and not archived;if not found then raise exception 'Template unavailable' using errcode='42501';end if;
+ if t.version is distinct from new.template_version then raise exception 'Template changed; reload' using errcode='40001';end if;
+ if cardinality(t.checklist_titles)>0 and new.card_id is null then raise exception 'Select a Company-linked board card for the checklist' using errcode='22023';end if;
+ if new.card_id is not null then
+  perform 1 from public.crm_board_items i join public.crm_boards b on b.id=i.board_id where i.id=new.card_id and i.source_company_id=new.company_id and b.archived_at is null for update of i;if not found then raise exception 'Card unavailable' using errcode='42501';end if;
+  if (select count(*) from public.crm_board_item_checklist_items where item_id=new.card_id)+cardinality(t.checklist_titles)>200 then raise exception 'Card checklist capacity exceeded' using errcode='22023';end if;
  end if;
- perform pg_advisory_xact_lock(hashtextextended('template:'||p_template::text||':'||p_company::text||':'||coalesce(p_deal::text,'')||':'||coalesce(p_card::text,''),0));
- select * into a from public.crm_template_applications where request_id=p_request;
+ perform pg_advisory_xact_lock(hashtextextended('template:'||new.template_id::text||':'||new.company_id::text||':'||coalesce(new.deal_id::text,'')||':'||coalesce(new.card_id::text,''),0));
+ select * into a from public.crm_template_applications where request_id=new.request_id;
  if found then
-  if a.template_id<>p_template or a.company_id<>p_company or a.deal_id is distinct from p_deal or a.card_id is distinct from p_card then raise exception 'Request identity changed' using errcode='22023';end if;
-  return jsonb_build_object('id',a.id,'alreadyApplied',true,'tasks',a.task_count,'checklist',a.checklist_count);
+  if a.template_id<>new.template_id or a.company_id<>new.company_id or a.deal_id is distinct from new.deal_id or a.card_id is distinct from new.card_id then raise exception 'Request identity changed' using errcode='22023';end if;
+  new.application_id:=a.id;new.run_number:=a.run_number;new.task_count:=a.task_count;new.checklist_count:=a.checklist_count;new.already_applied:=true;return new;
  end if;
- select * into a from public.crm_template_applications where template_id=p_template and company_id=p_company and deal_id is not distinct from p_deal and card_id is not distinct from p_card order by run_number desc limit 1;
- if found and not p_repeat then return jsonb_build_object('id',a.id,'alreadyApplied',true,'tasks',a.task_count,'checklist',a.checklist_count);end if;
+ select * into a from public.crm_template_applications where template_id=new.template_id and company_id=new.company_id and deal_id is not distinct from new.deal_id and card_id is not distinct from new.card_id order by run_number desc limit 1;
+ if found and not new.repeat_requested then new.application_id:=a.id;new.run_number:=a.run_number;new.task_count:=a.task_count;new.checklist_count:=a.checklist_count;new.already_applied:=true;return new;end if;
  run:=coalesce(a.run_number,0)+1;if run>10 then raise exception 'Maximum 10 applications per template/target' using errcode='22023';end if;
- foreach title in array t.task_titles loop insert into public.tasks(company_id,deal_id,title,owner,assignee_email) values(p_company,p_deal,btrim(title),private.current_email(),private.current_email());end loop;
- foreach title in array t.checklist_titles loop perform public.add_board_checklist_item(p_card,btrim(title));end loop;
- insert into public.crm_template_applications(template_id,template_version,company_id,deal_id,card_id,actor,request_id,run_number,task_count,checklist_count) values(p_template,t.version,p_company,p_deal,p_card,private.current_email(),p_request,run,cardinality(t.task_titles),cardinality(t.checklist_titles)) returning * into a;
- return jsonb_build_object('id',a.id,'alreadyApplied',false,'tasks',a.task_count,'checklist',a.checklist_count);
+ foreach title in array t.task_titles loop insert into public.tasks(company_id,deal_id,title,owner,assignee_email) values(new.company_id,new.deal_id,btrim(title),private.current_email(),private.current_email());get diagnostics created=row_count;if created<>1 then raise exception 'Task creation incomplete' using errcode='22023';end if;end loop;
+ foreach title in array t.checklist_titles loop item:=public.add_board_checklist_item(new.card_id,btrim(title));if item is null or not exists(select 1 from public.crm_board_item_checklist_items where id=item and item_id=new.card_id and text=btrim(title)) then raise exception 'Checklist creation incomplete' using errcode='22023';end if;end loop;
+ -- Counts come from successful, bounded item creation above, never caller metadata.
+ new.application_id:=gen_random_uuid();new.run_number:=run;new.task_count:=cardinality(t.task_titles);new.checklist_count:=cardinality(t.checklist_titles);return new;
+end$$;
+-- The only receipt-writing capability. Not executable by authenticated (including
+-- CREATE TRIGGER on an attacker-owned table). NEW is from the fixed command table,
+-- after the invoker BEFORE trigger has authorized and completed the real writes.
+create or replace function private.vt_record_command() returns trigger language plpgsql security definer set search_path='' as $$begin
+ if (select private.is_machine_identity()) or not (select private.is_member()) or tg_relid<>'private.vt_application_commands'::regclass or tg_op<>'INSERT' or new.actor is distinct from private.current_email() then raise exception 'Invalid receipt origin' using errcode='42501';end if;
+ if not new.already_applied then
+  insert into public.crm_template_applications(id,template_id,template_version,company_id,deal_id,card_id,actor,request_id,run_number,task_count,checklist_count) values(new.application_id,new.template_id,new.template_version,new.company_id,new.deal_id,new.card_id,new.actor,new.request_id,new.run_number,new.task_count,new.checklist_count);
+ end if;
+ -- DELETE: statement-local command only, never a receipt, task or protected journal.
+ delete from private.vt_application_commands where id=new.id;return new;
+end$$;
+create or replace function public.apply_task_template(p_template uuid,p_version integer,p_company uuid,p_deal uuid,p_card uuid,p_request uuid,p_repeat boolean,p_confirmed boolean) returns jsonb language plpgsql security invoker set search_path='' as $$declare c private.vt_application_commands%rowtype;begin
+ if (select private.is_machine_identity()) then raise exception 'Customization unavailable' using errcode='42501';end if;
+ insert into private.vt_application_commands(template_id,template_version,company_id,deal_id,card_id,request_id,repeat_requested,confirmed) values(p_template,p_version,p_company,p_deal,p_card,p_request,p_repeat,p_confirmed) returning * into c;
+ return jsonb_build_object('id',c.application_id,'alreadyApplied',c.already_applied,'tasks',c.task_count,'checklist',c.checklist_count);
 end$$;
 -- Owner-only rollback preflight, separately testable for the exact failure reason.
 create or replace function private.vt_rollback_guard() returns void language plpgsql stable security invoker set search_path='' as $$begin
@@ -176,11 +202,12 @@ create or replace function private.vt_rollback_guard() returns void language plp
  if exists(select 1 from public.saved_views where filters->'version'='1'::jsonb) then raise exception 'Phase 6B protected v1 views' using errcode='P0001';end if;
  if exists(select 1 from public.crm_template_applications) then raise exception 'Phase 6B protected applications' using errcode='P0001';end if;
  if exists(select 1 from public.crm_template_audit_metadata) then raise exception 'Phase 6B protected audit' using errcode='P0001';end if;
+ if exists(select 1 from public.crm_task_templates) then raise exception 'Phase 6B protected templates' using errcode='P0001';end if;
 end$$;
 -- RLS and grants: no new direct checklist grants; invoker application calls the existing ACL-guarded RPC.
 do $$declare tab text;sc text;begin
- foreach tab in array array['customization_configuration','crm_task_templates','crm_template_applications','crm_template_audit_metadata'] loop
- sc:=case when tab='customization_configuration' then 'private' else 'public' end;
+ foreach tab in array array['customization_configuration','vt_application_commands','crm_task_templates','crm_template_applications','crm_template_audit_metadata'] loop
+ sc:=case when tab in('customization_configuration','vt_application_commands') then 'private' else 'public' end;
  execute format('alter table %I.%I enable row level security',sc,tab);execute format('revoke all on %I.%I from public,anon,authenticated',sc,tab);
  if not exists(select 1 from pg_policy where polrelid=(sc||'.'||tab)::regclass and polname='machine_identity_isolation') then execute format('create policy machine_identity_isolation on %I.%I as restrictive for all to authenticated using ((select not private.is_machine_identity())) with check ((select not private.is_machine_identity()))',sc,tab);end if;
  end loop;
@@ -188,16 +215,22 @@ end$$;
 grant select on public.crm_task_templates,public.crm_template_applications,public.crm_template_audit_metadata to authenticated;
 grant insert(name,task_titles,checklist_titles,archived) on public.crm_task_templates to authenticated;
 grant update(name,task_titles,checklist_titles,archived) on public.crm_task_templates to authenticated;
-grant insert(template_id,template_version,company_id,deal_id,card_id,actor,request_id,run_number,task_count,checklist_count) on public.crm_template_applications to authenticated;
-grant insert(template_id,actor,task_count,checklist_count,change_hash) on public.crm_template_audit_metadata to authenticated;
+-- Also revoke legacy column-level grants: REVOKE ALL ON TABLE alone does not remove them.
+revoke insert(template_id,template_version,company_id,deal_id,card_id,actor,request_id,run_number,task_count,checklist_count) on public.crm_template_applications from authenticated;
+revoke insert(template_id,actor,task_count,checklist_count,change_hash) on public.crm_template_audit_metadata from authenticated;
+grant select on private.vt_application_commands to authenticated;
+grant insert(template_id,template_version,company_id,deal_id,card_id,request_id,repeat_requested,confirmed) on private.vt_application_commands to authenticated;
+-- DROP: remove the old direct-insert path on reapplication of this unapplied phase.
+drop policy if exists vt_application_add on public.crm_template_applications;
+-- DROP: journals are written only in the protected receipt trigger context.
+drop policy if exists vt_journal_add on public.crm_template_audit_metadata;
+
 do $$begin if not exists(select 1 from pg_policy where polrelid='public.crm_task_templates'::regclass and polname='vt_template_read') then
  create policy vt_template_read on public.crm_task_templates for select to authenticated using((select private.vt_enabled('templates')) and (not archived or (select private.has_permission('admin'))));
  create policy vt_template_add on public.crm_task_templates for insert to authenticated with check((select private.has_permission('admin')));
  create policy vt_template_edit on public.crm_task_templates for update to authenticated using((select private.has_permission('admin'))) with check((select private.has_permission('admin')));
  create policy vt_application_read on public.crm_template_applications for select to authenticated using((select private.vt_enabled('templates')) and (select private.vt_parent_read(company_id,deal_id)) and (card_id is null or exists(select 1 from public.crm_board_items where id=card_id)));
- create policy vt_application_add on public.crm_template_applications for insert to authenticated with check(actor=(select private.current_email()) and (select private.is_member()));
  create policy vt_journal_read on public.crm_template_audit_metadata for select to authenticated using((select private.has_permission('admin')) and (select private.is_member()));
- create policy vt_journal_add on public.crm_template_audit_metadata for insert to authenticated with check(pg_trigger_depth()>0 and actor=(select private.current_email()) and (select private.is_member()));
  end if;end$$;
 do $$begin if not exists(select 1 from pg_trigger where tgrelid='public.crm_task_templates'::regclass and tgname='vt_template_guard') then
  create trigger vt_template_guard before insert or update on public.crm_task_templates for each row execute function private.vt_template_guard();
@@ -206,14 +239,21 @@ do $$begin if not exists(select 1 from pg_trigger where tgrelid='public.crm_task
  create trigger vt_journal_audit after insert on public.crm_template_audit_metadata for each row execute function private.audit_record();
  create trigger vt_template_audit after insert or update on public.crm_task_templates for each row execute function private.audit_record();
  end if;end$$;
--- Existing task audit is unchanged; this additional read restriction prevents parent-ID inference.
-do $$begin if not exists(select 1 from pg_policy where polrelid='public.audit_log'::regclass and polname='vt_task_audit_parent') then
- create policy vt_task_audit_parent on public.audit_log as restrictive for select to authenticated using(entity_table<>'tasks' or (coalesce(after_row,before_row)->>'company_id' is null and coalesce(after_row,before_row)->>'deal_id' is null) or (select private.vt_parent_read(nullif(coalesce(after_row,before_row)->>'company_id','')::uuid,nullif(coalesce(after_row,before_row)->>'deal_id','')::uuid)));
+-- DROP: restore existing task audit visibility, including archived/deleted parents.
+-- No Phase 6B policy or per-row helper is added to public.audit_log.
+drop policy if exists vt_task_audit_parent on public.audit_log;
+do $$begin if not exists(select 1 from pg_policy where polrelid='private.vt_application_commands'::regclass and polname='vt_command_add') then
+ create policy vt_command_add on private.vt_application_commands for insert to authenticated with check(actor=(select private.current_email()) and (select private.is_member()) and (select private.vt_enabled('templates')));
+ create policy vt_command_read on private.vt_application_commands for select to authenticated using(actor=(select private.current_email()) and (select private.is_member()));
+ end if;
+ if not exists(select 1 from pg_trigger where tgrelid='private.vt_application_commands'::regclass and tgname='vt_execute_command') then
+ create trigger vt_execute_command before insert on private.vt_application_commands for each row execute function private.vt_execute_command();
+ create trigger vt_record_command after insert on private.vt_application_commands for each row execute function private.vt_record_command();
  end if;end$$;
 do $$declare f record;begin
  for f in select p.oid::regprocedure signature,p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in('public','private') and (p.proname like 'vt_%' or p.proname in('customization_state','save_customization_view','customization_view_data','move_customization_card','save_task_template','apply_task_template')) loop
  execute format('revoke all on function %s from public,anon,authenticated',f.signature);
- if f.proname not in('vt_view_guard','vt_template_guard','vt_application_guard','vt_application_audit','vt_rollback_guard') then execute format('grant execute on function %s to authenticated',f.signature);end if;
+ if f.proname not in('vt_view_guard','vt_template_guard','vt_application_guard','vt_application_audit','vt_execute_command','vt_record_command','vt_rollback_guard') then execute format('grant execute on function %s to authenticated',f.signature);end if;
  end loop;
 end$$;
 commit;

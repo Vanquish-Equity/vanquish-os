@@ -26,8 +26,14 @@ drop function if exists public.customization_state();
 drop table if exists public.crm_template_applications;
 -- DROP: Phase 6B table only.
 drop table if exists public.crm_template_audit_metadata;
--- DROP: unapplied template definitions only.
+-- DROP: empty template catalog only; guard refuses even unapplied definitions.
 drop table if exists public.crm_task_templates;
+-- DROP: empty, statement-local command envelope and its two triggers only.
+drop table if exists private.vt_application_commands;
+-- DROP: Phase 6B invoker command executor only.
+drop function if exists private.vt_execute_command();
+-- DROP: Phase 6B protected receipt writer only.
+drop function if exists private.vt_record_command();
 -- DROP: Phase 6B helper only.
 drop function if exists private.vt_view_guard();
 -- DROP: Phase 6B helper only.

@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PHASES = {
     "phase-6b-views-templates.sql": ("-- Phase 6B; main through 20261028190337 required. Three capabilities default off.\n\n", ["20261030210635_views_templates.sql"]),
-    "phase-6b-rollback.sql": ("-- Phase 6B: pause first; refuse protected views, applications and audit.\n\n", ["../rollback/phase-6b-views-templates.sql"]),
+    "phase-6b-rollback.sql": ("-- Phase 6B: pause first; refuse protected views, templates, applications and audit.\n\n", ["../rollback/phase-6b-views-templates.sql"]),
     "phase-6a-custom-fields.sql": ("-- Phase 6A; main through 20261016211212 required. Flag remains off.\n\n", ["20261028190337_custom_fields.sql"]),
     "phase-6a-rollback.sql": ("-- Phase 6A: pause first; refuse protected values, audit or saved views.\n\n", ["../rollback/phase-6a-custom-fields.sql"]),
     "phase-5b-calendar-completion.sql": ("-- Combined Phase 5B; main through 20261016013701 required. Defaults off.\n\n", ["20261016211212_calendar_completion.sql"]),

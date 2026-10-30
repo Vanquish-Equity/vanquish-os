@@ -230,7 +230,11 @@ Tables return at most 100 visible records plus an internal sentinel. Grouped
 columns return 25 plus a sentinel. The option catalog is shared schema: at most
 50 options plus “No value”, **not** a count or discovery of hidden records.
 The UI pages four columns at a time; initial open reuses its first bucket response
-and requests at most three more, subsequent pages at most four. The visible
+and requests at most three more, subsequent pages at most four. The four-column
+batch limit is enforced by the server action and UI, **not a SQL transaction-wide
+limit**: `customization_view_data` accepts one bucket per call and independently
+enforces 25 grouped / 100 table rows plus a sentinel. A SQL caller can make
+additional individual calls; no database request-rate budget is claimed. The visible
 partial marker comes only from authorized results. No total count is returned.
 Response limits do **not** bound examined rows; see
 [customization-views-query-plans.md](customization-views-query-plans.md).
@@ -271,7 +275,12 @@ card checklist cap for this operation is 200 total items.
 
 Tasks/checklists/application receipt/audit are in one database transaction. Tests
 fail task N and checklist N and prove earlier writes and their audit roll back.
-Validation/audit triggers do not schedule work; only the manual RPC creates tasks.
+The manual RPC inserts a private, statement-local command envelope. Its BEFORE
+trigger runs as the caller and authorizes/creates actual tasks and checklist items.
+Its AFTER trigger alone runs as owner, writes the protected receipt/journal, and
+deletes the envelope before the statement returns. Nothing is scheduled. Direct
+SQL envelope insertion takes the same confirmed, authorized, real-write path; it
+cannot submit receipt counts, actor, run number or a successful result.
 Stage rules remain independent: similar titles can intentionally produce separate
 tasks, distinguished by stage source versus template receipt. No title-based
 inference/deduplication silently suppresses a required task.
@@ -291,21 +300,29 @@ It does not use generic audit_record. A separate content-free journal records
 actor/template/counts/date/random ID/salted hash, without parent/card IDs, private
 names or record snapshots; generic admin audit receives only that receipt.
 Existing task audit still records the newly created task's literal template title
-and references. An additional restrictive read policy now checks actual parent
-RLS for CRM-bound task audit, including a future admin denied that parent. Unbound
-legacy tasks retain their previous audit visibility. No old audit rows are changed.
+and references, under the existing admin audit authorization. Phase 6B adds no
+policy to `audit_log`: archived Deals and deleted Companies do not hide existing
+task audit, including when all three flags are off. Application history itself
+still requires the live parent/card RLS; these are different existing contracts.
 
-As in 6A, invoker table grants and trigger-depth/actor checks are **not** proof of
-RPC provenance or tamper-proof accounting. An authorized parent editor can submit
-plausible application metadata directly, and a caller able to install another
-trigger may forge content-free journal entries. Such metadata is operational,
-not an approval/attestation ledger; it must not authorize access or stage movement.
-Tests specifically deny direct journal inserts via the Data API.
+Authenticated members have **no INSERT grant or INSERT policy** on application
+receipts or the journal. The minimal private `vt_record_command` definer is a
+trigger only: it has no authenticated EXECUTE privilege, verifies its fixed source
+table and actor, and consumes the result computed by the preceding invoker
+trigger. Members cannot install it on their own table, change the envelope's
+derived columns, disable its triggers or write receipts directly. Template version,
+parent/card edit access, successful item counts, request deduplication and the ten
+actual application limit are checked in the invoker path under RLS. All failures
+roll back actual items, envelope, receipt and audit together. This prevents metadata
+forgery from consuming the application quota; it is still not an external immutable
+attestation or an approval ledger. Owner SQL remains trusted maintenance.
 
 All new read RPCs and read policy helpers are STABLE and take no row locks. Every
 new table has restrictive machine_identity_isolation using scalar SELECT wrappers;
 new functions deny machine identities. Public RPCs/data helpers are invokers; the
-only new definers access configuration/membership/permission metadata. Constant
+new definers access configuration/membership/permission metadata or, for the
+non-executable receipt trigger above, protected application/journal metadata.
+The definer does not create tasks or mutate board items. Constant
 policy checks use initplans, while record-dependent parent checks remain correlated.
 Native SQL tests read nonempty tables and RPCs in BEGIN READ ONLY as member/admin.
 
@@ -332,8 +349,13 @@ No flag or permission result cached in process memory authorizes a later request
 Pause commits all three flags false. Already-running writes finish before pause
 obtains its lock; reads use their statement snapshot and can finish after pause.
 The combined `phase-6b-rollback.sql` commits pause **before** a separate removal
-transaction. It refuses any v1 saved view, application or protected journal row.
-Leave such schema paused; no production deletion/repair is automated. Empty-only
+transaction. It refuses any v1 saved view, template definition (even unapplied),
+application or protected journal row.
+Leave such schema paused; no production deletion/repair is automated. Deleting
+v1 views, including through the legacy delete action, requires `views_enabled=true`;
+pausing freezes them. Any owner-approved removal therefore needs a separately
+reviewed maintenance window with that flag enabled, followed by pause/preflight.
+Do not enable a flag or delete protected data as part of automatic rollback. Empty-only
 removal has no CASCADE, removes only new objects/policy/trigger, and preserves v0,
 existing CHECKs/grants, 6A, stage rules, tasks/checklists and generic audit history.
 The SQL suite also runs the unchanged 6A rollback with a real v1 CF reference and

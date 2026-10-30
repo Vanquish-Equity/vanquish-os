@@ -48,6 +48,12 @@ rollback;
 do $$begin if exists(select 1 from private.customization_configuration where views_enabled or kanban_enabled or templates_enabled) or not exists(select 1 from public.crm_template_audit_metadata where template_id='f8200000-0000-0000-0000-000000000004') then raise exception 'Audit-only pause/preservation failed';end if;end$$;
 -- DELETE: disposable journal fixture only, not a production cleanup plan.
 delete from public.crm_template_audit_metadata where template_id='f8200000-0000-0000-0000-000000000004';
+select pg_temp.vt_fail('select private.vt_rollback_guard()','Phase 6B protected templates');
+\set ON_ERROR_STOP off
+\ir ../phase-sql/phase-6b-rollback.sql
+\set ON_ERROR_STOP on
+rollback;
+do $$begin if exists(select 1 from private.customization_configuration where views_enabled or kanban_enabled or templates_enabled) or not exists(select 1 from public.crm_task_templates where id='f8200000-0000-0000-0000-000000000004') then raise exception 'Template-only pause/preservation failed';end if;end$$;
 -- DELETE: disposable task fixture only.
 delete from public.tasks where company_id='f8200000-0000-0000-0000-000000000003';
 -- DELETE: disposable template fixture only.
