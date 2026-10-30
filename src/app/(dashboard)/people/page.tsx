@@ -1,3 +1,5 @@
+import { customizationState } from "@/lib/customization/state";
+import ViewsPanel from "@/components/customization/ViewsPanel";
 import { readCustomFieldsState } from "@/lib/custom-fields/state";
 import CustomFieldsGate from "@/components/custom-fields/CustomFieldsGate";
 import CustomFieldFilter from "@/components/custom-fields/CustomFieldFilter";
@@ -198,6 +200,7 @@ export default async function PeoplePage({
         </div>
       </header>
 
+      <CustomFieldsGate enabled={(await customizationState()).views}><ViewsPanel kind="people" kanban={(await customizationState()).kanban}/></CustomFieldsGate>
       <CustomFieldsGate enabled={await readCustomFieldsState()}><CustomFieldFilter object="people" /></CustomFieldsGate>
       <PeopleViewsBar
         tabs={

@@ -1,3 +1,5 @@
+import { customizationState } from "@/lib/customization/state";
+import ApplyTemplate from "@/components/customization/ApplyTemplate";
 import { readCustomFieldsState } from "@/lib/custom-fields/state";
 import CustomFieldsGate from "@/components/custom-fields/CustomFieldsGate";
 import CustomFieldsRecord from "@/components/custom-fields/CustomFieldsRecord";
@@ -618,6 +620,7 @@ export default async function DealDetailPage({
         ))}
       </nav>
 
+      <CustomFieldsGate enabled={(await customizationState()).templates}><ApplyTemplate company={companyId} deal={dealId}/></CustomFieldsGate>
       <CustomFieldsGate enabled={await readCustomFieldsState()}><CustomFieldsRecord object="deals" recordId={dealId} /></CustomFieldsGate>
       <section id="deal-overview" className="grid grid-cols-[1.3fr_0.7fr] gap-3.5 scroll-mt-16">
         {isArchived ? (

@@ -172,3 +172,178 @@ HTTP requests. This is **not** a full signed-in application/production preview
 check; no real records, deployed schema, provider calls, concurrent multi-session
 load or production query latency were verified. Screenshots and benchmark fixtures
 contain only synthetic data. Phase 6B views/templates has not been started.
+
+## Phase 6B — versioned views and manual templates (draft)
+
+Prerequisite: main `ada3df3`, including 6A migration `20261028190337`. The owner
+has enabled 6A in production; 6B does not change that flag, any of the eight
+permissions, the worker identity or any applied migration. This section extends
+the historical 6A contract above. Its three **new** capabilities default off.
+
+### Versioned view contract and legacy compatibility
+
+`saved_views.object_type` remains exactly `people,pipeline`; Pipeline represents
+Deals, so another type/CHECK migration is unnecessary. Existing unversioned JSON
+is v0 and is neither rewritten nor revalidated as v1. The old People/Pipeline
+loaders retain identical v0 normalization and omit versioned rows from legacy
+controls. Existing owner-only INSERT/UPDATE/DELETE grants/RLS remain unchanged.
+New v1 views have a separate editor/display on those two pages. Own views can be
+edited/deleted; shared views are usable but remain editable only by their owner.
+No view grants access to a source record.
+
+The complete v1 JSON is exactly:
+
+```json
+{"version":1,"columns":["name","company"],"sort":{"key":"name","direction":"asc"},"group":null,"mode":"table"}
+```
+
+Unknown/missing keys, duplicate columns, invalid types and invalid nested sort
+keys are rejected in TypeScript **and** PostgreSQL (invoker trigger on direct
+writes as well as the RPC). PostgreSQL is authoritative. Maximum JSON size is
+4,096 UTF-8 bytes of PostgreSQL's JSONB text; at most eight columns, including
+`name`. Directions: asc/desc. Layout: table/kanban. People columns: name/company/
+email/linkedin, reusing the corresponding existing PEOPLE_COLUMNS identities;
+Pipeline: name/company/stage. Mailbox-derived columns are not part of v1: they
+would require separate per-viewer provider reads. They remain unchanged in v0.
+
+One optional `cf:<canonical-lowercase-UUID>` may appear in columns/sort/group.
+It must be active, filterable, belong to the right object and not be multi-select.
+Canonical UUID spelling preserves the unchanged 6A rollback's UUID-reference
+check, including when referenced only by sort or group. Grouping permits only
+that one single_select field. Value order is typed; single_select order is stable
+option UUID, not a private-record-derived label order. Text follows database
+collation; ties use record UUID. There is no JSON expression/filter language or
+user SQL interpolation: read SQL is static CASE/join/order expressions under RLS.
+
+V1 currently saves presentation, not v0's search/group/stage filter parameters.
+The original v0 filters and 6A's independent match panel remain available. A v1
+list is deliberately bounded and truncated, not a complete export. Archived,
+missing or unavailable CF definitions remove the field column/group, fall back
+to a table/name sort where necessary, and emit a generic warning without the old
+field name. Existing bucket requests degrade too. A paused Kanban capability
+renders the authorized grouped table; moves remain denied.
+
+### Budgets and moving cards
+
+The catalog returns the first 50 authorized v1 views (created-at/UUID order).
+Tables return at most 100 visible records plus an internal sentinel. Grouped
+columns return 25 plus a sentinel. The option catalog is shared schema: at most
+50 options plus “No value”, **not** a count or discovery of hidden records.
+The UI pages four columns at a time; initial open reuses its first bucket response
+and requests at most three more, subsequent pages at most four. The visible
+partial marker comes only from authorized results. No total count is returned.
+Response limits do **not** bound examined rows; see
+[customization-views-query-plans.md](customization-views-query-plans.md).
+
+A field move uses a keyboard/touch-accessible SelectMenu and explicit confirmation
+naming the record, field and destination. It calls an invoker wrapper and then the
+existing `custom_field_set_value`, retaining definition version/value token and
+parent UPDATE RLS. Unset tombstones retain their token so “No value” cards remain
+movable. There is no drag-only operation, new dependency, stage write or new stage
+trigger. SQL tests move an actual Deal and compare its stage before/after.
+
+### Templates and transaction boundaries
+
+Admins maintain at most 50 shared templates (archive instead of member deletion),
+with name 1–80 characters, at most 25 task titles and 20 checklist titles, each
+1–200 characters. At least one item is required. Titles are literal shared schema;
+there is no substitution of private record names/notes, assignee guessing or
+provider call. No new template permission is needed: definitions require admin,
+application requires active membership and existing parent edit authorization.
+
+Targets are existing Companies/Deals, matching public.tasks' actual parent model;
+People/native-only-card targets are not implemented. Checklist destinations must
+be explicitly selected, currently visible, active-board native cards linked to
+the same Company via source_company_id. No card is created or inferred. The
+chooser returns the first 50 authorized cards. The invoker RPC locks/revalidates
+the parent and selected card and calls **existing** `add_board_checklist_item`
+inside the same transaction. No new direct checklist write grants are added.
+Tasks have the caller as owner/assignee, no due date and NULL source_stage_rule_id.
+
+A confirmed request UUID is stored durably. Retrying it returns its prior outcome;
+a new request without repeat skips an already-applied template/Company/Deal/card
+combination, even after a template revision. Explicit repeat creates another
+current-version batch, maximum ten per combination. The UI retains its request
+UUID after errors and never retries automatically. Every initial/repeat application
+requires a fresh human confirmation listing item titles/counts and destination.
+Schema changes invalidate the version; nothing is partially applied. The existing
+card checklist cap for this operation is 200 total items.
+
+Tasks/checklists/application receipt/audit are in one database transaction. Tests
+fail task N and checklist N and prove earlier writes and their audit roll back.
+Validation/audit triggers do not schedule work; only the manual RPC creates tasks.
+Stage rules remain independent: similar titles can intentionally produce separate
+tasks, distinguished by stage source versus template receipt. No title-based
+inference/deduplication silently suppresses a required task.
+
+Application references are immutable UUID metadata, validated/locked against live
+parents/cards under RLS. They deliberately have **no parent/card FKs**: a hidden
+application must not block a visible card deletion and reveal itself via a foreign
+key error, nor be silently cascaded away. After a target/card is hard-deleted,
+receipts remain protected for owner maintenance and disappear from member queries.
+Template definitions themselves retain their FK, and cannot be ordinarily deleted.
+
+### Audit, read-only behavior and flags
+
+Authorized application history records actor/template/version/target/counts;
+its RLS requires the current live parent and, when set, the current visible card.
+It does not use generic audit_record. A separate content-free journal records
+actor/template/counts/date/random ID/salted hash, without parent/card IDs, private
+names or record snapshots; generic admin audit receives only that receipt.
+Existing task audit still records the newly created task's literal template title
+and references. An additional restrictive read policy now checks actual parent
+RLS for CRM-bound task audit, including a future admin denied that parent. Unbound
+legacy tasks retain their previous audit visibility. No old audit rows are changed.
+
+As in 6A, invoker table grants and trigger-depth/actor checks are **not** proof of
+RPC provenance or tamper-proof accounting. An authorized parent editor can submit
+plausible application metadata directly, and a caller able to install another
+trigger may forge content-free journal entries. Such metadata is operational,
+not an approval/attestation ledger; it must not authorize access or stage movement.
+Tests specifically deny direct journal inserts via the Data API.
+
+All new read RPCs and read policy helpers are STABLE and take no row locks. Every
+new table has restrictive machine_identity_isolation using scalar SELECT wrappers;
+new functions deny machine identities. Public RPCs/data helpers are invokers; the
+only new definers access configuration/membership/permission metadata. Constant
+policy checks use initplans, while record-dependent parent checks remain correlated.
+Native SQL tests read nonempty tables and RPCs in BEGIN READ ONLY as member/admin.
+
+The private singleton `customization_configuration` has views_enabled,
+kanban_enabled and templates_enabled, all false by default. Kanban also requires
+views and an active 6A field capability. State is resolved once per RSC render
+with React cache, never across requests/sessions. False/error/missing schema omits
+new client widgets and their actions; unrelated pages gain no calls. New server
+flag probes themselves are read-only and lock-free. Writes lock and revalidate
+active membership/configuration; admin schema writes serialize against applications.
+No flag or permission result cached in process memory authorizes a later request.
+
+### Owner activation, pause and rollback (not performed)
+
+1. Review/apply the whole `supabase/phase-sql/phase-6b-views-templates.sql` transaction
+   after 6A. All three new flags stay false; 6A's enabled state is preserved.
+2. Merge the reviewed PR; verify ordinary v0/6A controls with new flags still off.
+3. Owner SQL explicitly enables views_enabled first, then optionally kanban_enabled
+   and templates_enabled after their decisions are approved. No new permission grant.
+4. Use synthetic disposable records and authorized/unauthorized members to test
+   sharing, archived definitions, one confirmed field move and a manual template
+   with a visible Company-linked card. Confirm stage and existing rules unchanged.
+
+Pause commits all three flags false. Already-running writes finish before pause
+obtains its lock; reads use their statement snapshot and can finish after pause.
+The combined `phase-6b-rollback.sql` commits pause **before** a separate removal
+transaction. It refuses any v1 saved view, application or protected journal row.
+Leave such schema paused; no production deletion/repair is automated. Empty-only
+removal has no CASCADE, removes only new objects/policy/trigger, and preserves v0,
+existing CHECKs/grants, 6A, stage rules, tasks/checklists and generic audit history.
+The SQL suite also runs the unchanged 6A rollback with a real v1 CF reference and
+proves rejection/pause/preservation. Roll back 6B before contemplating 6A removal.
+
+Verification uses native PostgreSQL 16 (not only PGlite), a fresh local disposable
+cluster, full contextual CI order, reapplication, strict SQLSTATE helpers, protected
+and empty rollback, and synthetic Chromium at 1440/390 with keyboard, touch and
+reduced motion. The UI harness compares exact legacy+6A-on DOM and legacy action
+counts with 6B off, and asserts zero new client actions. It mounts real components
+with synthetic stubs and blocks external HTTP; it is not a signed-in deployment.
+Production/preview SQL, real records, hosted latency, multi-session load and a real
+PostgREST HTTP integration were not exercised. No Google/worker/provider flow is used.

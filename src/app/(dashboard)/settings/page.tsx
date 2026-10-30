@@ -1,3 +1,5 @@
+import { customizationState } from "@/lib/customization/state";
+import TemplatesAdmin from "@/components/customization/TemplatesAdmin";
 import { readCustomFieldsState } from "@/lib/custom-fields/state";
 import CustomFieldsGate from "@/components/custom-fields/CustomFieldsGate";
 import CustomFieldsAdmin from "@/components/custom-fields/CustomFieldsAdmin";
@@ -98,6 +100,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           googleConnected={mailbox.connected}
         />
       )}
+      {isAdmin && <CustomFieldsGate enabled={(await customizationState()).templates}><TemplatesAdmin /></CustomFieldsGate>}
       {isAdmin && <CustomFieldsGate enabled={await readCustomFieldsState()}><CustomFieldsAdmin /></CustomFieldsGate>}
       {isAdmin && !membersResult.error && !permissionsResult.error && !domainsResult.error && (
         <AdminSettings

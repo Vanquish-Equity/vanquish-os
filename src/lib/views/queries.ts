@@ -62,7 +62,7 @@ export async function loadSavedViews(
   objectType: "people",
 ): Promise<SavedView[]> {
   const rows = await loadSavedViewRows(supabase, objectType);
-  return rows.map((row) => ({
+  return rows.filter((row) => row.filters.version === undefined).map((row) => ({
     id: row.id,
     name: row.name,
     owner: row.owner,

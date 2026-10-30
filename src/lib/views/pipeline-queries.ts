@@ -21,7 +21,7 @@ export async function loadPipelineSavedViews(
   supabase: SupabaseClient,
 ): Promise<PipelineSavedView[]> {
   const rows = await loadSavedViewRows(supabase, "pipeline");
-  return rows.map((row) => ({
+  return rows.filter((row) => row.filters.version === undefined).map((row) => ({
     id: row.id,
     name: row.name,
     owner: row.owner,

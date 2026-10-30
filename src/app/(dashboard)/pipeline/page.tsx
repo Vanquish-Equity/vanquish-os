@@ -1,3 +1,5 @@
+import { customizationState } from "@/lib/customization/state";
+import ViewsPanel from "@/components/customization/ViewsPanel";
 import { readCustomFieldsState } from "@/lib/custom-fields/state";
 import CustomFieldsGate from "@/components/custom-fields/CustomFieldsGate";
 import CustomFieldFilter from "@/components/custom-fields/CustomFieldFilter";
@@ -232,6 +234,7 @@ export default async function PipelinePage({
         />
       </header>
 
+      <CustomFieldsGate enabled={(await customizationState()).views}><ViewsPanel kind="pipeline" kanban={(await customizationState()).kanban}/></CustomFieldsGate>
       {!showArchived && <CustomFieldsGate enabled={await readCustomFieldsState()}><CustomFieldFilter object="deals" /></CustomFieldsGate>}
       {showArchived ? (
         <div className="vq-card-static flex flex-wrap items-center gap-2 rounded-[14px] bg-white px-3 py-2">
