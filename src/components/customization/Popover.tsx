@@ -18,6 +18,7 @@ export const pillClass =
 
 export default function Popover({
   label,
+  role = "dialog",
   trigger,
   triggerAriaLabel,
   disabled = false,
@@ -26,6 +27,7 @@ export default function Popover({
   children,
 }: {
   label: string;
+  role?: "dialog" | "menu";
   trigger: ReactNode;
   triggerAriaLabel?: string;
   disabled?: boolean;
@@ -49,9 +51,11 @@ export default function Popover({
   useEffect(() => {
     if (!open) return;
     const frame = requestAnimationFrame(() => {
-      const first = rootRef.current?.querySelector<HTMLElement>(
-        `#${CSS.escape(panelId)} input:not(:disabled), #${CSS.escape(panelId)} button:not(:disabled)`,
-      );
+      const first = document
+        .getElementById(panelId)
+        ?.querySelector<HTMLElement>(
+          "input:not(:disabled), button:not(:disabled)",
+        );
       first?.focus();
     });
     function down(event: PointerEvent) {
@@ -74,7 +78,7 @@ export default function Popover({
       <button
         ref={triggerRef}
         type="button"
-        aria-haspopup="dialog"
+        aria-haspopup={role}
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
         aria-label={triggerAriaLabel}
@@ -87,7 +91,7 @@ export default function Popover({
       {open && (
         <div
           id={panelId}
-          role="dialog"
+          role={role}
           aria-label={label}
           onKeyDown={onKeyDown}
           className={`vq-card-static absolute left-0 right-0 top-full z-[70] mt-1 max-h-[70vh] overflow-y-auto rounded-[14px] bg-white p-3 sm:right-auto ${panelClassName}`}

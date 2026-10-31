@@ -22,7 +22,12 @@ export async function saveViewAction(input: {
   const accessError = await actionAccessError();
   if (accessError) return { ok: false, message: accessError };
 
-  if (!input.filters || typeof input.filters !== "object" || "version" in input.filters) return { ok: false, message: "Use the versioned view editor." };
+  if (
+    !input.filters ||
+    typeof input.filters !== "object" ||
+    "version" in input.filters
+  )
+    return { ok: false, message: "Use the versioned view editor." };
   const name = input.name.trim();
   if (!name || name.length > 80) {
     return { ok: false, message: "Name a view between 1 and 80 characters." };
@@ -68,9 +73,15 @@ export async function deleteViewAction(
 
   const supabase = await createClient();
   // RLS restricts deletion to the view's owner; a non-owner delete affects
-  // zero rows rather than erroring, so there's nothing further to check here.
-  const { error } = await supabase.from("saved_views").delete().eq("id", id);
-  if (error) return { ok: false, message: "Could not remove this view." };
+  // zero rows rather than erroring, so the returned rows tell us whether
+  // anything was actually removed.
+  const { data, error } = await supabase
+    .from("saved_views")
+    .delete()
+    .eq("id", id)
+    .select("id");
+  if (error || !data?.length)
+    return { ok: false, message: "Could not remove this view." };
 
   revalidatePath(REVALIDATE_PATH[objectType]);
   return { ok: true };

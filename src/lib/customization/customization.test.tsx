@@ -16,7 +16,10 @@ vi.mock("@/lib/auth/access", () => ({
   getAccess: m.access,
   actionAccessError: async () => null,
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {} }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh() {}, push() {} }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 vi.mock("next/cache", () => ({ revalidatePath: m.revalidate }));
 import { parseSpec, templateInput, type RecordRow, type Spec } from "./spec";
 import {
@@ -354,7 +357,8 @@ describe("simple views UI", () => {
     expect(html).toContain("All people");
     expect(html).toContain(">Columns<");
     expect(html).toContain(">Save view<");
-    expect(html.match(/aria-haspopup="dialog"/g)).toHaveLength(3);
+    expect(html.match(/aria-haspopup="dialog"/g)).toHaveLength(2);
+    expect(html.match(/aria-haspopup="menu"/g)).toHaveLength(1);
     for (const absent of ["<table", "<form", "<h2", "<select", "<input"])
       expect(html).not.toContain(absent);
     expect(html).not.toContain("[&amp;~*]:hidden");
@@ -443,6 +447,8 @@ describe("simple views UI", () => {
     const html = renderToStaticMarkup(
       <SaveForm
         blocked={false}
+        included={["Name"]}
+        omitted={[]}
         onSubmit={async () => null}
         onDone={() => {}}
       />,
@@ -526,19 +532,22 @@ describe("simple views UI", () => {
     expect(render(true)).toContain("Group by");
   });
   it("every visible string avoids technical words", () => {
-    for (const f of ["ViewsPanel.tsx", "ViewsTable.tsx", "ViewsKanban.tsx"]) {
+    for (const f of [
+      "ViewsPanel.tsx",
+      "ViewsTable.tsx",
+      "ViewsKanban.tsx",
+      "Popover.tsx",
+    ]) {
       const src = readFileSync(`src/components/customization/${f}`, "utf8");
       const block = src.match(/const T = \{[\s\S]*?\n\};/)?.[0] ?? "";
-      expect(block.length, f).toBeGreaterThan(100);
+      if (f !== "Popover.tsx") expect(block.length, f).toBeGreaterThan(100);
       expect(block, f).not.toMatch(BANNED);
+      // aria-label / title / placeholder literals are visible to assistive tech
+      const literals = [
+        ...src.matchAll(/(?:aria-label|title|placeholder)="([^"]*)"/g),
+      ].map((x) => x[1]);
+      for (const text of literals) expect(text, f).not.toMatch(BANNED);
     }
-  });
-  it("the page-level hide rule only applies while a view is applied", () => {
-    const src = readFileSync(
-      "src/components/customization/ViewsPanel.tsx",
-      "utf8",
-    );
-    expect(src).toContain('active ? "[&~*]:hidden" : ""');
   });
 });
 

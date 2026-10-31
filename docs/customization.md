@@ -382,3 +382,23 @@ views, so columns/sort changes on the list are local until `Save changes`, and a
 new view is created from the default state with `Save view`. Grouping/Board
 layout appears only under `Columns > Advanced` and only when the Kanban flag is
 on. Column reordering is not offered.
+
+**What is hidden while a view is applied, and why.** The views section is a
+direct child of the page container and, while a saved view is applied, adds the
+class `[&~*]:hidden` (`display: none`) to itself, which hides **every later
+sibling** of the section. On People that is the saved-filters bar with its tabs,
+the Gmail notices, the custom-field match panel and the list; on Pipeline the
+filters bar and the board. Those controls filter the page's own list and do not
+apply to a view's rows, so showing them would be misleading. Nothing is removed
+from the DOM, and choosing "All people"/"All deals" restores everything.
+Anything added after the section on those pages is hidden the same way, so
+page-level content that must stay visible should be placed before it. The change
+is announced politely ("Showing view: <name>" / "Showing all people"). A test
+(`views-ui.test.tsx`) checks the computed style of later siblings.
+
+**What "Save view" saves.** From the default state, a new view starts from what
+the page list shows now: on People, Name plus the optional columns kept visible
+by the page's `cols`/`col` parameters (all by default) that a view can hold
+(Company, Email, LinkedIn); on Pipeline, Name, Company and Stage. The popover
+says "Your view will include: ..." and, if the list shows columns a view cannot
+hold (Last email, Next meeting, Last interaction), "Not included: ...".

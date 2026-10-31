@@ -11,7 +11,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import SelectMenu from "@/components/SelectMenu";
 import Checkbox from "@/components/Checkbox";
 import { deleteViewAction } from "@/lib/views/actions";
@@ -34,11 +34,11 @@ import {
   MAX_COLUMNS,
   columnLabel,
   customColumn,
-  defaultSpec,
   isCustom,
   nextSort,
   sameSpec,
   sortRows,
+  visibleSpec,
   toggleColumn as toggleColumnSafe,
 } from "@/lib/customization/view-helpers";
 import Popover, { Chevron, pillClass } from "./Popover";
@@ -52,7 +52,6 @@ const T = {
   columns: "Columns",
   saveView: "Save view",
   saveChanges: "Save changes",
-  options: "More",
   optionsLabel: "View options",
   all: { people: "All people", pipeline: "All deals" },
   myViews: "My views",
@@ -92,6 +91,10 @@ const T = {
     `Delete “${name}”? Your people and deals are not affected.`,
   deleteYes: "Delete",
   keep: "Keep it",
+  includes: (list: string) => `Your view will include: ${list}`,
+  notIncluded: (list: string) => `Not included: ${list}`,
+  showingView: (name: string) => `Showing view: ${name}`,
+  showingAll: { people: "Showing all people", pipeline: "Showing all deals" },
 };
 
 // Keyboard help inside a list of buttons: arrows, Home and End move focus.
@@ -148,6 +151,7 @@ function ViewMenu({
   return (
     <Popover
       label={T.viewLabel}
+      role="menu"
       disabled={disabled}
       onKeyDown={arrowKeys}
       panelClassName="sm:w-72"
@@ -164,7 +168,8 @@ function ViewMenu({
           <button
             type="button"
             data-item
-            aria-current={selected === "" ? "true" : undefined}
+            role="menuitemradio"
+            aria-checked={selected === ""}
             onClick={() => {
               onPick("");
               close();
@@ -191,7 +196,8 @@ function ViewMenu({
                     key={v.id}
                     type="button"
                     data-item
-                    aria-current={selected === v.id ? "true" : undefined}
+                    role="menuitemradio"
+                    aria-checked={selected === v.id}
                     onClick={() => {
                       onPick(v.id);
                       close();
@@ -211,6 +217,7 @@ function ViewMenu({
                     key={v.id}
                     type="button"
                     data-item
+                    role="menuitem"
                     onClick={() => {
                       onPickLegacy(v);
                       close();
@@ -377,10 +384,14 @@ function ColumnsPopover(props: Parameters<typeof ColumnsContent>[0]) {
 // One field, one button. Saves what the list shows now (columns and order).
 export function SaveForm({
   blocked,
+  included,
+  omitted,
   onSubmit,
   onDone,
 }: {
   blocked: boolean;
+  included: string[];
+  omitted: string[];
   onSubmit: (input: {
     name: string;
     shared: boolean;
@@ -418,6 +429,16 @@ export function SaveForm({
           onChange={(e) => setName(e.target.value)}
           className="min-h-11 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-cyan-400"
         />
+      </div>
+      <div>
+        <p className="text-[11.5px] text-neutral-600">
+          {T.includes(included.join(", "))}
+        </p>
+        {omitted.length > 0 && (
+          <p className="text-[11.5px] text-neutral-500">
+            {T.notIncluded(omitted.join(", "))}
+          </p>
+        )}
       </div>
       <div>
         <label className="flex min-h-11 items-center gap-2.5 text-[12.5px]">
@@ -554,24 +575,31 @@ export default function ViewsPanel({
   kind,
   kanban,
   initialCatalog,
+  initialSelected,
 }: {
   kind: ViewObject;
   kanban: boolean;
   // Only for tests and previews: skips the first load.
   initialCatalog?: Catalog;
+  initialSelected?: string;
 }) {
   const router = useRouter();
   const [catalog, setCatalog] = useState<Catalog | null>(
       initialCatalog ?? null,
     ),
-    [selected, setSelected] = useState(""),
+    [selected, setSelected] = useState(initialSelected ?? ""),
     [legacyName, setLegacyName] = useState(""),
-    [spec, setSpec] = useState<Spec>(() => defaultSpec(kind)),
+    [picked, setPicked] = useState<Spec | null>(null),
+    [announce, setAnnounce] = useState(""),
     [data, setData] = useState<ViewData | null>(null),
     [phase, setPhase] = useState<"idle" | "loading" | "error">("idle"),
     [notice, setNotice] = useState(""),
     [, run] = useTransition();
   const seq = useRef(0);
+  const params = useSearchParams();
+  // With no view applied, a new view starts from what the page list shows now.
+  const base = useMemo(() => visibleSpec(kind, params), [kind, params]);
+  const spec = picked ?? base.spec;
 
   const refresh = useCallback(async () => {
     const r = await loadViews(kind);
@@ -602,7 +630,7 @@ export default function ViewsPanel({
     if (mine !== seq.current) return;
     if (!r.ok) return setPhase("error");
     setData(r.data[0]);
-    if (r.data[0].warning) setSpec(r.data[0].spec);
+    if (r.data[0].warning) setPicked(r.data[0].spec);
     setPhase("idle");
   }, []);
 
@@ -625,7 +653,8 @@ export default function ViewsPanel({
     setLegacyName("");
     setSelected(id);
     const v = views.find((x) => x.id === id);
-    setSpec(v ? v.filters : defaultSpec(kind));
+    setPicked(v ? v.filters : null);
+    setAnnounce(v ? T.showingView(v.name) : T.showingAll[kind]);
     setData(null);
     setPhase("idle");
     seq.current++;
@@ -634,6 +663,7 @@ export default function ViewsPanel({
   function chooseLegacy(v: LegacyView) {
     choose("");
     setLegacyName(v.name);
+    setAnnounce(T.showingView(v.name));
     router.push(v.href);
   }
   async function create(input: { name: string; shared: boolean }) {
@@ -740,10 +770,17 @@ export default function ViewsPanel({
       aria-label={T.region}
       data-vq-views=""
       data-active={active ? "true" : "false"}
-      // While a view is applied its list stands in for the page's own list and
-      // filters, so everything after this section is hidden (not removed).
+      // While a view is applied its list stands in for the page's own list, so
+      // EVERY sibling after this section is hidden with display:none (not
+      // removed): the saved-filters bar and its tabs, the Gmail notices, the
+      // custom-field match panel and the list itself. Their saved-filter
+      // controls do not apply to a view's rows. Choosing the default view
+      // brings them all back. See docs/customization.md (Simple views bar).
       className={`flex flex-col gap-3 motion-reduce:[&_*]:transition-none ${active ? "[&~*]:hidden" : ""}`}
     >
+      <p role="status" aria-live="polite" className="sr-only">
+        {announce}
+      </p>
       <div className="relative flex flex-wrap items-center gap-2">
         <ViewMenu
           kind={kind}
@@ -764,7 +801,7 @@ export default function ViewsPanel({
           applied={!!applied}
           onChange={(next) => {
             setNotice("");
-            setSpec(next);
+            setPicked(next);
           }}
         />
         <Popover
@@ -775,6 +812,10 @@ export default function ViewsPanel({
           {({ close }) => (
             <SaveForm
               blocked={catalog.limited}
+              included={spec.columns.map((k) =>
+                columnLabel(k, isCustom(k) ? (field?.name ?? null) : null),
+              )}
+              omitted={applied ? [] : base.omitted}
               onSubmit={create}
               onDone={close}
             />
@@ -863,7 +904,10 @@ export default function ViewsPanel({
           fieldName={field?.name ?? null}
           onSort={(key) => {
             setNotice("");
-            setSpec((s) => ({ ...s, sort: nextSort(s.sort, key) }));
+            setPicked((s) => {
+              const cur = s ?? base.spec;
+              return { ...cur, sort: nextSort(cur.sort, key) };
+            });
           }}
         />
       )}
