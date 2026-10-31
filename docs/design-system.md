@@ -149,6 +149,11 @@ fundraising UUIDs survive retries. No new design-system exception is introduced.
   focus-visible:outline-2 focus-visible:outline-offset-2
   focus-visible:outline-cyan-400`. `rounded-full` dominates for buttons in the
   repo; `rounded-xl` is for fields/panels. Keep `min-h-11` on touch targets.
+- **Default border colour:** Tailwind 4 has no default border colour, so a bare
+  `border` would be near-black. `globals.css` sets a base-layer default of
+  `neutral-200` for every border; explicit colour utilities and the unlayered
+  card rules (`border-color: transparent`) still win. Still prefer writing
+  `border-neutral-200` explicitly so intent is visible.
 - **Open menus over cards:** cards are isolated stacking contexts, so `globals.css`
   lifts a card to `z-index: 20` while it holds `[aria-haspopup][aria-expanded="true"]`
   (SelectMenu, member/board menus). Disclosure toggles and the Sidebar are excluded; dialogs (z-50+) stay above.

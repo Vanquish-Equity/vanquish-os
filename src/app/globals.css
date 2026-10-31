@@ -608,6 +608,18 @@ dialog[open]::backdrop {
 }
 
 @layer base {
+  /* Tailwind 4 drops v3's default border colour: a bare `border` falls back to
+     currentColor (near-black here). Restore the neutral grey the OS uses so a
+     border without an explicit colour reads as a soft divider. Explicit colour
+     utilities and the unlayered card rules still win over this layer. */
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-neutral-200, #e5e5e5);
+  }
+
   /* Hover, focus and selected states ease instead of snapping. Utilities that
      set their own transition still win over this layer. */
   button,
