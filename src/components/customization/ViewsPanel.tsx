@@ -1,6 +1,17 @@
 "use client";
-import { useEffect, useState, useTransition, startTransition } from "react";
-import Link from "next/link";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  startTransition,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
+import { useRouter } from "next/navigation";
 import SelectMenu from "@/components/SelectMenu";
 import Checkbox from "@/components/Checkbox";
 import { deleteViewAction } from "@/lib/views/actions";
@@ -8,622 +19,854 @@ import {
   loadViews,
   saveView,
   viewData,
-  moveCard,
+  type LegacyView,
 } from "@/lib/customization/actions";
 import {
   builtins,
-  type ViewObject,
-  type Spec,
-  type ViewRow,
+  parseSpec,
   type Definition,
+  type Spec,
   type ViewData,
-  type RecordRow,
+  type ViewObject,
+  type ViewRow,
 } from "@/lib/customization/spec";
-const initial: Spec = {
-  version: 1,
-  columns: ["name", "company"],
-  sort: { key: "name", direction: "asc" },
-  group: null,
-  mode: "table",
+import {
+  MAX_COLUMNS,
+  columnLabel,
+  customColumn,
+  defaultSpec,
+  isCustom,
+  nextSort,
+  sameSpec,
+  sortRows,
+  toggleColumn as toggleColumnSafe,
+} from "@/lib/customization/view-helpers";
+import Popover, { Chevron, pillClass } from "./Popover";
+import ViewsTable, { cellValue } from "./ViewsTable";
+import ViewsKanban from "./ViewsKanban";
+
+// Every visible word lives here so the whole screen can be translated in one place.
+const T = {
+  region: "Views",
+  viewLabel: "View:",
+  columns: "Columns",
+  saveView: "Save view",
+  saveChanges: "Save changes",
+  options: "More",
+  optionsLabel: "View options",
+  all: { people: "All people", pipeline: "All deals" },
+  myViews: "My views",
+  teamViews: "Shared with the team",
+  sharedTag: "Shared",
+  noViews: "No views yet. Arrange the list and press Save view.",
+  columnsHint: "Choose your columns, then press Save view to see the list.",
+  alwaysShown: "Always shown",
+  onlyOneCustom: "Only one custom field per view for now",
+  maxColumns: `You can show up to ${MAX_COLUMNS} columns.`,
+  advanced: "Advanced",
+  groupBy: "Group by",
+  layout: "Layout",
+  none: "None",
+  layoutList: "List",
+  layoutBoard: "Board",
+  name: "Name",
+  share: "Share with the team",
+  shareHelp: "Everyone on the team can use this view. Nobody else can edit it.",
+  save: "Save",
+  saving: "Saving…",
+  saved: "View saved.",
+  updated: "View updated.",
+  deleted: "View deleted.",
+  renamed: "View renamed.",
+  nameRequired: "Give your view a name.",
+  duplicate: "You already have a view with that name.",
+  limit: "You have 50 views. Delete one to save another.",
+  tryAgain: "Something went wrong. Please try again.",
+  loading: "Loading…",
+  loadError: "We couldn't load this view.",
+  retry: "Try again",
+  layoutOff: "This view uses a layout that isn't available right now.",
+  rename: "Rename",
+  deleteView: "Delete this view",
+  deleteAsk: (name: string) =>
+    `Delete “${name}”? Your people and deals are not affected.`,
+  deleteYes: "Delete",
+  keep: "Keep it",
 };
-function Move({
-  row,
-  view,
-  definition,
-  reload,
+
+// Keyboard help inside a list of buttons: arrows, Home and End move focus.
+function arrowKeys(event: KeyboardEvent<HTMLElement>) {
+  const items = [
+    ...event.currentTarget.querySelectorAll<HTMLElement>("[data-item]"),
+  ];
+  if (!items.length) return;
+  const at = items.indexOf(document.activeElement as HTMLElement);
+  let next = -1;
+  if (event.key === "ArrowDown") next = (at + 1) % items.length;
+  if (event.key === "ArrowUp") next = (at - 1 + items.length) % items.length;
+  if (event.key === "Home") next = 0;
+  if (event.key === "End") next = items.length - 1;
+  if (next >= 0) {
+    event.preventDefault();
+    items[next].focus();
+  }
+}
+
+const itemClass = (current: boolean) =>
+  `flex min-h-11 w-full items-center justify-between gap-2 rounded-[9px] px-2.5 py-2 text-left text-[12.5px] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400 ${
+    current
+      ? "bg-[#f0fafb] font-semibold text-cyan-800"
+      : "text-neutral-700 hover:bg-neutral-50"
+  }`;
+
+function ViewMenu({
+  kind,
+  label,
+  selected,
+  views,
+  legacy,
+  me,
+  disabled,
+  onPick,
+  onPickLegacy,
 }: {
-  row: RecordRow;
-  view: string;
-  definition: Definition;
-  reload: () => Promise<void>;
+  kind: ViewObject;
+  label: string;
+  selected: string;
+  views: ViewRow[];
+  legacy: LegacyView[];
+  me: string;
+  disabled: boolean;
+  onPick: (id: string) => void;
+  onPickLegacy: (view: LegacyView) => void;
 }) {
-  const [selected, setSelected] = useState(
-    row.field_value == null ? "" : String(row.field_value),
-  );
-  const [pending, run] = useTransition();
-  const [status, setStatus] = useState("");
+  const mine = views.filter((v) => v.owner === me),
+    mineOld = legacy.filter((v) => v.owner === me),
+    team = views.filter((v) => v.owner !== me),
+    teamOld = legacy.filter((v) => v.owner !== me);
+  const none = !views.length && !legacy.length;
   return (
-    <form
-      className="mt-3 space-y-2"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const label =
-          definition.options.find((o) => o.id === selected)?.label ??
-          "No value";
-        if (
-          !window.confirm(
-            `Move ${row.name}: set ${definition.name} to ${label}? This changes only this custom field; Deal stage stays unchanged.`,
-          )
-        )
-          return;
-        run(async () => {
-          const r = await moveCard({
-            view,
-            record: row.id,
-            option: selected || null,
-            version: definition.version,
-            token: row.token,
-            confirmed: true,
-          });
-          if (!r.ok) {
-            setStatus(r.message);
-            return;
-          }
-          await reload();
-        });
-      }}
+    <Popover
+      label={T.viewLabel}
+      disabled={disabled}
+      onKeyDown={arrowKeys}
+      panelClassName="sm:w-72"
+      trigger={
+        <>
+          <span className="font-normal text-neutral-500">{T.viewLabel}</span>
+          <span className="max-w-[12rem] truncate">{label}</span>
+          <Chevron />
+        </>
+      }
     >
-      <label className="block text-xs" htmlFor={"move-" + row.id}>
-        Move by field
-      </label>
-      <SelectMenu
-        id={"move-" + row.id}
-        value={selected}
-        disabled={pending}
-        options={[
-          { value: "", label: "No value" },
-          ...definition.options.map((o) => ({ value: o.id, label: o.label })),
-        ]}
-        onChange={setSelected}
-        buttonClassName="min-h-11"
-      />
-      <button
-        disabled={pending}
-        className="min-h-11 rounded-full border px-3 text-xs"
-      >
-        Confirm field move
-      </button>
-      {status && (
-        <p role="status" className="text-xs">
-          {status}
+      {({ close }) => (
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            data-item
+            aria-current={selected === "" ? "true" : undefined}
+            onClick={() => {
+              onPick("");
+              close();
+            }}
+            className={itemClass(selected === "")}
+          >
+            {T.all[kind]}
+          </button>
+          {[
+            [T.myViews, mine, mineOld],
+            [T.teamViews, team, teamOld],
+          ].map(([heading, v1, v0]) =>
+            (v1 as ViewRow[]).length + (v0 as LegacyView[]).length ? (
+              <div
+                key={heading as string}
+                role="group"
+                aria-label={heading as string}
+              >
+                <p className="px-2.5 pb-1 pt-2 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
+                  {heading as string}
+                </p>
+                {(v1 as ViewRow[]).map((v) => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    data-item
+                    aria-current={selected === v.id ? "true" : undefined}
+                    onClick={() => {
+                      onPick(v.id);
+                      close();
+                    }}
+                    className={itemClass(selected === v.id)}
+                  >
+                    <span className="truncate">{v.name}</span>
+                    {v.is_shared && v.owner === me && (
+                      <span className="text-[10.5px] font-normal text-neutral-400">
+                        {T.sharedTag}
+                      </span>
+                    )}
+                  </button>
+                ))}
+                {(v0 as LegacyView[]).map((v) => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    data-item
+                    onClick={() => {
+                      onPickLegacy(v);
+                      close();
+                    }}
+                    className={itemClass(false)}
+                  >
+                    <span className="truncate">{v.name}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null,
+          )}
+          {none && (
+            <p className="px-2.5 pb-1 text-[11.5px] text-neutral-500">
+              {T.noViews}
+            </p>
+          )}
+        </div>
+      )}
+    </Popover>
+  );
+}
+
+export function ColumnsContent({
+  kind,
+  spec,
+  fields,
+  kanban,
+  applied,
+  onChange,
+}: {
+  kind: ViewObject;
+  spec: Spec;
+  fields: Omit<Definition, "options">[];
+  kanban: boolean;
+  applied: boolean;
+  onChange: (next: Spec) => void;
+}) {
+  const [message, setMessage] = useState("");
+  const custom = customColumn(spec.columns);
+  function toggle(key: string, on: boolean) {
+    setMessage("");
+    const next = toggleColumnSafe(spec, key, on);
+    if (!next.ok) {
+      setMessage(next.reason === "max" ? T.maxColumns : T.onlyOneCustom);
+      return;
+    }
+    onChange(next.spec);
+  }
+  const single = fields.filter((f) => f.field_type === "single_select");
+  return (
+    <div className="flex flex-col">
+      <fieldset>
+        <legend className="sr-only">{T.columns}</legend>
+        {builtins(kind).map((k) => (
+          <label
+            key={k}
+            className="flex min-h-11 items-center gap-2.5 text-[12.5px]"
+          >
+            <Checkbox
+              checked={spec.columns.includes(k)}
+              disabled={k === "name"}
+              onChange={(e) => toggle(k, e.target.checked)}
+            />
+            <span>{columnLabel(k)}</span>
+            {k === "name" && (
+              <span className="text-[10.5px] text-neutral-400">
+                {T.alwaysShown}
+              </span>
+            )}
+          </label>
+        ))}
+        {fields.map((f) => {
+          const key = "cf:" + f.id,
+            blocked = !!custom && custom !== key;
+          return (
+            <label
+              key={f.id}
+              className={`flex min-h-11 items-center gap-2.5 text-[12.5px] ${blocked ? "text-neutral-400" : ""}`}
+            >
+              <Checkbox
+                checked={spec.columns.includes(key)}
+                disabled={blocked}
+                onChange={(e) => toggle(key, e.target.checked)}
+              />
+              <span className="min-w-0">
+                <span className="block truncate">{f.name}</span>
+                {blocked && (
+                  <span className="block text-[10.5px]">{T.onlyOneCustom}</span>
+                )}
+              </span>
+            </label>
+          );
+        })}
+      </fieldset>
+      {message && (
+        <p role="status" className="pb-1 text-[11.5px] text-neutral-600">
+          {message}
         </p>
       )}
+      {!applied && (
+        <p className="pt-1 text-[11.5px] text-neutral-500">{T.columnsHint}</p>
+      )}
+      {kanban && single.length > 0 && (
+        <details className="mt-2 border-t border-neutral-100 pt-2">
+          <summary className="flex min-h-11 cursor-pointer items-center text-[12px] font-semibold text-neutral-600">
+            {T.advanced}
+          </summary>
+          <div className="flex flex-col gap-2 pb-1">
+            <span className="text-[11.5px]">{T.groupBy}</span>
+            <SelectMenu
+              value={spec.group ?? ""}
+              options={[
+                { value: "", label: T.none },
+                ...single.map((f) => ({
+                  value: "cf:" + f.id,
+                  label: f.name,
+                })),
+              ]}
+              onChange={(group) => {
+                if (!group)
+                  return onChange({ ...spec, group: null, mode: "table" });
+                const rest = spec.columns.filter((c) => !isCustom(c));
+                onChange({
+                  ...spec,
+                  columns: [...rest, group],
+                  sort: isCustom(spec.sort.key)
+                    ? { key: "name", direction: "asc" }
+                    : spec.sort,
+                  group,
+                });
+              }}
+              buttonClassName="min-h-11"
+            />
+            <span className="text-[11.5px]">{T.layout}</span>
+            <SelectMenu
+              value={spec.mode}
+              options={[
+                { value: "table", label: T.layoutList },
+                ...(spec.group
+                  ? [{ value: "kanban", label: T.layoutBoard }]
+                  : []),
+              ]}
+              onChange={(mode) =>
+                onChange({ ...spec, mode: mode as Spec["mode"] })
+              }
+              buttonClassName="min-h-11"
+            />
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
+function ColumnsPopover(props: Parameters<typeof ColumnsContent>[0]) {
+  return (
+    <Popover label={T.columns} trigger={T.columns} panelClassName="sm:w-72">
+      {() => <ColumnsContent {...props} />}
+    </Popover>
+  );
+}
+
+// One field, one button. Saves what the list shows now (columns and order).
+export function SaveForm({
+  blocked,
+  onSubmit,
+  onDone,
+}: {
+  blocked: boolean;
+  onSubmit: (input: {
+    name: string;
+    shared: boolean;
+  }) => Promise<string | null>;
+  onDone: () => void;
+}) {
+  const id = useId();
+  const [name, setName] = useState(""),
+    [shared, setShared] = useState(false),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false);
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return setError(T.nameRequired);
+    setBusy(true);
+    setError("");
+    const problem = await onSubmit({ name: name.trim(), shared });
+    setBusy(false);
+    if (problem) return setError(problem);
+    onDone();
+  }
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <label htmlFor={id} className="text-[11.5px] font-semibold">
+          {T.name}
+        </label>
+        <input
+          id={id}
+          value={name}
+          maxLength={80}
+          autoComplete="off"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? id + "-error" : undefined}
+          onChange={(e) => setName(e.target.value)}
+          className="min-h-11 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-cyan-400"
+        />
+      </div>
+      <div>
+        <label className="flex min-h-11 items-center gap-2.5 text-[12.5px]">
+          <Checkbox
+            checked={shared}
+            onChange={(e) => setShared(e.target.checked)}
+          />
+          {T.share}
+        </label>
+        <p className="text-[11.5px] text-neutral-500">{T.shareHelp}</p>
+      </div>
+      {blocked && <p className="text-[11.5px] text-neutral-600">{T.limit}</p>}
+      {error && (
+        <p
+          id={id + "-error"}
+          role="alert"
+          className="text-[11.5px] text-red-700"
+        >
+          {error}
+        </p>
+      )}
+      <button
+        type="submit"
+        disabled={busy || blocked}
+        className={`${pillClass} justify-center`}
+      >
+        {busy ? T.saving : T.save}
+      </button>
     </form>
   );
 }
+
+// Rename and delete for the person's own view; delete asks inline first.
+function OptionsForm({
+  name,
+  onRename,
+  onDelete,
+  onDone,
+}: {
+  name: string;
+  onRename: (name: string) => Promise<string | null>;
+  onDelete: () => Promise<string | null>;
+  onDone: () => void;
+}) {
+  const id = useId();
+  const [value, setValue] = useState(name),
+    [asking, setAsking] = useState(false),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false);
+  async function rename(e: FormEvent) {
+    e.preventDefault();
+    if (!value.trim()) return setError(T.nameRequired);
+    setBusy(true);
+    const problem = await onRename(value.trim());
+    setBusy(false);
+    if (problem) return setError(problem);
+    onDone();
+  }
+  async function remove() {
+    setBusy(true);
+    const problem = await onDelete();
+    setBusy(false);
+    if (problem) return setError(problem);
+    onDone();
+  }
+  return (
+    <div className="flex flex-col gap-3">
+      <form onSubmit={rename} className="flex flex-col gap-1">
+        <label htmlFor={id} className="text-[11.5px] font-semibold">
+          {T.rename}
+        </label>
+        <div className="flex gap-2">
+          <input
+            id={id}
+            value={value}
+            maxLength={80}
+            autoComplete="off"
+            onChange={(e) => setValue(e.target.value)}
+            className="min-h-11 min-w-0 flex-1 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-cyan-400"
+          />
+          <button type="submit" disabled={busy} className={pillClass}>
+            {T.save}
+          </button>
+        </div>
+      </form>
+      {asking ? (
+        <div className="flex flex-col gap-2 border-t border-neutral-100 pt-3">
+          <p className="text-[12px]">{T.deleteAsk(name)}</p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={remove}
+              className={`${pillClass} border-red-200 text-red-700 hover:border-red-400`}
+            >
+              {T.deleteYes}
+            </button>
+            <button
+              type="button"
+              onClick={() => setAsking(false)}
+              className={pillClass}
+            >
+              {T.keep}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setAsking(true)}
+          className={`${pillClass} justify-center`}
+        >
+          {T.deleteView}
+        </button>
+      )}
+      {error && (
+        <p role="alert" className="text-[11.5px] text-red-700">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export type Catalog = {
+  views: ViewRow[];
+  fields: Omit<Definition, "options">[];
+  me: string;
+  legacy: LegacyView[];
+  limited: boolean;
+};
+
 export default function ViewsPanel({
   kind,
   kanban,
+  initialCatalog,
 }: {
   kind: ViewObject;
   kanban: boolean;
+  // Only for tests and previews: skips the first load.
+  initialCatalog?: Catalog;
 }) {
-  const [views, setViews] = useState<ViewRow[]>([]),
-    [fields, setFields] = useState<Omit<Definition, "options">[]>([]),
-    [me, setMe] = useState(""),
-    [ready, setReady] = useState(false),
+  const router = useRouter();
+  const [catalog, setCatalog] = useState<Catalog | null>(
+      initialCatalog ?? null,
+    ),
     [selected, setSelected] = useState(""),
-    [name, setName] = useState(""),
-    [shared, setShared] = useState(false),
-    [spec, setSpec] = useState<Spec>(initial),
-    [custom, setCustom] = useState(""),
-    [datasets, setDatasets] = useState<ViewData[]>([]),
-    [page, setPage] = useState(0),
-    [status, setStatus] = useState(""),
-    [pending, run] = useTransition();
-  async function refresh() {
+    [legacyName, setLegacyName] = useState(""),
+    [spec, setSpec] = useState<Spec>(() => defaultSpec(kind)),
+    [data, setData] = useState<ViewData | null>(null),
+    [phase, setPhase] = useState<"idle" | "loading" | "error">("idle"),
+    [notice, setNotice] = useState(""),
+    [, run] = useTransition();
+  const seq = useRef(0);
+
+  const refresh = useCallback(async () => {
     const r = await loadViews(kind);
-    if (r.ok) {
-      setViews(r.views);
-      setFields(r.fields);
-      setMe(r.me);
-      setReady(true);
-      if (r.limited)
-        setStatus(
-          "First 50 versioned views. Remove unused owned views through the existing view controls.",
-        );
-    }
-  }
-  useEffect(() => {
-    let live = true;
-    startTransition(async () => {
-      const r = await loadViews(kind);
-      if (live && r.ok) {
-        setViews(r.views);
-        setFields(r.fields);
-        setMe(r.me);
-        setReady(true);
-      }
-    });
-    return () => {
-      live = false;
+    if (!r.ok) return null;
+    const next: Catalog = {
+      views: r.views,
+      fields: r.fields,
+      me: r.me,
+      legacy: r.legacy,
+      limited: r.limited,
     };
+    setCatalog(next);
+    return next;
   }, [kind]);
-  async function open(id = selected) {
-    if (!id) return;
-    setDatasets([]);
-    setStatus("");
-    const first = await viewData(id, [null]);
-    if (!first.ok) {
-      setStatus(first.message);
-      return;
+
+  useEffect(() => {
+    if (initialCatalog) return;
+    startTransition(async () => {
+      await refresh();
+    });
+  }, [refresh, initialCatalog]);
+
+  const load = useCallback(async (id: string) => {
+    const mine = ++seq.current;
+    setPhase("loading");
+    setData(null);
+    const r = await viewData(id, [null]);
+    if (mine !== seq.current) return;
+    if (!r.ok) return setPhase("error");
+    setData(r.data[0]);
+    if (r.data[0].warning) setSpec(r.data[0].spec);
+    setPhase("idle");
+  }, []);
+
+  const applied = useMemo(
+    () => catalog?.views.find((v) => v.id === selected),
+    [catalog, selected],
+  );
+  if (!catalog) return null;
+  const { views, fields, me, legacy } = catalog;
+  const own = !!applied && applied.owner === me;
+  const dirty = !!applied && !sameSpec(spec, applied.filters);
+  const active = !!selected && phase !== "error";
+  const field = fields.find((f) => "cf:" + f.id === customColumn(spec.columns));
+  const workCf = customColumn(spec.columns),
+    dataCf = data ? customColumn(data.spec.columns) : undefined;
+  const label = applied?.name || legacyName || T.all[kind];
+
+  function choose(id: string) {
+    setNotice("");
+    setLegacyName("");
+    setSelected(id);
+    const v = views.find((x) => x.id === id);
+    setSpec(v ? v.filters : defaultSpec(kind));
+    setData(null);
+    setPhase("idle");
+    seq.current++;
+    if (id) run(() => load(id));
+  }
+  function chooseLegacy(v: LegacyView) {
+    choose("");
+    setLegacyName(v.name);
+    router.push(v.href);
+  }
+  async function create(input: { name: string; shared: boolean }) {
+    if (
+      views.some(
+        (v) =>
+          v.owner === me &&
+          v.name.trim().toLowerCase() === input.name.trim().toLowerCase(),
+      )
+    )
+      return T.duplicate;
+    try {
+      parseSpec(kind, spec);
+    } catch {
+      return T.tryAgain;
     }
-    const base = first.data[0];
-    let all = first.data;
-    if (base.spec.group && base.definition) {
-      const next = base.definition.options.slice(0, 3).map((o) => o.id);
-      if (next.length) {
-        const rest = await viewData(id, next);
-        if (!rest.ok) {
-          setStatus(rest.message);
-          return;
-        }
-        all = [base, ...rest.data];
-      }
+    const r = await saveView({
+      id: null,
+      kind,
+      shared: input.shared,
+      name: input.name,
+      spec,
+    });
+    if (!r.ok) return "reason" in r ? r.message : T.tryAgain;
+    const next = await refresh();
+    setNotice(T.saved);
+    const created =
+      r.id ??
+      next?.views.find((v) => v.owner === me && v.name === input.name.trim())
+        ?.id;
+    if (created) {
+      setSelected(created);
+      setLegacyName("");
+      run(() => load(created));
     }
-    setPage(0);
-    setDatasets(all);
+    return null;
   }
-  async function columnPage(next: number) {
-    const d = datasets[0]?.definition;
-    if (!d) return;
-    const buckets = [null, ...d.options.map((o) => o.id)].slice(
-      next * 4,
-      next * 4 + 4,
-    );
-    const r = await viewData(selected, buckets);
-    if (!r.ok) {
-      setStatus(r.message);
-      return;
-    }
-    setDatasets(r.data[0].spec.group ? r.data : [r.data[0]]);
-    setPage(next);
+  async function update() {
+    if (!applied) return;
+    setNotice("");
+    const r = await saveView({
+      id: applied.id,
+      kind,
+      name: applied.name,
+      shared: applied.is_shared,
+      spec,
+    });
+    if (!r.ok) return setNotice(T.tryAgain);
+    await refresh();
+    setNotice(T.updated);
+    run(() => load(applied.id));
   }
-  if (!ready) return null;
-  const current = views.find((v) => v.id === selected),
-    editable = !current || current.owner === me,
-    field = fields.find((f) => f.id === custom);
-  const columns = [...builtins(kind), ...(field ? ["cf:" + field.id] : [])];
-  function chooseField(id: string) {
-    setCustom(id);
-    setSpec((s) => ({
-      ...s,
-      columns: s.columns.filter((k) => !k.startsWith("cf:")),
-      sort: s.sort.key.startsWith("cf:")
-        ? { key: "name", direction: s.sort.direction }
-        : s.sort,
-      group: null,
-      mode: "table",
-    }));
+  async function rename(name: string) {
+    if (!applied) return T.tryAgain;
+    if (
+      views.some(
+        (v) =>
+          v.id !== applied.id &&
+          v.owner === me &&
+          v.name.trim().toLowerCase() === name.toLowerCase(),
+      )
+    )
+      return T.duplicate;
+    const r = await saveView({
+      id: applied.id,
+      kind,
+      name,
+      shared: applied.is_shared,
+      spec: applied.filters,
+    });
+    if (!r.ok) return "reason" in r ? r.message : T.tryAgain;
+    await refresh();
+    setNotice(T.renamed);
+    return null;
   }
-  function display(row: RecordRow, key: string, d: Definition | null) {
-    if (key.startsWith("cf:"))
-      return (
-        d?.options.find((o) => o.id === row.field_value)?.label ??
-        String(row.field_value ?? "—")
-      );
-    return String(row[key as keyof RecordRow] ?? "—");
+  async function remove() {
+    if (!applied) return T.tryAgain;
+    const r = await deleteViewAction(applied.id, kind);
+    if (!r.ok) return T.tryAgain;
+    await refresh();
+    choose("");
+    setNotice(T.deleted);
+    return null;
   }
+
+  const showBoard = !!data && !!data.spec.group;
+  const rows =
+    data && !showBoard
+      ? data.spec.sort.key === spec.sort.key &&
+        data.spec.sort.direction === spec.sort.direction
+        ? data.rows
+        : sortRows(data.rows, spec.sort, (r, k) =>
+            cellValue(r, k, data.definition),
+          )
+      : [];
+  const sortedLocally =
+    !!data &&
+    data.partial &&
+    (data.spec.sort.key !== spec.sort.key ||
+      data.spec.sort.direction !== spec.sort.direction);
+
   return (
     <section
-      aria-label="Versioned views"
-      className="vq-card-static min-w-0 rounded-[14px] bg-white p-5 motion-reduce:[&_*]:transition-none"
+      aria-label={T.region}
+      data-vq-views=""
+      data-active={active ? "true" : "false"}
+      // While a view is applied its list stands in for the page's own list and
+      // filters, so everything after this section is hidden (not removed).
+      className={`flex flex-col gap-3 motion-reduce:[&_*]:transition-none ${active ? "[&~*]:hidden" : ""}`}
     >
-      <h2 className="text-sm font-semibold">Versioned views · v1</h2>
-      <p className="my-2 text-xs text-neutral-500">
-        First 50 versioned views. Existing saved filters remain unchanged. At
-        most 100 rows, or 25 per grouped column and four columns per page. No
-        hidden totals.
-      </p>
-      <label htmlFor={"view-" + kind} className="text-xs">
-        View
-      </label>
-      <SelectMenu
-        id={"view-" + kind}
-        value={selected}
-        disabled={pending}
-        options={[
-          { value: "", label: "New v1 view" },
-          ...views.map((v) => ({
-            value: v.id,
-            label: v.name + (v.owner !== me ? " · shared/read only" : ""),
-          })),
-        ]}
-        onChange={(id) => {
-          setSelected(id);
-          setDatasets([]);
-          setPage(0);
-          const v = views.find((v) => v.id === id);
-          setName(v?.name ?? "");
-          setShared(v?.is_shared ?? false);
-          setSpec(v?.filters ?? initial);
-          setCustom(
-            v?.filters.columns.find((k) => k.startsWith("cf:"))?.slice(3) ??
-              v?.filters.group?.slice(3) ??
-              "",
-          );
-        }}
-        buttonClassName="min-h-11"
-      />
-      {selected && editable && (
-        <button
-          type="button"
-          className="my-2 ml-2 min-h-11 rounded-full border px-4 text-xs"
-          disabled={pending}
-          onClick={() => {
-            if (
-              !window.confirm(
-                `Delete view ${current?.name}? Source records stay unchanged.`,
-              )
-            )
-              return;
-            run(async () => {
-              const r = await deleteViewAction(selected, kind);
-              if (!r.ok) {
-                setStatus(r.message);
-                return;
-              }
-              setSelected("");
-              setDatasets([]);
-              setSpec(initial);
-              setName("");
-              setCustom("");
-              await refresh();
-            });
+      <div className="relative flex flex-wrap items-center gap-2">
+        <ViewMenu
+          kind={kind}
+          label={label}
+          selected={selected}
+          views={views}
+          legacy={legacy}
+          me={me}
+          disabled={false}
+          onPick={choose}
+          onPickLegacy={chooseLegacy}
+        />
+        <ColumnsPopover
+          kind={kind}
+          spec={spec}
+          fields={fields}
+          kanban={kanban}
+          applied={!!applied}
+          onChange={(next) => {
+            setNotice("");
+            setSpec(next);
           }}
+        />
+        <Popover
+          label={T.saveView}
+          trigger={T.saveView}
+          panelClassName="sm:w-72"
         >
-          Delete owned v1 view
-        </button>
-      )}
-      {selected && (
-        <button
-          className="my-2 min-h-11 rounded-full border px-4 text-xs"
-          disabled={pending}
-          onClick={() => run(() => open())}
-        >
-          Open view
-        </button>
-      )}
-      <details className="my-3">
-        <summary className="min-h-11 cursor-pointer py-3 text-sm">
-          Columns, order and sharing
-        </summary>
-        <form
-          className="space-y-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            run(async () => {
-              const r = await saveView({
-                id: selected || null,
-                kind,
-                name,
-                shared,
-                spec,
-              });
-              setStatus(r.ok ? "View saved." : r.message);
-              if (r.ok) await refresh();
-            });
-          }}
-        >
-          <label className="block text-xs">
-            View name
-            <input
-              value={name}
-              disabled={!editable || pending}
-              maxLength={80}
-              onChange={(e) => setName(e.target.value)}
-              className="mt-1 min-h-11 w-full rounded-xl border px-3"
+          {({ close }) => (
+            <SaveForm
+              blocked={catalog.limited}
+              onSubmit={create}
+              onDone={close}
             />
-          </label>
-          <label className="flex min-h-11 items-center gap-2 text-xs">
-            <Checkbox
-              checked={shared}
-              disabled={!editable || pending}
-              onChange={(e) => setShared(e.target.checked)}
-            />
-            Shared with active members; source RLS still applies
-          </label>
-          <label htmlFor={"custom-" + kind} className="block text-xs">
-            One custom field (optional)
-          </label>
-          <SelectMenu
-            id={"custom-" + kind}
-            value={custom}
-            disabled={!editable || pending}
-            options={[
-              { value: "", label: "No custom field" },
-              ...fields.map((f) => ({ value: f.id, label: f.name })),
-            ]}
-            onChange={chooseField}
-            buttonClassName="min-h-11"
-          />
-          <fieldset className="space-y-1">
-            <legend className="text-xs">
-              Columns · name is required; maximum 8
-            </legend>
-            {columns.map((k) => (
-              <label
-                key={k}
-                className="flex min-h-11 items-center gap-2 text-xs"
-              >
-                <Checkbox
-                  checked={spec.columns.includes(k)}
-                  disabled={!editable || pending || k === "name"}
-                  onChange={(e) =>
-                    setSpec((s) => ({
-                      ...s,
-                      columns: e.target.checked
-                        ? [...s.columns, k]
-                        : s.columns.filter((c) => c !== k),
-                    }))
-                  }
-                />
-                {k.startsWith("cf:") ? field?.name : k}
-              </label>
-            ))}
-          </fieldset>
-          <div className="space-y-1">
-            {spec.columns.map((k, i) => (
-              <div
-                key={k}
-                className="flex min-h-11 flex-wrap items-center gap-2 text-xs"
-              >
-                <span className="break-all">
-                  {k.startsWith("cf:")
-                    ? (field?.name ?? "Unavailable field")
-                    : k}
-                </span>
-                <button
-                  type="button"
-                  className="min-h-11 rounded-full border px-3"
-                  disabled={!editable || pending || i === 0}
-                  onClick={() =>
-                    setSpec((s) => {
-                      const c = [...s.columns];
-                      [c[i - 1], c[i]] = [c[i], c[i - 1]];
-                      return { ...s, columns: c };
-                    })
-                  }
-                >
-                  Earlier
-                </button>
-                <button
-                  type="button"
-                  className="min-h-11 rounded-full border px-3"
-                  disabled={
-                    !editable || pending || i === spec.columns.length - 1
-                  }
-                  onClick={() =>
-                    setSpec((s) => {
-                      const c = [...s.columns];
-                      [c[i + 1], c[i]] = [c[i], c[i + 1]];
-                      return { ...s, columns: c };
-                    })
-                  }
-                >
-                  Later
-                </button>
-              </div>
-            ))}
-          </div>
-          <label htmlFor={"sort-" + kind} className="block text-xs">
-            Sort
-          </label>
-          <SelectMenu
-            id={"sort-" + kind}
-            value={spec.sort.key}
-            disabled={!editable || pending}
-            options={columns.map((k) => ({
-              value: k,
-              label: k.startsWith("cf:") ? (field?.name ?? "Custom field") : k,
-            }))}
-            onChange={(key) =>
-              setSpec((s) => ({ ...s, sort: { ...s.sort, key } }))
-            }
-            buttonClassName="min-h-11"
-          />
-          <label htmlFor={"direction-" + kind} className="block text-xs">
-            Direction
-          </label>
-          <SelectMenu
-            id={"direction-" + kind}
-            value={spec.sort.direction}
-            disabled={!editable || pending}
-            options={[
-              { value: "asc", label: "Ascending" },
-              { value: "desc", label: "Descending" },
-            ]}
-            onChange={(direction) =>
-              setSpec((s) => ({
-                ...s,
-                sort: { ...s.sort, direction: direction as "asc" | "desc" },
-              }))
-            }
-            buttonClassName="min-h-11"
-          />
-          <label htmlFor={"group-" + kind} className="block text-xs">
-            Grouping
-          </label>
-          <SelectMenu
-            id={"group-" + kind}
-            value={spec.group ?? ""}
-            disabled={!editable || pending}
-            options={[
-              { value: "", label: "None" },
-              ...(field?.field_type === "single_select"
-                ? [{ value: "cf:" + field.id, label: field.name }]
-                : []),
-            ]}
-            onChange={(group) =>
-              setSpec((s) => ({
-                ...s,
-                group: group || null,
-                mode: group ? s.mode : "table",
-              }))
-            }
-            buttonClassName="min-h-11"
-          />
-          <label htmlFor={"mode-" + kind} className="block text-xs">
-            Layout
-          </label>
-          <SelectMenu
-            id={"mode-" + kind}
-            value={spec.mode}
-            disabled={!editable || pending}
-            options={[
-              { value: "table", label: "Table" },
-              ...(kanban && spec.group
-                ? [{ value: "kanban", label: "Kanban by custom field" }]
-                : []),
-            ]}
-            onChange={(mode) =>
-              setSpec((s) => ({ ...s, mode: mode as "table" | "kanban" }))
-            }
-            buttonClassName="min-h-11"
-          />
+          )}
+        </Popover>
+        {own && dirty && (
           <button
-            className="min-h-11 rounded-full border px-4 text-xs"
-            disabled={!editable || pending}
+            type="button"
+            onClick={() => run(update)}
+            className={pillClass}
           >
-            Save v1 view
+            {T.saveChanges}
           </button>
-        </form>
-      </details>
-      {status && (
-        <p role="status" className="my-3 text-sm">
-          {status}
-        </p>
+        )}
+        {own && applied && (
+          <Popover
+            label={T.optionsLabel}
+            triggerAriaLabel={T.optionsLabel}
+            trigger={<span aria-hidden="true">⋯</span>}
+            panelClassName="sm:w-72"
+          >
+            {({ close }) => (
+              <OptionsForm
+                key={applied.id}
+                name={applied.name}
+                onRename={rename}
+                onDelete={remove}
+                onDone={close}
+              />
+            )}
+          </Popover>
+        )}
+        {notice && (
+          <p role="status" className="text-[12px] text-neutral-600">
+            {notice}
+          </p>
+        )}
+      </div>
+      {selected && phase === "loading" && (
+        <div
+          role="status"
+          className="vq-card-static rounded-[14px] bg-white px-4 py-6 text-[12.5px] text-neutral-500"
+        >
+          <span className="motion-safe:animate-pulse">{T.loading}</span>
+        </div>
       )}
-      {datasets[0]?.spec.group && datasets[0]?.definition && (
-        <div className="my-3 flex flex-wrap items-center gap-2 text-xs">
+      {selected && phase === "error" && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center gap-3 text-[12.5px]"
+        >
+          <span>{T.loadError}</span>
           <button
-            className="min-h-11 rounded-full border px-3"
-            disabled={pending || page === 0}
-            onClick={() => run(() => columnPage(page - 1))}
+            type="button"
+            className={pillClass}
+            onClick={() => run(() => load(selected))}
           >
-            Previous columns
-          </button>
-          <span>
-            Column page {page + 1} · option catalog, not record counts
-          </span>
-          <button
-            className="min-h-11 rounded-full border px-3"
-            disabled={
-              pending ||
-              (page + 1) * 4 >= datasets[0].definition.options.length + 1
-            }
-            onClick={() => run(() => columnPage(page + 1))}
-          >
-            Next columns
+            {T.retry}
           </button>
         </div>
       )}
-      <div className="grid min-w-0 gap-3 md:grid-cols-2">
-        {datasets.map((data, index) => (
-          <section className="min-w-0" key={index}>
-            {data.warning && (
-              <p role="status" className="my-2 text-xs">
-                A field or capability is unavailable. Its column/group was
-                omitted; the authorized table remains available.
-              </p>
-            )}
-            {data.spec.group && (
-              <h3 className="mb-2 text-sm font-semibold">
-                {
-                  [
-                    "No value",
-                    ...(data.definition?.options.map((o) => o.label) ?? []),
-                  ][page * 4 + index]
-                }
-              </h3>
-            )}
-            {data.partial && (
-              <p className="mb-2 text-xs">
-                Partial: first {data.spec.group ? 25 : 100} authorized rows.
-              </p>
-            )}
-            {!data.rows.length && (
-              <p className="text-xs">No authorized records in this column.</p>
-            )}
-            {data.spec.mode === "kanban" ? (
-              <div className="vq-card-grid space-y-3">
-                {data.rows.map((row) => (
-                  <article
-                    key={row.id}
-                    className="vq-card-static rounded-[14px] bg-white p-3"
-                  >
-                    <Link
-                      className="vq-card block min-h-11 rounded-[14px] bg-white p-3 text-sm focus-visible:ring-2 focus-visible:ring-cyan-300"
-                      href={
-                        kind === "pipeline"
-                          ? `/companies/${row.company_id}/deals/${row.id}`
-                          : `/people?q=${encodeURIComponent(row.name)}`
-                      }
-                    >
-                      {row.name}
-                    </Link>
-                    {data.spec.columns
-                      .filter((k) => k !== "name")
-                      .map((k) => (
-                        <p key={k} className="my-1 break-words text-xs">
-                          {k.startsWith("cf:") ? data.definition?.name : k}:{" "}
-                          {display(row, k, data.definition)}
-                        </p>
-                      ))}
-                    {kanban && data.definition && (
-                      <Move
-                        key={row.id + ":" + row.token}
-                        row={row}
-                        view={selected}
-                        definition={data.definition}
-                        reload={open}
-                      />
-                    )}
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <div className="max-w-full overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr>
-                      {data.spec.columns.map((k) => (
-                        <th key={k} className="p-2">
-                          {k.startsWith("cf:") ? data.definition?.name : k}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.rows.map((row) => (
-                      <tr key={row.id}>
-                        {data.spec.columns.map((k) => (
-                          <td
-                            key={k}
-                            className="max-w-48 break-words border-t p-2"
-                          >
-                            {display(row, k, data.definition)}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        ))}
-      </div>
+      {data && showBoard && !kanban && (
+        <p role="status" className="text-[12.5px] text-neutral-600">
+          {T.layoutOff}
+        </p>
+      )}
+      {data && showBoard && kanban && (
+        <ViewsKanban
+          kind={kind}
+          viewId={selected}
+          first={data}
+          reload={() => load(selected)}
+        />
+      )}
+      {data && !showBoard && (
+        <ViewsTable
+          kind={kind}
+          columns={spec.columns}
+          sort={spec.sort}
+          rows={rows}
+          definition={data.definition}
+          partial={data.partial}
+          warning={data.warning}
+          pendingField={!!workCf && workCf !== dataCf}
+          sortedLocally={sortedLocally}
+          fieldName={field?.name ?? null}
+          onSort={(key) => {
+            setNotice("");
+            setSpec((s) => ({ ...s, sort: nextSort(s.sort, key) }));
+          }}
+        />
+      )}
     </section>
   );
 }

@@ -1,5 +1,7 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+import { readFileSync } from "node:fs";
+import type { ReactElement, ReactNode } from "react";
 const m = vi.hoisted(() => ({
   rpc: vi.fn(),
   from: vi.fn(),
@@ -14,9 +16,9 @@ vi.mock("@/lib/auth/access", () => ({
   getAccess: m.access,
   actionAccessError: async () => null,
 }));
-vi.mock("next/navigation",()=>({useRouter:()=>({refresh(){}})}));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh() {} }) }));
 vi.mock("next/cache", () => ({ revalidatePath: m.revalidate }));
-import { parseSpec, templateInput, type Spec } from "./spec";
+import { parseSpec, templateInput, type RecordRow, type Spec } from "./spec";
 import {
   saveView,
   moveCard,
@@ -30,7 +32,13 @@ import { loadPipelineSavedViews } from "@/lib/views/pipeline-queries";
 import PeopleViewsBar from "@/components/PeopleViewsBar";
 import PipelineViewsBar from "@/components/PipelineViewsBar";
 import CustomFieldsGate from "@/components/custom-fields/CustomFieldsGate";
-import ViewsPanel from "@/components/customization/ViewsPanel";
+import ViewsPanel, {
+  ColumnsContent,
+  SaveForm,
+  type Catalog,
+} from "@/components/customization/ViewsPanel";
+import ViewsTable from "@/components/customization/ViewsTable";
+import { nextSort, sortRows, toggleColumn, ariaSort } from "./view-helpers";
 import TemplatesAdmin from "@/components/customization/TemplatesAdmin";
 import ApplyTemplate from "@/components/customization/ApplyTemplate";
 const id = "fa100000-0000-0000-0000-000000000001",
@@ -297,5 +305,271 @@ describe("bounded manual templates", () => {
       alreadyApplied: true,
     });
     expect(m.rpc.mock.calls.map((c) => c[1].p_request)).toEqual([id, id]);
+  });
+});
+
+// ---- Simple views (bar, popovers, header sorting) ----
+const catalog: Catalog = {
+  views: [],
+  fields: [
+    {
+      id,
+      name: "Synthetic stage field",
+      field_type: "single_select",
+      version: 1,
+    },
+    { id: other, name: "Synthetic score", field_type: "number", version: 1 },
+  ],
+  me: "views.unit@synthetic.test",
+  legacy: [],
+  limited: false,
+};
+const BANNED = /Versioned|versioned|\bv1\b|\bv0\b|RLS|\bspec\b|allowlist|RPC/;
+function walk(node: ReactNode, out: ReactElement[] = []): ReactElement[] {
+  if (Array.isArray(node)) node.forEach((n) => walk(n, out));
+  else if (node && typeof node === "object" && "props" in node) {
+    out.push(node as ReactElement);
+    walk((node as ReactElement<{ children?: ReactNode }>).props.children, out);
+  }
+  return out;
+}
+const rowOf = (n: string, company: string | null): RecordRow => ({
+  id: n,
+  name: n,
+  company,
+  company_id: null,
+  stage: null,
+  email: null,
+  linkedin: null,
+  token: null,
+  field_value: null,
+});
+
+describe("simple views UI", () => {
+  it("default state is a single compact line: View, Columns, Save view", () => {
+    const html = renderToStaticMarkup(
+      <ViewsPanel kind="people" kanban={false} initialCatalog={catalog} />,
+    );
+    expect(html).toContain("View:");
+    expect(html).toContain("All people");
+    expect(html).toContain(">Columns<");
+    expect(html).toContain(">Save view<");
+    expect(html.match(/aria-haspopup="dialog"/g)).toHaveLength(3);
+    for (const absent of ["<table", "<form", "<h2", "<select", "<input"])
+      expect(html).not.toContain(absent);
+    expect(html).not.toContain("[&amp;~*]:hidden");
+    expect(html).toContain('data-active="false"');
+    expect(html).not.toMatch(BANNED);
+    const deals = renderToStaticMarkup(
+      <ViewsPanel kind="pipeline" kanban={false} initialCatalog={catalog} />,
+    );
+    expect(deals).toContain("All deals");
+  });
+  it("renders nothing until the catalog has loaded (and never when gated off)", () => {
+    expect(
+      renderToStaticMarkup(<ViewsPanel kind="people" kanban={false} />),
+    ).toBe("");
+  });
+  it("sorts on one header click, flips on the second, and exposes aria-sort", () => {
+    const calls: string[] = [];
+    const props = {
+      kind: "people" as const,
+      columns: ["name", "company"],
+      sort: { key: "name", direction: "asc" as const },
+      rows: [rowOf("A", "Z Co")],
+      definition: null,
+      partial: false,
+      warning: false,
+      pendingField: false,
+      sortedLocally: false,
+      fieldName: null,
+      onSort: (k: string) => calls.push(k),
+    };
+    const tree = ViewsTable(props);
+    const buttons = walk(tree).filter((e) => e.type === "button");
+    expect(buttons).toHaveLength(2);
+    (buttons[1].props as { onClick: () => void }).onClick();
+    expect(calls).toEqual(["company"]);
+    const html = renderToStaticMarkup(<ViewsTable {...props} />);
+    expect(html).toContain('aria-sort="ascending"');
+    expect(html).toContain('aria-sort="none"');
+    expect(
+      renderToStaticMarkup(
+        <ViewsTable {...props} sort={{ key: "name", direction: "desc" }} />,
+      ),
+    ).toContain('aria-sort="descending"');
+    const s1 = nextSort({ key: "name", direction: "asc" }, "company");
+    expect(s1).toEqual({ key: "company", direction: "asc" });
+    expect(nextSort(s1, "company").direction).toBe("desc");
+    expect(ariaSort(s1, "company")).toBe("ascending");
+  });
+  it("sorting keeps empty values last in both directions", () => {
+    const rows = [rowOf("b", null), rowOf("c", "Y"), rowOf("a", "X")];
+    const v = (r: RecordRow) => r.company;
+    const get = (r: (typeof rows)[number], k: string) =>
+      k === "company" ? v(r) : r.name;
+    expect(
+      sortRows(rows, { key: "company", direction: "asc" }, get).map(
+        (r) => r.id,
+      ),
+    ).toEqual(["a", "c", "b"]);
+    expect(
+      sortRows(rows, { key: "company", direction: "desc" }, get).map(
+        (r) => r.id,
+      ),
+    ).toEqual(["c", "a", "b"]);
+  });
+  it("tells people the list is partial in plain words", () => {
+    const html = renderToStaticMarkup(
+      <ViewsTable
+        kind="people"
+        columns={["name"]}
+        sort={{ key: "name", direction: "asc" }}
+        rows={[]}
+        definition={null}
+        partial
+        warning={false}
+        pendingField={false}
+        sortedLocally={false}
+        fieldName={null}
+        onSort={() => {}}
+      />,
+    );
+    expect(html).toContain(
+      "Showing the first 100 people. Use search to narrow down.",
+    );
+  });
+  it("saving asks for one field: the name; sharing is a small opt-in", () => {
+    const html = renderToStaticMarkup(
+      <SaveForm
+        blocked={false}
+        onSubmit={async () => null}
+        onDone={() => {}}
+      />,
+    );
+    const inputs = html.match(/<input[^>]*>/g) ?? [];
+    expect(inputs.filter((i) => !i.includes('type="checkbox"'))).toHaveLength(
+      1,
+    );
+    expect(inputs.filter((i) => i.includes('type="checkbox"'))).toHaveLength(1);
+    expect(html).not.toContain('checked=""');
+    expect(html).toContain("Share with the team");
+    expect(html).toContain(
+      "Everyone on the team can use this view. Nobody else can edit it.",
+    );
+    expect(html).toContain(">Save<");
+    expect(html).not.toMatch(BANNED);
+  });
+  it("allows one custom field: the other one is disabled with a short reason", () => {
+    const withOne = {
+      ...spec,
+      columns: ["name", "cf:" + id],
+    };
+    const html = renderToStaticMarkup(
+      <ColumnsContent
+        kind="people"
+        spec={withOne}
+        fields={catalog.fields}
+        kanban={false}
+        applied
+        onChange={() => {}}
+      />,
+    );
+    expect(html).toContain("Only one custom field per view for now");
+    expect(html.match(/Only one custom field/g)).toHaveLength(1);
+    expect(html.match(/disabled=""/g)).toHaveLength(2); // Name + the other field
+    expect(html).toContain("Always shown");
+    expect(toggleColumn(withOne, "cf:" + other, true)).toEqual({
+      ok: false,
+      reason: "custom",
+    });
+    expect(toggleColumn(withOne, "name", false)).toEqual({
+      ok: false,
+      reason: "locked",
+    });
+    const full = {
+      ...spec,
+      columns: ["name", "company", "email", "linkedin", "stage", "x", "y", "z"],
+    };
+    expect(toggleColumn(full, "cf:" + id, true)).toEqual({
+      ok: false,
+      reason: "max",
+    });
+  });
+  it("unchecking the sorted column falls back to name", () => {
+    const r = toggleColumn(
+      {
+        ...spec,
+        columns: ["name", "email"],
+        sort: { key: "email", direction: "desc" },
+      },
+      "email",
+      false,
+    );
+    expect(r.ok && r.spec.sort).toEqual({ key: "name", direction: "asc" });
+  });
+  it("Kanban is invisible unless the capability is on", () => {
+    const render = (kanban: boolean) =>
+      renderToStaticMarkup(
+        <ColumnsContent
+          kind="people"
+          spec={spec}
+          fields={catalog.fields}
+          kanban={kanban}
+          applied={false}
+          onChange={() => {}}
+        />,
+      );
+    for (const word of ["Advanced", "Group by", "Layout", "Board", "Kanban"])
+      expect(render(false)).not.toContain(word);
+    expect(render(true)).toContain("Advanced");
+    expect(render(true)).toContain("Group by");
+  });
+  it("every visible string avoids technical words", () => {
+    for (const f of ["ViewsPanel.tsx", "ViewsTable.tsx", "ViewsKanban.tsx"]) {
+      const src = readFileSync(`src/components/customization/${f}`, "utf8");
+      const block = src.match(/const T = \{[\s\S]*?\n\};/)?.[0] ?? "";
+      expect(block.length, f).toBeGreaterThan(100);
+      expect(block, f).not.toMatch(BANNED);
+    }
+  });
+  it("the page-level hide rule only applies while a view is applied", () => {
+    const src = readFileSync(
+      "src/components/customization/ViewsPanel.tsx",
+      "utf8",
+    );
+    expect(src).toContain('active ? "[&~*]:hidden" : ""');
+  });
+});
+
+describe("saving a view: friendly outcomes, no raw errors", () => {
+  it("returns the new id and maps only the duplicate name to a message", async () => {
+    m.rpc.mockResolvedValueOnce({ data: other, error: null });
+    expect(
+      await saveView({
+        id: null,
+        kind: "people",
+        name: "A",
+        shared: false,
+        spec,
+      }),
+    ).toEqual({ ok: true, id: other });
+    m.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: "23505", message: "Synthetic hidden sentinel" },
+    });
+    const dup = await saveView({
+      id: null,
+      kind: "people",
+      name: "A",
+      shared: false,
+      spec,
+    });
+    expect(dup).toEqual({
+      ok: false,
+      message: "You already have a view with that name.",
+      reason: "duplicate",
+    });
+    expect(JSON.stringify(dup)).not.toContain("sentinel");
   });
 });

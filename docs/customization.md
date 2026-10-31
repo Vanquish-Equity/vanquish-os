@@ -369,3 +369,16 @@ counts with 6B off, and asserts zero new client actions. It mounts real componen
 with synthetic stubs and blocks external HTTP; it is not a signed-in deployment.
 Production/preview SQL, real records, hosted latency, multi-session load and a real
 PostgREST HTTP integration were not exercised. No Google/worker/provider flow is used.
+
+### Simple views bar (UI only)
+
+The views UI is one compact line over the list: `View: All people ▾`, `Columns`,
+`Save view`. Sorting is a click on a column header (`aria-sort`). Backend, RPCs,
+flags and permissions are unchanged. While a saved view is applied its result
+list replaces the page's own list and filters (those are hidden, not removed);
+choosing "All people" brings them back. The server returns at most 100 rows, so a
+partial list says so in plain words. `customization_view_data` only reads saved
+views, so columns/sort changes on the list are local until `Save changes`, and a
+new view is created from the default state with `Save view`. Grouping/Board
+layout appears only under `Columns > Advanced` and only when the Kanban flag is
+on. Column reordering is not offered.
