@@ -26,6 +26,15 @@
   position: relative;
 }
 
+/* Each card is its own stacking context (isolation), so a popover's own
+   z-index cannot rise above the next card. Lift the card that owns an open
+   popup trigger (SelectMenu, member/notification/board menus). Stays below the
+   fixed overlays (z-50+), the intro layer (60/61) and the assistant. */
+.vq-card:has([aria-haspopup][aria-expanded="true"]),
+.vq-card-static:has([aria-haspopup][aria-expanded="true"]) {
+  z-index: 20;
+}
+
 .vq-card-grid {
   transition: opacity 220ms ease;
 }

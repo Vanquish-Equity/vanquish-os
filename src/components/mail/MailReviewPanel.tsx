@@ -59,7 +59,7 @@ export default function MailReviewPanel({
           title="Reviewed message body"
           sandbox=""
           referrerPolicy="no-referrer"
-          className="mt-2 h-40 w-full rounded border bg-white"
+          className="mt-2 h-40 w-full rounded-xl border border-neutral-200 bg-white"
           srcDoc={`<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'none'; img-src 'none'; form-action 'none'"><body>${review.html}</body>`}
         />
       </details>

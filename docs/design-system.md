@@ -137,3 +137,18 @@ Personal scan consent differs from the Admin permission switch: the first opts
 the member's mailbox into scanning; the second grants feature access. Responsive
 forms wrap selectors/actions, decisions have visible pending/live feedback, and
 fundraising UUIDs survive retries. No new design-system exception is introduced.
+
+## Buttons, fields and open menus
+
+- **Fields** (text, date, framed previews): `rounded-xl border border-neutral-200
+  bg-white px-3 py-2 text-sm focus:outline-cyan-400`. Never a bare
+  `rounded border` (black default border). Selectors use `SelectMenu`.
+- **Secondary buttons and button-like links**: `rounded-full border
+  border-neutral-200 px-4 py-2 text-[12px] font-semibold text-ink
+  hover:border-cyan-400 disabled:opacity-40` plus `focus-visible:outline
+  focus-visible:outline-2 focus-visible:outline-offset-2
+  focus-visible:outline-cyan-400`. `rounded-full` dominates for buttons in the
+  repo; `rounded-xl` is for fields/panels. Keep `min-h-11` on touch targets.
+- **Open menus over cards:** cards are isolated stacking contexts, so `globals.css`
+  lifts a card to `z-index: 20` while it holds `[aria-haspopup][aria-expanded="true"]`
+  (SelectMenu, member/board menus). Disclosure toggles and the Sidebar are excluded; dialogs (z-50+) stay above.
