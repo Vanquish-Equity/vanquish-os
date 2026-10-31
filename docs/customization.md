@@ -369,3 +369,36 @@ counts with 6B off, and asserts zero new client actions. It mounts real componen
 with synthetic stubs and blocks external HTTP; it is not a signed-in deployment.
 Production/preview SQL, real records, hosted latency, multi-session load and a real
 PostgREST HTTP integration were not exercised. No Google/worker/provider flow is used.
+
+### Simple views bar (UI only)
+
+The views UI is one compact line over the list: `View: All people ▾`, `Columns`,
+`Save view`. Sorting is a click on a column header (`aria-sort`). Backend, RPCs,
+flags and permissions are unchanged. While a saved view is applied its result
+list replaces the page's own list and filters (those are hidden, not removed);
+choosing "All people" brings them back. The server returns at most 100 rows, so a
+partial list says so in plain words. `customization_view_data` only reads saved
+views, so columns/sort changes on the list are local until `Save changes`, and a
+new view is created from the default state with `Save view`. Grouping/Board
+layout appears only under `Columns > Advanced` and only when the Kanban flag is
+on. Column reordering is not offered.
+
+**What is hidden while a view is applied, and why.** The views section is a
+direct child of the page container and, while a saved view is applied, adds the
+class `[&~*]:hidden` (`display: none`) to itself, which hides **every later
+sibling** of the section. On People that is the saved-filters bar with its tabs,
+the Gmail notices, the custom-field match panel and the list; on Pipeline the
+filters bar and the board. Those controls filter the page's own list and do not
+apply to a view's rows, so showing them would be misleading. Nothing is removed
+from the DOM, and choosing "All people"/"All deals" restores everything.
+Anything added after the section on those pages is hidden the same way, so
+page-level content that must stay visible should be placed before it. The change
+is announced politely ("Showing view: <name>" / "Showing all people"). A test
+(`views-ui.test.tsx`) checks the computed style of later siblings.
+
+**What "Save view" saves.** From the default state, a new view starts from what
+the page list shows now: on People, Name plus the optional columns kept visible
+by the page's `cols`/`col` parameters (all by default) that a view can hold
+(Company, Email, LinkedIn); on Pipeline, Name, Company and Stage. The popover
+says "Your view will include: ..." and, if the list shows columns a view cannot
+hold (Last email, Next meeting, Last interaction), "Not included: ...".
