@@ -6,31 +6,27 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import NavIcon from "@/components/NavIcon";
 import type { NavIcon as NavIconName } from "@/lib/auth/permissions";
+import { NAV_SECTIONS, QUICK_LINK_HREFS, type NavSection } from "@/lib/auth/nav-sections";
 import { requestIntroReplay, SIDEBAR_COOKIE_MAX_AGE_SECONDS } from "@/lib/ui/entrance";
 import { playUiSound, setSoundPref, useSoundPref } from "@/lib/ui/sound";
 import { useUnreadCounts } from "@/components/UnreadCounts";
 
 export type SidebarNavItem = { href: string; label: string; icon: NavIconName; badge?: "chat" | "notifications"; child?: boolean };
 
-// Sections of the sidebar, in display order. An item belongs to the section
-// listing its href; Boards also owns every individual board (/boards/<id>).
-// Anything not listed (a future page) falls into "More" so it is never lost
-// or drawn under the wrong heading.
-type NavSection = { key: string; label: string; hrefs: string[] };
-const NAV_SECTIONS: NavSection[] = [
-  { key: "crm", label: "CRM", hrefs: ["/pipeline", "/companies", "/people", "/network", "/lp-board", "/reporting"] },
-  { key: "boards", label: "Boards", hrefs: ["/boards"] },
-  { key: "work", label: "Work", hrefs: ["/inbox", "/tasks", "/calendar", "/communications", "/review"] },
-  { key: "fund", label: "Fund", hrefs: ["/portfolio", "/portfolio/fundraising"] },
-];
-
-// Home, Notifications, Chat and Overview: checked constantly, so they sit
-// as one row of icons at the top instead of four labeled rows. Collapsed
-// and narrow views list them vertically like every other item.
-const ICON_ROW_HREFS = ["/home", "/notifications", "/chat", "/overview"];
-
+// Sections of the sidebar live in src/lib/auth/nav-sections.ts. An item
+// belongs to the section listing its href; Boards also owns every individual
+// board (/boards/<id>). A page nobody listed (a future page) is drawn at the
+// end of System, so it is never lost or drawn under the wrong heading.
 const isActive = (activeHref: string, href: string) =>
   activeHref === href || (href !== "/boards" && activeHref.startsWith(href + "/"));
+
+// Visible text for the group headings and the quick-link block. Kept together
+// so the interface can be translated in one place.
+const NAV_TEXT = {
+  quickLinks: "Quick links",
+  showSection: (label: string) => `Show ${label}`,
+  hideSection: (label: string) => `Hide ${label}`,
+};
 
 function sectionItems(section: NavSection, items: SidebarNavItem[]) {
   const listed = section.hrefs
@@ -178,10 +174,10 @@ function SidebarBody({
   });
   const name = displayNameFor(userEmail, displayName);
 
-  function NavLink({ item, iconOnly = false, nested = false }: { item: SidebarNavItem; iconOnly?: boolean; nested?: boolean }) {
+  function NavLink({ item, grid = false, nested = false }: { item: SidebarNavItem; grid?: boolean; nested?: boolean }) {
     const active = isActive(activeHref, item.href);
     const count = item.badge ? unread[item.badge] : 0;
-    const text = item.href === "/boards" ? "All boards" : item.label;
+    const text = item.label;
     const tone = active
       ? "bg-white/[0.08] text-white"
       : "text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-100";
@@ -217,7 +213,7 @@ function SidebarBody({
         onTouchStart={() => { if (WARM_ON_HOVER.has(item.href)) setWarm(item.href); }}
         aria-current={active ? "page" : undefined}
         className={`group relative flex h-8 items-center gap-2.5 rounded-md text-[13px] transition-colors ${FOCUS} ${
-          iconOnly ? "flex-1 justify-center px-0" : center
+          grid ? "min-w-0 justify-start gap-1.5 px-1.5 text-[11.5px]" : center
         } ${active ? "font-medium" : ""} ${tone}`}
       >
         <span className="relative flex">
@@ -232,9 +228,9 @@ function SidebarBody({
             </span>
           )}
         </span>
-        <span className={`truncate ${iconOnly ? "sr-only" : label}`}>{text}</span>
+        <span className={`truncate ${grid ? "" : label}`}>{text}</span>
         {count > 0 && <span className="sr-only">({count} unread)</span>}
-        <Tooltip mode={iconOnly ? "rail" : mode} anchored>
+        <Tooltip mode={grid ? "full" : mode} anchored>
           {text}
           {count > 0 ? ` · ${count} unread` : ""}
         </Tooltip>
@@ -242,17 +238,13 @@ function SidebarBody({
     );
   }
 
-  const iconRowItems = navItems.filter((item) => ICON_ROW_HREFS.includes(item.href));
+  const iconRowItems = navItems.filter((item) => QUICK_LINK_HREFS.includes(item.href));
   const sectioned = new Set(NAV_SECTIONS.flatMap((section) => sectionItems(section, navItems).map((item) => item.href)));
-  const sections = [
-    ...NAV_SECTIONS.map((section) => ({ ...section, items: sectionItems(section, navItems) })),
-    {
-      key: "more",
-      label: "More",
-      hrefs: [],
-      items: navItems.filter((item) => !ICON_ROW_HREFS.includes(item.href) && !sectioned.has(item.href)),
-    },
-  ].filter((section) => section.items.length > 0);
+  const unlisted = navItems.filter((item) => !QUICK_LINK_HREFS.includes(item.href) && !sectioned.has(item.href) && !item.href.startsWith("/boards/"));
+  const sections = NAV_SECTIONS.map((section) => ({
+    ...section,
+    items: [...sectionItems(section, navItems), ...(section.key === "system" ? unlisted : [])],
+  })).filter((section) => section.items.length > 0);
 
   return (
     <>
@@ -314,9 +306,9 @@ function SidebarBody({
 
       {iconRowItems.length > 0 && (
         <>
-          <div className={`mb-4 items-center gap-0.5 rounded-lg bg-white/[0.03] p-0.5 ${wide}`}>
+          <div role="group" aria-label={NAV_TEXT.quickLinks} className={`mb-4 grid-cols-[2fr_3fr] gap-0.5 rounded-lg bg-white/[0.03] p-0.5 ${byMode(mode, { rail: "hidden", full: "grid", responsive: "hidden md:grid" })}`}>
             {iconRowItems.map((item) => (
-              <NavLink key={item.href} item={item} iconOnly />
+              <NavLink key={item.href} item={item} grid />
             ))}
           </div>
           <div className={`mb-3 flex-col gap-0.5 ${narrow}`}>
@@ -330,7 +322,7 @@ function SidebarBody({
       <nav aria-label="Workspace" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {sections.map((section) => {
           const holdsActive = section.items.some((item) => isActive(activeHref, item.href));
-          const open = (openSections[section.key] ?? true) || holdsActive;
+          const open = (openSections[section.key] ?? section.defaultOpen) || holdsActive;
           const listId = `vq-nav-${section.key}`;
           return (
             <div key={section.key} className="flex flex-col gap-px">
@@ -339,6 +331,7 @@ function SidebarBody({
                 onClick={() => setOpenSections((value) => ({ ...value, [section.key]: !open }))}
                 aria-expanded={open}
                 aria-controls={listId}
+                title={open ? NAV_TEXT.hideSection(section.label) : NAV_TEXT.showSection(section.label)}
                 disabled={holdsActive}
                 className={`group mb-0.5 h-6 items-center gap-1 rounded-md px-2.5 text-left text-[11px] font-medium text-neutral-500 transition hover:text-neutral-200 disabled:cursor-default disabled:hover:text-neutral-500 ${FOCUS} ${wide}`}
               >
@@ -346,7 +339,7 @@ function SidebarBody({
                 {!holdsActive && (
                   <NavIcon
                     name="chevron"
-                    className={`h-3 w-3 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100 ${open ? "rotate-90" : ""}`}
+                    className={`h-3 w-3 transition group-hover:opacity-100 group-focus-visible:opacity-100 ${open ? "rotate-90 opacity-0" : "opacity-70"}`}
                   />
                 )}
               </button>

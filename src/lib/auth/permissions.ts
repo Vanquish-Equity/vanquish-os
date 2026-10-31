@@ -48,6 +48,7 @@ export type NavIcon =
   | "boards"
   | "board_item"
   | "lp"
+  | "fundraising"
   | "companies"
   | "people"
   | "communications"
@@ -66,28 +67,30 @@ export type NavItem = {
   badge?: "chat" | "notifications";
 };
 
+// Display order: the sidebar renders these in this order. Labels match the
+// h1 of the page they open. Permissions (`requires`) are unchanged.
 export const WORKSPACE_NAV: NavItem[] = [
   { href: "/home", label: "Home", icon: "home" },
   { href: "/notifications", label: "Notifications", icon: "bell", badge: "notifications" },
   { href: "/chat", label: "Chat", icon: "chat", badge: "chat" },
   { href: "/overview", label: "Overview", icon: "overview" },
   { href: "/pipeline", label: "Pipeline", icon: "pipeline" },
-  { href: "/boards", label: "Boards", icon: "boards" },
-  { href: "/lp-board", label: "LP follow-up", icon: "lp" },
-  { href: "/reporting", label: "Reporting", icon: "reporting" },
   { href: "/companies", label: "Companies", icon: "companies" },
   { href: "/people", label: "People", icon: "people" },
+  { href: "/network", label: "Network", icon: "network" },
+  { href: "/lp-board", label: "LP follow-up", icon: "lp" },
+  { href: "/reporting", label: "CRM reporting", icon: "reporting" },
+  { href: "/boards", label: "CRM boards", icon: "boards" },
+  { href: "/tasks", label: "Tasks", icon: "tasks" },
+  { href: "/inbox", label: "Action center", icon: "inbox" },
   { href: "/communications", label: "Communications", icon: "communications" },
   { href: "/calendar", label: "Calendar", icon: "calendar" },
-  { href: "/governance", label: "Governance", icon: "governance", requires: "admin" },
-  { href: "/documents", label: "Documents", icon: "documents", requires: "documents" },
-  { href: "/integrations", label: "Integration health", icon: "integrations" },
-  { href: "/inbox", label: "Action center", icon: "inbox" },
-  { href: "/network", label: "Network", icon: "network" },
-  { href: "/tasks", label: "Tasks", icon: "tasks" },
   { href: "/review", label: "Review", icon: "review" },
-  { href: "/portfolio/fundraising", label: "LP fundraising", icon: "lp", requires: "portfolio" },
+  { href: "/documents", label: "Document intake", icon: "documents", requires: "documents" },
   { href: "/portfolio", label: "Portfolio", icon: "portfolio", requires: "portfolio" },
+  { href: "/portfolio/fundraising", label: "LP fundraising", icon: "fundraising", requires: "portfolio" },
+  { href: "/integrations", label: "Integration health", icon: "integrations" },
+  { href: "/governance", label: "Workspace governance", icon: "governance", requires: "admin" },
 ];
 
 export function visibleNav(items: NavItem[], permissions: ReadonlySet<AreaPermission>) {

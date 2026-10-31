@@ -41,14 +41,14 @@ The native selectors in SettingsPanel, TaskRow and CommentsSection now reuse Sel
 
 ### Operating navigation density
 
-Work keeps five daily-action entries: Inbox, Tasks, Calendar, Communications
-and Review. Documents and Integration health sit in More with Governance;
-these are repository/connection management rather than daily task queues.
-Their permission filtering still happens on the server. Primary navigation
-items each have a distinct icon (document, plug, inbox, network and shield),
-so the collapsed rail is unambiguous. More uses the same section component,
-fixed hover/focus tooltip positioning, accessible labels and collapsed/mobile
-rendering as other sections; no extra nested navigation or tooltip variant.
+Work holds the daily-action entries (Tasks, Action center, Communications,
+Calendar, Review) plus Document intake (Documents permission). Integration
+health and Workspace governance (admin) sit in System, the last section;
+there is no "More". Sidebar labels equal the page's h1. Every item has a
+distinct icon (LP follow-up and LP fundraising no longer share one), so the
+collapsed rail is unambiguous. Fund and System (and Boards) start collapsed so
+the admin sidebar fits 900 px tall; a collapsed heading shows a chevron.
+Permission filtering still happens on the server.
 
 Card helpers preserve shadow/isolation/border visuals but apply relative
 positioning only when `absolute`, `fixed` or `sticky` is absent. Unlayered CSS
