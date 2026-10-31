@@ -69,10 +69,9 @@ export default async function PeoplePage({
     q?: string;
     cols?: string;
     col?: string | string[];
-    new?: string;
   }>;
 }) {
-  const { view, group, q, cols: colsMarker, col, new: openNew } = await searchParams;
+  const { view, group, q, cols: colsMarker, col } = await searchParams;
   const showLps = view === "lps";
   const groupId = group || null;
   const search = (q ?? "").trim();
@@ -200,7 +199,7 @@ export default async function PeoplePage({
             companies={companies ?? []}
             defaultPotentialLp={showLps}
             label={showLps ? "Add potential LP" : "New Person"}
-            initialOpen={openNew === "1"}
+            openOnNewParam
           />
         </div>
       </header>

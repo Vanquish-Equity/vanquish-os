@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireMember } from "@/lib/auth/access";
 import { personProfileState } from "@/lib/people/profile-access";
 import { navCommands } from "@/lib/search/palette";
+import { parseSectionState } from "@/lib/auth/nav-sections";
 import { visibleNav, WORKSPACE_NAV } from "@/lib/auth/permissions";
 import { entranceBootScript, introCookieName, sidebarCookieName } from "@/lib/ui/entrance";
 import { noticeMask, notificationCookieName, notificationKinds } from "@/lib/settings/preferences";
@@ -65,6 +66,7 @@ export default async function DashboardLayout({
           displayName={access.displayName ?? null}
           avatarUrl={avatarUrl}
           initialCollapsed={collapsed}
+          initialSections={parseSectionState(cookieStore.get(`${preferenceCookie}_sec`)?.value)}
           preferenceCookie={preferenceCookie}
           navItems={visibleNav(WORKSPACE_NAV, access.permissions)
             .filter((item) => unread.available || !item.badge)

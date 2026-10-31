@@ -3,6 +3,7 @@
 import Checkbox from "@/components/Checkbox";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useOpenOnNewParam } from "@/lib/ui/use-open-on-new";
 import { createPersonAction } from "@/lib/people/actions";
 import SelectMenu, { type SelectMenuOption } from "@/components/SelectMenu";
 
@@ -35,6 +36,7 @@ export default function NewPersonModal({
   defaultPotentialLp = false,
   label = "New Person",
   initialOpen = false,
+  openOnNewParam = false,
 }: {
   companies: Option[];
   // Opened from the Potential LPs view: the new person is an LP by default.
@@ -42,10 +44,14 @@ export default function NewPersonModal({
   label?: string;
   // Opens the dialog on load (the "+ New" menu links to /people?new=1).
   initialOpen?: boolean;
+  // Pages reached from the "+ New" menu set this: <page>?new=1 opens the
+  // dialog (also while already on the page) and is then removed from the URL.
+  openOnNewParam?: boolean;
 }) {
   const router = useRouter();
   const firstInputRef = useRef<HTMLInputElement | null>(null);
   const [open, setOpen] = useState(initialOpen);
+  useOpenOnNewParam(openOnNewParam, () => setOpen(true));
   const initialForm = { ...emptyForm, isPotentialLp: defaultPotentialLp };
   const [values, setValues] = useState<FormValues>(initialForm);
   const [nameError, setNameError] = useState<string | null>(null);

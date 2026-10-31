@@ -81,10 +81,9 @@ export default async function PipelinePage({
     stage?: string;
     view?: string;
     member?: string;
-    new?: string;
   }>;
 }) {
-  const { filter, hideTerminal, priority, stage, view, member: memberParam, new: openNew } = await searchParams;
+  const { filter, hideTerminal, priority, stage, view, member: memberParam } = await searchParams;
   const showArchived = view === "archived";
   const member = await requireMember();
   const savedPipeline = pipelineDefault((await cookies()).get(pipelineCookieName(member.email))?.value);
@@ -232,7 +231,7 @@ export default async function PipelinePage({
           stages={stages}
           priorities={priorities}
           rounds={rounds}
-          initialOpen={openNew === "1"}
+          openOnNewParam
         />
       </header>
 

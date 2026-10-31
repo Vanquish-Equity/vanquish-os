@@ -62,10 +62,15 @@ and Home says My tasks needs the migration.
   assigns pages to sections (a page not listed there is drawn at the end of
   System, and a test fails until it is listed); `WORKSPACE_NAV` in
   `src/lib/auth/permissions.ts` keeps the labels and permissions. CRM and Work
-  start open; Boards, Fund and System start collapsed (the admin sidebar then
-  fits 900 px of height) with a visible chevron. Clicking a heading toggles
-  it (not persisted across a reload), except the section holding the current
-  page. Collapsed, every item shows as an icon with a thin rule between
+  start open together with Boards; Fund and System start collapsed, with a
+  visible chevron. Clicking a heading toggles it and the choice is saved per
+  member in a cookie (`vq_sidebar_<hash>_sec`, read on the server so there is
+  no flash), except that the section holding the current page is always open.
+  Headings are at least 36 px tall (44 px in the mobile drawer). "CRM boards"
+  is always listed; with more than 5 boards the sidebar shows the first 5
+  (plus the one being viewed) and an "All boards (N)" row. At 900 px tall
+  nothing scrolls with up to 3 boards; with many boards the list scrolls
+  inside the sidebar (thin visible scrollbar). Collapsed, every item shows as an icon with a thin rule between
   sections.
 - **Home, Notifications, Chat and Overview** render as a labeled 2 x 2 block
   above the sections (expanded desktop sidebar, or the mobile drawer), with
@@ -84,7 +89,9 @@ and Home says My tasks needs the migration.
   (`/pipeline?new=1`), New person (`/people?new=1`), New task
   (`/tasks?new=1`), New email draft (`/communications/new`) and New message
   (`/chat/new`, hidden until chat exists). `?new=1` opens that page's existing
-  modal. Not offered: New company (only exists inside New deal) and Gmail
+  modal (`openOnNewParam`, `useOpenOnNewParam`), also while already on the
+  page, and is then removed from the URL (replace) so reload, Back and Forward
+  do not reopen it. Not offered: New company (only exists inside New deal) and Gmail
   compose (no URL entry). Texts live in `PALETTE_TEXT` / `NEW_MENU_TEXT`.
 
 ## Entrance (after a new sign-in only)

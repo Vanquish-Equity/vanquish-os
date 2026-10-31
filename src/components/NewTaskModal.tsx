@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
+import { useOpenOnNewParam } from "@/lib/ui/use-open-on-new";
 import { createPortal } from "react-dom";
 import { createTaskAction } from "@/lib/tasks/actions";
 import SelectMenu, { type SelectMenuOption } from "@/components/SelectMenu";
@@ -49,6 +50,7 @@ export default function NewTaskModal({
   members,
   currentUserEmail,
   initialOpen = false,
+  openOnNewParam = false,
 }: {
   companies: Option[];
   deals: { id: string; name: string; company_id: string }[];
@@ -62,6 +64,9 @@ export default function NewTaskModal({
   currentUserEmail?: string;
   // Open right away (e.g. "New task" from Home).
   initialOpen?: boolean;
+  // Pages reached from the "+ New" menu set this: <page>?new=1 opens the
+  // dialog (also while already on the page) and is then removed from the URL.
+  openOnNewParam?: boolean;
 }) {
   const router = useRouter();
   const firstInputRef = useRef<HTMLInputElement | null>(null);
@@ -71,6 +76,7 @@ export default function NewTaskModal({
     ? { ...emptyForm, assigneeEmail: defaultAssignee, companyId: link.companyId, dealId: link.dealId }
     : { ...emptyForm, assigneeEmail: defaultAssignee };
   const [open, setOpen] = useState(initialOpen);
+  useOpenOnNewParam(openOnNewParam, () => setOpen(true));
   // The dialog is portaled to document.body, which only exists in the
   // browser; with initialOpen it must wait until after hydration.
   const mounted = useSyncExternalStore(

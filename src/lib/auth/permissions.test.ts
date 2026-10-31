@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { can, toPermissionSet, visibleNav, WORKSPACE_NAV, type AccessState } from "./permissions";
-import { NAV_SECTIONS, QUICK_LINK_HREFS } from "./nav-sections";
+import { NAV_SECTIONS, parseSectionState, QUICK_LINK_HREFS, sectionIsOpen, serializeSectionState } from "./nav-sections";
 import { callbackUrl, SIGN_IN_PROVIDERS } from "./providers";
 
 const memberA: AccessState = {
@@ -77,16 +77,38 @@ describe("area permissions", () => {
     expect([...listed].sort()).toEqual([...rest].sort());
   });
 
-  it("keeps a member's top level short and puts administration last", () => {
-    const sectionsFor = (permissions: string[]) => {
+  it("keeps the default sidebar short for a member and puts administration last", () => {
+    const shownByDefault = (permissions: string[]) => {
       const hrefs = new Set(visibleNav(WORKSPACE_NAV, toPermissionSet(permissions)).map((item) => item.href));
-      return NAV_SECTIONS.filter((section) => section.hrefs.some((href) => hrefs.has(href)));
+      const sections = NAV_SECTIONS.filter((section) => section.hrefs.some((href) => hrefs.has(href)));
+      const open = sections.filter((section) => sectionIsOpen(section, {}));
+      return {
+        groups: sections.length,
+        items: open.flatMap((section) => section.hrefs.filter((href) => hrefs.has(href))),
+      };
     };
-    for (const permissions of [[], ["portfolio", "documents"], ["admin", "portfolio", "documents"]]) {
-      expect(QUICK_LINK_HREFS.length + sectionsFor(permissions).length).toBeLessThanOrEqual(12);
-    }
+    const member = shownByDefault([]);
+    expect(member.groups + QUICK_LINK_HREFS.length).toBeLessThanOrEqual(9);
+    expect(member.items.length).toBeLessThanOrEqual(12);
+    expect(member.items).not.toContain("/governance");
+    expect(member.items).not.toContain("/portfolio");
+    expect(member.items).toContain("/boards");
+    expect(shownByDefault(["admin", "portfolio", "documents"]).items.length).toBeLessThanOrEqual(13);
     expect(NAV_SECTIONS[NAV_SECTIONS.length - 1].key).toBe("system");
     expect(NAV_SECTIONS[0].hrefs.slice(0, 3)).toEqual(["/pipeline", "/companies", "/people"]);
+  });
+
+  it("opens CRM, Work and Boards by default and saves the member's choice", () => {
+    expect(NAV_SECTIONS.filter((section) => section.defaultOpen).map((section) => section.key)).toEqual(["crm", "work", "boards"]);
+    const state = parseSectionState("fund:1,crm:0,bogus:1,work:x");
+    expect(state).toEqual({ fund: true, crm: false });
+    expect(serializeSectionState(state)).toBe("crm:0,fund:1");
+    const fund = NAV_SECTIONS.find((section) => section.key === "fund")!;
+    expect(sectionIsOpen(fund, {})).toBe(false);
+    expect(sectionIsOpen(fund, state)).toBe(true);
+    const crm = NAV_SECTIONS.find((section) => section.key === "crm")!;
+    expect(sectionIsOpen(crm, state)).toBe(false);
+    expect(sectionIsOpen(crm, state, true)).toBe(true);
   });
 });
 

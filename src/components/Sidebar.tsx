@@ -6,12 +6,12 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import NavIcon from "@/components/NavIcon";
 import type { NavIcon as NavIconName } from "@/lib/auth/permissions";
-import { NAV_SECTIONS, QUICK_LINK_HREFS, type NavSection } from "@/lib/auth/nav-sections";
+import { BOARDS_VISIBLE_LIMIT, NAV_SECTIONS, QUICK_LINK_HREFS, sectionIsOpen, serializeSectionState, type NavSection } from "@/lib/auth/nav-sections";
 import { requestIntroReplay, SIDEBAR_COOKIE_MAX_AGE_SECONDS } from "@/lib/ui/entrance";
 import { playUiSound, setSoundPref, useSoundPref } from "@/lib/ui/sound";
 import { useUnreadCounts } from "@/components/UnreadCounts";
 
-export type SidebarNavItem = { href: string; label: string; icon: NavIconName; badge?: "chat" | "notifications"; child?: boolean };
+export type SidebarNavItem = { href: string; label: string; icon: NavIconName; badge?: "chat" | "notifications"; child?: boolean; extra?: boolean };
 
 // Sections of the sidebar live in src/lib/auth/nav-sections.ts. An item
 // belongs to the section listing its href; Boards also owns every individual
@@ -26,14 +26,21 @@ const NAV_TEXT = {
   quickLinks: "Quick links",
   showSection: (label: string) => `Show ${label}`,
   hideSection: (label: string) => `Hide ${label}`,
+  allBoards: (count: number) => `All boards (${count})`,
 };
 
-function sectionItems(section: NavSection, items: SidebarNavItem[]) {
+function sectionItems(section: NavSection, items: SidebarNavItem[], activeHref = "") {
   const listed = section.hrefs
     .map((href) => items.find((item) => item.href === href))
     .filter((item): item is SidebarNavItem => Boolean(item));
   if (section.key !== "boards") return listed;
-  return [...listed, ...items.filter((item) => item.href.startsWith("/boards/"))];
+  const boards = items.filter((item) => item.href.startsWith("/boards/"));
+  if (boards.length <= BOARDS_VISIBLE_LIMIT) return [...listed, ...boards];
+  // Many boards: the first few, the one being viewed, and a link to the rest.
+  const shown = boards.slice(0, BOARDS_VISIBLE_LIMIT);
+  const current = boards.find((item) => isActive(activeHref, item.href));
+  if (current && !shown.includes(current)) shown.push(current);
+  return [...listed, ...shown, { href: "/boards", label: NAV_TEXT.allBoards(boards.length), icon: "boards" as const, extra: true }];
 }
 
 // The member's saved name as written; otherwise their email's local part
@@ -102,6 +109,8 @@ function SidebarBody({
   activeHref,
   onNavigate,
   collapsed,
+  sectionState,
+  onToggleSection,
   onToggleCollapsed,
   onOpenDrawer,
   onCloseDrawer,
@@ -115,6 +124,8 @@ function SidebarBody({
   activeHref: string;
   onNavigate: (href: string) => void;
   collapsed: boolean;
+  sectionState: Record<string, boolean>;
+  onToggleSection: (key: string, open: boolean) => void;
   onToggleCollapsed?: () => void;
   onOpenDrawer?: () => void;
   onCloseDrawer?: () => void;
@@ -126,9 +137,8 @@ function SidebarBody({
   const pathname = usePathname();
   const [profileOpen, setProfileOpen] = useState(false);
   const [warm, setWarm] = useState<string | null>(null);
-  // Sections start open (rows are compact enough to fit); a member can
-  // close any section except the one holding the current page.
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  // Open/closed sections come from the Sidebar (saved in a cookie); a member
+  // can close any section except the one holding the current page.
   const profileRef = useRef<HTMLDivElement>(null);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -175,7 +185,7 @@ function SidebarBody({
   const name = displayNameFor(userEmail, displayName);
 
   function NavLink({ item, grid = false, nested = false }: { item: SidebarNavItem; grid?: boolean; nested?: boolean }) {
-    const active = isActive(activeHref, item.href);
+    const active = !item.extra && isActive(activeHref, item.href);
     const count = item.badge ? unread[item.badge] : 0;
     const text = item.label;
     const tone = active
@@ -212,7 +222,7 @@ function SidebarBody({
         onFocus={(event) => { placeTip(event); if (WARM_ON_HOVER.has(item.href)) setWarm(item.href); }}
         onTouchStart={() => { if (WARM_ON_HOVER.has(item.href)) setWarm(item.href); }}
         aria-current={active ? "page" : undefined}
-        className={`group relative flex h-8 items-center gap-2.5 rounded-md text-[13px] transition-colors ${FOCUS} ${
+        className={`group relative flex h-8 items-center md:h-7 gap-2.5 rounded-md text-[13px] transition-colors ${FOCUS} ${
           grid ? "min-w-0 justify-start gap-1.5 px-1.5 text-[11.5px]" : center
         } ${active ? "font-medium" : ""} ${tone}`}
       >
@@ -243,12 +253,12 @@ function SidebarBody({
   const unlisted = navItems.filter((item) => !QUICK_LINK_HREFS.includes(item.href) && !sectioned.has(item.href) && !item.href.startsWith("/boards/"));
   const sections = NAV_SECTIONS.map((section) => ({
     ...section,
-    items: [...sectionItems(section, navItems), ...(section.key === "system" ? unlisted : [])],
+    items: [...sectionItems(section, navItems, activeHref), ...(section.key === "system" ? unlisted : [])],
   })).filter((section) => section.items.length > 0);
 
   return (
     <>
-      <div className={`mb-5 flex items-center gap-2 ${byMode(mode, { rail: "flex-col", full: "justify-between pl-2.5", responsive: "flex-col md:flex-row md:justify-between md:pl-2.5" })}`}>
+      <div className={`mb-4 flex items-center gap-2 ${byMode(mode, { rail: "flex-col", full: "justify-between pl-2.5", responsive: "flex-col md:flex-row md:justify-between md:pl-2.5" })}`}>
         <Link href="/home" onClick={() => onNavigate("/home")} className={`rounded-md ${FOCUS}`}>
           <span className="sr-only">Vanquish OS home</span>
           <span className={byMode(mode, { rail: "hidden", full: "block", responsive: "hidden md:block" })}>
@@ -306,7 +316,7 @@ function SidebarBody({
 
       {iconRowItems.length > 0 && (
         <>
-          <div role="group" aria-label={NAV_TEXT.quickLinks} className={`mb-4 grid-cols-[2fr_3fr] gap-0.5 rounded-lg bg-white/[0.03] p-0.5 ${byMode(mode, { rail: "hidden", full: "grid", responsive: "hidden md:grid" })}`}>
+          <div role="group" aria-label={NAV_TEXT.quickLinks} className={`mb-3 grid-cols-[2fr_3fr] gap-0.5 rounded-lg bg-white/[0.03] p-0.5 ${byMode(mode, { rail: "hidden", full: "grid", responsive: "hidden md:grid" })}`}>
             {iconRowItems.map((item) => (
               <NavLink key={item.href} item={item} grid />
             ))}
@@ -319,21 +329,21 @@ function SidebarBody({
         </>
       )}
 
-      <nav aria-label="Workspace" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <nav aria-label="Workspace" className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto [scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin]">
         {sections.map((section) => {
           const holdsActive = section.items.some((item) => isActive(activeHref, item.href));
-          const open = (openSections[section.key] ?? section.defaultOpen) || holdsActive;
+          const open = sectionIsOpen(section, sectionState, holdsActive);
           const listId = `vq-nav-${section.key}`;
           return (
             <div key={section.key} className="flex flex-col gap-px">
               <button
                 type="button"
-                onClick={() => setOpenSections((value) => ({ ...value, [section.key]: !open }))}
+                onClick={() => onToggleSection(section.key, !open)}
                 aria-expanded={open}
                 aria-controls={listId}
                 title={open ? NAV_TEXT.hideSection(section.label) : NAV_TEXT.showSection(section.label)}
                 disabled={holdsActive}
-                className={`group mb-0.5 h-6 items-center gap-1 rounded-md px-2.5 text-left text-[11px] font-medium text-neutral-500 transition hover:text-neutral-200 disabled:cursor-default disabled:hover:text-neutral-500 ${FOCUS} ${wide}`}
+                className={`group mb-0.5 items-center gap-1 ${byMode(mode, { rail: "min-h-9", full: "min-h-11", responsive: "min-h-9" })} rounded-md px-2.5 text-left text-[11px] font-medium text-neutral-500 transition hover:text-neutral-200 disabled:cursor-default disabled:hover:text-neutral-500 ${FOCUS} ${wide}`}
               >
                 {section.label}
                 {!holdsActive && (
@@ -355,7 +365,7 @@ function SidebarBody({
         })}
       </nav>
 
-      <div className="mt-3 border-t border-white/[0.06] pt-3">
+      <div className="mt-2 border-t border-white/[0.06] pt-2">
         <div className={`flex items-center gap-1 ${byMode(mode, { rail: "flex-col", full: "", responsive: "flex-col md:flex-row" })}`}>
           <div ref={profileRef} className="relative min-w-0 flex-1">
             <button
@@ -417,6 +427,7 @@ export default function Sidebar({
   navItems,
   initialCollapsed,
   preferenceCookie,
+  initialSections = {},
 }: {
   userEmail: string;
   displayName: string | null;
@@ -426,11 +437,14 @@ export default function Sidebar({
   // Read from this member's cookie on the server, so there is no flash.
   initialCollapsed: boolean;
   preferenceCookie: string;
+  // Open/closed sections this member chose, read from their cookie.
+  initialSections?: Record<string, boolean>;
 }) {
   const pathname = usePathname();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [sectionState, setSectionState] = useState(initialSections);
   const menuButtonRef = useRef<HTMLDivElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const activeHref = pendingHref || pathname;
@@ -440,6 +454,13 @@ export default function Sidebar({
     setCollapsed(next);
     const secure = window.location.protocol === "https:" ? "; Secure" : "";
     document.cookie = `${preferenceCookie}=${next ? "1" : "0"}; Path=/; Max-Age=${SIDEBAR_COOKIE_MAX_AGE_SECONDS}; SameSite=Lax${secure}`;
+  }
+
+  function toggleSection(key: string, open: boolean) {
+    const next = { ...sectionState, [key]: open };
+    setSectionState(next);
+    const secure = window.location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `${preferenceCookie}_sec=${serializeSectionState(next)}; Path=/; Max-Age=${SIDEBAR_COOKIE_MAX_AGE_SECONDS}; SameSite=Lax${secure}`;
   }
 
   function navigate(href: string) {
@@ -482,6 +503,8 @@ export default function Sidebar({
             activeHref={activeHref}
             onNavigate={navigate}
             collapsed={collapsed}
+            sectionState={sectionState}
+            onToggleSection={toggleSection}
             onToggleCollapsed={toggleCollapsed}
             onOpenDrawer={() => setDrawerOpen(true)}
           />
@@ -507,6 +530,8 @@ export default function Sidebar({
               activeHref={activeHref}
               onNavigate={navigate}
               collapsed={false}
+              sectionState={sectionState}
+              onToggleSection={toggleSection}
               onCloseDrawer={() => setDrawerOpen(false)}
               closeRef={closeRef}
             />

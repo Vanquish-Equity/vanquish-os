@@ -46,8 +46,8 @@ Calendar, Review) plus Document intake (Documents permission). Integration
 health and Workspace governance (admin) sit in System, the last section;
 there is no "More". Sidebar labels equal the page's h1. Every item has a
 distinct icon (LP follow-up and LP fundraising no longer share one), so the
-collapsed rail is unambiguous. Fund and System (and Boards) start collapsed so
-the admin sidebar fits 900 px tall; a collapsed heading shows a chevron.
+collapsed rail is unambiguous. Fund and System start collapsed so
+the admin sidebar fits 900 px tall with a few boards (a collapsed heading shows a chevron; the open/closed choice is saved per member).
 Permission filtering still happens on the server.
 
 Card helpers preserve shadow/isolation/border visuals but apply relative
