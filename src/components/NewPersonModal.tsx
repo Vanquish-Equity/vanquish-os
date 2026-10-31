@@ -34,15 +34,18 @@ export default function NewPersonModal({
   companies,
   defaultPotentialLp = false,
   label = "New Person",
+  initialOpen = false,
 }: {
   companies: Option[];
   // Opened from the Potential LPs view: the new person is an LP by default.
   defaultPotentialLp?: boolean;
   label?: string;
+  // Opens the dialog on load (the "+ New" menu links to /people?new=1).
+  initialOpen?: boolean;
 }) {
   const router = useRouter();
   const firstInputRef = useRef<HTMLInputElement | null>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
   const initialForm = { ...emptyForm, isPotentialLp: defaultPotentialLp };
   const [values, setValues] = useState<FormValues>(initialForm);
   const [nameError, setNameError] = useState<string | null>(null);

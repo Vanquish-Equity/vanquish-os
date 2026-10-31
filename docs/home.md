@@ -73,6 +73,20 @@ and Home says My tasks needs the migration.
   vertical icon list with tooltips. `QUICK_LINK_HREFS` in
   `src/lib/auth/nav-sections.ts` controls which items get this treatment.
 
+## Top bar: search palette and "+ New"
+
+- **⌘K / Ctrl+K** lists "Go to <page>" first, for the pages in the member's
+  own sidebar only (`navCommands` in `src/lib/search/palette.ts`, built on the
+  server with the sidebar's permission filter; areas without permission are
+  never sent to the browser), then the record results (People, Companies,
+  Deals, notes, documents, tasks). An empty query lists every page.
+- **+ New** (next to the search and the bell) offers New deal
+  (`/pipeline?new=1`), New person (`/people?new=1`), New task
+  (`/tasks?new=1`), New email draft (`/communications/new`) and New message
+  (`/chat/new`, hidden until chat exists). `?new=1` opens that page's existing
+  modal. Not offered: New company (only exists inside New deal) and Gmail
+  compose (no URL entry). Texts live in `PALETTE_TEXT` / `NEW_MENU_TEXT`.
+
 ## Entrance (after a new sign-in only)
 
 1. `/auth/callback` (every real sign-in: Google or email link) sets a

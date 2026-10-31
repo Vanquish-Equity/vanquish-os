@@ -98,6 +98,7 @@ export default function NewDealModal({
   rounds,
   companies = [],
   fixedCompany,
+  initialOpen = false,
 }: {
   industries: Option[];
   stages: Option[];
@@ -108,11 +109,13 @@ export default function NewDealModal({
   companies?: NewDealCompanyOption[];
   // Creates the deal for this company without asking for it again.
   fixedCompany?: Option;
+  // Opens the dialog on load (the "+ New" menu links to /pipeline?new=1).
+  initialOpen?: boolean;
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const firstInputRef = useRef<HTMLInputElement | null>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
   const [values, setValues] = useState(() => buildInitialForm(stages, fixedCompany));
   const [query, setQuery] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});

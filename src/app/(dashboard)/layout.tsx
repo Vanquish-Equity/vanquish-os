@@ -12,6 +12,7 @@ import { loadUnreadCounts } from "@/lib/chat/queries";
 import { createClient } from "@/lib/supabase/server";
 import { requireMember } from "@/lib/auth/access";
 import { personProfileState } from "@/lib/people/profile-access";
+import { navCommands } from "@/lib/search/palette";
 import { visibleNav, WORKSPACE_NAV } from "@/lib/auth/permissions";
 import { entranceBootScript, introCookieName, sidebarCookieName } from "@/lib/ui/entrance";
 import { noticeMask, notificationCookieName, notificationKinds } from "@/lib/settings/preferences";
@@ -73,7 +74,7 @@ export default async function DashboardLayout({
             ])}
         />
         <div className="flex min-w-0 flex-1 flex-col">
-          <WorkspaceTopBar personProfiles={profiles.open} />
+          <WorkspaceTopBar personProfiles={profiles.open} commands={navCommands(access.permissions, { chatAvailable: unread.available })} />
           <main className="vq-page min-h-0 min-w-0 flex-1 overflow-auto">{children}</main>
         </div>
       </div>
