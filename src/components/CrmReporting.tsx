@@ -75,7 +75,7 @@ export default function CrmReporting({
           ]}
         />
         <a
-          className="mt-4 inline-flex min-h-11 items-center rounded border px-4 focus-visible:outline-2"
+          className="mt-4 inline-flex min-h-11 items-center rounded-full border border-neutral-200 px-4 py-2 text-[12px] font-semibold text-ink transition hover:border-cyan-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400"
           href={`/api/reporting/export?resource=${resource}`}
         >
           Download CSV
@@ -106,7 +106,7 @@ export default function CrmReporting({
         <label className="block">
           Week starting Monday (UTC)
           <input
-            className="my-2 block min-h-11 max-w-full rounded border p-2"
+            className="my-2 block min-h-11 max-w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-cyan-400"
             type="date"
             value={week}
             max={today}
@@ -117,7 +117,7 @@ export default function CrmReporting({
           />
         </label>
         <button
-          className="min-h-11 rounded border px-4 disabled:opacity-50"
+          className="min-h-11 rounded-full border border-neutral-200 px-4 py-2 text-[12px] font-semibold text-ink transition hover:border-cyan-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400 disabled:opacity-40"
           disabled={busy || !enabled}
           onClick={() =>
             startTransition(async () => {
@@ -189,7 +189,7 @@ export default function CrmReporting({
             <label>
               As of (UTC)
               <input
-                className="block min-h-11 w-full min-w-0 rounded border p-2"
+                className="block min-h-11 w-full min-w-0 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-cyan-400"
                 type="date"
                 value={asOf}
                 max={today}
@@ -198,7 +198,7 @@ export default function CrmReporting({
             </label>
           </div>
           <button
-            className="mt-4 min-h-11 rounded border px-4 disabled:opacity-50"
+            className="mt-4 min-h-11 rounded-full border border-neutral-200 px-4 py-2 text-[12px] font-semibold text-ink transition hover:border-cyan-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400 disabled:opacity-40"
             disabled={busy || !fund || !basis}
             onClick={() =>
               startTransition(async () => {

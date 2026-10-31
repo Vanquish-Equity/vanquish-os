@@ -90,7 +90,7 @@ export default function GlobalSearch() {
           <path d="m13.5 13.5 3.5 3.5" strokeLinecap="round" />
         </svg>
         <span className="hidden flex-1 truncate text-left sm:inline">Search people, companies, deals</span>
-        <kbd className="hidden rounded border border-neutral-200 px-1 text-[10px] font-semibold text-neutral-400 sm:inline">⌘K</kbd>
+        <kbd className="hidden rounded-md border border-neutral-200 px-1 text-[10px] font-semibold text-neutral-400 sm:inline">⌘K</kbd>
       </button>
 
       {open && (
