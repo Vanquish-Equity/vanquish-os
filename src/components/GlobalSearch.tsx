@@ -17,7 +17,9 @@ const KIND_LABEL: Record<SearchResult["kind"], string> = {
 // ⌘K / Ctrl+K (or the button) opens a dialog that searches People,
 // Companies and Deals as you type. Arrow keys move, Enter opens, Escape
 // closes.
-export default function GlobalSearch() {
+// Person results open the profile page only when it exists (personProfiles);
+// otherwise they filter People by name, as before.
+export default function GlobalSearch({ personProfiles = false }: { personProfiles?: boolean }) {
   const router = useRouter();
   const listId = useId();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -71,7 +73,7 @@ export default function GlobalSearch() {
   function go(result: SearchResult | undefined) {
     if (!result) return;
     close();
-    router.push(result.href);
+    router.push(result.kind === "person" && personProfiles ? `/people/${result.id}` : result.href);
   }
 
   const tooShort = query.trim().length < SEARCH_MIN_LENGTH;

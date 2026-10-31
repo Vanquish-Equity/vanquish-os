@@ -135,9 +135,16 @@ beforeEach(() => {
   });
 });
 afterEach(() => vi.useRealTimers());
-const renderNetwork = async () =>
+const renderNetworkRaw = async () =>
   renderToStaticMarkup(
     await NetworkPage({ searchParams: Promise.resolve({ q: "Synthetic" }) }),
+  );
+// The contact name links to its profile once the profile page exists (flag
+// on); that is the only intended difference from the flag-off markup.
+const renderNetwork = async () =>
+  (await renderNetworkRaw()).replace(
+    /href="\/people\/[0-9a-f-]{36}"/,
+    'href="/people?q=Synthetic%20contact"',
   );
 const renderCompany = async () =>
   renderToStaticMarkup(
@@ -164,6 +171,13 @@ describe("Phase 4 remains additive to existing pages", () => {
       expect(mocks.section).not.toHaveBeenCalled();
     },
   );
+  it("Network links a contact to its profile only when the profile page opens", async () => {
+    expect(await renderNetworkRaw()).toContain('href="/people?q=Synthetic%20contact"');
+    mocks.state.enabled = true;
+    const html = await renderNetworkRaw();
+    expect(html).toMatch(/href="\/people\/[0-9a-f-]{36}"/);
+    expect(html).not.toContain('href="/people?q=Synthetic%20contact"');
+  });
   it("Network preserves company links, search, warm paths and all 200-contact/10k-row limits", async () => {
     mocks.state.enabled = true;
     const html = await renderNetwork();

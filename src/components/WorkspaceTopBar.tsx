@@ -12,13 +12,13 @@ export function showsTopBar(pathname: string) {
   return !(pathname === "/chat" || pathname.startsWith("/chat/") || pathname === "/notifications");
 }
 
-export default function WorkspaceTopBar() {
+export default function WorkspaceTopBar({ personProfiles = false }: { personProfiles?: boolean }) {
   const pathname = usePathname();
   const { available } = useUnreadCounts();
   if (!showsTopBar(pathname)) return null;
   return (
     <div className="flex h-12 flex-shrink-0 items-center justify-end gap-2 border-b border-neutral-100 bg-white px-4 sm:px-7" data-topbar>
-      <GlobalSearch />
+      <GlobalSearch personProfiles={personProfiles} />
       {available && <NotificationBell />}
     </div>
   );
