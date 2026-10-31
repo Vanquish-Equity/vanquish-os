@@ -1,0 +1,7 @@
+do $$begin
+ if to_regclass('private.customization_configuration') is not null or to_regclass('public.crm_task_templates') is not null or to_regprocedure('public.customization_state()') is not null then raise exception '6B rollback left schema';end if;
+ if exists(select 1 from private.vt_ci_baseline b where b.permission_check is distinct from (select pg_get_constraintdef(oid) from pg_constraint where conrelid='public.member_permissions'::regclass and contype='c') or b.view_check is distinct from (select pg_get_constraintdef(oid) from pg_constraint where conrelid='public.saved_views'::regclass and conname='saved_views_object_type_check') or b.view_hash is distinct from (select md5(coalesce(jsonb_agg(to_jsonb(v) order by id)::text,'')) from public.saved_views v) or b.view_grants is distinct from (select relacl::text from pg_class where oid='public.saved_views'::regclass) or b.checklist_grants is distinct from (select relacl::text from pg_class where oid='public.crm_board_item_checklist_items'::regclass)) then raise exception '6B changed baseline CHECKs/views/grants';end if;
+ if to_regprocedure('public.custom_field_set_value(uuid,uuid,integer,uuid,boolean,text,numeric,date,boolean,uuid,uuid[])') is null or to_regprocedure('private.require_worker_identity()') is null then raise exception '6B rollback damaged prerequisites';end if;
+end$$;
+-- DROP: disposable snapshot only.
+drop table private.vt_ci_baseline;

@@ -223,3 +223,17 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/tests/custom_fields_rollback_assert.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/calendar_completion.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/auth_worker_identity.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261028190337_custom_fields.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/views_templates_rollback_snapshot.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261030210635_views_templates.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/views_templates.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261030210635_views_templates.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/views_templates.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/views_templates_read_only.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/views_templates_explain.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/views_templates_rollback_guard.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/phase-sql/phase-6b-rollback.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/phase-sql/phase-6b-rollback.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/views_templates_rollback_assert.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/custom_fields.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/auth_worker_identity.sql > /dev/null

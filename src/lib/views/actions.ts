@@ -22,6 +22,7 @@ export async function saveViewAction(input: {
   const accessError = await actionAccessError();
   if (accessError) return { ok: false, message: accessError };
 
+  if (!input.filters || typeof input.filters !== "object" || "version" in input.filters) return { ok: false, message: "Use the versioned view editor." };
   const name = input.name.trim();
   if (!name || name.length > 80) {
     return { ok: false, message: "Name a view between 1 and 80 characters." };
