@@ -41,12 +41,20 @@ export default async function PersonRelationshipPage({
   }
   return (
     <main className="min-w-0 space-y-4 px-4 py-6 sm:px-7">
-      <Link
-        className="inline-flex min-h-11 items-center text-sm text-cyan-800"
-        href="/network"
-      >
-        Back to Network
-      </Link>
+      <div className="flex flex-wrap gap-x-5">
+        <Link
+          className="inline-flex min-h-11 items-center text-sm text-cyan-800"
+          href="/people"
+        >
+          Back to People
+        </Link>
+        <Link
+          className="inline-flex min-h-11 items-center text-sm text-cyan-800"
+          href="/network"
+        >
+          Back to Network
+        </Link>
+      </div>
       <header>
         <h1 className="text-[23px] font-semibold">{person.name}</h1>
         <p className="text-sm text-neutral-500">{person.title}</p>

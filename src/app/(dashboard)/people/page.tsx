@@ -1,6 +1,8 @@
 import { customizationState } from "@/lib/customization/state";
 import ViewsPanel from "@/components/customization/ViewsPanel";
 import { readCustomFieldsState } from "@/lib/custom-fields/state";
+import { personProfileState } from "@/lib/people/profile-access";
+import { personProfileHref } from "@/lib/people/profile-link";
 import CustomFieldsGate from "@/components/custom-fields/CustomFieldsGate";
 import CustomFieldFilter from "@/components/custom-fields/CustomFieldFilter";
 import { Suspense } from "react";
@@ -147,6 +149,7 @@ export default async function PeoplePage({
   ]);
   endTimer();
 
+  const profileOpen = (await personProfileState()).open;
   const rows = people ?? [];
   // Both per-row signals cost a Google round trip, so they only run when
   // their column is visible and the list is small enough (see
@@ -196,6 +199,7 @@ export default async function PeoplePage({
             companies={companies ?? []}
             defaultPotentialLp={showLps}
             label={showLps ? "Add potential LP" : "New Person"}
+            openOnNewParam
           />
         </div>
       </header>
@@ -266,7 +270,13 @@ export default async function PeoplePage({
                       {initials(p.name)}
                     </div>
                     <div>
-                      <div className="font-semibold text-ink">{p.name}</div>
+                      <div className="font-semibold text-ink">
+                        {personProfileHref(p.id, profileOpen) ? (
+                          <Link href={`/people/${p.id}`} className="hover:text-cyan-700 hover:underline">{p.name}</Link>
+                        ) : (
+                          p.name
+                        )}
+                      </div>
                       {p.title && (
                         <div className="text-[11px] text-neutral-500">{p.title}</div>
                       )}

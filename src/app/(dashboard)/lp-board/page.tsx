@@ -1,5 +1,5 @@
-import Link from "next/link";
 import LpBoard from "@/components/LpBoard";
+import SectionLinks from "@/components/SectionLinks";
 import { requireMember } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/server";
 
@@ -27,7 +27,11 @@ export default async function LpBoardPage({ searchParams }: { searchParams: Prom
   ]);
   if (columns.error || cards.error || shares.error || directory.error) throw new Error("Could not load LP board data.");
   return <div className="px-7 py-6">
-    <nav className="mb-4 flex flex-wrap gap-4 text-sm text-cyan-800">{member.permissions.has("lp_scouting") && <Link href="/lp-scouting">Private LP scouting</Link>}{member.permissions.has("portfolio") && <Link href="/portfolio/fundraising">Fundraising & LP 360</Link>}</nav>
+    <div className="mb-4"><SectionLinks label="LP areas" links={[
+      { href: "/lp-board", label: "LP follow-up", current: true },
+      ...(member.permissions.has("lp_scouting") ? [{ href: "/lp-scouting", label: "Private LP scouting" }] : []),
+      ...(member.permissions.has("portfolio") ? [{ href: "/portfolio/fundraising", label: "Fundraising & LP 360" }] : []),
+    ]} /></div>
     <LpBoard
       key={board.id}
       board={board}

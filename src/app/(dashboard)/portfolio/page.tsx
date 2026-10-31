@@ -1,5 +1,6 @@
 import Link from "next/link";
 import RestrictedArea from "@/components/RestrictedArea";
+import SectionLinks from "@/components/SectionLinks";
 import { hasPermission } from "@/lib/auth/access";
 import {
   labelForFundingStatus,
@@ -137,10 +138,19 @@ export default async function PortfolioPage({
         <h1 className="font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">
           Portfolio
         </h1>
-        <Link href="/portfolio/monitoring" className="mt-2 inline-block text-[12px] font-semibold text-cyan-800">KPI monitoring & reports →</Link>
         <p className="mt-1 text-[13px] text-neutral-500">
           Investments, vehicles, investors and legal document health.
         </p>
+        <div className="mt-3">
+          <SectionLinks
+            label="Portfolio areas"
+            links={[
+              { href: "/portfolio", label: "Holdings", current: true },
+              { href: "/portfolio/monitoring", label: "KPI monitoring & reports" },
+              { href: "/portfolio/fundraising", label: "LP fundraising" },
+            ]}
+          />
+        </div>
       </header>
 
       <div className="vq-card-static flex flex-wrap items-center gap-2 rounded-[14px] bg-white px-3 py-2">

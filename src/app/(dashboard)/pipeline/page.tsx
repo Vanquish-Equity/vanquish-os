@@ -231,6 +231,7 @@ export default async function PipelinePage({
           stages={stages}
           priorities={priorities}
           rounds={rounds}
+          openOnNewParam
         />
       </header>
 

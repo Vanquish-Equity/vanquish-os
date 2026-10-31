@@ -69,6 +69,12 @@ const PATHS: Record<NavIconName | "collapse" | "expand" | "signout" | "sound-on"
       <path d="m17.5 13.5 1 2.1 2.3.3-1.7 1.6.4 2.3-2-1.1-2 1.1.4-2.3-1.7-1.6 2.3-.3z" />
     </>
   ),
+  fundraising: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 6.8v10.4M14.6 9.4c-.6-.8-1.5-1.2-2.6-1.2-1.4 0-2.5.8-2.5 1.9 0 2.6 5 1.3 5 3.9 0 1.1-1.1 1.9-2.5 1.9-1.1 0-2-.4-2.6-1.2" />
+    </>
+  ),
   chevron: <path d="m9 6 6 6-6 6" />,
   companies: (
     <>

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
+import { useOpenOnNewParam } from "@/lib/ui/use-open-on-new";
 import { createDealAction, type CreateDealInput } from "@/lib/deals/actions";
 import { dealHref } from "@/lib/deals/scope";
 import { findCompanyMatches } from "@/lib/companies/matching";
@@ -98,6 +99,8 @@ export default function NewDealModal({
   rounds,
   companies = [],
   fixedCompany,
+  initialOpen = false,
+  openOnNewParam = false,
 }: {
   industries: Option[];
   stages: Option[];
@@ -108,11 +111,24 @@ export default function NewDealModal({
   companies?: NewDealCompanyOption[];
   // Creates the deal for this company without asking for it again.
   fixedCompany?: Option;
+  // Opens the dialog on load (the "+ New" menu links to /pipeline?new=1).
+  initialOpen?: boolean;
+  // Pages reached from the "+ New" menu set this: <page>?new=1 opens the
+  // dialog (also while already on the page) and is then removed from the URL.
+  openOnNewParam?: boolean;
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const firstInputRef = useRef<HTMLInputElement | null>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initialOpen);
+  // The dialog is portaled to document.body, which only exists in the
+  // browser; with initialOpen it must wait until after hydration.
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
+  useOpenOnNewParam(openOnNewParam, () => setOpen(true));
   const [values, setValues] = useState(() => buildInitialForm(stages, fixedCompany));
   const [query, setQuery] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
@@ -476,7 +492,7 @@ export default function NewDealModal({
         New Deal
       </button>
 
-      {open &&
+      {open && mounted &&
         createPortal(
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-ink/25 px-4 py-6"

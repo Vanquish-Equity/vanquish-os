@@ -50,9 +50,9 @@ type TaskView = "all" | "mine" | "unassigned";
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; view?: string; new?: string }>;
+  searchParams: Promise<{ status?: string; view?: string }>;
 }) {
-  const { status, view: viewParam, new: openNew } = await searchParams;
+  const { status, view: viewParam } = await searchParams;
   const view: TaskView = viewParam === "mine" || viewParam === "unassigned" ? viewParam : "all";
   const access = await requireMember();
   const supabase = await createClient();
@@ -164,7 +164,7 @@ export default async function TasksPage({
           priorities={priorities}
           members={rowMembers}
           currentUserEmail={access.email}
-          initialOpen={openNew === "1"}
+          openOnNewParam
         />
       </header>
 

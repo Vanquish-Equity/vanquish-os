@@ -11,6 +11,9 @@ import RelationshipAutoSync from "@/components/RelationshipAutoSync";
 import { loadUnreadCounts } from "@/lib/chat/queries";
 import { createClient } from "@/lib/supabase/server";
 import { requireMember } from "@/lib/auth/access";
+import { personProfileState } from "@/lib/people/profile-access";
+import { navCommands } from "@/lib/search/palette";
+import { parseSectionState } from "@/lib/auth/nav-sections";
 import { visibleNav, WORKSPACE_NAV } from "@/lib/auth/permissions";
 import { entranceBootScript, introCookieName, sidebarCookieName } from "@/lib/ui/entrance";
 import { noticeMask, notificationCookieName, notificationKinds } from "@/lib/settings/preferences";
@@ -31,7 +34,7 @@ export default async function DashboardLayout({
   const noticeKinds = notificationKinds(noticePreference);
   // Unread chat messages and notifications (0 until migration 0018 exists).
   const supabase = await createClient();
-  const [unread, { data: boards }, avatarUrl] = await Promise.all([
+  const [unread, { data: boards }, avatarUrl, profiles] = await Promise.all([
     loadUnreadCounts(supabase, access.email, noticeKinds),
     supabase.from("crm_boards").select("id,name").is("archived_at", null).order("created_at"),
     // The avatar path already came with the access lookup; signing runs in
@@ -42,6 +45,9 @@ export default async function DashboardLayout({
           .createSignedUrl(access.avatarPath, 3600)
           .then(({ data }) => data?.signedUrl ?? null)
       : Promise.resolve(null),
+    // Whether /people/[id] opens (it 404s with both flags off), so search
+    // only links to a profile that exists.
+    personProfileState(),
   ]);
 
   return (
@@ -60,6 +66,7 @@ export default async function DashboardLayout({
           displayName={access.displayName ?? null}
           avatarUrl={avatarUrl}
           initialCollapsed={collapsed}
+          initialSections={parseSectionState(cookieStore.get(`${preferenceCookie}_sec`)?.value)}
           preferenceCookie={preferenceCookie}
           navItems={visibleNav(WORKSPACE_NAV, access.permissions)
             .filter((item) => unread.available || !item.badge)
@@ -69,7 +76,7 @@ export default async function DashboardLayout({
             ])}
         />
         <div className="flex min-w-0 flex-1 flex-col">
-          <WorkspaceTopBar />
+          <WorkspaceTopBar personProfiles={profiles.open} commands={navCommands(access.permissions, { chatAvailable: unread.available })} />
           <main className="vq-page min-h-0 min-w-0 flex-1 overflow-auto">{children}</main>
         </div>
       </div>

@@ -49,22 +49,50 @@ and Home says My tasks needs the migration.
   part in title case (`marios` → `Marios`), with the email underneath.
   Settings, Replay intro and Sign out are in its menu.
 - Items sit under explicit sections, each drawn as one block so an item can
-  never appear under the wrong heading: **CRM** (Pipeline, Companies,
-  People, LP follow-up, Reporting), **Boards** (All boards, then each board indented on
-  a guide line), **Work** (Tasks, Calendar, Communications, Review) and
-  **Fund** (Portfolio, only with that permission). `NAV_SECTIONS` in
-  `src/components/Sidebar.tsx` is the single place that assigns pages to
-  sections; a page not listed there appears under **More**. Sections start
-  open; clicking a heading closes it (not persisted across a reload), except
-  the section holding the current page. Collapsed, every item shows as an
-  icon with a thin rule between sections.
-- **Home, Notifications, Chat and Overview** render as one horizontal row
-  of icon-only buttons (each still keeps its accessible name, badge and
-  tooltip) instead of four separate labeled rows, whenever labels would
-  otherwise show (expanded desktop sidebar, or the mobile drawer). Collapsed
-  or on a narrow screen, they fall back to the normal vertical icon list,
-  matching the rest of the nav. `ICON_ROW_HREFS` in
-  `src/components/Sidebar.tsx` controls which items get this treatment.
+  never appear under the wrong heading, in order of daily use: **CRM**
+  (Pipeline, Companies, People, Network, LP follow-up, CRM reporting),
+  **Work** (Tasks, Action center, Communications, Calendar, Review, and
+  Document intake with the Documents permission), **Boards** (CRM boards,
+  then each board indented on a guide line), **Fund** (Portfolio and LP
+  fundraising, only with the Portfolio permission) and **System**
+  (Integration health, and Workspace governance for admins). There is no
+  "More". Sidebar names equal the page's h1 (Action center, Document intake,
+  Workspace governance, CRM reporting, CRM boards).
+  `NAV_SECTIONS` in `src/lib/auth/nav-sections.ts` is the single place that
+  assigns pages to sections (a page not listed there is drawn at the end of
+  System, and a test fails until it is listed); `WORKSPACE_NAV` in
+  `src/lib/auth/permissions.ts` keeps the labels and permissions. CRM and Work
+  start open together with Boards; Fund and System start collapsed, with a
+  visible chevron. Clicking a heading toggles it and the choice is saved per
+  member in a cookie (`vq_sidebar_<hash>_sec`, read on the server so there is
+  no flash), except that the section holding the current page is always open.
+  Headings are at least 36 px tall (44 px in the mobile drawer). "CRM boards"
+  is always listed; with more than 5 boards the sidebar shows the first 5
+  (plus the one being viewed) and an "All boards (N)" row. At 900 px tall
+  nothing scrolls with up to 3 boards; with many boards the list scrolls
+  inside the sidebar (thin visible scrollbar). Collapsed, every item shows as an icon with a thin rule between
+  sections.
+- **Home, Notifications, Chat and Overview** render as a labeled 2 x 2 block
+  above the sections (expanded desktop sidebar, or the mobile drawer), with
+  their badges. Collapsed or on a narrow screen, they fall back to the normal
+  vertical icon list with tooltips. `QUICK_LINK_HREFS` in
+  `src/lib/auth/nav-sections.ts` controls which items get this treatment.
+
+## Top bar: search palette and "+ New"
+
+- **⌘K / Ctrl+K** lists "Go to <page>" first, for the pages in the member's
+  own sidebar only (`navCommands` in `src/lib/search/palette.ts`, built on the
+  server with the sidebar's permission filter; areas without permission are
+  never sent to the browser), then the record results (People, Companies,
+  Deals, notes, documents, tasks). An empty query lists every page.
+- **+ New** (next to the search and the bell) offers New deal
+  (`/pipeline?new=1`), New person (`/people?new=1`), New task
+  (`/tasks?new=1`), New email draft (`/communications/new`) and New message
+  (`/chat/new`, hidden until chat exists). `?new=1` opens that page's existing
+  modal (`openOnNewParam`, `useOpenOnNewParam`), also while already on the
+  page, and is then removed from the URL (replace) so reload, Back and Forward
+  do not reopen it. Not offered: New company (only exists inside New deal) and Gmail
+  compose (no URL entry). Texts live in `PALETTE_TEXT` / `NEW_MENU_TEXT`.
 
 ## Entrance (after a new sign-in only)
 
