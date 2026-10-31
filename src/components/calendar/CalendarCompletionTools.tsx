@@ -7,6 +7,7 @@ import {
 } from "@/lib/google/calendar-completion-actions";
 import {
   availabilityWindow,
+  zoneLabel,
   formatBusy,
   formatDayRange,
   formatInstant,
@@ -24,8 +25,9 @@ const T = {
   resultTitle: "Busy times on your selected calendars",
   zoneNote: (zone: string) =>
     `Times shown in ${zone}. Only busy/free is shown, never event details.`,
-  tooLong:
-    "Showing the first 31 days of this period. Choose a shorter period to see the rest.",
+  tooLong: (n: number) =>
+    `Showing the first ${n} days of this period. Choose a shorter period to see the rest.`,
+  taskOverlay: "Task overlay",
   noBusy: "No busy times in this period.",
   calendar: (n: number) => `Calendar ${n}`,
   busyCount: (n: number) => (n === 1 ? "1 busy time" : `${n} busy times`),
@@ -77,9 +79,10 @@ export default function CalendarCompletionTools({
     [overlay, setOverlay] = useState(false),
     [status, setStatus] = useState(""),
     [busy, setBusy] = useState<BusyResult[]>([]),
-    [checked, setChecked] = useState<{ from: string; until: string } | null>(
-      null,
-    ),
+    [checked, setChecked] = useState<ReturnType<
+      typeof availabilityWindow
+    > | null>(null),
+    [tasksFailed, setTasksFailed] = useState(false),
     [error, setError] = useState(""),
     [errorDetail, setErrorDetail] = useState(""),
     [pending, setPending] = useState<"" | "tasks" | "availability">("");
@@ -91,6 +94,7 @@ export default function CalendarCompletionTools({
       setBusy([]);
       setChecked(null);
       setStatus("");
+      setTasksFailed(false);
       setError("");
       setErrorDetail("");
       setOverlay(false);
@@ -101,6 +105,7 @@ export default function CalendarCompletionTools({
     setTasks([]);
     onTasks([]);
     setStatus("");
+    setTasksFailed(false);
     if (!value) return;
     try {
       const r = await calendarTaskOverlay(from, until);
@@ -108,8 +113,12 @@ export default function CalendarCompletionTools({
         setTasks(r.data.tasks);
         onTasks(r.data.tasks);
         setStatus(r.data.partial ? T.tasksPartial : T.tasksNote);
-      } else setStatus(r.message || T.tasksError);
+      } else {
+        setTasksFailed(true);
+        setStatus(r.message || T.tasksError);
+      }
     } catch {
+      setTasksFailed(true);
       setStatus(T.tasksError);
     }
   }
@@ -118,16 +127,12 @@ export default function CalendarCompletionTools({
     setChecked(null);
     setError("");
     setErrorDetail("");
-    const win = availabilityWindow(from, until);
+    const win = availabilityWindow(from, until, zone);
     try {
-      const r = await calendarAvailability(
-        ids,
-        from + "T00:00:00Z",
-        win.endIso,
-      );
+      const r = await calendarAvailability(ids, win.startIso, win.endIso);
       if (r.ok) {
         setBusy(r.data);
-        setChecked({ from, until });
+        setChecked(win);
       } else {
         setError(T.error);
         setErrorDetail(r.message || "");
@@ -136,7 +141,6 @@ export default function CalendarCompletionTools({
       setError(T.error);
     }
   }
-  const win = availabilityWindow(from, until);
   const results = busy.map((c, i) => ({
     c,
     n: i + 1,
@@ -145,7 +149,6 @@ export default function CalendarCompletionTools({
       midnight: T.midnight,
     }),
   }));
-  const zoneLabel = zone.replace(/_/g, " ");
   const loadingAvailability = pending === "availability";
   return (
     <section
@@ -207,7 +210,7 @@ export default function CalendarCompletionTools({
       </div>
       {overlay && (
         <div
-          aria-label="Task overlay"
+          aria-label={T.taskOverlay}
           className="mt-3 grid gap-2 sm:grid-cols-2"
         >
           {pending === "tasks" && (
@@ -224,7 +227,7 @@ export default function CalendarCompletionTools({
               <p className="break-words font-semibold text-ink">{t.title}</p>
             </article>
           ))}
-          {!tasks.length && pending !== "tasks" && (
+          {!tasks.length && pending !== "tasks" && !tasksFailed && (
             <p className="text-neutral-500">{T.tasksEmpty}</p>
           )}
         </div>
@@ -250,13 +253,13 @@ export default function CalendarCompletionTools({
           <h4 className="text-[13px] font-bold text-ink">
             {T.resultTitle} ·{" "}
             <span className="whitespace-nowrap">
-              {formatDayRange(checked.from, win.lastDay)}
+              {formatDayRange(checked.firstDay, checked.lastDay)}
             </span>
           </h4>
-          <p className="mt-1 text-neutral-500">{T.zoneNote(zoneLabel)}</p>
-          {win.clipped && (
+          <p className="mt-1 text-neutral-500">{T.zoneNote(zoneLabel(zone, Date.parse(checked.startIso)))}</p>
+          {checked.clipped && (
             <p className="mt-2 rounded-xl bg-[#f0fafb] px-3 py-2 text-cyan-800">
-              {T.tooLong}
+              {T.tooLong(checked.days)}
             </p>
           )}
           <div className="mt-3 grid gap-3">

@@ -5,6 +5,7 @@ import {
   formatDayRange,
   formatInstant,
   mergeIntervals,
+  zoneLabel,
 } from "./format-busy";
 
 const iv = (start: string, end: string) => ({ start, end });
@@ -144,17 +145,90 @@ describe("formatBusy", () => {
 });
 
 describe("window and range helpers", () => {
-  it("keeps the previous 31-day clipping", () => {
-    const w = availabilityWindow("2026-09-27", "2026-11-08");
-    expect(w.endIso).toBe("2026-10-28T00:00:00.000Z");
+  it("queries local midnight to local midnight in Costa Rica (no DST), clipped to 31 days", () => {
+    const w = availabilityWindow("2026-09-27", "2026-11-08", "America/Costa_Rica");
+    expect(w.startIso).toBe("2026-09-27T06:00:00.000Z");
+    expect(w.endIso).toBe("2026-10-28T06:00:00.000Z");
     expect(w.clipped).toBe(true);
+    expect(w.firstDay).toBe("2026-09-27");
     expect(w.lastDay).toBe("2026-10-27");
+    expect(w.days).toBe(31);
+    const s = availabilityWindow("2026-09-27", "2026-10-04", "America/Costa_Rica");
+    expect(s).toMatchObject({ endIso: "2026-10-04T06:00:00.000Z", clipped: false, lastDay: "2026-10-03", days: 7 });
   });
-  it("does not clip short ranges", () => {
-    const w = availabilityWindow("2026-09-27", "2026-10-04");
-    expect(w.clipped).toBe(false);
-    expect(w.endIso).toBe("2026-10-04T00:00:00.000Z");
-    expect(w.lastDay).toBe("2026-10-03");
+  it("covers the whole local day at both ends in New York across the fall change", () => {
+    const w = availabilityWindow("2026-10-25", "2026-11-03", "America/New_York");
+    expect(w.startIso).toBe("2026-10-25T04:00:00.000Z"); // EDT midnight
+    expect(w.endIso).toBe("2026-11-03T05:00:00.000Z"); // EST midnight
+    expect(w).toMatchObject({ clipped: false, lastDay: "2026-11-02", days: 9 });
+  });
+  it("drops a partial last day when the 31 x 24 h limit cuts through it (fall change)", () => {
+    const w = availabilityWindow("2026-10-04", "2026-12-01", "America/New_York");
+    // 744 h after Oct 4 EDT midnight is Nov 3 23:00 EST: partial, so the window ends at Nov 3 00:00.
+    expect(w.endIso).toBe("2026-11-03T05:00:00.000Z");
+    expect(w).toMatchObject({ clipped: true, lastDay: "2026-11-02", days: 30 });
+    expect(Date.parse(w.endIso) - Date.parse(w.startIso)).toBeLessThanOrEqual(31 * 86_400_000);
+  });
+  it("handles the spring change in New York (31 local days are 743 h)", () => {
+    const w = availabilityWindow("2026-03-01", "2026-04-15", "America/New_York");
+    expect(w.startIso).toBe("2026-03-01T05:00:00.000Z");
+    expect(w.endIso).toBe("2026-04-01T04:00:00.000Z"); // EDT midnight Apr 1
+    expect(w).toMatchObject({ clipped: true, lastDay: "2026-03-31", days: 31 });
+    expect(Date.parse(w.endIso) - Date.parse(w.startIso)).toBeLessThanOrEqual(31 * 86_400_000);
+  });
+  it("uses Tokyo and Sydney local midnights (Sydney DST starts 2026-10-04)", () => {
+    expect(availabilityWindow("2026-09-27", "2026-10-04", "Asia/Tokyo")).toMatchObject({
+      startIso: "2026-09-26T15:00:00.000Z",
+      endIso: "2026-10-03T15:00:00.000Z",
+      lastDay: "2026-10-03",
+    });
+    expect(availabilityWindow("2026-10-01", "2026-10-08", "Australia/Sydney")).toMatchObject({
+      startIso: "2026-09-30T14:00:00.000Z",
+      endIso: "2026-10-07T13:00:00.000Z",
+      lastDay: "2026-10-07",
+      days: 7,
+    });
+  });
+  it("falls back to UTC for an empty or invalid zone", () => {
+    for (const z of ["", "Not/AZone"]) {
+      expect(availabilityWindow("2026-09-27", "2026-10-04", z)).toMatchObject({
+        startIso: "2026-09-27T00:00:00.000Z",
+        endIso: "2026-10-04T00:00:00.000Z",
+      });
+      expect(zoneLabel(z)).toBe("UTC");
+    }
+  });
+  it("the labelled days match what is shown: window edges land on firstDay and lastDay", () => {
+    for (const zone of ["America/Costa_Rica", "America/New_York", "Asia/Tokyo", "Australia/Sydney"]) {
+      const w = availabilityWindow("2026-09-27", "2026-10-04", zone);
+      const start = Date.parse(w.startIso);
+      const end = Date.parse(w.endIso);
+      const r = formatBusy(
+        [
+          { start: new Date(start).toISOString(), end: new Date(start + 3_600_000).toISOString() },
+          { start: new Date(end - 3_600_000).toISOString(), end: new Date(end).toISOString() },
+        ],
+        zone,
+      );
+      expect(r.days[0].key).toBe(w.firstDay);
+      expect(r.days[r.days.length - 1].key).toBe(w.lastDay);
+    }
+  });
+  it("labels zones readably", () => {
+    const oct = Date.parse("2026-10-01T12:00:00Z");
+    expect(zoneLabel("America/New_York", oct)).toBe("Eastern Daylight Time");
+    expect(zoneLabel("America/New_York", Date.parse("2026-12-01T12:00:00Z"))).toBe("Eastern Standard Time");
+    expect(zoneLabel("America/Costa_Rica", oct)).toBe("Central Standard Time");
+    expect(zoneLabel("UTC")).toBe("UTC");
+  });
+  it("disambiguates the repeated hour on a DST fall-back day", () => {
+    // 1:30 AM EDT (05:30Z) to 1:30 AM EST (06:30Z) on 2026-11-01 in New York
+    const r = formatBusy([iv("2026-11-01T05:30:00Z", "2026-11-01T06:30:00Z")], "America/New_York");
+    expect(labels(r)).toEqual(["Sun, Nov 1: 1:30 AM EDT – 1:30 AM EST"]);
+    // Ordinary times on the same day stay plain.
+    expect(labels(formatBusy([iv("2026-11-01T15:00:00Z", "2026-11-01T16:00:00Z")], "America/New_York"))).toEqual([
+      "Sun, Nov 1: 10:00–11:00 AM",
+    ]);
   });
   it("formats day ranges", () => {
     expect(formatDayRange("2026-09-27", "2026-11-07")).toBe("Sep 27 – Nov 7");

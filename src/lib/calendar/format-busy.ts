@@ -81,6 +81,70 @@ function dayBounds(ms: number, zone: string): [number, number] {
   return [start, hi];
 }
 
+/** UTC offset (ms, positive east) in force at `ms`. */
+function offsetOf(ms: number, zone: string): number {
+  const parts = dtf("en-US", {
+    timeZone: zone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+  }).formatToParts(new Date(ms));
+  const g = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  return (
+    Date.UTC(g("year"), g("month") - 1, g("day"), g("hour"), g("minute"), g("second")) -
+    Math.floor(ms / 1000) * 1000
+  );
+}
+
+/** True when this wall-clock time happens twice (DST fall-back repeated hour). */
+function isRepeated(ms: number, zone: string): boolean {
+  const o = offsetOf(ms, zone);
+  const local = ms + o;
+  for (const d of [-3 * HOUR, -HOUR, HOUR, 3 * HOUR]) {
+    const o2 = offsetOf(ms + d, zone);
+    if (o2 === o) continue;
+    const other = local - o2;
+    if (other !== ms && offsetOf(other, zone) === o2) return true;
+  }
+  return false;
+}
+
+function zoneAbbr(ms: number, zone: string, locale: string): string {
+  return (
+    dtf(locale, { timeZone: zone, timeZoneName: "short" })
+      .formatToParts(new Date(ms))
+      .find((p) => p.type === "timeZoneName")?.value ?? ""
+  );
+}
+
+/** Readable zone name for the viewer, e.g. "Eastern Daylight Time"; "UTC" for UTC or an invalid zone. */
+export function zoneLabel(zone: string, at: number = Date.now(), locale = "en-US"): string {
+  const tz = safeZone(zone);
+  if (tz === "UTC") return "UTC";
+  const name = dtf(locale, { timeZone: tz, timeZoneName: "long" })
+    .formatToParts(new Date(at))
+    .find((p) => p.type === "timeZoneName")?.value;
+  return name || tz.replace(/_/g, " ");
+}
+
+/** Instant of 00:00 local time on calendar day `key` (YYYY-MM-DD) in `zone`. */
+export function localMidnight(key: string, zone: string): number {
+  const tz = safeZone(zone);
+  const base = Date.parse(key + "T00:00:00Z");
+  let lo = base - 30 * HOUR; // earlier day
+  let hi = base + 30 * HOUR; // later day
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (dayKeyOf(mid, tz) >= key) hi = mid;
+    else lo = mid;
+  }
+  return hi;
+}
+
 /** Sorts, drops invalid/empty intervals and merges overlapping or touching ones. */
 export function mergeIntervals(busy: BusyInterval[]): [number, number][] {
   const list = busy
@@ -132,7 +196,17 @@ export function formatBusy(
         const endsAtMidnight = pe === de;
         const a = clock(cur, tz, locale);
         const b = clock(pe, tz, locale);
-        if (!startsAtMidnight && !endsAtMidnight && a.period && a.period === b.period)
+        const repeated =
+          (!startsAtMidnight && isRepeated(cur, tz)) ||
+          (!endsAtMidnight && isRepeated(pe, tz));
+        // A wall-clock time that happens twice (DST fall-back) gets its zone abbreviation.
+        const tag = (ms: number, t: string) =>
+          repeated ? `${t} ${zoneAbbr(ms, tz, locale)}` : t;
+        if (repeated)
+          label = `${startsAtMidnight ? words.midnight : tag(cur, a.text)} – ${
+            endsAtMidnight ? words.midnight : tag(pe, b.text)
+          }`;
+        else if (!startsAtMidnight && !endsAtMidnight && a.period && a.period === b.period)
           label = `${a.core}–${b.text}`;
         else
           label = `${startsAtMidnight ? words.midnight : a.text} – ${
@@ -184,20 +258,34 @@ export function formatInstant(iso: string, zone: string, locale = "en-US"): stri
 
 const DAY_MS = 86_400_000;
 /**
- * Same window the server call has always used: from 00:00 UTC of `from`
- * up to the earlier of `until` and 31 days later. Also reports whether it was
- * shortened and the last day covered, so the UI can describe it in plain words.
+ * Window to query, in the viewer's zone: local midnight of `from` up to local
+ * midnight of `until` (exclusive), never more than 31 x 24 h (the server limit).
+ * When the limit cuts through a local day, the window is shortened to the last
+ * whole local day so the labelled days are exactly the days that were checked.
  */
-export function availabilityWindow(from: string, until: string) {
-  const startMs = Date.parse(from + "T00:00:00Z");
-  const untilMs = Date.parse(until + "T00:00:00Z");
-  const endMs = Math.min(untilMs, startMs + 31 * DAY_MS);
+export function availabilityWindow(from: string, until: string, zone = "UTC") {
+  const tz = safeZone(zone);
+  const startMs = localMidnight(from, tz);
+  const untilMs = localMidnight(until, tz);
+  const cap = startMs + 31 * DAY_MS;
+  let endMs = Math.min(untilMs, cap);
+  const clipped = untilMs > cap;
+  if (clipped) {
+    const [dayStart, nextStart] = dayBounds(endMs - 1, tz);
+    if (endMs < nextStart) endMs = dayStart; // drop the partial last day
+  }
+  const lastDay = dayKeyOf(Math.max(startMs, endMs - 1), tz);
   return {
+    startIso: new Date(startMs).toISOString(),
     endIso: new Date(endMs).toISOString(),
-    clipped: untilMs > startMs + 31 * DAY_MS,
-    lastDay: new Date(Math.max(startMs, endMs - DAY_MS))
-      .toISOString()
-      .slice(0, 10),
+    clipped,
+    firstDay: from,
+    lastDay,
+    /** Number of local days actually covered. */
+    days:
+      Math.round(
+        (Date.parse(lastDay + "T00:00:00Z") - Date.parse(from + "T00:00:00Z")) / DAY_MS,
+      ) + 1,
   };
 }
 
