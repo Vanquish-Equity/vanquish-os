@@ -14,10 +14,21 @@ import {
   type Definition,
 } from "./spec";
 import { customizationState } from "./state";
+import { loadSavedViews, viewHref } from "@/lib/views/queries";
+import {
+  loadPipelineSavedViews,
+  pipelineViewHref,
+} from "@/lib/views/pipeline-queries";
 const fail = {
   ok: false as const,
   message:
     "Customization paused, changed or unavailable. Reload and check access.",
+};
+export type LegacyView = {
+  id: string;
+  name: string;
+  owner: string;
+  href: string;
 };
 export async function loadViews(kind: ViewObject) {
   try {
@@ -48,6 +59,27 @@ export async function loadViews(kind: ViewObject) {
       .order("sort_order")
       .order("id")
       .limit(10);
+    // Earlier saved filters (v0) stay as they are; they are only listed here so
+    // the view menu can link to them. A failure here never blocks v1 views.
+    let legacy: LegacyView[] = [];
+    try {
+      legacy =
+        kind === "people"
+          ? (await loadSavedViews(db, "people")).map((v) => ({
+              id: v.id,
+              name: v.name,
+              owner: v.owner,
+              href: viewHref("/people", v.filters),
+            }))
+          : (await loadPipelineSavedViews(db)).map((v) => ({
+              id: v.id,
+              name: v.name,
+              owner: v.owner,
+              href: pipelineViewHref(v.filters),
+            }));
+    } catch {
+      legacy = [];
+    }
     // CF paused/missing is a supported degradation; no archived field names are returned.
     return {
       ok: true as const,
@@ -61,6 +93,7 @@ export async function loadViews(kind: ViewObject) {
         "options"
       >[],
       limited: (views.data?.length ?? 0) === 50,
+      legacy,
     };
   } catch {
     return fail;
@@ -83,7 +116,7 @@ export async function saveView(input: {
     )
       return fail;
     const spec = parseSpec(input.kind, input.spec);
-    const { error } = await (
+    const { data, error } = await (
       await createClient()
     ).rpc("save_customization_view", {
       p_id: input.id,
@@ -92,9 +125,21 @@ export async function saveView(input: {
       p_shared: input.shared,
       p_spec: spec,
     });
-    if (error) return fail;
+    if (error) {
+      // Only the duplicate-name case is told apart; no raw database detail.
+      if (error.code === "23505")
+        return {
+          ok: false as const,
+          message: "You already have a view with that name.",
+          reason: "duplicate" as const,
+        };
+      return fail;
+    }
     revalidatePath(input.kind === "people" ? "/people" : "/pipeline");
-    return { ok: true as const };
+    return {
+      ok: true as const,
+      id: typeof data === "string" && uuid(data) ? data : null,
+    };
   } catch {
     return fail;
   }
