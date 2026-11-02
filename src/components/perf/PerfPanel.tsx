@@ -157,7 +157,6 @@ export default function PerfPanel() {
           ref={trigger}
           type="button"
           aria-expanded={false}
-          aria-controls={titleId}
           onClick={() => setOpen(true)}
           className="rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-800 shadow-sm hover:border-cyan-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400"
         >

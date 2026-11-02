@@ -7,8 +7,15 @@ import { PERF_ENV } from "../perf/config";
 // normal requests never touch it.
 type PerfTimer = (label: PerfLabel, run: () => Promise<Response>) => Promise<Response>;
 async function perfTimer(): Promise<PerfTimer | null> {
-  const { perfCollector } = await import("../perf/request");
-  const collector = await perfCollector();
+  let collector;
+  try {
+    const { perfCollector } = await import("../perf/request");
+    collector = await perfCollector();
+  } catch {
+    // No request context (sync worker, scripts) or the module is unavailable:
+    // measuring is skipped and the Google call is made as usual.
+    return null;
+  }
   if (!collector) return null;
   return async (label, run) => {
     const end = collector.begin(label.kind, label.label);

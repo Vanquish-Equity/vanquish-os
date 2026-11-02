@@ -20,7 +20,10 @@ export function startProxyPerf(request: NextRequest): ProxyPerf | null {
   let claimsMs: number | undefined;
   // Only the proxy decides whether this request is measured; a header sent
   // by the browser is always discarded.
-  const requested = request.nextUrl.searchParams.get(PERF_QUERY) === "1";
+  // Exactly one perf parameter with the value "1": ?perf=true, ?perf=2, an
+  // empty value or a repeated parameter do not count.
+  const values = request.nextUrl.searchParams.getAll(PERF_QUERY);
+  const requested = values.length === 1 && values[0] === "1";
   request.headers.delete(PERF_PROXY_HEADER);
   if (requested) request.headers.set(PERF_REQUEST_HEADER, "1");
   else request.headers.delete(PERF_REQUEST_HEADER);

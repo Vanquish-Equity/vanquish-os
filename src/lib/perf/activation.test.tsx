@@ -148,6 +148,24 @@ describe("proxy half", () => {
     expect(marked.headers.get(PERF_REQUEST_HEADER)).toBe("1");
   });
 
+  it.each([
+    ["?perf=true", false],
+    ["?perf=2", false],
+    ["?perf=", false],
+    ["?perf", false],
+    ["?perf=1&perf=1", false],
+    ["?perf=0&perf=1", false],
+    ["?perf=1&perf=2", false],
+    ["?PERF=1", false],
+    ["?perf=1", true],
+    ["?x=1&perf=1", true],
+  ])("only an exact ?perf=1 marks the request: %s", (query, marked) => {
+    const request = req(`https://app.test/people${query}`, { [PERF_REQUEST_HEADER]: "1" });
+    const perf = startProxyPerf(request)!;
+    expect(request.headers.get(PERF_REQUEST_HEADER)).toBe(marked ? "1" : null);
+    expect(perf.relay(request)).toBe(marked);
+  });
+
   it("relays timings and adds Server-Timing", async () => {
     const request = req("https://app.test/people?perf=1");
     const perf = startProxyPerf(request)!;

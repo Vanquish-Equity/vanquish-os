@@ -25,6 +25,11 @@ A small **Performance** button then appears in the bottom-right corner. Open it,
 read it, press **Copy report** to paste a text summary into a chat, and press
 **Close** (or Escape) when done.
 
+**Warning:** define `VQ_PERF_PANEL` ONLY in the Vercel web project. Never set
+it in the sync worker, GitHub Actions or any other environment. (If it ever
+leaks there, the Google timing hook degrades to "no measuring" and the call is
+made as usual, but it should not be set.)
+
 ## Turn it off
 
 Delete `VQ_PERF_PANEL` (or set it to anything other than `1`) and redeploy.
