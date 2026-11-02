@@ -1,3 +1,4 @@
+import LocalTime from "@/components/LocalTime";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireMember } from "@/lib/auth/access";
@@ -23,7 +24,7 @@ export default async function Page({
     .maybeSingle();
   if (!investor.data) notFound();
   const data = await loadLpData(access.email, id);
-  if (!data) return <div className="p-7">LP records are unavailable.</div>;
+  if (!data) return <div className="p-7">Couldn’t load the LP records. Check that you have access, or ask an admin.</div>;
   const [activity, files] = await Promise.all([
     investor.data.person_id
       ? db
@@ -47,13 +48,14 @@ export default async function Page({
     <>
       <LpFundraising data={data} investorId={id} />
       <section className="mx-auto max-w-6xl space-y-3 px-4 pb-7 sm:px-7">
-        <h2 className="font-semibold">Shared opt-in relationship activity</h2>
+        <h2 className="font-semibold">Shared email and meeting activity</h2>
+        <p className="text-xs text-neutral-500">Only from team members who chose to share it.</p>
         {activity.error ? (
-          <p>Activity unavailable.</p>
+          <p className="text-sm">Couldn&apos;t load this activity. Try again.</p>
         ) : (
           (activity.data ?? []).map((a, i) => (
             <p key={i} className="text-sm">
-              {a.kind} · {a.last_at} · {a.member_email}
+              {a.kind === "meeting" ? "Meeting" : "Email"} · <LocalTime date={a.last_at} mode="day" /> · {a.member_email}
             </p>
           ))
         )}
@@ -67,7 +69,7 @@ export default async function Page({
         {!access.permissions.has("documents") ? (
           <p className="text-sm">Documents permission also required.</p>
         ) : files.error ? (
-          <p>Files unavailable.</p>
+          <p className="text-sm">Couldn&apos;t load the files. Try again.</p>
         ) : (
           <ul className="space-y-2">
             {(files.data ?? []).map((f) => (

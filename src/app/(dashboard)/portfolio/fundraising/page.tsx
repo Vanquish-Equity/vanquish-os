@@ -10,8 +10,8 @@ export default async function Page() {
   if (!data)
     return (
       <div className="p-7">
-        LP fundraising is unavailable. Check the phase 2 schema and current
-        permissions.
+        LP fundraising isn&apos;t available. Check that you have access to it,
+        or ask an admin.
       </div>
     );
   return <LpFundraising data={data} />;

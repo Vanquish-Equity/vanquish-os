@@ -1,3 +1,4 @@
+import { formatDay } from "@/lib/format-datetime";
 import Link from "next/link";
 import RestrictedArea from "@/components/RestrictedArea";
 import { hasPermission } from "@/lib/auth/access";
@@ -445,7 +446,7 @@ export default async function VehiclePage({
             <div key={event.id} className="rounded-xl border border-neutral-100 px-3 py-2.5">
               <div className="text-[12.5px] font-semibold text-ink">
                 {labelForEventType(event.event_type)}
-                {event.event_date ? ` / ${new Date(event.event_date).toLocaleDateString()}` : ""}
+                {event.event_date ? ` / ${formatDay(event.event_date)}` : ""}
               </div>
               <div className="mt-0.5 text-[11.5px] text-neutral-500">
                 {event.description}

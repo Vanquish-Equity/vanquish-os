@@ -1,3 +1,4 @@
+import LocalTime from "@/components/LocalTime";
 import ChangeProposals, { type ChangeProposal, type ChangeTarget } from "@/components/ChangeProposals";
 import ReviewItemActions from "@/components/ReviewItemActions";
 import ScoutingReview, { type ContactRequest, type Suggestion } from "@/components/ScoutingReview";
@@ -114,7 +115,7 @@ export default async function ReviewPage() {
                 </h2>
               </div>
               <div className="text-[11px] text-neutral-400">
-                {new Date(item.created_at).toLocaleDateString()}
+                <LocalTime date={item.created_at} mode="day" />
               </div>
             </div>
 
@@ -163,7 +164,7 @@ export default async function ReviewPage() {
               return (
                 <div key={item.id} className="flex flex-wrap justify-between gap-2 py-2 text-[12px]">
                   <span className="font-medium text-ink">{item.payload.company_name ?? "Review item"}</span>
-                  <span className="text-neutral-500">{action} · {new Date(item.resolved_at ?? item.created_at).toLocaleDateString()}</span>
+                  <span className="text-neutral-500">{action} · <LocalTime date={item.resolved_at ?? item.created_at} mode="day" /></span>
                 </div>
               );
             })}

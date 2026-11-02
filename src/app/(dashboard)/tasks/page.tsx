@@ -186,7 +186,7 @@ export default async function TasksPage({
         </nav>
       ) : (
         <p className="rounded-[14px] border border-neutral-200 bg-[#f7f9fa] px-4 py-3 text-[12.5px] text-neutral-600">
-          Assigning tasks to members needs database migration 0017. Until then, tasks show without an assignee.
+          Assigning tasks to team members isn’t available yet. Until then, tasks show without an assignee.
         </p>
       )}
 

@@ -13,7 +13,7 @@ export default async function LpBoardPage({ searchParams }: { searchParams: Prom
   const member = await requireMember();
   const db = await createClient();
   const { data: ownId, error: ensureError } = await db.rpc("lp_ensure_board");
-  if (ensureError || !ownId) throw new Error("LP boards are unavailable. Apply the personal LP board migration.");
+  if (ensureError || !ownId) throw new Error("Your LP board couldn't be loaded. Try again, or ask an admin.");
   const { data: boards, error: boardError } = await db.from("lp_boards").select("id,owner_email,name,share_scope").order("created_at");
   if (boardError) throw new Error("Could not load LP boards.");
   const requested = (await searchParams).board;

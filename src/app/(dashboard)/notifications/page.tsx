@@ -41,7 +41,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
       <section className="vq-card-static rounded-[14px] bg-white py-2">
         {items === null ? (
           <p className="px-4 py-8 text-center text-[12.5px] text-neutral-500">
-            Notifications are not available yet: database migration 0018 has not been applied.
+            Notifications aren’t available yet. Ask an admin to turn them on.
           </p>
         ) : items.length === 0 ? (
           <div className="px-4 py-10 text-center text-[12.5px] text-neutral-500">

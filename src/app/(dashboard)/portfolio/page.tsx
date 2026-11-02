@@ -1,3 +1,4 @@
+import { formatDay } from "@/lib/format-datetime";
 import Link from "next/link";
 import RestrictedArea from "@/components/RestrictedArea";
 import SectionLinks from "@/components/SectionLinks";
@@ -251,7 +252,7 @@ export default async function PortfolioPage({
                   </td>
                   <td className="px-4 py-3 text-neutral-600">
                     {investment.investment_date
-                      ? new Date(investment.investment_date).toLocaleDateString()
+                      ? formatDay(investment.investment_date)
                       : "-"}
                   </td>
                   <td className="px-4 py-3 text-neutral-600">

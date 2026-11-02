@@ -47,8 +47,8 @@ export default function CustomFieldFilter({ object }: { object: FieldObject }) {
           Custom field matches
         </summary>
         <p className="my-2 text-xs text-neutral-500">
-          One field at a time; up to 100 authorized matches. This does not alter
-          or save the existing list/view.
+          Filter by one field at a time; shows up to 100 matches you can see.
+          This does not change or save your current list or view.
         </p>
         {!defs.length ? (
           <p className="text-sm">No filterable fields configured.</p>
@@ -151,7 +151,7 @@ export default function CustomFieldFilter({ object }: { object: FieldObject }) {
                   value={sort}
                   disabled={pending}
                   options={[
-                    { value: "record", label: "Record ID (stable)" },
+                    { value: "record", label: "Record (by its reference)" },
                     ...(def.field_type !== "multi_select"
                       ? [
                           { value: "value_asc", label: "Value ascending" },
@@ -168,7 +168,7 @@ export default function CustomFieldFilter({ object }: { object: FieldObject }) {
                   disabled={pending}
                   className="min-h-11 rounded-full border px-4 text-sm"
                 >
-                  Find authorized matches
+                  Find matches
                 </button>
               </>
             )}
@@ -187,7 +187,7 @@ export default function CustomFieldFilter({ object }: { object: FieldObject }) {
               </p>
             )}
             {results.length === 0 && (
-              <p className="text-sm">No authorized matches.</p>
+              <p className="text-sm">No matches found.</p>
             )}
             <div className="vq-card-grid space-y-2">
               {results.map((r) => (

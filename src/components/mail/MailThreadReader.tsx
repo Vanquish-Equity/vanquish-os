@@ -1,4 +1,5 @@
 "use client";
+import LocalTime from "@/components/LocalTime";
 import { startTransition } from "react";
 import MailBody from "./MailBody";
 import { button, sender, empty } from "./mail-ui";
@@ -84,7 +85,7 @@ export default function MailThreadReader({
                     </p>
                   </div>
                   <span className="text-[11px] text-neutral-400">
-                    {m.date ? new Date(m.date).toLocaleString() : ""}
+                    {m.date ? <LocalTime date={m.date} mode="stamp" /> : ""}
                   </span>
                 </div>
               </summary>

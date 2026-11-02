@@ -96,7 +96,7 @@ export default function MyTasksCard({
   if (!available) {
     return (
       <p className="text-[12.5px] text-neutral-500">
-        My tasks appear here once tasks can be assigned to members (database migration 0017). Until then, see{" "}
+        My tasks appear here once tasks can be assigned to team members. Until then, see{" "}
         <Link href="/tasks" className="font-semibold text-cyan-700 hover:underline">
           Tasks
         </Link>

@@ -59,8 +59,8 @@ export default async function Page() {
   if (results.some((r) => r.error))
     return (
       <div className="p-7">
-        LP scouting is unavailable. Check the phase 2 schema and your current
-        permission.
+        LP scouting isn&apos;t available. Check that you still have access to
+        it, or ask an admin.
       </div>
     );
   return (

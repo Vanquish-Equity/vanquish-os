@@ -1,4 +1,5 @@
 "use client";
+import { formatDay } from "@/lib/format-datetime";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 import SelectMenu from "@/components/SelectMenu";
 import Checkbox from "@/components/Checkbox";
@@ -58,17 +59,18 @@ export default function RelationshipIntelligence({
       className="vq-card-static min-w-0 rounded-[14px] bg-white p-4 sm:p-5 motion-reduce:[&_*]:animate-none motion-reduce:[&_*]:transition-none"
     >
       <h2 className="text-[15px] font-semibold text-ink">
-        Relationship intelligence · v1
+        Relationship intelligence
       </h2>
       <p className="mt-2 text-[12px] text-neutral-500">
-        Existence and date only. 180-day UTC window. Shared contacts suggest a
-        route to ask about, never a promise of an introduction. Reciprocity:
-        unavailable.
+        Shows only that contact happened and when, never what was said, over the
+        last 180 days. A shared contact suggests who to ask about an
+        introduction; it is not a promise of one. Two-way contact is not
+        measured yet.
       </p>
       {!allowed || unavailable ? (
         <p role="status" className="mt-4 text-sm">
-          Unavailable. Active membership, relationship permission and sharing
-          consent are required.
+          Not available. You need an active membership, relationship access and
+          sharing turned on.
         </p>
       ) : (
         <>
@@ -120,7 +122,7 @@ export default function RelationshipIntelligence({
               }}
             >
               {busy
-                ? "Checking authorized activity…"
+                ? "Checking shared activity…"
                 : "Calculate relationships"}
             </button>
             <label className="flex min-h-11 cursor-pointer items-center gap-2 text-xs">
@@ -138,14 +140,14 @@ export default function RelationshipIntelligence({
           ) : null}
           {optionsPartial && (
             <p className="mt-3 text-xs">
-              Partial selection: up to 50 visible people and 500 sharing
-              members. Open a person record to query that target directly.
+              Showing up to 50 people and 500 members. Open a person&apos;s
+              record to check that person directly.
             </p>
           )}
           {graph?.status === "unavailable" && (
             <p role="status" className="mt-4 text-sm">
-              Unavailable. Access, consent or the feature may have changed.
-              Refresh before trying again.
+              Not available right now. Access or sharing may have changed.
+              Refresh the page and try again.
             </p>
           )}
           {graph && graph.status !== "unavailable" && (
@@ -155,13 +157,13 @@ export default function RelationshipIntelligence({
                   role="status"
                   className="rounded-xl border border-amber-200 bg-amber-50 p-3"
                 >
-                  Partial result: a search, time or 20-path budget was
-                  exhausted. Evidence and scores are lower bounds; omitted paths
-                  may exist.
+                  Partial result: the search stopped early because it reached a
+                  time or size limit. Scores are minimums and some connections
+                  may be missing.
                 </p>
               )}
               <h3 className="font-semibold">
-                Strength for the target · {graph.asOf} UTC
+                Strength for the selected person, as of {formatDay(graph.asOf)}
               </h3>
               {strengths.map((e) => (
                 <article
@@ -170,8 +172,8 @@ export default function RelationshipIntelligence({
                 >
                   <p>
                     {e.memberName}:{" "}
-                    <strong>{relationshipScore(e, graph.asOf!)}/100</strong> ·
-                    v1{result?.partial ? " (lower bound)" : ""}
+                    <strong>{relationshipScore(e, graph.asOf!)}/100</strong> 
+                    {result?.partial ? " (at least)" : ""}
                   </p>
                   <p className="mt-1 text-xs text-neutral-500">
                     {relationshipEvidence(e, graph.asOf!)}
@@ -180,9 +182,9 @@ export default function RelationshipIntelligence({
               ))}
               {!strengths.length && (
                 <p>
-                  Empty: no authorized evidence found in this window
-                  {result?.partial ? " within the search budget" : ""}. A
-                  missing result is not a zero score.
+                  No shared activity found in this period
+                  {result?.partial ? " before the search stopped" : ""}. No
+                  result does not mean a score of zero.
                 </p>
               )}
               <h3 className="font-semibold">
@@ -216,9 +218,9 @@ export default function RelationshipIntelligence({
               ))}
               {!result?.paths.length && (
                 <p>
-                  No authorized route found
+                  No connection found
                   {result?.partial
-                    ? " within the search budget"
+                    ? " before the search stopped"
                     : " in this window"}
                   . This does not establish that no relationship exists.
                 </p>

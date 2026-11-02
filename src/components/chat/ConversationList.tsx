@@ -27,7 +27,7 @@ export default function ConversationList({ items, me }: { items: ConversationLis
   return (
     <div className="flex flex-col">
       <div className="flex items-center justify-between gap-2 border-b border-neutral-100 px-4 py-4">
-        <h1 className="font-[family-name:var(--font-display)] text-[20px] font-semibold tracking-tight text-ink">Chat</h1>
+        <div className="min-w-0"><h1 className="font-[family-name:var(--font-display)] text-[20px] font-semibold tracking-tight text-ink">Chat</h1><p className="text-[12px] text-neutral-500">Talk with other team members.</p></div>
         <Link
           href="/chat/new"
           className="rounded-full bg-ink px-3.5 py-2 text-[12px] font-semibold text-white transition hover:bg-neutral-800"

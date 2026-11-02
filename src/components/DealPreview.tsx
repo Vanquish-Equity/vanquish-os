@@ -1,5 +1,7 @@
 "use client";
 
+import { formatDay } from "@/lib/format-datetime";
+import { formatRelative } from "@/lib/dates";
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import type { PipelineDeal } from "@/components/PipelineColumn";
@@ -32,9 +34,9 @@ export default function DealPreview({ deal, stageName, onClose, members }: { dea
         <div><dt className="text-xs text-neutral-500">Priority</dt><dd className="mt-1 font-semibold text-ink">{deal.priority?.name ?? "—"}</dd></div>
         <div><dt className="text-xs text-neutral-500">Owner</dt><dd className="mt-1 font-semibold text-ink">{deal.owner || "Unassigned"}</dd></div>
         <div><dt className="text-xs text-neutral-500">Potential investment</dt><dd className="mt-1 font-semibold text-ink">{deal.potential_investment == null ? "—" : `$${new Intl.NumberFormat("en-US").format(deal.potential_investment)}`}</dd></div>
-        <div><dt className="text-xs text-neutral-500">Last activity</dt><dd className="mt-1 font-semibold text-ink">{deal.last_activity_at ? new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(deal.last_activity_at)) : "No activity"}</dd></div>
+        <div><dt className="text-xs text-neutral-500">Last activity</dt><dd className="mt-1 font-semibold text-ink">{deal.last_activity_at ? formatRelative(deal.last_activity_at) : "No activity"}</dd></div>
       </dl>
-      <div className="mt-6 rounded-xl border border-neutral-200 p-5"><h3 className="text-sm font-semibold text-ink">Next action</h3><p className="mt-2 text-sm text-neutral-600">{deal.nextAction?.title ?? "No open follow-up for this deal."}</p>{deal.nextAction?.due_at && <p className="mt-1 text-xs text-neutral-500">Due {deal.nextAction.due_at}</p>}</div>
+      <div className="mt-6 rounded-xl border border-neutral-200 p-5"><h3 className="text-sm font-semibold text-ink">Next action</h3><p className="mt-2 text-sm text-neutral-600">{deal.nextAction?.title ?? "No open follow-up for this deal."}</p>{deal.nextAction?.due_at && <p className="mt-1 text-xs text-neutral-500">Due {formatDay(deal.nextAction.due_at.slice(0, 10))}</p>}</div>
       {members && <div className="mt-5"><DealAssigneePicker dealId={deal.id} members={members} initial={deal.assignees ?? []} /></div>}
       <div className="mt-7 flex flex-wrap gap-3 border-t border-neutral-100 pt-5">{deal.company && <><Link href={dealHref(deal.company.id, deal.id)} className="rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-white">Open full deal</Link><Link href={`/companies/${deal.company.id}`} className="rounded-lg border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-700">View company</Link></>}</div>
     </section>

@@ -156,7 +156,7 @@ export default function SettingsPanel({ email, displayName, avatarUrl, profileAv
       <section className={card} aria-labelledby="settings-profile">
         <h2 id="settings-profile" className="text-[15px] font-semibold text-ink">Profile</h2>
         <p className="mt-1 text-[12px] text-neutral-500">Your name appears in Home and the account menu. Your sign-in email cannot be changed here.</p>
-        {!profileAvailable && <p role="status" className="mt-3 rounded-lg bg-amber-50 p-3 text-[12px] text-amber-800">Profile editing will be available after migration 0022 is applied.</p>}
+        {!profileAvailable && <p role="status" className="mt-3 rounded-lg bg-amber-50 p-3 text-[12px] text-amber-800">Profile editing isn’t available yet. Ask an admin to turn it on.</p>}
         <div className="mt-5 flex flex-wrap items-center gap-4">
           <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#182022] text-lg font-semibold text-white">
             {photoUrl ? <Image src={photoUrl} alt="Your profile photo" width={64} height={64} unoptimized className="h-16 w-16 object-cover" /> : label.charAt(0).toUpperCase()}

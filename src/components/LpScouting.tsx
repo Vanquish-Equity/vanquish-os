@@ -3,6 +3,9 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import Checkbox from "./Checkbox";
 import SelectMenu from "./SelectMenu";
+import LocalTime from "./LocalTime";
+import { evidenceLines } from "@/lib/lp-scouting/evidence";
+import { syncErrorLabel, syncServiceLabel, syncStatusLabel } from "@/lib/sync/labels";
 import {
   saveLpScouting,
   scanLpNow,
@@ -10,6 +13,26 @@ import {
   decideLpContact,
   saveLpKeyword,
 } from "@/lib/lp-scouting/actions";
+// User-facing text, grouped so it can be translated later.
+const CONFIDENCE_LABEL: Record<string, string> = {
+  low: "Low confidence",
+  medium: "Medium confidence",
+  high: "High confidence",
+};
+const TEXT = {
+  processNow: "Look for suggestions now",
+  lastScan: "Last checked",
+  never: "Never",
+  scanNote:
+    "A manual check looks at a limited amount of mail and calendar each time. Run it again for more, or leave scouting on and it keeps checking in the background.",
+  confidence: "Confidence is a rule-based label, not an assessment of the investor.",
+  lastSignal: "Last activity",
+  evidence: "Why this was suggested",
+  noEvidence: "No details were saved for this suggestion.",
+  noJobs: "No checks have run yet.",
+  jobsTitle: "Recent checks (latest 20)",
+};
+
 export type LpSuggestion = {
   id: string;
   email: string;
@@ -164,7 +187,7 @@ export default function LpScouting({
             onClick={() => run(scanLpNow)}
             className="rounded-xl border px-4 py-2 disabled:opacity-50"
           >
-            Process one batch now
+            {TEXT.processNow}
           </button>
           <Link
             href="/integrations"
@@ -174,9 +197,13 @@ export default function LpScouting({
           </Link>
         </div>
         <p className="text-xs">
-          Last scan: {settings.last_scanned_at ?? "Never"}. Manual processing
-          handles a bounded batch; remaining work requires another batch or the
-          enabled worker.
+          {TEXT.lastScan}:{" "}
+          {settings.last_scanned_at ? (
+            <LocalTime date={settings.last_scanned_at} mode="stamp" />
+          ) : (
+            TEXT.never
+          )}
+          . {TEXT.scanNote}
         </p>
       </section>
       <p role="status" aria-live="polite" className="text-sm text-cyan-800">
@@ -193,18 +220,26 @@ export default function LpScouting({
             <div className="flex flex-wrap justify-between gap-2">
               <p className="break-all font-semibold">{s.email}</p>
               <span className="text-sm">
-                {s.confidence} · {s.signal_count} signals
+                {CONFIDENCE_LABEL[s.confidence] ?? "Confidence unknown"} · {s.signal_count} {s.signal_count === 1 ? "signal" : "signals"}
               </span>
             </div>
             <p className="text-xs text-neutral-500">
-              Confidence is a rule label, not an investment assessment. Last
-              signal: {s.last_seen_at}
+              {TEXT.confidence} {TEXT.lastSignal}:{" "}
+              <LocalTime date={s.last_seen_at} mode="stamp" />
             </p>
             <details>
-              <summary className="vq-disclosure">Evidence</summary>
-              <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all text-xs">
-                {JSON.stringify(s.evidence, null, 2)}
-              </pre>
+              <summary className="vq-disclosure">{TEXT.evidence}</summary>
+              <ul className="mt-2 max-h-48 space-y-1 overflow-auto text-xs text-neutral-600">
+                {evidenceLines(s.evidence).map((line, index) => (
+                  <li key={index}>
+                    {line.at ? <LocalTime date={line.at} mode="stamp" /> : null}
+                    {line.at ? " · " : ""}
+                    {line.source} · {line.what}
+                    {line.detail ? ` · ${line.detail}` : ""}
+                  </li>
+                ))}
+                {!evidenceLines(s.evidence).length && <li>{TEXT.noEvidence}</li>}
+              </ul>
             </details>
             <div className="grid gap-3 sm:grid-cols-2">
               <label>
@@ -297,11 +332,17 @@ export default function LpScouting({
         ))}
       </section>
       <section className="vq-card-static rounded-[14px] bg-white p-5">
-        <h2 className="font-semibold">Recent scan jobs · latest 20</h2>
+        <h2 className="font-semibold">{TEXT.jobsTitle}</h2>
+        {!jobs.length && <p className="text-sm text-neutral-500">{TEXT.noJobs}</p>}
         {jobs.map((j) => (
           <p key={j.id} className="text-sm">
-            {j.service} · {j.status}
-            {j.error_code ? ` · ${j.error_code}` : ""}
+            {syncServiceLabel(j.service)} · {syncStatusLabel(j.status)}
+            {j.error_code ? (
+              <span title={`Code: ${j.error_code}`}>
+                {" "}
+                · {syncErrorLabel(j.error_code)}
+              </span>
+            ) : null}
           </p>
         ))}
       </section>
@@ -320,8 +361,9 @@ export default function LpScouting({
                   )
                 }
               >
-                {k.phrase} · {k.kind} · {k.strong ? "strong" : "normal"} ·{" "}
-                {k.enabled ? "enabled" : "disabled"}
+                {k.phrase} · {k.kind === "calendar" ? "Calendar" : "Email"} ·{" "}
+                {k.strong ? "Strong match" : "Normal match"} ·{" "}
+                {k.enabled ? "On" : "Off"}
               </button>
             ))}
           </div>

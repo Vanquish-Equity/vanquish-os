@@ -18,7 +18,7 @@ export default async function ChatLayout({ children }: { children: React.ReactNo
       <div className="px-7 py-6">
         <h1 className="font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">Chat</h1>
         <p className="mt-2 max-w-[560px] text-[13px] text-neutral-500">
-          Chat is not available yet: database migration 0018 has not been applied.
+          Chat isn’t available yet. Ask an admin to turn it on.
         </p>
       </div>
     );

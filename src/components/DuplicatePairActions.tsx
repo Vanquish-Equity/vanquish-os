@@ -21,7 +21,7 @@ export default function DuplicatePairActions({
     const result = await work();
     setPending(false);
     if (!result.ok) {
-      setError(result.message ?? "Something went wrong.");
+      setError(result.message ?? "Couldn’t complete that. Try again.");
       return;
     }
     router.refresh();
