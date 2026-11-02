@@ -60,6 +60,8 @@ export default function NewPersonModal({
   const [nameError, setNameError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // Shown after the dialog closes: the person exists, but a step failed.
+  const [warning, setWarning] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -109,6 +111,7 @@ export default function NewPersonModal({
 
     setOpen(false);
     setValues(initialForm);
+    setWarning(result.warning ?? null);
     router.refresh();
   }
 
@@ -121,6 +124,22 @@ export default function NewPersonModal({
       >
         {label}
       </button>
+
+      {warning && (
+        <div
+          role="status"
+          className="fixed bottom-4 right-4 z-40 flex max-w-[360px] items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-[12px] text-amber-900 shadow-lg"
+        >
+          <p>{warning}</p>
+          <button
+            type="button"
+            onClick={() => setWarning(null)}
+            className="flex-shrink-0 font-semibold text-amber-900 hover:underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {open && (
         <div

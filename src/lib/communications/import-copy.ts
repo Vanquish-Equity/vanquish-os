@@ -9,7 +9,9 @@ export function describe(row: AnalyzedRow, options: ImportOptions, groupName: st
     case "invalid":
       return analysis.problems.join(" · ");
     case "repeated":
-      return `Repeated ${row.email ? "email" : "name"}: same as row ${analysis.firstLine}. Only the first one is used.`;
+      return row.email
+        ? `Repeated email: same as row ${analysis.firstLine}. Only the first one is used.`
+        : `Repeated name: same as row ${analysis.firstLine}. Only one of them is imported.`;
     case "unchanged":
       return `Already in People (${analysis.person.name}); nothing to change.`;
     case "update_existing": {
@@ -21,7 +23,13 @@ export function describe(row: AnalyzedRow, options: ImportOptions, groupName: st
     }
     case "archived_match":
       return `This email belongs to ${analysis.person.name}, who is archived in People.`;
+    case "archived_name_match":
+      return "Someone with this name is archived in People. Restore them or create a new person.";
     case "name_match":
+      if (row.status === "skip") {
+        const chosen = analysis.people.find((person) => row.decision === `link:${person.id}`);
+        return `Same person as ${chosen?.name ?? "someone in People"}: nothing to change.`;
+      }
       return row.email
         ? "Someone with this name is already in People without this email."
         : "Someone with this name is already in People.";

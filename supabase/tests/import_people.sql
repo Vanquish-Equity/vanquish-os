@@ -19,14 +19,16 @@ insert into public.people (id, name, is_potential_lp, archived_at) values
   ('dddddddd-0000-0000-0000-000000000001', 'Imp Test Founder', false, null),
   ('dddddddd-0000-0000-0000-000000000002', 'Imp Test Existing LP', true, null),
   ('dddddddd-0000-0000-0000-000000000003', 'Imp Test Archived', false, now()),
-  ('dddddddd-0000-0000-0000-000000000004', 'Imp Test No Email', false, null);
+  ('dddddddd-0000-0000-0000-000000000004', 'Imp Test No Email', false, null),
+  ('dddddddd-0000-0000-0000-000000000005', 'Imp Test Archived By Name', false, now());
 insert into public.person_emails (person_id, email, is_primary) values
   ('dddddddd-0000-0000-0000-000000000001', 'Imp.Founder@Example.com', true),
   ('dddddddd-0000-0000-0000-000000000002', 'imp.lp@example.com', true),
   ('dddddddd-0000-0000-0000-000000000003', 'imp.archived@example.com', true);
 
 insert into public.person_groups (id, name, kind, created_by) values
-  ('dddddddd-0000-0000-0000-0000000000a1', 'Imp Test Family Offices', 'custom', 'pbp@vanquishequity.com');
+  ('dddddddd-0000-0000-0000-0000000000a1', 'Imp Test Family Offices', 'custom', 'pbp@vanquishequity.com'),
+  ('dddddddd-0000-0000-0000-0000000000a2', 'Imp Test Empty Group', 'custom', 'pbp@vanquishequity.com');
 
 create or replace function pg_temp.act_as(p_role text, p_email text)
 returns void language plpgsql as $$
@@ -153,11 +155,45 @@ select pg_temp.expect(
        where m.person_id in ('dddddddd-0000-0000-0000-000000000001', 'dddddddd-0000-0000-0000-000000000002')) = 2,
   'marked people are in the starter Potential LPs group');
 
+-- Archived person with the same name, chosen explicitly: restored, email added.
+select pg_temp.expect(
+  pg_temp.raises($q$select public.import_people('[{"name":"x","email":"imp.arch.new@example.com","person_id":"dddddddd-0000-0000-0000-000000000005"}]'::jsonb)$q$),
+  'an archived person chosen by id is refused unless restore is true');
+select pg_temp.expect(
+  public.import_people('[{"name":"x","email":"imp.arch.new@example.com","person_id":"dddddddd-0000-0000-0000-000000000005","restore":true}]'::jsonb)
+    = '{"created":0,"linked":1,"marked":0,"grouped":0}'::jsonb
+  and (select archived_at is null and not is_potential_lp from public.people where id = 'dddddddd-0000-0000-0000-000000000005'),
+  'restore by id restores the person, adds the email, and does not mark them');
+
 -- Flag and group together.
 select pg_temp.expect(
   public.import_people('[{"name":"Imp Test Both","email":"imp.both@example.com"}]'::jsonb, true, 'dddddddd-0000-0000-0000-0000000000a1')
     = '{"created":1,"linked":0,"marked":0,"grouped":1}'::jsonb,
   'flag and group can be combined');
+
+-- Group counts ---------------------------------------------------------------
+select pg_temp.expect(
+  (select member_count from public.people_group_counts() where group_id = 'dddddddd-0000-0000-0000-0000000000a1') = 5,
+  'counts include the active members of the group');
+select pg_temp.expect(
+  (select member_count from public.people_group_counts() where group_id = 'dddddddd-0000-0000-0000-0000000000a2') = 0,
+  'a group without members is returned with 0');
+reset role;
+-- An archived member is not counted (archived after the fact, as an admin would).
+update public.people set archived_at = now() where name = 'Imp Test Both';
+select pg_temp.act_as('authenticated', 'pbp@vanquishequity.com');
+select pg_temp.expect(
+  (select member_count from public.people_group_counts() where group_id = 'dddddddd-0000-0000-0000-0000000000a1') = 4,
+  'archived people are not counted');
+select pg_temp.expect(
+  (select count(*) from public.people_group_counts()) = (select count(*) from public.person_groups),
+  'one row per group');
+reset role;
+select pg_temp.act_as('anon', null);
+select pg_temp.expect(pg_temp.raises('select * from public.people_group_counts()'), 'anon cannot read counts');
+reset role;
+select pg_temp.act_as('authenticated', 'outsider@example.com');
+select pg_temp.expect(pg_temp.raises('select * from public.people_group_counts()'), 'non-member cannot read counts');
 
 reset role;
 select 'ALL IMPORT PEOPLE TESTS PASSED' as result;

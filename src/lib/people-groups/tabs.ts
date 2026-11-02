@@ -9,23 +9,25 @@ export type PeopleTabGroup = {
   id: string;
   name: string;
   kind: string;
-  // Members that are not archived (the page asks the database for these).
-  memberCount: number;
+  // Members that are not archived; null when the counts could not be loaded
+  // (the tab then shows no number).
+  memberCount: number | null;
 };
 
 export type PeopleTab = {
   key: string; // "all", "lps" or a group id
   label: string;
-  count: number;
+  count: number | null;
   href: string;
   active: boolean;
 };
 
 // Which tab is active, from the URL.
 //   * A group (`?group=<id>`, from a tab or from the Filters group menu)
-//     wins over `?view=lps`: the list shows that group's members, so that
-//     group's tab is the one that is lit. The starter Potential LPs group
-//     lights the Potential LPs tab.
+//     lights that group's tab, also with `?view=lps`. The list is then the
+//     intersection (potential LPs that are in the group), as it always was,
+//     so a saved view that has both keeps its restriction. The starter
+//     Potential LPs group lights the Potential LPs tab.
 //   * `?view=lps` alone lights Potential LPs; nothing lights All people.
 //   * A group id that no longer exists lights no tab (the list is empty).
 export function activeTabKey(
@@ -39,13 +41,6 @@ export function activeTabKey(
     return group.kind === "potential_lp" ? "lps" : group.id;
   }
   return view === "lps" ? "lps" : "all";
-}
-
-// The Potential LPs list is a filter on the potential LP flag, and the page
-// ignores `?view=lps` when a group is chosen, so the effective filter is
-// "LP flag only when no group is chosen".
-export function showsPotentialLps(view: "all" | "lps", groupId: string | null) {
-  return view === "lps" && !groupId;
 }
 
 export function buildPeopleTabs({
@@ -84,20 +79,21 @@ export function buildPeopleTabs({
   ];
 }
 
-type RawGroup = {
-  id: string;
-  name: string;
-  kind: string;
-  person_group_members: { person: { archived_at: string | null } | null }[] | null;
-};
+type RawGroup = { id: string; name: string; kind: string };
+export type GroupCountRow = { group_id: string; member_count: number };
 
-// One query supplies the groups with their members (see people/page.tsx). A
-// member whose person is archived is not counted.
-export function groupsWithCounts(rows: readonly RawGroup[] | null): PeopleTabGroup[] {
+// Groups plus the answer of people_group_counts() (one row per group, archived
+// people left out). A group missing from the answer has no members; when the
+// answer is missing altogether (null: the call failed) no count is shown.
+export function groupsWithCounts(
+  rows: readonly RawGroup[] | null,
+  counts: readonly GroupCountRow[] | null,
+): PeopleTabGroup[] {
+  const byGroup = counts ? new Map(counts.map((row) => [row.group_id, Number(row.member_count) || 0])) : null;
   return (rows ?? []).map((row) => ({
     id: row.id,
     name: row.name,
     kind: row.kind,
-    memberCount: (row.person_group_members ?? []).filter((member) => member.person && member.person.archived_at === null).length,
+    memberCount: byGroup ? (byGroup.get(row.id) ?? 0) : null,
   }));
 }

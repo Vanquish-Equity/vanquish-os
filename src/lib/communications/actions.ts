@@ -39,6 +39,9 @@ export async function importPeopleAction(request: ImportRequest): Promise<Import
   if (rows.length > MAX_IMPORT_ROWS) {
     return { ok: false, message: `Import at most ${MAX_IMPORT_ROWS} rows at a time.` };
   }
+  if (rows.some((row) => row === null || typeof row !== "object" || Array.isArray(row))) {
+    return { ok: false, message: "Some rows are not valid. Reload the file and review it again." };
+  }
   const markPotentialLp = request.markPotentialLp === true;
   const groupId = request.groupId ? String(request.groupId) : null;
   if (groupId !== null && !UUID.test(groupId)) return { ok: false, message: "Choose a valid group." };
@@ -66,7 +69,8 @@ export async function importPeopleAction(request: ImportRequest): Promise<Import
     }
   }
 
-  const legacy = markPotentialLp && !groupId;
+  // Restoring an archived person chosen by id is only understood by import_people.
+  const legacy = markPotentialLp && !groupId && !payloadRows.some((row) => row.restore && row.person_id);
   const { data, error } = legacy
     ? await supabase.rpc("import_potential_lps", { p_rows: payloadRows })
     : await supabase.rpc("import_people", { p_rows: payloadRows, p_mark_lp: markPotentialLp, p_group: groupId });

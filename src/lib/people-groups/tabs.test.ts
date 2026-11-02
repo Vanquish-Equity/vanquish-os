@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PeopleViewFilters } from "@/lib/views/queries";
-import { activeTabKey, buildPeopleTabs, groupsWithCounts, showsPotentialLps, type PeopleTabGroup } from "./tabs";
+import { activeTabKey, buildPeopleTabs, groupsWithCounts, type PeopleTabGroup } from "./tabs";
 
 const filters = (patch: Partial<PeopleViewFilters> = {}): PeopleViewFilters => ({
   view: "all",
@@ -86,7 +86,7 @@ describe("which tab is active", () => {
     expect(active({ groupId: "g-fo" })).toEqual(["g-fo"]);
   });
 
-  it("lights the group's tab when the Filters menu picks a group while the LP view is on (the group wins)", () => {
+  it("lights the group's tab when the Filters menu picks a group while the LP view is on", () => {
     expect(active({ view: "lps", groupId: "g-fo" })).toEqual(["g-fo"]);
   });
 
@@ -103,36 +103,34 @@ describe("which tab is active", () => {
   });
 });
 
-describe("activeTabKey / showsPotentialLps", () => {
-  it("applies the potential LP filter only when no group is chosen", () => {
-    expect(showsPotentialLps("lps", null)).toBe(true);
-    expect(showsPotentialLps("lps", "g-fo")).toBe(false);
-    expect(showsPotentialLps("all", null)).toBe(false);
-  });
-
-  it("returns the group id for a custom group", () => {
+describe("activeTabKey", () => {
+  it("returns the group id for a custom group, also with the LP view (intersection list, group tab lit)", () => {
     expect(activeTabKey("lps", "g-fo", groups)).toBe("g-fo");
   });
 });
 
 describe("groupsWithCounts", () => {
-  it("counts members, leaving out archived people and people the viewer cannot see", () => {
-    const result = groupsWithCounts([
-      {
-        id: "g1",
-        name: "Family Offices",
-        kind: "custom",
-        person_group_members: [
-          { person: { archived_at: null } },
-          { person: { archived_at: "2026-01-01T00:00:00Z" } },
-          { person: null },
-          { person: { archived_at: null } },
-        ],
-      },
-      { id: "g2", name: "Empty", kind: "custom", person_group_members: [] },
-      { id: "g3", name: "Unset", kind: "custom", person_group_members: null },
+  const rows = [
+    { id: "g1", name: "Family Offices", kind: "custom" },
+    { id: "g2", name: "Empty", kind: "custom" },
+  ];
+
+  it("takes the counts from people_group_counts; a group missing from the answer has none", () => {
+    const result = groupsWithCounts(rows, [{ group_id: "g1", member_count: 7 }]);
+    expect(result.map((g) => g.memberCount)).toEqual([7, 0]);
+  });
+
+  it("shows no number when the counts could not be loaded, and still lists every group", () => {
+    const result = groupsWithCounts(rows, null);
+    expect(result.map((g) => [g.name, g.memberCount])).toEqual([
+      ["Family Offices", null],
+      ["Empty", null],
     ]);
-    expect(result.map((g) => g.memberCount)).toEqual([2, 0, 0]);
-    expect(groupsWithCounts(null)).toEqual([]);
+    const tabs = buildPeopleTabs({ groups: result, allCount: 5, lpCount: 1, filters: filters(), sort: null });
+    expect(tabs.map((t) => t.count)).toEqual([5, 1, null, null]);
+  });
+
+  it("handles no groups at all", () => {
+    expect(groupsWithCounts(null, null)).toEqual([]);
   });
 });

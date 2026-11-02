@@ -61,9 +61,13 @@ describe("createPersonAction with a group", () => {
     expect(m.inserts).toEqual([]);
   });
 
-  it("says plainly when the person exists but the group add failed", async () => {
+  it("succeeds with the new id and a warning when the person exists but the group add failed", async () => {
     m.memberError = { message: "x" };
     const result = await createPersonAction({ ...input, groupId: GROUP });
-    expect(result).toMatchObject({ ok: false, message: expect.stringContaining("was created but could not be added") });
+    expect(result).toEqual({
+      ok: true,
+      personId: "new-person",
+      warning: expect.stringContaining("was created but could not be added"),
+    });
   });
 });

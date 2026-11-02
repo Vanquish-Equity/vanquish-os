@@ -533,6 +533,29 @@ function ImportRowView({
               </button>
             </>
           )}
+          {!row.excluded && analysis.kind === "archived_name_match" && (
+            <>
+              {analysis.people.map((person) => (
+                <button
+                  key={person.id}
+                  type="button"
+                  onClick={() => onChange({ decision: `restore:${person.id}` })}
+                  aria-pressed={row.decision === `restore:${person.id}`}
+                  className={decisionClass(row.decision === `restore:${person.id}`)}
+                >
+                  Same person: restore {person.name}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => onChange({ decision: "create" })}
+                aria-pressed={row.decision === "create"}
+                className={decisionClass(row.decision === "create")}
+              >
+                Different person: create new
+              </button>
+            </>
+          )}
           <button
             type="button"
             onClick={() => onChange({ excluded: !row.excluded })}

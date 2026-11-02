@@ -27,6 +27,18 @@ describe("PeopleGroupTabs", () => {
     expect(html).toMatch(/aria-current="page"[^>]*>Family Offices/);
   });
 
+  it("shows no number for a group whose count is unavailable", () => {
+    const tabs = buildPeopleTabs({
+      groups: [{ id: "g-fo", name: "Family Offices", kind: "custom", memberCount: null }],
+      allCount: 1,
+      lpCount: 0,
+      filters,
+      sort: null,
+    });
+    const html = renderToString(<PeopleGroupTabs tabs={tabs} />).replace(/<!-- -->/g, "");
+    expect(html).toContain(">Family Offices</a>");
+  });
+
   it("says that groups can be selected as recipients, with a link to Communications", () => {
     const html = renderToString(<PeopleGroupTabs tabs={tabsFor()} />).replace(/<!-- -->/g, "");
     expect(html).toContain("Groups can be selected as recipients in");

@@ -13,7 +13,7 @@ import PersonContactActions from "@/components/PersonContactActions";
 import PersonRow, { PeopleGroupsProvider } from "@/components/PersonRow";
 import PeopleViewsBar from "@/components/PeopleViewsBar";
 import PeopleGroupTabs from "@/components/PeopleGroupTabs";
-import { activeTabKey, buildPeopleTabs, groupsWithCounts, showsPotentialLps } from "@/lib/people-groups/tabs";
+import { activeTabKey, buildPeopleTabs, groupsWithCounts, type GroupCountRow } from "@/lib/people-groups/tabs";
 import RelativeTime from "@/components/RelativeTime";
 import { requireMember } from "@/lib/auth/access";
 import { accessFirst } from "@/lib/auth/access-first";
@@ -89,8 +89,9 @@ export default async function PeoplePage({
   const { view, group, q, cols: colsMarker, col, sort: sortParam, dir: dirParam } = await searchParams;
   const sort = parseListSort(PEOPLE_SORT_KEYS, sortParam, dirParam);
   const groupId = group || null;
-  // A chosen group wins over ?view=lps (see activeTabKey in people-groups/tabs).
-  const showLps = showsPotentialLps(view === "lps" ? "lps" : "all", groupId);
+  // With both ?view=lps and a group the list is their intersection; the
+  // group's tab is the lit one (see activeTabKey in people-groups/tabs).
+  const showLps = view === "lps";
   const search = (q ?? "").trim();
   const filters: PeopleViewFilters = {
     view: showLps ? "lps" : "all",
@@ -145,6 +146,7 @@ export default async function PeoplePage({
     { count: allCount },
     { count: lpCount },
     { data: groupRows },
+    { data: groupCounts },
     savedViews,
     mailbox,
     [{ data: lastInteractions }, { data: memberDirectory }],
@@ -166,21 +168,12 @@ export default async function PeoplePage({
       .select("id", { count: "exact", head: true })
       .is("archived_at", null)
       .eq("is_potential_lp", true),
-    // One query for every group tab: the members are embedded (not counted
-    // one group at a time) and archived people are left out in groupsWithCounts.
-    supabase
-      .from("person_groups")
-      .select("id,name,kind,person_group_members(person:people(archived_at))")
-      .order("name") as unknown as Promise<{
-      data:
-        | {
-            id: string;
-            name: string;
-            kind: string;
-            person_group_members: { person: { archived_at: string | null } | null }[] | null;
-          }[]
-        | null;
+    supabase.from("person_groups").select("id,name,kind").order("name") as unknown as Promise<{
+      data: { id: string; name: string; kind: string }[] | null;
     }>,
+    // Member counts of every group tab in one call (archived people left out).
+    // If it fails, the tabs still render, just without numbers.
+    supabase.rpc("people_group_counts") as unknown as Promise<{ data: GroupCountRow[] | null }>,
     loadSavedViews(supabase, "people"),
     loadMailboxConnection(supabase),
     // Team relationship history is stored (not a Google call), so it shows
@@ -198,7 +191,7 @@ export default async function PeoplePage({
   ]);
   endTimer();
 
-  const groups = groupsWithCounts(groupRows);
+  const groups = groupsWithCounts(groupRows, groupCounts);
   const activeKey = activeTabKey(filters.view, groupId, groups);
   const activeGroup = groups.find((g) => g.id === activeKey && g.kind !== "potential_lp") ?? null;
   const tabs = buildPeopleTabs({ groups, allCount: allCount ?? 0, lpCount: lpCount ?? 0, filters, sort });

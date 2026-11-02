@@ -209,7 +209,7 @@ describe("analyzeRows without marking potential LPs", () => {
   });
 
   it("repeats by name when there is no email, so one file never creates the same person twice", () => {
-    const rows = analyzeRows([row(2, "Ana Díaz", ""), row(3, "ana diaz", ""), row(4, "Ana Díaz", "ana@example.com")], [], none);
+    const rows = analyzeRows([row(2, "Ana Díaz", ""), row(3, "ana diaz", ""), row(4, "Bo Chen", "bo@example.com")], [], none);
     expect(rows.map((r) => r.analysis.kind)).toEqual(["new", "repeated", "new"]);
     expect(rows[1].analysis).toEqual({ kind: "repeated", firstLine: 2 });
   });
@@ -218,9 +218,14 @@ describe("analyzeRows without marking potential LPs", () => {
     const [analyzed] = analyzeRows([row(2, "Jose Perez", "")], existing, none);
     expect(analyzed.analysis.kind).toBe("name_match");
     expect(analyzed.status).toBe("review");
-    const [linked] = analyzeRows([row(2, "Jose Perez", "", { decision: "link:p-same" })], existing, none);
+    const [linked] = analyzeRows([row(2, "Jose Perez", "", { decision: "link:p-same" })], existing, {
+      markPotentialLp: false,
+      groupId: "g-new",
+    });
     expect(linked.status).toBe("ready");
     expect(importPayload([linked])).toEqual([{ name: "Jose Perez", email: "", person_id: "p-same" }]);
+    // Without a group, a flag or an email there is nothing to do for that choice.
+    expect(analyzeRows([row(2, "Jose Perez", "", { decision: "link:p-same" })], existing, none)[0].status).toBe("skip");
   });
 });
 
@@ -259,5 +264,92 @@ describe("importRequest", () => {
       groupId: "g-fo",
       rows: [{ name: "New One", email: "" }],
     });
+  });
+});
+
+describe("archived name matches", () => {
+  const withArchived: ExistingContact[] = [
+    ...existing,
+    { id: "p-old", name: "Ana Díaz", emails: [], isPotentialLp: false, archived: true, groupIds: [] },
+  ];
+  const none = DEFAULT_IMPORT_OPTIONS;
+
+  it("needs an explicit decision instead of silently creating a duplicate", () => {
+    const [analyzed] = analyzeRows([row(2, "ana diaz", "")], withArchived, none);
+    expect(analyzed.analysis.kind).toBe("archived_name_match");
+    expect(analyzed.status).toBe("review");
+  });
+
+  it("applies to rows with an email too (a new address for a name that exists only archived)", () => {
+    const [analyzed] = analyzeRows([row(2, "Ana Díaz", "ana.new@example.com")], withArchived, none);
+    expect(analyzed.status).toBe("review");
+  });
+
+  it("restores the chosen archived person, or creates a new one on request", () => {
+    const rows = analyzeRows(
+      [
+        row(2, "Ana Díaz", "ana.old@example.com", { decision: "restore:p-old" }),
+        row(3, "Ana Díaz", "other@example.com", { decision: "create" }),
+        row(4, "Ana Díaz", "x@example.com", { decision: "restore:someone-else" }),
+      ],
+      withArchived,
+      none
+    );
+    expect(rows.map((r) => r.status)).toEqual(["ready", "ready", "review"]);
+    expect(importPayload(rows)).toEqual([
+      { name: "Ana Díaz", email: "ana.old@example.com", person_id: "p-old", restore: true },
+      { name: "Ana Díaz", email: "other@example.com" },
+    ]);
+  });
+
+  it("an active person with the same name takes precedence over an archived one", () => {
+    const both = [...withArchived, { id: "p-new", name: "Ana Díaz", emails: [], isPotentialLp: false, archived: false, groupIds: [] }];
+    const [analyzed] = analyzeRows([row(2, "Ana Díaz", "")], both, none);
+    expect(analyzed.analysis.kind).toBe("name_match");
+  });
+});
+
+describe("name-only rows within one file", () => {
+  const none = DEFAULT_IMPORT_OPTIONS;
+
+  it("drops a name-only row when another row has the same name with an email, in either order", () => {
+    const rows = analyzeRows([row(2, "Ana Díaz", ""), row(3, "Ana Díaz", "ana@example.com")], [], none);
+    expect(rows.map((r) => [r.analysis.kind, r.status])).toEqual([
+      ["repeated", "skip"],
+      ["new", "ready"],
+    ]);
+    const reversed = analyzeRows([row(2, "Ana Díaz", "ana@example.com"), row(3, "ana diaz", "")], [], none);
+    expect(reversed.map((r) => r.status)).toEqual(["ready", "skip"]);
+  });
+
+  it("does not drop it when the other row is excluded or has an invalid email", () => {
+    const rows = analyzeRows(
+      [row(2, "Ana Díaz", "", {}), row(3, "Ana Díaz", "nope"), row(4, "Ana Díaz", "gone@example.com", { excluded: true })],
+      [],
+      none
+    );
+    expect(rows[0].status).toBe("ready");
+  });
+});
+
+describe("'Same person' with nothing to change", () => {
+  const none = DEFAULT_IMPORT_OPTIONS;
+  const link = (extra: Partial<ImportRow> = {}) => row(2, "Jose Perez", "", { decision: "link:p-same", ...extra });
+
+  it("is skipped, not counted as imported, when there is no email, no flag and no group", () => {
+    const rows = analyzeRows([link()], existing, none);
+    expect(rows[0].status).toBe("skip");
+    expect(importPayload(rows)).toEqual([]);
+    expect(summarize(rows)).toMatchObject({ ready: 0, skip: 1 });
+  });
+
+  it("is a real change when it adds an email or a group", () => {
+    expect(analyzeRows([link({ email: "jose@example.com" })], existing, none)[0].status).toBe("ready");
+    expect(analyzeRows([link()], existing, { markPotentialLp: false, groupId: "g-new" })[0].status).toBe("ready");
+  });
+
+  it("is skipped again when the person is already in the chosen group", () => {
+    const inGroup: ExistingContact[] = [{ ...existing[3], groupIds: ["g-new"] }];
+    expect(analyzeRows([link()], inGroup, { markPotentialLp: false, groupId: "g-new" })[0].status).toBe("skip");
   });
 });

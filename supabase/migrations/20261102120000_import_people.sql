@@ -16,7 +16,8 @@
 -- p_rows: [{ "name", "email"?, "title"?, "person_id"?, "restore"? }]
 --   * email already in person_emails -> that person is reused (no new row);
 --     an archived person is only restored when "restore" is true.
---   * else person_id -> the email (if any) is added to that existing person.
+--   * else person_id -> the email (if any) is added to that existing person;
+--     an archived person is only accepted (and restored) when "restore" is true.
 --   * else a new person (with the email, if any).
 -- Returns { created, linked, marked, grouped }:
 --   created = new people, linked = emails added to existing people,
@@ -103,15 +104,17 @@ begin
       end if;
       v_person := v_existing;
     elsif v_target is not null then
-      select is_potential_lp into v_was_lp from public.people where id = v_target and archived_at is null;
+      select is_potential_lp into v_was_lp from public.people
+      where id = v_target and (archived_at is null or coalesce((r ->> 'restore')::boolean, false));
       if not found then
         raise exception 'import row links to a contact that is not available' using errcode = '22023';
       end if;
       update public.people
       set is_potential_lp = is_potential_lp or v_mark,
           potential_lp_since = case when v_mark then coalesce(potential_lp_since, now()) else potential_lp_since end,
+          archived_at = null,
           updated_at = now()
-      where id = v_target and archived_at is null;
+      where id = v_target;
       if v_email <> '' then
         insert into public.person_emails (person_id, email, is_primary)
         values (
@@ -156,3 +159,32 @@ $$;
 
 revoke all on function public.import_people(jsonb, boolean, uuid) from public, anon;
 grant execute on function public.import_people(jsonb, boolean, uuid) to authenticated;
+
+-- ---------------------------------------------------------------------
+-- Member counts for the People group tabs: one row per group with its
+-- NOT archived members (groups without members return 0). SECURITY INVOKER,
+-- so RLS still applies; a non-member is refused.
+-- ---------------------------------------------------------------------
+
+create or replace function public.people_group_counts()
+returns table (group_id uuid, member_count int)
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  if not private.is_member() then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+  return query
+  select g.id, count(p.id)::int
+  from public.person_groups g
+  left join public.person_group_members m on m.group_id = g.id
+  left join public.people p on p.id = m.person_id and p.archived_at is null
+  group by g.id;
+end;
+$$;
+
+revoke all on function public.people_group_counts() from public, anon;
+grant execute on function public.people_group_counts() to authenticated;

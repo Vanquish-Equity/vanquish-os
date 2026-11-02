@@ -104,8 +104,8 @@ export type ImportRow = {
   email: string;
   title: string;
   excluded: boolean;
-  // Explicit choice for rows that need review: "restore", "create" or
-  // "link:<personId>".
+  // Explicit choice for rows that need review: "restore", "create",
+  // "link:<personId>" or "restore:<personId>" (an archived person with the same name).
   decision: string | null;
 };
 
@@ -157,6 +157,9 @@ export type RowAnalysis =
   | { kind: "update_existing"; person: ExistingContact; changes: ExistingChanges }
   | { kind: "archived_match"; person: ExistingContact }
   | { kind: "name_match"; people: ExistingContact[] }
+  // No active person has this name, but an archived one does: restoring them
+  // or creating a new person is the user's explicit choice.
+  | { kind: "archived_name_match"; people: ExistingContact[] }
   | { kind: "new" };
 
 // ready: will be imported. skip: nothing to do. review: the user must fix,
@@ -172,20 +175,40 @@ export function analyzeRows(
 ): AnalyzedRow[] {
   const byEmail = new Map<string, ExistingContact>();
   const byName = new Map<string, ExistingContact[]>();
+  const archivedByName = new Map<string, ExistingContact[]>();
   for (const person of existing) {
     for (const email of person.emails) byEmail.set(email.trim().toLowerCase(), person);
-    if (person.archived) continue;
     const key = normalizePersonName(person.name);
-    if (key) byName.set(key, [...(byName.get(key) ?? []), person]);
+    if (!key) continue;
+    const target = person.archived ? archivedByName : byName;
+    target.set(key, [...(target.get(key) ?? []), person]);
+  }
+
+  // A row without an email is the same person as a row with an email and the
+  // same name elsewhere in the file: only the one with the email is used.
+  const emailRowByName = new Map<string, number>();
+  for (const row of rows) {
+    if (row.excluded || !row.email || !isValidEmail(row.email) || !row.name) continue;
+    const key = normalizePersonName(row.name);
+    if (key && !emailRowByName.has(key)) emailRowByName.set(key, row.line);
   }
 
   const firstLineByKey = new Map<string, number>();
+  const maps = { byEmail, byName, archivedByName, emailRowByName, firstLineByKey };
 
   return rows.map((row) => {
-    const analysis = analyzeOne(row, options, byEmail, byName, firstLineByKey);
-    return { ...row, analysis, status: statusFor(row, analysis) };
+    const analysis = analyzeOne(row, options, maps);
+    return { ...row, analysis, status: statusFor(row, analysis, options) };
   });
 }
+
+type Maps = {
+  byEmail: Map<string, ExistingContact>;
+  byName: Map<string, ExistingContact[]>;
+  archivedByName: Map<string, ExistingContact[]>;
+  emailRowByName: Map<string, number>;
+  firstLineByKey: Map<string, number>;
+};
 
 // Rows repeat by email; a row without an email repeats by name, so the same
 // name twice in one file does not create two people.
@@ -193,13 +216,8 @@ function repeatKey(row: ImportRow) {
   return row.email ? `email:${row.email}` : `name:${normalizePersonName(row.name)}`;
 }
 
-function analyzeOne(
-  row: ImportRow,
-  options: ImportOptions,
-  byEmail: Map<string, ExistingContact>,
-  byName: Map<string, ExistingContact[]>,
-  firstLineByKey: Map<string, number>
-): RowAnalysis {
+function analyzeOne(row: ImportRow, options: ImportOptions, maps: Maps): RowAnalysis {
+  const { byEmail, byName, archivedByName, emailRowByName, firstLineByKey } = maps;
   const problems: string[] = [];
   if (!row.email) {
     // An email is only required to mark a potential LP (they are picked as
@@ -215,6 +233,8 @@ function analyzeOne(
 
   if (!row.excluded) {
     const key = repeatKey(row);
+    const sameNameWithEmail = row.email ? undefined : emailRowByName.get(normalizePersonName(row.name));
+    if (sameNameWithEmail !== undefined) return { kind: "repeated", firstLine: sameNameWithEmail };
     const firstLine = firstLineByKey.get(key);
     if (firstLine !== undefined) return { kind: "repeated", firstLine };
     firstLineByKey.set(key, row.line);
@@ -230,12 +250,23 @@ function analyzeOne(
     return { kind: "update_existing", person: match, changes };
   }
 
-  const sameName = byName.get(normalizePersonName(row.name)) ?? [];
+  const nameKey = normalizePersonName(row.name);
+  const sameName = byName.get(nameKey) ?? [];
   if (sameName.length > 0) return { kind: "name_match", people: sameName };
+  const archivedSameName = archivedByName.get(nameKey) ?? [];
+  if (archivedSameName.length > 0) return { kind: "archived_name_match", people: archivedSameName };
   return { kind: "new" };
 }
 
-function statusFor(row: ImportRow, analysis: RowAnalysis): RowStatus {
+// Would importing this row for the chosen person change anything? Adding an
+// email, marking the potential LP flag or joining the group are changes.
+function linkChangesAnything(row: ImportRow, person: ExistingContact, options: ImportOptions) {
+  if (row.email) return true;
+  if (options.markPotentialLp && !person.isPotentialLp) return true;
+  return options.groupId !== null && !person.groupIds.includes(options.groupId);
+}
+
+function statusFor(row: ImportRow, analysis: RowAnalysis, options: ImportOptions): RowStatus {
   if (row.excluded) return "excluded";
   switch (analysis.kind) {
     case "invalid":
@@ -245,11 +276,17 @@ function statusFor(row: ImportRow, analysis: RowAnalysis): RowStatus {
       return "skip";
     case "archived_match":
       return row.decision === "restore" ? "ready" : "review";
+    case "archived_name_match":
+      return analysis.people.some((person) => row.decision === `restore:${person.id}`) || row.decision === "create"
+        ? "ready"
+        : "review";
     case "name_match": {
       const linked = row.decision?.startsWith("link:")
-        ? analysis.people.some((person) => row.decision === `link:${person.id}`)
-        : false;
-      return linked || row.decision === "create" ? "ready" : "review";
+        ? analysis.people.find((person) => row.decision === `link:${person.id}`)
+        : undefined;
+      // "Same person" with nothing to add is a no-op: skipped, not imported.
+      if (linked) return linkChangesAnything(row, linked, options) ? "ready" : "skip";
+      return row.decision === "create" ? "ready" : "review";
     }
     default:
       return "ready";
@@ -282,6 +319,10 @@ export function importPayload(rows: AnalyzedRow[]): ImportPayloadRow[] {
       if (row.analysis.kind === "archived_match") payload.restore = true;
       if (row.analysis.kind === "name_match" && row.decision?.startsWith("link:")) {
         payload.person_id = row.decision.slice("link:".length);
+      }
+      if (row.analysis.kind === "archived_name_match" && row.decision?.startsWith("restore:")) {
+        payload.person_id = row.decision.slice("restore:".length);
+        payload.restore = true;
       }
       return payload;
     });

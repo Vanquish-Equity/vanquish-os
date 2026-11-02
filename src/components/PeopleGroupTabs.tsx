@@ -22,9 +22,10 @@ export default function PeopleGroupTabs({ tabs }: { tabs: PeopleTab[] }) {
                 href={tab.href}
                 className={tabClass(tab.active)}
                 aria-current={tab.active ? "page" : undefined}
-                title={`${tab.label} (${tab.count})`}
+                title={tab.count === null ? tab.label : `${tab.label} (${tab.count})`}
               >
-                {tab.label} ({tab.count})
+                {tab.label}
+                {tab.count === null ? "" : ` (${tab.count})`}
               </Link>
             </li>
           ))}

@@ -9,7 +9,8 @@ import { createClient } from "@/lib/supabase/server";
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 export type PersonActionResult =
-  | { ok: true; personId?: string }
+  // `warning`: the person was created but a follow-up step (the group) failed.
+  | { ok: true; personId?: string; warning?: string }
   | { ok: false; message: string };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -133,8 +134,9 @@ export async function createPersonAction(
     if (memberError) {
       revalidatePeoplePaths(input.companyId);
       return {
-        ok: false,
-        message: "The person was created but could not be added to the group. Add them from the row menu in People.",
+        ok: true,
+        personId: person.id,
+        warning: "The person was created but could not be added to the group. Add them from the row menu in People.",
       };
     }
   }

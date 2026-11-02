@@ -81,6 +81,28 @@ describe("importPeopleAction", () => {
     expect(m.rpc).not.toHaveBeenCalled();
   });
 
+  it("returns a clean error, not a TypeError, for a null or non-object row", async () => {
+    for (const bad of [null, undefined, "x", 3, []]) {
+      const result = await importPeopleAction({
+        markPotentialLp: true,
+        groupId: null,
+        rows: [row("Ana", "ana@example.com"), bad as never],
+      });
+      expect(result).toEqual({ ok: false, message: "Some rows are not valid. Reload the file and review it again." });
+    }
+    expect(await importPeopleAction(null as never)).toMatchObject({ ok: false });
+    expect(m.rpc).not.toHaveBeenCalled();
+  });
+
+  it("restoring an archived person chosen by id goes through import_people, never the older function", async () => {
+    await importPeopleAction({
+      markPotentialLp: true,
+      groupId: null,
+      rows: [{ name: "Ana", email: "ana@example.com", person_id: "p-arch", restore: true }],
+    });
+    expect(m.rpc).toHaveBeenCalledWith("import_people", expect.objectContaining({ p_mark_lp: true }));
+  });
+
   it("refuses the starter group, a missing group and a malformed id before writing", async () => {
     m.group = { id: GROUP, kind: "potential_lp" };
     expect((await importPeopleAction({ markPotentialLp: false, groupId: GROUP, rows: [row("Ana")] })).ok).toBe(false);

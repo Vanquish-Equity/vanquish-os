@@ -48,8 +48,27 @@ describe("row descriptions", () => {
       "Missing email (needed to mark as potential LP)",
     ]);
     expect(text([row(2, "Ana", ""), row(3, "Ana", "")], { markPotentialLp: false, groupId: null })[1]).toBe(
-      "Repeated name: same as row 2. Only the first one is used.",
+      "Repeated name: same as row 2. Only one of them is imported.",
     );
+  });
+});
+
+describe("new row kinds", () => {
+  const none: ImportOptions = { markPotentialLp: false, groupId: null };
+  const withOld: ExistingContact[] = [
+    ...existing,
+    { id: "p3", name: "Old Friend", emails: [], isPotentialLp: false, archived: true, groupIds: [] },
+    { id: "p4", name: "Jose Perez", emails: [], isPotentialLp: false, archived: false, groupIds: [] },
+  ];
+
+  it("explain an archived name match and a no-op 'same person'", () => {
+    const [archived, noop] = analyzeRows(
+      [row(2, "Old Friend", ""), { ...row(3, "Jose Perez", ""), decision: "link:p4" }],
+      withOld,
+      none
+    ).map((analyzed) => describeRow(analyzed, none, null));
+    expect(archived).toBe("Someone with this name is archived in People. Restore them or create a new person.");
+    expect(noop).toBe("Same person as Jose Perez: nothing to change.");
   });
 });
 
