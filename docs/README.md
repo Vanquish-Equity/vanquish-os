@@ -10,6 +10,7 @@ any change to its contract.
 | CRM data model, Pipeline, boards, personal LP follow-up and roadmap | [CRM workspace](crm-workspace.md) | `src/app/(dashboard)/pipeline`, `src/app/(dashboard)/boards`, `src/app/(dashboard)/lp-board`, `src/lib/boards`, `src/lib/lp-board`, board and Deal migrations |
 | Visual controls and known inconsistencies | [Design system](design-system.md) | `src/components`, `src/app/globals.css` |
 | Authentication, roles and protected areas | [Authentication](authentication.md) | `src/lib/auth`, `src/proxy.ts`, RLS migrations |
+| Measuring real performance in production (admin-only panel, `VQ_PERF_PANEL`) | [Measuring performance](performance-measuring.md) | `src/lib/perf`, `src/components/perf`, `src/proxy.ts` |
 | CI and preview schema readiness | [CI and schema](ci-and-schema.md) | `.github/workflows`, `scripts/check_schema_drift.py` |
 | Home, tasks and attention | [Home](home.md) | Home and task routes, `src/lib/deals/attention*` |
 | Gmail mailbox, sending, CRM drafts and People groups | [Communications](communications.md) | Communications routes, `src/components/mail`, `src/lib/google/mail-*`, `src/lib/communications` |

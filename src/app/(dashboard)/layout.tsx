@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { cookies } from "next/headers";
 import EntranceIntro from "@/components/EntranceIntro";
 import NavigationProgress from "@/components/NavigationProgress";
@@ -11,10 +12,12 @@ import RelationshipAutoSync from "@/components/RelationshipAutoSync";
 import { loadUnreadCounts } from "@/lib/chat/queries";
 import { createClient } from "@/lib/supabase/server";
 import { requireMember } from "@/lib/auth/access";
+import { perfEnvEnabled } from "@/lib/perf/config";
+import { perfCollector } from "@/lib/perf/request";
 import { personProfileState } from "@/lib/people/profile-access";
 import { navCommands } from "@/lib/search/palette";
 import { parseSectionState } from "@/lib/auth/nav-sections";
-import { visibleNav, WORKSPACE_NAV } from "@/lib/auth/permissions";
+import { can, visibleNav, WORKSPACE_NAV } from "@/lib/auth/permissions";
 import { entranceBootScript, introCookieName, sidebarCookieName } from "@/lib/ui/entrance";
 import { noticeMask, notificationCookieName, notificationKinds } from "@/lib/settings/preferences";
 
@@ -26,6 +29,13 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const access = await requireMember();
+  // Performance panel (VQ_PERF_PANEL=1 + ?perf=1 + admin): null otherwise,
+  // and then nothing below changes.
+  const perf = perfEnvEnabled() ? await perfCollector() : null;
+  if (perf && !can(access, "admin")) perf.disable();
+  // Loaded only while measuring, so the panel adds nothing to the normal bundle.
+  const PerfServerData = perf?.isActive ? (await import("@/components/perf/PerfServerData")).default : null;
+  perf?.mark("layout.start");
   const preferenceCookie = sidebarCookieName(access.email);
   const cookieStore = await cookies();
   const collapsed = cookieStore.get(preferenceCookie)?.value === "1";
@@ -49,6 +59,7 @@ export default async function DashboardLayout({
     // only links to a profile that exists.
     personProfileState(),
   ]);
+  perf?.mark("layout.shell-data-ready");
 
   return (
     <UnreadCountsProvider key={`${access.email}:${noticePreference}`} me={access.email} initial={unread} noticeKinds={noticeKinds}>
@@ -79,6 +90,12 @@ export default async function DashboardLayout({
           <WorkspaceTopBar personProfiles={profiles.open} commands={navCommands(access.permissions, { chatAvailable: unread.available })} />
           <main className="vq-page min-h-0 min-w-0 flex-1 overflow-auto">{children}</main>
         </div>
+        {/* Last child of the shell, so it does not shift the generated ids of anything else. */}
+        {PerfServerData ? (
+          <Suspense fallback={null}>
+            <PerfServerData />
+          </Suspense>
+        ) : null}
       </div>
     </UnreadCountsProvider>
   );
