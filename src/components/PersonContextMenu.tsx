@@ -20,6 +20,9 @@ export const PERSON_MENU_TEXT = {
   newGroupSubmit: "Create and add",
   newGroupCancel: "Cancel",
   openProfile: "Open profile",
+  openInNewTab: "Open in new tab",
+  createFailed: "Could not create group.",
+  groupCreatedNotAdded: "Group created, but the person was not added. Pick it from the list.",
   editContact: "Edit contact",
   saving: "Saving…",
   groupNameRequired: "Enter a group name.",
@@ -57,6 +60,7 @@ export default function PersonContextMenu({
   onClose,
   onEdit,
   onOpenProfile,
+  onOpenInNewTab,
 }: {
   personId: string;
   name: string;
@@ -71,6 +75,7 @@ export default function PersonContextMenu({
   onClose: (options?: { restoreFocus?: boolean }) => void;
   onEdit: () => void;
   onOpenProfile: () => void;
+  onOpenInNewTab: () => void;
 }) {
   const router = useRouter();
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -88,7 +93,7 @@ export default function PersonContextMenu({
     const { width, height } = el.getBoundingClientRect();
     el.style.left = `${Math.max(margin, Math.min(position.x, window.innerWidth - width - margin))}px`;
     el.style.top = `${Math.max(margin, Math.min(position.y, window.innerHeight - height - margin))}px`;
-  }, [position.x, position.y, creating, error, groups.length]);
+  }, [position.x, position.y, creating, error, isPending, groups.length]);
 
   // Focus moves into the menu when it opens.
   useEffect(() => {
@@ -107,17 +112,26 @@ export default function PersonContextMenu({
       onClose({ restoreFocus: false });
     }
     const close = () => onClose({ restoreFocus: false });
+    // Escape closes the menu even when focus has moved out of it.
+    function escape(event: globalThis.KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onClose();
+    }
+    document.addEventListener("keydown", escape);
     document.addEventListener("mousedown", outside);
     window.addEventListener("scroll", scrolled, true);
     window.addEventListener("resize", close);
     return () => {
+      document.removeEventListener("keydown", escape);
       document.removeEventListener("mousedown", outside);
       window.removeEventListener("scroll", scrolled, true);
       window.removeEventListener("resize", close);
     };
   }, [anchor, onClose]);
 
-  function run(task: () => Promise<ActionResult>) {
+  // keepOpen: group toggles leave the menu up so several groups can be set in a row.
+  function run(task: () => Promise<ActionResult>, options?: { keepOpen?: boolean }) {
     if (isPending) return;
     setError(null);
     startTransition(async () => {
@@ -127,7 +141,7 @@ export default function PersonContextMenu({
         return;
       }
       router.refresh();
-      onClose();
+      if (!options?.keepOpen) onClose();
     });
   }
 
@@ -138,21 +152,35 @@ export default function PersonContextMenu({
       setError(PERSON_MENU_TEXT.groupNameRequired);
       return;
     }
-    run(async () => {
+    if (isPending) return;
+    setError(null);
+    startTransition(async () => {
       const created = await createPeopleGroup(trimmed);
-      if (!created.ok) return created;
-      if (!created.id) return { ok: false, message: "Could not create group." };
-      return setPersonGroupMembership(personId, created.id, true);
+      if (!created.ok) {
+        setError(created.message);
+        return;
+      }
+      if (!created.id) {
+        setError(PERSON_MENU_TEXT.createFailed);
+        router.refresh();
+        return;
+      }
+      const added = await setPersonGroupMembership(personId, created.id, true);
+      // The group exists either way, so refresh to list it.
+      router.refresh();
+      if (!added.ok) {
+        // Retrying the same name would fail ("already exists"): reset the form
+        // and point to the list instead.
+        setNewName("");
+        setCreating(false);
+        setError(PERSON_MENU_TEXT.groupCreatedNotAdded);
+        return;
+      }
+      onClose();
     });
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      event.stopPropagation();
-      onClose();
-      return;
-    }
     if (event.key === "Tab" && !(event.target as HTMLElement).closest("form")) {
       onClose();
       return;
@@ -210,7 +238,7 @@ export default function PersonContextMenu({
             aria-disabled={isPending}
             data-menu-item
             className={itemClass}
-            onClick={() => run(() => setPersonGroupMembership(personId, group.id, !checked))}
+            onClick={() => run(() => setPersonGroupMembership(personId, group.id, !checked), { keepOpen: true })}
           >
             <Tick checked={checked} />
             <span className="truncate">{group.name}</span>
@@ -278,6 +306,10 @@ export default function PersonContextMenu({
           <button type="button" role="menuitem" data-menu-item className={itemClass} onClick={onOpenProfile}>
             <span className="w-4 flex-shrink-0" aria-hidden="true" />
             <span>{t.openProfile}</span>
+          </button>
+          <button type="button" role="menuitem" data-menu-item className={itemClass} onClick={onOpenInNewTab}>
+            <span className="w-4 flex-shrink-0" aria-hidden="true" />
+            <span>{t.openInNewTab}</span>
           </button>
         </>
       )}

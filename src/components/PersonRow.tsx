@@ -15,6 +15,18 @@ export function PeopleGroupsProvider({ groups, children }: { groups: PeopleGroup
   return <PeopleGroupsContext.Provider value={groups}>{children}</PeopleGroupsContext.Provider>;
 }
 
+// A link that stays inside the app (the person's name, a company page): our
+// menu replaces the browser's there. Mail, phone and external links keep the
+// browser menu so "Copy address" still works.
+function isInternalLink(link: HTMLAnchorElement): boolean {
+  try {
+    const url = new URL(link.href, window.location.href);
+    return (url.protocol === "http:" || url.protocol === "https:") && url.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
 // anchor: the Classify button (pressing it again closes the menu); returnTo: where focus goes back.
 type MenuState = { x: number; y: number; anchor: HTMLElement | null; returnTo: HTMLElement | null };
 
@@ -47,6 +59,9 @@ export default function PersonRow({
   // A press that closes the menu must not also open the profile.
   const suppressClick = useRef(false);
   const menuStateRef = useRef<MenuState | null>(null);
+  // Some browsers also fire "contextmenu" after the ContextMenu key / Shift+F10
+  // that already opened the menu; that echo must not move or reset it.
+  const keyboardOpenedAt = useRef(0);
   useEffect(() => {
     menuStateRef.current = menu;
   }, [menu]);
@@ -80,6 +95,17 @@ export default function PersonRow({
   function onContextMenu(event: MouseEvent<HTMLTableRowElement>) {
     const target = event.target as Element;
     if (!event.currentTarget.contains(target) || target.closest("input,textarea,select,[contenteditable='true']")) return;
+    if (Date.now() - keyboardOpenedAt.current < 150) {
+      event.preventDefault();
+      return;
+    }
+    // Keep the browser's own menu where it is more useful: Shift+right-click,
+    // selected text (Copy), and mail / phone / external links (Copy address).
+    if (event.shiftKey) return;
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed && selection.anchorNode && event.currentTarget.contains(selection.anchorNode)) return;
+    const link = target.closest("a");
+    if (link && event.currentTarget.contains(link) && !isInternalLink(link)) return;
     event.preventDefault();
     setMenu({ x: event.clientX, y: event.clientY, anchor: null, returnTo: rowRef.current });
   }
@@ -104,6 +130,7 @@ export default function PersonRow({
     if (!event.currentTarget.contains(target)) return;
     if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
       event.preventDefault();
+      keyboardOpenedAt.current = Date.now();
       const rect = target.getBoundingClientRect();
       const onRow = target === event.currentTarget;
       setMenu({ x: rect.left + (onRow ? 16 : 0), y: onRow ? rect.bottom - 4 : rect.bottom + 4, anchor: null, returnTo: target });
@@ -119,8 +146,7 @@ export default function PersonRow({
     <>
       <tr
         ref={rowRef}
-        tabIndex={0}
-        aria-haspopup="menu"
+        tabIndex={-1}
         aria-expanded={menu !== null}
         onMouseDown={() => {
           suppressClick.current = menuStateRef.current !== null;
@@ -152,6 +178,10 @@ export default function PersonRow({
           onOpenProfile={() => {
             setMenu(null);
             if (profileHref) router.push(profileHref);
+          }}
+          onOpenInNewTab={() => {
+            setMenu(null);
+            if (profileHref) window.open(profileHref, "_blank", "noopener");
           }}
         />
       )}

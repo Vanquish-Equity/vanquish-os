@@ -107,10 +107,16 @@ stays a server component and passes the cells as children).
   **ContextMenu** key / **Shift+F10** on the focused row, or the **Classify**
   button in the Contact column (next to **Edit**) opens it. It holds **Potential LP**
   (`setPotentialLpAction`; still needs an email, the message shows in the menu),
-  one checkable item per People group, **New group...** (name only: creates the
+  one checkable item per People group, **New group…** (name only: creates the
   group with `createPeopleGroup` and adds the person), **Open profile** (when
-  reachable) and **Edit contact** (the existing dialog). Up/Down/Home/End move
-  between items; Escape, an outside press, scroll or resize close it.
+  reachable), **Open in new tab** (same condition) and **Edit contact** (the
+  existing dialog). Up/Down/Home/End move between items; Escape (from anywhere),
+  an outside press, scroll or resize close it. Group items keep the menu open so
+  several groups can be set in a row; the other items close it. Rows are not tab
+  stops (the name link and **Classify** are); the browser's own menu is kept for
+  Shift+right-click, selected text and mail, phone or external links. If **New
+  group…** creates the group but cannot add the person, the list refreshes and the
+  menu says to pick the group from it.
 - **Groups:** one membership changes at a time with `setPersonGroupMembership`
   (`src/lib/people-groups/actions.ts`); it uses the existing member insert/delete
   RLS on `person_group_members`, so no migration is involved. The starter

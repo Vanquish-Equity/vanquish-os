@@ -54,7 +54,8 @@ export async function setPersonGroupMembership(personId: string, groupId: string
   const access = await actionAccessError(); if (access) return fail(access);
   if (!uuid.test(personId) || !uuid.test(groupId) || typeof member !== "boolean") return fail("Invalid group selection.");
   const db = await createClient();
-  const { data: group } = await db.from("person_groups").select("id,kind").eq("id", groupId).maybeSingle();
+  const { data: group, error: groupError } = await db.from("person_groups").select("id,kind").eq("id", groupId).maybeSingle();
+  if (groupError) return fail("Could not update group.");
   if (!group) return fail("That group no longer exists. Reload People and try again.");
   if (group.kind === "potential_lp") return fail("Use Potential LP to change this group.");
   if (member) {

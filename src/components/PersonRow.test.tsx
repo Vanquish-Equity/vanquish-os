@@ -60,6 +60,8 @@ async function mount(opts: { profileHref?: string | null; isPotentialLp?: boolea
               <td data-testid="cell">
                 {profileHref ? <a href={profileHref}>Ada Lovelace</a> : "Ada Lovelace"}
                 <span data-testid="plain">Founder</span>
+                <a data-testid="mail" href="mailto:ada@example.test">ada@example.test</a>
+                <a data-testid="ext" href="https://www.linkedin.com/in/ada">LinkedIn</a>
               </td>
               <td>
                 <input aria-label="note" />
@@ -167,6 +169,110 @@ describe("People row", () => {
     expect(mocks.setMembership).toHaveBeenCalledWith(PERSON, G2, true);
     expect(mocks.refresh).toHaveBeenCalled();
     expect(menu()).toBeNull();
+  });
+
+  it("keeps the menu open after a group toggle so several groups can be set", async () => {
+    const row = await mount();
+    await rightClick(row);
+    await click(item("Press"));
+    expect(mocks.setMembership).toHaveBeenCalledWith(PERSON, G2, true);
+    expect(menu()).not.toBeNull();
+    await click(item("Friends"));
+    expect(mocks.setMembership).toHaveBeenLastCalledWith(PERSON, G1, true);
+    expect(menu()).not.toBeNull();
+  });
+
+  it("after a partial failure in New group, refreshes and points to the list instead of a dead end", async () => {
+    mocks.setMembership.mockResolvedValue({ ok: false, message: "Person could not be found." });
+    const row = await mount();
+    await rightClick(row);
+    await click(item(PERSON_MENU_TEXT.newGroup));
+    const input = menu()!.querySelector("input") as HTMLInputElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "Advisors");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      menu()!.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    expect(mocks.createGroup).toHaveBeenCalledTimes(1);
+    expect(mocks.refresh).toHaveBeenCalled();
+    expect(menu()).not.toBeNull();
+    expect(menu()!.querySelector("form")).toBeNull();
+    expect(menu()!.querySelector('[role="alert"]')!.textContent).toBe(PERSON_MENU_TEXT.groupCreatedNotAdded);
+  });
+
+  it("leaves the browser menu alone for mail and external links, Shift+right-click and selected text", async () => {
+    const row = await mount();
+    for (const target of [row.querySelector('[data-testid="mail"]')!, row.querySelector('[data-testid="ext"]')!]) {
+      const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+      await act(async () => {
+        target.dispatchEvent(event);
+      });
+      expect(event.defaultPrevented).toBe(false);
+      expect(menu()).toBeNull();
+    }
+    const shifted = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, shiftKey: true });
+    await act(async () => {
+      row.querySelector('[data-testid="plain"]')!.dispatchEvent(shifted);
+    });
+    expect(shifted.defaultPrevented).toBe(false);
+    expect(menu()).toBeNull();
+
+    const plain = row.querySelector('[data-testid="plain"]')!;
+    const selection = vi.spyOn(window, "getSelection").mockReturnValue({ isCollapsed: false, anchorNode: plain, toString: () => "Fou" } as unknown as Selection);
+    const selected = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+    await act(async () => {
+      plain.dispatchEvent(selected);
+    });
+    selection.mockRestore();
+    expect(selected.defaultPrevented).toBe(false);
+    expect(menu()).toBeNull();
+  });
+
+  it("does open our menu on the person's name link (an in-app link)", async () => {
+    const row = await mount();
+    await rightClick(row.querySelector("a")!);
+    expect(menu()).not.toBeNull();
+  });
+
+  it("ignores the contextmenu event some browsers fire right after the keyboard shortcut", async () => {
+    const row = await mount();
+    const link = row.querySelector("a")!;
+    await press(link, "ContextMenu");
+    const first = menu()!;
+    const style = first.getAttribute("style");
+    const echo = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 900, clientY: 700 });
+    await act(async () => {
+      link.dispatchEvent(echo);
+    });
+    expect(echo.defaultPrevented).toBe(true);
+    expect(menu()).toBe(first);
+    expect(menu()!.getAttribute("style")).toBe(style);
+  });
+
+  it("closes on Escape even when focus has left the menu", async () => {
+    const row = await mount();
+    await rightClick(row);
+    (document.activeElement as HTMLElement).blur();
+    await press(document.body, "Escape");
+    expect(menu()).toBeNull();
+  });
+
+  it("opens the profile in a new tab from the menu", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    const row = await mount();
+    await rightClick(row);
+    await click(item(PERSON_MENU_TEXT.openInNewTab));
+    expect(open).toHaveBeenCalledWith(`/people/${PERSON}`, "_blank", "noopener");
+    expect(menu()).toBeNull();
+    open.mockRestore();
+  });
+
+  it("does not add a tab stop per row and does not claim a popup on the row role", async () => {
+    const row = await mount();
+    expect(row.getAttribute("tabindex")).toBe("-1");
+    expect(row.hasAttribute("aria-haspopup")).toBe(false);
   });
 
   it("closes on Escape and returns focus to the row", async () => {
