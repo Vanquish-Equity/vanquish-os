@@ -61,6 +61,9 @@ export default async function CompaniesPage() {
   // Independent of the company list, so they run alongside it.
   const documentsPermission = hasPermission("documents");
   const customFieldsPromise = readCustomFieldsState();
+  // Awaited only after the list query, so mark them as handled now.
+  documentsPermission.catch(() => {});
+  customFieldsPromise.catch(() => {});
   const { data: companyRows } = (await supabase
     .from("companies")
     .select(

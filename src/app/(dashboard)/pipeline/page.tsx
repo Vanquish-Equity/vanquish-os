@@ -5,6 +5,7 @@ import CustomFieldsGate from "@/components/custom-fields/CustomFieldsGate";
 import CustomFieldFilter from "@/components/custom-fields/CustomFieldFilter";
 import { cookies } from "next/headers";
 import { requireMember } from "@/lib/auth/access";
+import { accessFirst } from "@/lib/auth/access-first";
 import { pipelineCookieName, pipelineDefault } from "@/lib/settings/preferences";
 import { createClient } from "@/lib/supabase/server";
 import { startDevPageTimer } from "@/lib/performance";
@@ -90,6 +91,9 @@ export default async function PipelinePage({
   const memberPromise = requireMember();
   const viewsStatePromise = customizationState();
   const customFieldsPromise = readCustomFieldsState();
+  // createClient() awaits before these are collected, so mark them as handled
+  // now; accessFirst still rethrows their rejections (and the redirect).
+  for (const early of [memberPromise, viewsStatePromise, customFieldsPromise]) early.catch(() => {});
   const supabase = await createClient();
   const endTimer = startDevPageTimer("page:data:pipeline");
 
@@ -107,8 +111,7 @@ export default async function PipelinePage({
     rounds,
     savedPipelineViews,
     { members, byDeal: assigneesByDeal },
-  ] = await Promise.all([
-    memberPromise,
+  ] = await accessFirst(memberPromise, [
     viewsStatePromise,
     customFieldsPromise,
     getPipelineStages() as Promise<Stage[]>,

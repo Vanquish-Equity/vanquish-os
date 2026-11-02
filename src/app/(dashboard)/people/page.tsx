@@ -14,6 +14,7 @@ import PersonContactActions from "@/components/PersonContactActions";
 import PeopleViewsBar from "@/components/PeopleViewsBar";
 import RelativeTime from "@/components/RelativeTime";
 import { requireMember } from "@/lib/auth/access";
+import { accessFirst } from "@/lib/auth/access-first";
 import { loadMailboxConnection } from "@/lib/connections/queries";
 import { lastEmailDatesForContacts } from "@/lib/google/mail-actions";
 import { nextMeetingsForContacts } from "@/lib/google/calendar-actions";
@@ -109,6 +110,9 @@ export default async function PeoplePage({
   const profileStatePromise = personProfileState();
   const viewsStatePromise = customizationState();
   const customFieldsPromise = readCustomFieldsState();
+  // The group lookup below awaits before these are collected, so mark them as
+  // handled now; accessFirst still rethrows their rejections (and the redirect).
+  for (const early of [accessPromise, profileStatePromise, viewsStatePromise, customFieldsPromise]) early.catch(() => {});
 
   let groupMemberIds: string[] | null = null;
   if (groupId) {
@@ -142,8 +146,7 @@ export default async function PeoplePage({
     savedViews,
     mailbox,
     [{ data: lastInteractions }, { data: memberDirectory }],
-  ] = await Promise.all([
-    accessPromise,
+  ] = await accessFirst(accessPromise, [
     profileStatePromise,
     viewsStatePromise,
     customFieldsPromise,

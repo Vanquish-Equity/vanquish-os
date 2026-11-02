@@ -7,14 +7,17 @@
 // route goes over its budget, so an `await` added in series shows up here.
 // Layout and page are started together, as Next.js does by default.
 // Numbers are simulated and synthetic: they count trips, not real latency.
+// Time is virtual (see trip-recorder.ts): no test here depends on real time,
+// so every figure is exact and the same on every run.
 import { Fragment, createElement, Suspense, type ReactNode } from "react";
 import { renderToPipeableStream } from "react-dom/server";
 import { Writable } from "node:stream";
 import { writeFileSync } from "node:fs";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   elapsed,
   resetRequest,
+  settleAll,
   summarize,
   trip,
   tripsSoFar,
@@ -26,17 +29,16 @@ vi.mock("react", async (importOriginal) => ({
   cache: (await import("./trip-recorder")).perRequestCache,
 }));
 
-const world = vi.hoisted(() => ({ fixtures: { tables: {}, rpc: {} } as unknown as Fixtures }));
+const world = vi.hoisted(() => ({
+  fixtures: { tables: {}, rpc: {} } as unknown as Fixtures,
+  claims: {} as Record<string, unknown>,
+}));
 
 vi.mock("@/lib/supabase/server", async () => {
   const recorder = await import("./trip-recorder");
   return {
     createClient: async () =>
-      recorder.fakeSupabase(world.fixtures, {
-        sub: "00000000-0000-0000-0000-000000000001",
-        email: "member@synthetic.test",
-        user_metadata: { name: "Synthetic Member" },
-      }),
+      recorder.fakeSupabase(world.fixtures, world.claims),
   };
 });
 vi.mock("next/headers", () => ({
@@ -50,6 +52,7 @@ vi.mock("next/navigation", () => ({
     throw new Error("not-found");
   },
 }));
+vi.mock("@/lib/performance", () => ({ startDevPageTimer: () => () => {} }));
 vi.mock("next/link", () => ({
   default: ({ children, ...props }: { children: ReactNode }) => createElement("a", props, children),
 }));
@@ -196,11 +199,19 @@ export async function measure(route: Route, searchParams: Record<string, string>
 
 beforeEach(() => {
   world.fixtures = buildWorld();
+  world.claims = {
+    sub: "00000000-0000-0000-0000-000000000001",
+    email: "member@synthetic.test",
+    user_metadata: { name: "Synthetic Member" },
+  };
 });
 
 // Longest chain of Supabase round trips allowed before a route is complete,
 // counting the proxy session check and the membership lookup that every
 // request starts with. Raise one only on purpose.
+// Each value is the depth measured now (so there is no slack). Depth before
+// the waterfall fixes, measured on the previous code: /people 5, /pipeline 6;
+// the other routes were not changed and measure the same as before.
 const MAX_SEQUENTIAL_SUPABASE_TRIPS: Record<Route, number> = {
   layout: 4,
   "/people": 4,
@@ -227,6 +238,7 @@ describe("round trips per route", () => {
       if (route === "/people") {
         // Gmail and Calendar run behind Suspense: the table is ready long
         // before the Google cells are.
+        // Virtual time: exact, not a timing guess.
         expect(result.google).toBeGreaterThan(0);
         expect(result.fullMs - result.pageMs).toBeGreaterThan(150);
       }
@@ -235,4 +247,63 @@ describe("round trips per route", () => {
       }
     });
   }
+});
+
+// Access failures. requireMember redirects by throwing; the queries that were
+// started beside it must neither leave an unhandled rejection behind nor turn
+// the redirect into a generic error.
+describe("access failures", () => {
+  const pages = ["/people", "/pipeline"] as const;
+  const unhandled: unknown[] = [];
+  const onUnhandled = (reason: unknown) => unhandled.push(reason);
+
+  beforeEach(() => {
+    unhandled.length = 0;
+    process.on("unhandledRejection", onUnhandled);
+  });
+  afterEach(() => process.off("unhandledRejection", onUnhandled));
+
+  async function open(route: (typeof pages)[number], searchParams: Record<string, string> = {}) {
+    const { default: Page } = await routes[route]();
+    resetRequest();
+    const outcome = await (Page as (props: unknown) => Promise<ReactNode>)({ searchParams: Promise.resolve(searchParams) }).then(
+      (tree) => ({ tree }),
+      (error: Error) => ({ error: error.message }),
+    );
+    await settleAll();
+    return outcome;
+  }
+
+  for (const route of pages) {
+    it(`${route}: a non-member is redirected, nothing renders, no unhandled rejection`, async () => {
+      world.fixtures.tables.app_members = [];
+      // The group lookup stays pending while the membership answer arrives.
+      world.fixtures.delays = { person_group_members: 500 };
+      const outcome = await open(route, route === "/people" ? { group: "g1" } : {});
+      expect(outcome).toEqual({ error: "redirect:/access-denied" });
+      expect(unhandled).toEqual([]);
+    });
+
+    it(`${route}: a signed-out visitor is sent to login`, async () => {
+      world.claims = {};
+      world.fixtures.delays = { person_group_members: 500 };
+      const outcome = await open(route, route === "/people" ? { group: "g1" } : {});
+      expect(outcome).toEqual({ error: "redirect:/login" });
+      expect(unhandled).toEqual([]);
+    });
+  }
+
+  it("/pipeline: the redirect wins over a query that fails first", async () => {
+    world.fixtures.tables.app_members = [];
+    world.fixtures.errors = { pipeline_stages: "stages unavailable" };
+    // The stages query answers (with an error) before the membership lookup does.
+    expect(await open("/pipeline")).toEqual({ error: "redirect:/access-denied" });
+    expect(unhandled).toEqual([]);
+  });
+
+  it("/pipeline: a member still gets the query error", async () => {
+    world.fixtures.errors = { pipeline_stages: "stages unavailable" };
+    expect(await open("/pipeline")).toEqual({ error: "stages unavailable" });
+    expect(unhandled).toEqual([]);
+  });
 });

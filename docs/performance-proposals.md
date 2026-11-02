@@ -9,19 +9,29 @@ and use synthetic data only.
 ## 1. Per-row access function on deals (needs SQL, highest database impact)
 
 `supabase/migrations/20261008162841_resolution_search_and_deal_access.sql:26`
-adds a restrictive policy `restricted_deals_read ... using (private.can_access_deal(id))`.
+adds the restrictive policy `restricted_deals_read ... using (private.can_access_deal(id))`.
+The function in force today is the later redefinition in
+`supabase/migrations/20261012175553_auth_service_worker.sql:105-108`, which calls
+`private.deal_access_for(p_deal, <email>, p_write)` (the machine-identity check
+replaced the earlier `auth.role()` test).
 The function is `security definer`, so Postgres cannot inline it and calls it
-once per candidate deal row. Each call reads `auth.role()`, `private.current_email()`,
-`app_members`, `deals` and `member_permissions`. Companies, Pipeline, Home and
+once per candidate deal row. Each call reads `private.is_machine_identity()`,
+`private.current_email()`, and inside `deal_access_for` `app_members`, `deals`,
+`member_permissions` and `deal_access_members`. Companies, Pipeline, Home and
 Overview all read deals (Companies reads them nested under every company), so
 the cost is paid on every one of those pages.
 
-Proposal: wrap the per-request values so they are evaluated once, e.g.
-`using ((select private.can_access_deal(id)))` is not enough on its own because
-the argument changes per row. Instead split the check so the member and the
-admin test run once per query (`(select private.current_email())`,
-`(select private.is_admin())`) and only `restricted` deals reach the per-row
-lookup: `using (not restricted or (select private.is_admin()) or exists (...deal_access_members...))`.
+Proposal: evaluate the per-request values once per query instead of once per
+row, for example `(select private.current_email())` and a single admin check,
+so only `restricted` deals reach the per-row lookup:
+`using (not restricted or (select private.is_admin()) or exists (...deal_access_members...))`.
+
+Caution: restructuring the policy this way can change who may see a deal (the
+current function also requires an active member, honours the machine identity
+used by the sync worker, and treats `p_write` separately). Review it as its own
+migration with SQL access tests that cover: an ordinary member, an admin, a
+restricted deal, and a member assigned to a restricted deal (viewer and editor),
+plus the worker identity, before applying.
 
 Not measured: Postgres could not be started in the review environment (the
 `runuser` command was blocked by a security control, and was not worked
