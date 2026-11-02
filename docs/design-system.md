@@ -193,3 +193,37 @@ what they do in words or with a non-directional mark:
   are outside `@layer`, so they win over Tailwind utilities on a
   `summary.vq-disclosure`; do not add conflicting utilities there. The pill
   radius is `1.125rem` so long text that wraps at 390px is not clipped.
+
+## Dates, times and plain wording
+
+- **One helper for text dates:** `src/lib/format-datetime.ts`. `formatDay`
+  gives "Mon, Nov 2" and `formatStamp` "Nov 2, 3:30 PM" (the year appears only
+  when it is not the current year). Relative text stays in `src/lib/dates.ts`
+  ("3 days ago", "in 5 days") and `RelativeTime`. Calendar availability keeps
+  `src/lib/calendar/format-busy.ts`; the helper reuses its zone functions.
+- **Timestamps use the member's zone.** In server pages render them with
+  `<LocalTime date mode="day" | "stamp">` (client component; uses the zone
+  chosen in Settings, else the browser's). Never call `toLocaleDateString()`
+  or `toLocaleString()` without arguments on a timestamp: on the server it uses
+  the server's zone. A date-only value (`2026-11-02`, e.g. a due date) is a
+  plain calendar day: pass it to `formatDay`, which never shifts it.
+- **"Today" is the member's day.** The server only knows the UTC day, so a
+  client component that needs "today" takes the server value as the fallback
+  and swaps in `todayKey(browserZone())` after load (see `CrmReporting`).
+- **`datetime-local` inputs hold local wall-clock time.** Convert with
+  `toLocalInput(iso)` to fill the field and `fromLocalInput(value)` to save;
+  never `iso.slice(0, 16)` (that shows UTC as if it were local) and never
+  `new Date(value)` on a zone other than the browser's. Date fields use the
+  field style above and a label that says what the date is.
+- **Plain words.** No migration numbers, "phase", "worker", "RLS", "RPC",
+  "UTC", "RRULE", "sendUpdates", record ids or internal status codes in
+  visible text. Unavailable features say what to do: "This isn’t available
+  yet. Ask an admin to turn it on." / "Couldn’t load X. Try again." Raw codes
+  and ids go in a `title` attribute for support, not in the text.
+  Internal values map to labels in small tested modules
+  (`src/lib/sync/labels.ts`, `src/lib/documents/labels.ts`,
+  `src/lib/reporting/labels.ts`, `src/lib/google/mail-completion-labels.ts`,
+  `src/lib/calendar/repeat-label.ts`, `src/lib/lp-scouting/evidence.ts`).
+  Components keep their wording in a `TEXT` constant so a later translation
+  touches one place. `src/components/user-copy.test.ts` fails if the obvious
+  jargon, a UUID or a locale-less date comes back in the listed screens.
