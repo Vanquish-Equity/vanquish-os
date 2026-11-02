@@ -23,6 +23,11 @@ describe("parseListSort", () => {
     expect(parseListSort(KEYS, ["name", "email"], "asc")).toBeNull();
     expect(parseListSort(KEYS, undefined, "asc")).toBeNull();
     expect(parseListSort(KEYS, "toString", "asc")).toBeNull();
+    expect(parseListSort(KEYS, "name", "asc,desc")).toBeNull();
+  });
+
+  it("treats an empty dir as ascending", () => {
+    expect(parseListSort(KEYS, "name", "")).toEqual({ key: "name", dir: "asc" });
   });
 });
 
@@ -54,6 +59,14 @@ describe("withListSort", () => {
     expect(params.getAll("col")).toEqual(["company", "email"]);
     expect(params.get("sort")).toBe("name");
     expect(params.get("dir")).toBe("desc");
+  });
+
+  it("does not confuse an encoded &sort= inside q with the real sort", () => {
+    const base = viewHref("/people", { view: "all", groupId: null, q: "a&sort=email&dir=desc", cols: null });
+    const params = new URL(withListSort(base, { key: "name", dir: "asc" }), "http://x").searchParams;
+    expect(params.get("q")).toBe("a&sort=email&dir=desc");
+    expect(params.getAll("sort")).toEqual(["name"]);
+    expect(params.getAll("dir")).toEqual(["asc"]);
   });
 
   it("replaces an earlier sort and removes it when off", () => {

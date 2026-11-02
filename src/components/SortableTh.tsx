@@ -36,7 +36,7 @@ export default function SortableTh<K extends string>({
         href={withListSort(baseHref, nextListSort(sort, sortKey))}
         title={text}
         aria-label={text}
-        className="group -mx-2 inline-flex min-h-10 items-center gap-1 rounded-full px-2 uppercase tracking-wide transition hover:text-cyan-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400"
+        className="group -mx-2 inline-flex min-h-10 items-center gap-1 rounded-full px-2 uppercase tracking-wide transition-[color,background-color] hover:text-cyan-800 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-cyan-400"
       >
         {label}
         <span

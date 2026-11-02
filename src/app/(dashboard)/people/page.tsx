@@ -38,6 +38,10 @@ type Option = { id: string; name: string };
 // person (Gmail, Calendar, relationship history), so they stay unsortable.
 const PEOPLE_SORT_KEYS = ["name", "company", "email"] as const;
 
+// The API returns at most this many rows per request, so a longer list is cut
+// (and a sort by Company or Email only covers what was fetched).
+const PEOPLE_FETCH_CAP = 1000;
+
 // LIKE wildcards are literal characters in a person's name.
 function escapeLike(value: string) {
   return value.replace(/[\\%_]/g, (char) => `\\${char}`);
@@ -264,6 +268,12 @@ export default async function PeoplePage({
         <p className="text-[11.5px] text-neutral-400">
           Last email and next meeting aren&apos;t shown for more than {LAST_EMAIL_MAX_ROWS} people at once —
           filter this view down (a group or search) to see it.
+        </p>
+      )}
+
+      {rows.length >= PEOPLE_FETCH_CAP && (
+        <p className="text-[11.5px] text-neutral-400">
+          Showing the first {PEOPLE_FETCH_CAP} people. Use search to narrow down.
         </p>
       )}
 
