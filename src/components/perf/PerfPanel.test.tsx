@@ -91,7 +91,7 @@ describe("report text", () => {
     ttfb: 900, beforeRequest: 40, htmlStream: 3800, domContentLoaded: 4200, load: 4700, fcp: 1000, lcp: 4300, hydrated: 4500,
     jsDownload: 600, hydration: 300, longTasks: { count: 3, total: 210 },
     files: [{ name: "app.js", type: "script", start: 10, dur: 400, transfer: 51200 }],
-    requests: [{ path: "/companies", start: 5000, dur: 700, wait: 650, transfer: 2000, server: { proxy: 20 } }],
+    requestsTotal: 30, requests: [{ path: "/companies", start: 5000, dur: 700, wait: 650, transfer: 2000, server: { proxy: 20 } }],
     interactions: [{ kind: "click", target: 'button "table"', path: "/companies", at: 5000, settled: 720, requests: 1, urlParams: ["view"] }],
   };
 

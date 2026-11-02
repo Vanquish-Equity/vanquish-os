@@ -151,7 +151,7 @@ export default function PerfPanel() {
   const slowest = slowestServerCalls(server);
 
   return (
-    <div data-vq-perf-panel data-context-exclude className="fixed bottom-5 right-3 z-[80] sm:right-5">
+    <div data-vq-perf-panel data-context-exclude className="fixed bottom-20 right-3 z-[80] sm:bottom-5 sm:right-5">
       {!open ? (
         <button
           ref={trigger}
@@ -171,7 +171,7 @@ export default function PerfPanel() {
           aria-modal="false"
           aria-labelledby={`${titleId}-h`}
           tabIndex={-1}
-          className="vq-card-static mb-14 flex max-h-[70vh] w-[min(32rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[14px] bg-white text-neutral-900 outline-none sm:mb-0"
+          className="vq-card-static flex max-h-[70vh] w-[min(32rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[14px] bg-white text-neutral-900 outline-none"
         >
           <header className="flex items-center justify-between gap-2 px-4 py-3">
             <h2 id={`${titleId}-h`} className="text-sm font-semibold">Performance</h2>
@@ -202,7 +202,7 @@ export default function PerfPanel() {
                   {top.map((p) => (
                     <li key={p.label} className="flex justify-between gap-3">
                       <span><span className="font-medium">{p.label}</span> <span className="text-neutral-500">{p.note}</span></span>
-                      <span className="tabular-nums font-medium">{ms(p.ms)}</span>
+                      <span className="shrink-0 whitespace-nowrap tabular-nums font-medium">{ms(p.ms)}</span>
                     </li>
                   ))}
                 </ol>
@@ -264,6 +264,9 @@ export default function PerfPanel() {
                 </Section>
 
                 <Section title="Client requests (RSC and fetch)">
+                  {browser.requests.length ? (
+                    <p className="mb-2 text-xs text-neutral-600">Latest {browser.requests.length} of {browser.requestsTotal}; includes background link prefetches.</p>
+                  ) : null}
                   {browser.requests.length ? (
                     <ul className="space-y-1 text-xs">
                       {browser.requests.map((r, index) => (

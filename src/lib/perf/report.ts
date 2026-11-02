@@ -40,7 +40,9 @@ export type BrowserMetrics = {
   hydration?: number;
   longTasks: { count: number; total: number };
   files: FileTiming[];
+  /** The most recent fetch requests (includes background link prefetches). */
   requests: RequestTiming[];
+  requestsTotal: number;
   interactions: InteractionTiming[];
 };
 
@@ -63,9 +65,18 @@ export function safePath(input: string): string {
 
 /** The file name of a resource, without folders, query string or hash. */
 export function fileName(input: string): string {
+  let pathname: string;
+  try {
+    pathname = new URL(input, "https://x.invalid").pathname;
+  } catch {
+    return "file";
+  }
+  if (pathname === "/_next/image") return "next/image (optimized picture)";
+  // Build output names are content hashes and not private; keep them so they
+  // can be matched with the build. Anything else goes through safePath.
+  if (pathname.startsWith("/_next/static/") && !/[@%]/.test(pathname)) return pathname.split("/").pop() ?? "file";
   const path = safePath(input);
-  const last = path.split("/").pop() ?? "";
-  return last || path;
+  return path.split("/").pop() || path;
 }
 
 export function unionMs(intervals: Array<[number, number]>): number {
@@ -128,7 +139,7 @@ export function buildReport(server: PerfSnapshot | null, browser: BrowserMetrics
   lines.push("Heaviest files");
   for (const file of browser.files) lines.push(`${file.name}  ${f(file.dur)}  ${kb(file.transfer)}`);
   lines.push("");
-  lines.push("Client requests");
+  lines.push(`Client requests (latest ${browser.requests.length} of ${browser.requestsTotal}, includes background prefetches)`);
   for (const r of browser.requests) lines.push(`${r.path}  total ${f(r.dur)}, wait ${f(r.wait)}${r.server?.proxy !== undefined ? `, proxy ${f(r.server.proxy)}` : ""}`);
   if (browser.interactions.length) {
     lines.push("");

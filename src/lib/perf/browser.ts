@@ -43,8 +43,9 @@ export function readBrowserMetrics(extra: { lcp?: number; longTasks: { count: nu
     .sort((a, b) => b.dur - a.dur)
     .slice(0, 10);
 
-  const requests: RequestTiming[] = resources
-    .filter((r) => r.initiatorType === "fetch")
+  const fetches = resources.filter((r) => r.initiatorType === "fetch");
+  const requests: RequestTiming[] = fetches
+    .slice(-12)
     .map((r) => {
       const server: Record<string, number> = {};
       for (const t of r.serverTiming ?? []) if (/^[a-z][a-z0-9_-]{0,31}$/i.test(t.name)) server[t.name] = round(t.duration);
@@ -72,6 +73,7 @@ export function readBrowserMetrics(extra: { lcp?: number; longTasks: { count: nu
     longTasks: { count: extra.longTasks.count, total: round(extra.longTasks.total) },
     files,
     requests,
+    requestsTotal: fetches.length,
     interactions: extra.interactions,
   };
 }
@@ -211,9 +213,21 @@ export function trackInteractions(onChange: (items: InteractionTiming[]) => void
     } catch {
       /* keep generic path */
     }
-    inflight++;
-    touch();
+    // Background link prefetches are in flight too, but are not part of what
+    // the person is waiting for.
+    let prefetch = false;
+    try {
+      const h = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+      prefetch = h.has("next-router-prefetch");
+    } catch {
+      /* treat as a normal request */
+    }
+    if (!prefetch) {
+      inflight++;
+      touch();
+    }
     const record = () => {
+      if (prefetch) return;
       inflight--;
       const end = performance.now();
       if (current) {
@@ -244,7 +258,7 @@ export function trackInteractions(onChange: (items: InteractionTiming[]) => void
           // Only the names of query parameters are kept, never their values.
           const url = args[2] ? new URL(String(args[2]), location.href) : null;
           url?.searchParams.forEach((_value, key) => {
-            if (/^[a-z][a-z0-9_-]{0,23}$/i.test(key) && key !== "_rsc") current?.params.add(key);
+            if (/^[a-z][a-z0-9_-]{0,23}$/i.test(key) && key !== "_rsc" && key !== "perf") current?.params.add(key);
           });
         } catch {
           /* ignore */
