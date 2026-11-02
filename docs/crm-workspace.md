@@ -75,6 +75,23 @@ implemented yet:
   hidden — the same filters the board already applied via query params,
   now nameable and reusable instead of re-set by hand each time.
 
+### People: click a column title to sort
+
+The normal People list (no saved view) sorts with one click on the **Name**,
+**Company** or **Email** title: first click ascending, second descending, third
+removes the order. The order is in the URL (`?sort=name&dir=desc`) and is checked
+against a whitelist (`name`, `company`, `email`; `dir` is `asc` or `desc`); any
+other value is ignored and the list looks as before. The header links keep the
+other parameters (tab, group, search, columns); switching tab or applying a saved
+view clears the order, and the Filters form keeps it. The query is not paginated:
+Name is ordered in SQL (so descending picks the right rows even past the API row
+cap) and every sort reorders the same fetched rows in memory with a stable,
+case- and accent-insensitive comparison, ties by id, empty values last. Last
+email, next meeting, last interaction and LinkedIn stay unsortable (per-person
+Google/history lookups, or a link with no useful order). Pipeline has no table
+today (a board with one column per stage), so it has no click-to-sort. Code:
+`src/lib/list-sort.ts`, `src/components/SortableTh.tsx`.
+
 ## Company timeline: email history
 
 The Company detail page's **Timeline** merges stage history, manually logged
