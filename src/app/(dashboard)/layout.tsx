@@ -7,7 +7,7 @@ import UiSounds from "@/components/UiSounds";
 import UnreadCountsProvider from "@/components/UnreadCounts";
 import WorkspaceTopBar from "@/components/WorkspaceTopBar";
 import ContextComments from "@/components/ContextComments";
-import VanquishAI from "@/components/VanquishAI";
+import VanquishAI from "@/components/VanquishAILazy";
 import RelationshipAutoSync from "@/components/RelationshipAutoSync";
 import { loadUnreadCounts } from "@/lib/chat/queries";
 import { createClient } from "@/lib/supabase/server";

@@ -58,6 +58,14 @@ function readSort(searchParams: SearchParamsLike): CompanySort {
   return { direction, key };
 }
 
+// Filters, sort and view are applied to the rows already in the browser, so
+// changing them only needs the address to follow. The History API updates
+// useSearchParams without the server re-running the page's queries (which
+// router.replace would do), and keeps the link shareable.
+function replaceUrl(url: string) {
+  window.history.replaceState(null, "", url);
+}
+
 function readView(searchParams: SearchParamsLike) {
   return searchParams.get("view") === "cards" ? "cards" : "table";
 }
@@ -161,9 +169,9 @@ export default function CompaniesExplorer({
       });
 
       const next = params.toString();
-      router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
+      replaceUrl(next ? `${pathname}?${next}` : pathname);
     },
-    [pathname, router, searchParams]
+    [pathname, searchParams]
   );
 
   useEffect(() => {
@@ -235,7 +243,7 @@ export default function CompaniesExplorer({
   function clearFilters() {
     const params = new URLSearchParams();
     params.set("view", view);
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    replaceUrl(`${pathname}?${params.toString()}`);
   }
 
   return (
