@@ -297,6 +297,13 @@ describe("access failures", () => {
     });
   }
 
+  it("/people: still renders when the group counts call fails or is missing", async () => {
+    world.fixtures.errors = { "rpc:people_group_counts": "function does not exist" };
+    const outcome = await open("/people");
+    expect(outcome).toHaveProperty("tree");
+    expect(unhandled).toEqual([]);
+  });
+
   it("/pipeline: the redirect wins over a query that fails first", async () => {
     world.fixtures.tables.app_members = [];
     world.fixtures.errors = { pipeline_stages: "stages unavailable" };

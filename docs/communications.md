@@ -110,10 +110,13 @@ sending and CRM delivery history require a separate job/ledger design.
 
 ## Contact import
 
-People → Import potential LPs accepts CSV with comma, semicolon or tab
+People → Import people (CSV) accepts CSV with comma, semicolon or tab
 separators, optional headers, name/full-name or first+last columns, email and
 title. Review new, existing, repeated, incomplete, ambiguous-name or archived
-contacts before confirming. `import_potential_lps` commits all reviewed rows
+contacts before confirming. Optional: mark everyone as potential LPs (needs an
+email per row) and/or add everyone to a custom group; see
+[CRM workspace](crm-workspace.md#people-import-csv). `import_potential_lps` (LP
+flag only) or `import_people` (any other combination) commits all reviewed rows
 in one transaction. Emails are compared case-insensitively. Groups can be
 created, renamed and edited in `/people/groups`; deleting a group keeps People.
 

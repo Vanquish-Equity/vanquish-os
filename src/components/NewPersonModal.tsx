@@ -34,6 +34,7 @@ function toMenuOptions(options: Option[]): SelectMenuOption[] {
 export default function NewPersonModal({
   companies,
   defaultPotentialLp = false,
+  group,
   label = "New Person",
   initialOpen = false,
   openOnNewParam = false,
@@ -41,6 +42,8 @@ export default function NewPersonModal({
   companies: Option[];
   // Opened from the Potential LPs view: the new person is an LP by default.
   defaultPotentialLp?: boolean;
+  // Opened from a custom group's tab: the new person joins that group.
+  group?: { id: string; name: string };
   label?: string;
   // Opens the dialog on load (the "+ New" menu links to /people?new=1).
   initialOpen?: boolean;
@@ -57,6 +60,8 @@ export default function NewPersonModal({
   const [nameError, setNameError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // Shown after the dialog closes: the person exists, but a step failed.
+  const [warning, setWarning] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -94,6 +99,7 @@ export default function NewPersonModal({
       linkedinUrl: values.linkedinUrl,
       email: values.email,
       isPotentialLp: values.isPotentialLp,
+      groupId: group?.id ?? null,
     });
 
     setPending(false);
@@ -105,6 +111,7 @@ export default function NewPersonModal({
 
     setOpen(false);
     setValues(initialForm);
+    setWarning(result.warning ?? null);
     router.refresh();
   }
 
@@ -117,6 +124,22 @@ export default function NewPersonModal({
       >
         {label}
       </button>
+
+      {warning && (
+        <div
+          role="status"
+          className="fixed bottom-4 right-4 z-40 flex max-w-[360px] items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-[12px] text-amber-900 shadow-lg"
+        >
+          <p>{warning}</p>
+          <button
+            type="button"
+            onClick={() => setWarning(null)}
+            className="flex-shrink-0 font-semibold text-amber-900 hover:underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {open && (
         <div
@@ -206,6 +229,12 @@ export default function NewPersonModal({
                   className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
                 />
               </div>
+
+              {group && (
+                <p className="rounded-xl border border-cyan-100 bg-[#f0fafb] px-3 py-2 text-[12px] text-cyan-800">
+                  Will be added to the group <span className="font-semibold">{group.name}</span>.
+                </p>
+              )}
 
               <label className="flex items-start gap-2.5 rounded-xl border border-neutral-100 bg-[#f7f9fa] px-3 py-2.5 text-[12px] text-neutral-600">
                 <Checkbox

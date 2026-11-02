@@ -1,7 +1,12 @@
-// Turns a CSV of contacts into reviewed import rows. Nothing here writes:
-// the importer shows every row with what will happen to it, and only rows
-// that are ready (or that the user explicitly resolved) are sent to the
-// database function import_potential_lps.
+// Turns a CSV of people into reviewed import rows. Nothing here writes: the
+// importer shows every row with what will happen to it, and only rows that
+// are ready (or that the user explicitly resolved) are sent to the database
+// (import_people, or import_potential_lps when the only option is "mark as
+// potential LPs").
+//
+// Two optional choices apply to the whole file (ImportOptions): mark everyone
+// as a potential LP (which needs an email per row) and/or add everyone to one
+// custom group. With neither, a row only needs a name.
 
 export const EMAIL_PATTERN = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
 
@@ -99,8 +104,8 @@ export type ImportRow = {
   email: string;
   title: string;
   excluded: boolean;
-  // Explicit choice for rows that need review: "restore", "create" or
-  // "link:<personId>".
+  // Explicit choice for rows that need review: "restore", "create",
+  // "link:<personId>" or "restore:<personId>" (an archived person with the same name).
   decision: string | null;
 };
 
@@ -126,15 +131,35 @@ export type ExistingContact = {
   emails: string[];
   isPotentialLp: boolean;
   archived: boolean;
+  // Custom groups the person already belongs to (to skip rows with nothing to do).
+  groupIds: string[];
 };
+
+// The choices made once for the whole file.
+export type ImportOptions = {
+  markPotentialLp: boolean;
+  // A custom group (never the starter Potential LPs group, which follows the
+  // potential LP flag), or null.
+  groupId: string | null;
+};
+
+export const DEFAULT_IMPORT_OPTIONS: ImportOptions = { markPotentialLp: false, groupId: null };
+
+// What an already-existing person (matched by email) would change.
+export type ExistingChanges = { lp: boolean; group: boolean };
 
 export type RowAnalysis =
   | { kind: "invalid"; problems: string[] }
   | { kind: "repeated"; firstLine: number }
-  | { kind: "already_lp"; person: ExistingContact }
-  | { kind: "mark_existing"; person: ExistingContact }
+  // Matched by email; nothing to change with the chosen options.
+  | { kind: "unchanged"; person: ExistingContact }
+  // Matched by email; no new person, but the chosen options change them.
+  | { kind: "update_existing"; person: ExistingContact; changes: ExistingChanges }
   | { kind: "archived_match"; person: ExistingContact }
   | { kind: "name_match"; people: ExistingContact[] }
+  // No active person has this name, but an archived one does: restoring them
+  // or creating a new person is the user's explicit choice.
+  | { kind: "archived_name_match"; people: ExistingContact[] }
   | { kind: "new" };
 
 // ready: will be imported. skip: nothing to do. review: the user must fix,
@@ -143,70 +168,125 @@ export type RowStatus = "ready" | "skip" | "review" | "excluded";
 
 export type AnalyzedRow = ImportRow & { analysis: RowAnalysis; status: RowStatus };
 
-export function analyzeRows(rows: ImportRow[], existing: ExistingContact[]): AnalyzedRow[] {
+export function analyzeRows(
+  rows: ImportRow[],
+  existing: ExistingContact[],
+  options: ImportOptions = DEFAULT_IMPORT_OPTIONS
+): AnalyzedRow[] {
   const byEmail = new Map<string, ExistingContact>();
   const byName = new Map<string, ExistingContact[]>();
+  const archivedByName = new Map<string, ExistingContact[]>();
   for (const person of existing) {
     for (const email of person.emails) byEmail.set(email.trim().toLowerCase(), person);
-    if (person.archived) continue;
     const key = normalizePersonName(person.name);
-    if (key) byName.set(key, [...(byName.get(key) ?? []), person]);
+    if (!key) continue;
+    const target = person.archived ? archivedByName : byName;
+    target.set(key, [...(target.get(key) ?? []), person]);
   }
 
-  const firstLineByEmail = new Map<string, number>();
+  // A row without an email is the same person as a row with an email and the
+  // same name elsewhere in the file: only the one with the email is used.
+  const emailRowByName = new Map<string, number>();
+  for (const row of rows) {
+    if (row.excluded || !row.email || !isValidEmail(row.email) || !row.name) continue;
+    const key = normalizePersonName(row.name);
+    if (key && !emailRowByName.has(key)) emailRowByName.set(key, row.line);
+  }
+
+  const firstLineByKey = new Map<string, number>();
+  const maps = { byEmail, byName, archivedByName, emailRowByName, firstLineByKey };
 
   return rows.map((row) => {
-    const analysis = analyzeOne(row, byEmail, byName, firstLineByEmail);
-    return { ...row, analysis, status: statusFor(row, analysis) };
+    const analysis = analyzeOne(row, options, maps);
+    return { ...row, analysis, status: statusFor(row, analysis, options) };
   });
 }
 
-function analyzeOne(
-  row: ImportRow,
-  byEmail: Map<string, ExistingContact>,
-  byName: Map<string, ExistingContact[]>,
-  firstLineByEmail: Map<string, number>
-): RowAnalysis {
+type Maps = {
+  byEmail: Map<string, ExistingContact>;
+  byName: Map<string, ExistingContact[]>;
+  archivedByName: Map<string, ExistingContact[]>;
+  emailRowByName: Map<string, number>;
+  firstLineByKey: Map<string, number>;
+};
+
+// Rows repeat by email; a row without an email repeats by name, so the same
+// name twice in one file does not create two people.
+function repeatKey(row: ImportRow) {
+  return row.email ? `email:${row.email}` : `name:${normalizePersonName(row.name)}`;
+}
+
+function analyzeOne(row: ImportRow, options: ImportOptions, maps: Maps): RowAnalysis {
+  const { byEmail, byName, archivedByName, emailRowByName, firstLineByKey } = maps;
   const problems: string[] = [];
-  if (!row.email) problems.push("Missing email");
-  else if (!isValidEmail(row.email)) problems.push("Email is not valid (one address per row)");
+  if (!row.email) {
+    // An email is only required to mark a potential LP (they are picked as
+    // email recipients); without that, a name is enough.
+    if (options.markPotentialLp) problems.push("Missing email (needed to mark as potential LP)");
+  } else if (!isValidEmail(row.email)) {
+    problems.push("Email is not valid (one address per row)");
+  }
 
   const match = row.email ? byEmail.get(row.email) : undefined;
   if (!row.name && !match) problems.push("Missing name");
   if (problems.length > 0) return { kind: "invalid", problems };
 
   if (!row.excluded) {
-    const firstLine = firstLineByEmail.get(row.email);
+    const key = repeatKey(row);
+    const sameNameWithEmail = row.email ? undefined : emailRowByName.get(normalizePersonName(row.name));
+    if (sameNameWithEmail !== undefined) return { kind: "repeated", firstLine: sameNameWithEmail };
+    const firstLine = firstLineByKey.get(key);
     if (firstLine !== undefined) return { kind: "repeated", firstLine };
-    firstLineByEmail.set(row.email, row.line);
+    firstLineByKey.set(key, row.line);
   }
 
   if (match) {
     if (match.archived) return { kind: "archived_match", person: match };
-    if (match.isPotentialLp) return { kind: "already_lp", person: match };
-    return { kind: "mark_existing", person: match };
+    const changes: ExistingChanges = {
+      lp: options.markPotentialLp && !match.isPotentialLp,
+      group: options.groupId !== null && !match.groupIds.includes(options.groupId),
+    };
+    if (!changes.lp && !changes.group) return { kind: "unchanged", person: match };
+    return { kind: "update_existing", person: match, changes };
   }
 
-  const sameName = byName.get(normalizePersonName(row.name)) ?? [];
+  const nameKey = normalizePersonName(row.name);
+  const sameName = byName.get(nameKey) ?? [];
   if (sameName.length > 0) return { kind: "name_match", people: sameName };
+  const archivedSameName = archivedByName.get(nameKey) ?? [];
+  if (archivedSameName.length > 0) return { kind: "archived_name_match", people: archivedSameName };
   return { kind: "new" };
 }
 
-function statusFor(row: ImportRow, analysis: RowAnalysis): RowStatus {
+// Would importing this row for the chosen person change anything? Adding an
+// email, marking the potential LP flag or joining the group are changes.
+function linkChangesAnything(row: ImportRow, person: ExistingContact, options: ImportOptions) {
+  if (row.email) return true;
+  if (options.markPotentialLp && !person.isPotentialLp) return true;
+  return options.groupId !== null && !person.groupIds.includes(options.groupId);
+}
+
+function statusFor(row: ImportRow, analysis: RowAnalysis, options: ImportOptions): RowStatus {
   if (row.excluded) return "excluded";
   switch (analysis.kind) {
     case "invalid":
       return "review";
     case "repeated":
-    case "already_lp":
+    case "unchanged":
       return "skip";
     case "archived_match":
       return row.decision === "restore" ? "ready" : "review";
+    case "archived_name_match":
+      return analysis.people.some((person) => row.decision === `restore:${person.id}`) || row.decision === "create"
+        ? "ready"
+        : "review";
     case "name_match": {
       const linked = row.decision?.startsWith("link:")
-        ? analysis.people.some((person) => row.decision === `link:${person.id}`)
-        : false;
-      return linked || row.decision === "create" ? "ready" : "review";
+        ? analysis.people.find((person) => row.decision === `link:${person.id}`)
+        : undefined;
+      // "Same person" with nothing to add is a no-op: skipped, not imported.
+      if (linked) return linkChangesAnything(row, linked, options) ? "ready" : "skip";
+      return row.decision === "create" ? "ready" : "review";
     }
     default:
       return "ready";
@@ -223,6 +303,7 @@ export function summarize(rows: AnalyzedRow[]): ImportSummary {
 
 export type ImportPayloadRow = {
   name: string;
+  // Empty for a person imported by name only (no potential LP).
   email: string;
   title?: string;
   person_id?: string;
@@ -239,6 +320,17 @@ export function importPayload(rows: AnalyzedRow[]): ImportPayloadRow[] {
       if (row.analysis.kind === "name_match" && row.decision?.startsWith("link:")) {
         payload.person_id = row.decision.slice("link:".length);
       }
+      if (row.analysis.kind === "archived_name_match" && row.decision?.startsWith("restore:")) {
+        payload.person_id = row.decision.slice("restore:".length);
+        payload.restore = true;
+      }
       return payload;
     });
+}
+
+// What the server action receives: the ready rows and the file-wide choices.
+export type ImportRequest = ImportOptions & { rows: ImportPayloadRow[] };
+
+export function importRequest(rows: AnalyzedRow[], options: ImportOptions): ImportRequest {
+  return { ...options, rows: importPayload(rows) };
 }

@@ -66,7 +66,7 @@ RLS). Column visibility, sorting and board/kanban-style views are not
 implemented yet:
 
 - **People** filters: group and name search, the base tab (`/people` vs
-  `?view=lps`), and which optional columns show (Company, Email, LinkedIn,
+  `?view=lps`; with a group the list is their intersection, see *People: group tabs*), and which optional columns show (Company, Email, LinkedIn,
   Last email, Next meeting; Name and row actions always show). Columns are
   query params (`cols=1&col=company&col=email...`); `cols=1` marks an
   explicit choice so unchecking everything means "only Name" rather than
@@ -91,6 +91,77 @@ email, next meeting, last interaction and LinkedIn stay unsortable (per-person
 Google/history lookups, or a link with no useful order). Pipeline has no table
 today (a board with one column per stage), so it has no click-to-sort. Code:
 `src/lib/list-sort.ts`, `src/components/SortableTh.tsx`.
+
+### People: group tabs
+
+The tab bar above the People list is built in `src/lib/people-groups/tabs.ts`
+and drawn by `src/components/PeopleGroupTabs.tsx`:
+
+- **Order:** **All people (n)**, then **Potential LPs (n)** (the starter group,
+  `kind = 'potential_lp'`, still at `/people?view=lps` because saved views and
+  bookmarks use it), then every custom group alphabetically
+  (`/people?group=<id>`). A tab keeps the search, the column choice and the
+  sort that are in the URL; it replaces the previous tab and group.
+- **Counts:** All people and Potential LPs count active people by the
+  `is_potential_lp` flag, as before. A custom group's count comes from
+  `public.people_group_counts()` (migration `20261102120000`): one call, started
+  in the page's existing parallel batch, that returns one row per group with its
+  non-archived members (empty groups return 0). It is `security invoker`, so RLS
+  applies, and member-only. If the call fails or the migration is not applied
+  yet, the tabs still render, just without the numbers on custom groups.
+- **Active tab:** a group lights its own tab, also with `?view=lps`. In that
+  case the list is the intersection (potential LPs that are in the group), as
+  before, so a saved view with both keeps its restriction when re-saved; the
+  tab count is the group's full size. The Filters menu's group choice lights
+  that group's tab. Choosing the starter group there lights Potential LPs. A
+  group id that no longer exists lights no tab and shows an empty list.
+- **Many groups:** the tabs wrap onto more lines (no scrolling, no arrow
+  glyphs); a very long group name is cut with the full name in the tooltip.
+- **Recipients:** the line next to the tabs reads *Groups can be selected as
+  recipients in Communications.* This is accurate: the CRM draft editor lists
+  every group (`loadContactGroups`) and `save_email_draft` accepts any active
+  person with an email.
+- **New Person** on a custom group's tab adds the new person to that group
+  (`createPersonAction({ groupId })`, custom groups only; the group is checked
+  before the person is created). If the person is created but the group add
+  fails, the action still succeeds (with the new `personId` and a `warning`), the
+  dialog closes, the list refreshes and the warning shows until dismissed, so
+  nothing invites a second submit and a duplicate. On the Potential LPs tab the button is still
+  **Add potential LP**.
+- **Import people (CSV)** opens the importer with the Potential LP checkbox
+  checked from the Potential LPs tab, and the group preselected from a group tab.
+
+### People: import (CSV)
+
+`/people/import` (`src/components/PeopleImporter.tsx`, rules in
+`src/lib/communications/import.ts`, wording in `import-copy.ts`, server action
+`importPeopleAction` in `src/lib/communications/actions.ts`) imports any people.
+Two optional choices apply to the whole file:
+
+- **Mark as potential LPs** (off by default). Off: a row needs only a name; an
+  email is optional but must be valid when present. On: every row needs a valid
+  email, as the importer always required before.
+- **Add to group** (none by default; custom groups only, the starter group
+  follows the checkbox).
+
+Rows the user must decide on: an existing person with the same name (active:
+*Same person* or *Different person*; only archived: *Same person: restore* or
+*Different person*, which restores through `import_people` with
+`person_id` + `restore`). A name-only row is dropped when another row in the
+file has the same name and an email. A *Same person* choice that would change
+nothing (no email, no flag, no group, or already in that group) is skipped and
+not counted.
+
+Unchanged safety: nothing is saved until the reviewed rows are confirmed; the
+file is read in the browser (5 MB limit, 5000 rows); existing people are matched
+by email (any case) and reused, never duplicated; an archived match needs an
+explicit *Restore*; an unmatched row whose name exists needs an explicit
+decision; repeated emails are skipped (without an email, repeated names are);
+people already in People with nothing to change are skipped; members only; one
+transaction; the audit event stores counts and the two choices only.
+"Mark as potential LPs" without a group still calls `import_potential_lps`;
+every other combination calls `import_people` (migration
+`20261102120000_import_people.sql`, test `supabase/tests/import_people.sql`).
 
 ### People: row click and Classify menu
 
