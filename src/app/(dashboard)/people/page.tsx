@@ -14,6 +14,7 @@ import PersonContactActions from "@/components/PersonContactActions";
 import PeopleViewsBar from "@/components/PeopleViewsBar";
 import RelativeTime from "@/components/RelativeTime";
 import { requireMember } from "@/lib/auth/access";
+import { accessFirst } from "@/lib/auth/access-first";
 import { loadMailboxConnection } from "@/lib/connections/queries";
 import { lastEmailDatesForContacts } from "@/lib/google/mail-actions";
 import { nextMeetingsForContacts } from "@/lib/google/calendar-actions";
@@ -100,9 +101,18 @@ export default async function PeoplePage({
   // Header links keep the tab, group, search and columns; only the order changes.
   const sortBaseHref = viewHref("/people", filters);
   const shown = visiblePeopleColumns(filters.cols);
-  const access = await requireMember();
   const supabase = await createClient();
   const endTimer = startDevPageTimer("page:data:people");
+  // Membership and the feature gates are independent of the list queries (RLS
+  // already limits every row), so they all start now and are awaited together
+  // below instead of one after another.
+  const accessPromise = requireMember();
+  const profileStatePromise = personProfileState();
+  const viewsStatePromise = customizationState();
+  const customFieldsPromise = readCustomFieldsState();
+  // The group lookup below awaits before these are collected, so mark them as
+  // handled now; accessFirst still rethrows their rejections (and the redirect).
+  for (const early of [accessPromise, profileStatePromise, viewsStatePromise, customFieldsPromise]) early.catch(() => {});
 
   let groupMemberIds: string[] | null = null;
   if (groupId) {
@@ -124,6 +134,10 @@ export default async function PeoplePage({
   if (groupMemberIds) peopleQuery = peopleQuery.in("id", groupMemberIds.length ? groupMemberIds : [""]);
 
   const [
+    access,
+    profileState,
+    viewsState,
+    customFieldsOn,
     { data: people },
     { data: companies },
     { count: allCount },
@@ -132,7 +146,10 @@ export default async function PeoplePage({
     savedViews,
     mailbox,
     [{ data: lastInteractions }, { data: memberDirectory }],
-  ] = await Promise.all([
+  ] = await accessFirst(accessPromise, [
+    profileStatePromise,
+    viewsStatePromise,
+    customFieldsPromise,
     // Name order is applied in SQL so a name sort picks the right rows
     // even past the API row cap; other sorts reorder the same rows below.
     peopleQuery.order("name", { ascending: !(sort?.key === "name" && sort.dir === "desc") }) as unknown as Promise<{ data: PersonRow[] | null }>,
@@ -167,7 +184,7 @@ export default async function PeoplePage({
   ]);
   endTimer();
 
-  const profileOpen = (await personProfileState()).open;
+  const profileOpen = profileState.open;
   const rows = sortListRows(
     people ?? [],
     sort,
@@ -227,8 +244,8 @@ export default async function PeoplePage({
         </div>
       </header>
 
-      <CustomFieldsGate enabled={(await customizationState()).views}><ViewsPanel kind="people" kanban={(await customizationState()).kanban}/></CustomFieldsGate>
-      <CustomFieldsGate enabled={await readCustomFieldsState()}><CustomFieldFilter object="people" /></CustomFieldsGate>
+      <CustomFieldsGate enabled={viewsState.views}><ViewsPanel kind="people" kanban={viewsState.kanban}/></CustomFieldsGate>
+      <CustomFieldsGate enabled={customFieldsOn}><CustomFieldFilter object="people" /></CustomFieldsGate>
       <PeopleViewsBar
         tabs={
           <div className="flex flex-wrap items-center gap-3">

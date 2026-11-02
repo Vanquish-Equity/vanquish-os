@@ -5,6 +5,7 @@ import CustomFieldsGate from "@/components/custom-fields/CustomFieldsGate";
 import CustomFieldFilter from "@/components/custom-fields/CustomFieldFilter";
 import { cookies } from "next/headers";
 import { requireMember } from "@/lib/auth/access";
+import { accessFirst } from "@/lib/auth/access-first";
 import { pipelineCookieName, pipelineDefault } from "@/lib/settings/preferences";
 import { createClient } from "@/lib/supabase/server";
 import { startDevPageTimer } from "@/lib/performance";
@@ -85,19 +86,21 @@ export default async function PipelinePage({
 }) {
   const { filter, hideTerminal, priority, stage, view, member: memberParam } = await searchParams;
   const showArchived = view === "archived";
-  const member = await requireMember();
-  const savedPipeline = pipelineDefault((await cookies()).get(pipelineCookieName(member.email))?.value);
-  const shouldHideTerminal = hideTerminal === "1" || filter === "active" ||
-    (hideTerminal !== "0" && filter !== "all" && savedPipeline === "active");
-  const pipelineFilters: PipelineViewFilters = {
-    hideTerminal: shouldHideTerminal,
-    priority: priority || null,
-    stage: stage || null,
-  };
+  // Membership and the feature gates do not depend on the deal queries (RLS
+  // limits every row), so they start now and are awaited with them below.
+  const memberPromise = requireMember();
+  const viewsStatePromise = customizationState();
+  const customFieldsPromise = readCustomFieldsState();
+  // createClient() awaits before these are collected, so mark them as handled
+  // now; accessFirst still rethrows their rejections (and the redirect).
+  for (const early of [memberPromise, viewsStatePromise, customFieldsPromise]) early.catch(() => {});
   const supabase = await createClient();
   const endTimer = startDevPageTimer("page:data:pipeline");
 
   const [
+    member,
+    viewsState,
+    customFieldsOn,
     stages,
     { data: deals },
     { data: archivedDeals, count: archivedCount },
@@ -108,7 +111,9 @@ export default async function PipelinePage({
     rounds,
     savedPipelineViews,
     { members, byDeal: assigneesByDeal },
-  ] = await Promise.all([
+  ] = await accessFirst(memberPromise, [
+    viewsStatePromise,
+    customFieldsPromise,
     getPipelineStages() as Promise<Stage[]>,
     showArchived
       ? Promise.resolve({ data: [] as Deal[] })
@@ -155,6 +160,15 @@ export default async function PipelinePage({
     loadDealAssignees(supabase, null),
   ]);
   endTimer();
+
+  const savedPipeline = pipelineDefault((await cookies()).get(pipelineCookieName(member.email))?.value);
+  const shouldHideTerminal = hideTerminal === "1" || filter === "active" ||
+    (hideTerminal !== "0" && filter !== "all" && savedPipeline === "active");
+  const pipelineFilters: PipelineViewFilters = {
+    hideTerminal: shouldHideTerminal,
+    priority: priority || null,
+    stage: stage || null,
+  };
 
   const companies: NewDealCompanyOption[] = (companyRows ?? []).map((company) => ({
     id: company.id,
@@ -235,8 +249,8 @@ export default async function PipelinePage({
         />
       </header>
 
-      <CustomFieldsGate enabled={(await customizationState()).views}><ViewsPanel kind="pipeline" kanban={(await customizationState()).kanban}/></CustomFieldsGate>
-      {!showArchived && <CustomFieldsGate enabled={await readCustomFieldsState()}><CustomFieldFilter object="deals" /></CustomFieldsGate>}
+      <CustomFieldsGate enabled={viewsState.views}><ViewsPanel kind="pipeline" kanban={viewsState.kanban}/></CustomFieldsGate>
+      {!showArchived && <CustomFieldsGate enabled={customFieldsOn}><CustomFieldFilter object="deals" /></CustomFieldsGate>}
       {showArchived ? (
         <div className="vq-card-static flex flex-wrap items-center gap-2 rounded-[14px] bg-white px-3 py-2">
           <Link href="/pipeline" className={tabClass(!showArchived)}>
