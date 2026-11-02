@@ -19,7 +19,9 @@ import { lastEmailDatesForContacts } from "@/lib/google/mail-actions";
 import { nextMeetingsForContacts } from "@/lib/google/calendar-actions";
 import { parsePeopleColumns, visiblePeopleColumns } from "@/lib/views/people-columns";
 import { startDevPageTimer } from "@/lib/performance";
-import { loadSavedViews, type PeopleViewFilters } from "@/lib/views/queries";
+import { loadSavedViews, viewHref, type PeopleViewFilters } from "@/lib/views/queries";
+import SortableTh from "@/components/SortableTh";
+import { parseListSort, sortListRows } from "@/lib/list-sort";
 
 // Beyond this many rows, a single combined Gmail search can no longer give
 // each contact a fair shot at showing up in the results (see
@@ -30,6 +32,11 @@ const LAST_EMAIL_MAX_ROWS = 50;
 export const dynamic = "force-dynamic";
 
 type Option = { id: string; name: string };
+
+// Columns that can be sorted with a click: the ones stored on the person
+// itself. Last email, next meeting and last interaction are looked up per
+// person (Gmail, Calendar, relationship history), so they stay unsortable.
+const PEOPLE_SORT_KEYS = ["name", "company", "email"] as const;
 
 // LIKE wildcards are literal characters in a person's name.
 function escapeLike(value: string) {
@@ -69,9 +76,12 @@ export default async function PeoplePage({
     q?: string;
     cols?: string;
     col?: string | string[];
+    sort?: string | string[];
+    dir?: string | string[];
   }>;
 }) {
-  const { view, group, q, cols: colsMarker, col } = await searchParams;
+  const { view, group, q, cols: colsMarker, col, sort: sortParam, dir: dirParam } = await searchParams;
+  const sort = parseListSort(PEOPLE_SORT_KEYS, sortParam, dirParam);
   const showLps = view === "lps";
   const groupId = group || null;
   const search = (q ?? "").trim();
@@ -83,6 +93,8 @@ export default async function PeoplePage({
     // every column shows.
     cols: colsMarker ? (parsePeopleColumns(col ?? []) ?? []) : null,
   };
+  // Header links keep the tab, group, search and columns; only the order changes.
+  const sortBaseHref = viewHref("/people", filters);
   const shown = visiblePeopleColumns(filters.cols);
   const access = await requireMember();
   const supabase = await createClient();
@@ -117,7 +129,9 @@ export default async function PeoplePage({
     mailbox,
     [{ data: lastInteractions }, { data: memberDirectory }],
   ] = await Promise.all([
-    peopleQuery.order("name") as unknown as Promise<{ data: PersonRow[] | null }>,
+    // Name order is applied in SQL so a name sort picks the right rows
+    // even past the API row cap; other sorts reorder the same rows below.
+    peopleQuery.order("name", { ascending: !(sort?.key === "name" && sort.dir === "desc") }) as unknown as Promise<{ data: PersonRow[] | null }>,
     supabase
       .from("companies")
       .select("id,name")
@@ -150,7 +164,12 @@ export default async function PeoplePage({
   endTimer();
 
   const profileOpen = (await personProfileState()).open;
-  const rows = people ?? [];
+  const rows = sortListRows(
+    people ?? [],
+    sort,
+    (p, key) => (key === "name" ? p.name : key === "company" ? p.organization?.name : primaryEmail(p.person_emails ?? [])),
+    (p) => p.id,
+  );
   // Both per-row signals cost a Google round trip, so they only run when
   // their column is visible and the list is small enough (see
   // LAST_EMAIL_MAX_ROWS) to be meaningful.
@@ -229,6 +248,7 @@ export default async function PeoplePage({
         views={savedViews}
         groups={groups ?? []}
         filters={filters}
+        sort={sort}
         me={access.email ?? ""}
       />
 
@@ -251,9 +271,9 @@ export default async function PeoplePage({
         <table className="w-full text-[12.5px]">
           <thead>
             <tr className="border-b border-neutral-100 text-left text-[10.5px] uppercase tracking-wide text-neutral-400">
-              <th className="px-4 py-3 font-semibold">Name</th>
-              {shown.has("company") && <th className="px-4 py-3 font-semibold">Company</th>}
-              {shown.has("email") && <th className="px-4 py-3 font-semibold">Email</th>}
+              <SortableTh label="Name" sortKey="name" sort={sort} baseHref={sortBaseHref} />
+              {shown.has("company") && <SortableTh label="Company" sortKey="company" sort={sort} baseHref={sortBaseHref} />}
+              {shown.has("email") && <SortableTh label="Email" sortKey="email" sort={sort} baseHref={sortBaseHref} />}
               {shown.has("linkedin") && <th className="px-4 py-3 font-semibold">LinkedIn</th>}
               {shown.has("last_email") && <th className="px-4 py-3 font-semibold">Last email</th>}
               {shown.has("next_meeting") && <th className="px-4 py-3 font-semibold">Next meeting</th>}
@@ -262,7 +282,7 @@ export default async function PeoplePage({
             </tr>
           </thead>
           <tbody>
-            {(people ?? []).map((p) => (
+            {rows.map((p) => (
               <tr key={p.id} className="border-b border-neutral-50 last:border-0">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2.5">

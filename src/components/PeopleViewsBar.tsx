@@ -7,6 +7,7 @@ import Checkbox from "@/components/Checkbox";
 import { FormSelectMenu } from "@/components/SelectMenu";
 import { deleteViewAction, saveViewAction } from "@/lib/views/actions";
 import { PEOPLE_COLUMNS, visiblePeopleColumns } from "@/lib/views/people-columns";
+import type { ListSort } from "@/lib/list-sort";
 import {
   viewHref,
   type PeopleViewFilters,
@@ -27,12 +28,15 @@ export default function PeopleViewsBar({
   views,
   groups,
   filters,
+  sort = null,
   me,
 }: {
   tabs: ReactNode;
   views: SavedView[];
   groups: { id: string; name: string }[];
   filters: PeopleViewFilters;
+  // Header sort from the URL; applying filters keeps it.
+  sort?: ListSort<string>;
   me: string;
 }) {
   const router = useRouter();
@@ -141,6 +145,8 @@ export default function PeopleViewsBar({
         <div className="flex flex-col gap-2.5 border-t border-neutral-100 pt-2.5">
           <form method="get" className="flex flex-wrap items-center gap-2">
             {filters.view === "lps" && <input type="hidden" name="view" value="lps" />}
+            {sort && <input type="hidden" name="sort" value={sort.key} />}
+            {sort && <input type="hidden" name="dir" value={sort.dir} />}
             <FormSelectMenu
               name="group"
               defaultValue={filters.groupId ?? ""}
