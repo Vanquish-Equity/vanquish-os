@@ -236,11 +236,11 @@ describe("round trips per route", () => {
       // Every request checks the session twice at most: proxy + membership.
       expect(result.auth).toBeLessThanOrEqual(2);
       if (route === "/people") {
-        // Gmail and Calendar run behind Suspense: the table is ready long
-        // before the Google cells are.
-        // Virtual time: exact, not a timing guess.
-        expect(result.google).toBeGreaterThan(0);
-        expect(result.fullMs - result.pageMs).toBeGreaterThan(150);
+        // Gmail and Calendar are asked by the browser after the table is on
+        // screen, so the server render makes no Google calls at all and the
+        // response is complete as soon as the page is ready.
+        expect(result.google).toBe(0);
+        expect(result.fullMs - result.pageMs).toBeLessThan(50);
       }
       if (process.env.PERF_REPORT_FILE && route === order[order.length - 1]) {
         writeFileSync(process.env.PERF_REPORT_FILE, JSON.stringify(all, null, 2));

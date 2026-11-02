@@ -5,10 +5,9 @@ import { personProfileState } from "@/lib/people/profile-access";
 import { personProfileHref } from "@/lib/people/profile-link";
 import CustomFieldsGate from "@/components/custom-fields/CustomFieldsGate";
 import CustomFieldFilter from "@/components/custom-fields/CustomFieldFilter";
-import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { CellPlaceholder, LastEmailCell, NextMeetingCell } from "./GoogleCells";
+import { GoogleLookups, LastEmailCell, NextMeetingCell } from "./GoogleCells";
 import NewPersonModal from "@/components/NewPersonModal";
 import PersonContactActions from "@/components/PersonContactActions";
 import PeopleViewsBar from "@/components/PeopleViewsBar";
@@ -16,8 +15,6 @@ import RelativeTime from "@/components/RelativeTime";
 import { requireMember } from "@/lib/auth/access";
 import { accessFirst } from "@/lib/auth/access-first";
 import { loadMailboxConnection } from "@/lib/connections/queries";
-import { lastEmailDatesForContacts } from "@/lib/google/mail-actions";
-import { nextMeetingsForContacts } from "@/lib/google/calendar-actions";
 import { parsePeopleColumns, visiblePeopleColumns } from "@/lib/views/people-columns";
 import { startDevPageTimer } from "@/lib/performance";
 import { loadSavedViews, viewHref, type PeopleViewFilters } from "@/lib/views/queries";
@@ -200,9 +197,8 @@ export default async function PeoplePage({
   const contactEmails = rows
     .map((p) => primaryEmail(p.person_emails ?? []))
     .filter((email): email is string => Boolean(email));
-  // Started now, awaited by each cell behind its own Suspense boundary.
-  const lastEmailLookup = showLastEmail ? lastEmailDatesForContacts(contactEmails) : null;
-  const nextMeetingLookup = showNextMeeting ? nextMeetingsForContacts(contactEmails) : null;
+  // The browser asks Google after the table is shown (see GoogleLookups), so
+  // the page itself never waits for Gmail or Calendar.
   const lastInteractionByPerson = new Map((lastInteractions ?? []).map((row) => [row.person_id, row]));
   const memberNames = new Map((memberDirectory ?? []).map((member) => [member.email, member.display_name || member.email.split("@")[0]]));
   const columnCount = 2 + shown.size;
@@ -295,6 +291,7 @@ export default async function PeoplePage({
       )}
 
       <div className="vq-card-static overflow-hidden rounded-[14px] bg-white">
+        <GoogleLookups emails={contactEmails} lastEmail={showLastEmail} nextMeeting={showNextMeeting}>
         <table className="w-full text-[12.5px]">
           <thead>
             <tr className="border-b border-neutral-100 text-left text-[10.5px] uppercase tracking-wide text-neutral-400">
@@ -367,10 +364,8 @@ export default async function PeoplePage({
                 )}
                 {shown.has("last_email") && (
                 <td className="px-4 py-3 text-neutral-500">
-                  {lastEmailLookup ? (
-                    <Suspense fallback={<CellPlaceholder />}>
-                      <LastEmailCell email={primaryEmail(p.person_emails ?? [])} lookup={lastEmailLookup} />
-                    </Suspense>
+                  {showLastEmail ? (
+                    <LastEmailCell email={primaryEmail(p.person_emails ?? [])} />
                   ) : (
                     <span className="text-neutral-300">—</span>
                   )}
@@ -378,10 +373,8 @@ export default async function PeoplePage({
                 )}
                 {shown.has("next_meeting") && (
                 <td className="px-4 py-3 text-neutral-500">
-                  {nextMeetingLookup ? (
-                    <Suspense fallback={<CellPlaceholder />}>
-                      <NextMeetingCell email={primaryEmail(p.person_emails ?? [])} lookup={nextMeetingLookup} />
-                    </Suspense>
+                  {showNextMeeting ? (
+                    <NextMeetingCell email={primaryEmail(p.person_emails ?? [])} />
                   ) : (
                     <span className="text-neutral-300">—</span>
                   )}
@@ -435,6 +428,7 @@ export default async function PeoplePage({
             )}
           </tbody>
         </table>
+        </GoogleLookups>
       </div>
     </div>
   );
