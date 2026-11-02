@@ -44,3 +44,27 @@ export async function savePeopleGroupMembers(id: string, personIds: string[]): P
   if (error) return fail("Could not save group members. Reload People and try again.");
   refresh(); return { ok: true };
 }
+
+// Adds or removes ONE membership (the People row menu). Unlike
+// savePeopleGroupMembers it never touches the rest of the group. Existing RLS
+// (member insert/delete on person_group_members) already covers it. The
+// starter Potential LPs group is refused: it follows people.is_potential_lp
+// through the sync trigger, so it is changed with setPotentialLpAction.
+export async function setPersonGroupMembership(personId: string, groupId: string, member: boolean): Promise<Result> {
+  const access = await actionAccessError(); if (access) return fail(access);
+  if (!uuid.test(personId) || !uuid.test(groupId) || typeof member !== "boolean") return fail("Invalid group selection.");
+  const db = await createClient();
+  const { data: group } = await db.from("person_groups").select("id,kind").eq("id", groupId).maybeSingle();
+  if (!group) return fail("That group no longer exists. Reload People and try again.");
+  if (group.kind === "potential_lp") return fail("Use Potential LP to change this group.");
+  if (member) {
+    const { data: person } = await db.from("people").select("id").eq("id", personId).is("archived_at", null).maybeSingle();
+    if (!person) return fail("Person could not be found.");
+    const { error } = await db.from("person_group_members").upsert({ group_id: groupId, person_id: personId }, { onConflict: "group_id,person_id", ignoreDuplicates: true });
+    if (error) return fail("Could not add to group.");
+  } else {
+    const { error } = await db.from("person_group_members").delete().eq("group_id", groupId).eq("person_id", personId);
+    if (error) return fail("Could not remove from group.");
+  }
+  refresh(); return { ok: true };
+}

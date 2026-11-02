@@ -157,6 +157,11 @@ fundraising UUIDs survive retries. No new design-system exception is introduced.
 - **Open menus over cards:** cards are isolated stacking contexts, so `globals.css`
   lifts a card to `z-index: 20` while it holds `[aria-haspopup][aria-expanded="true"]`
   (SelectMenu, member/board menus). Disclosure toggles and the Sidebar are excluded; dialogs (z-50+) stay above.
+- **Pointer-placed menus:** the People row menu (`PersonContextMenu`) opens at
+  the pointer, so it is a `fixed` portal at `z-[55]` (above dialogs at z-50,
+  below the intro layer) instead of hanging under a trigger; it is clamped to the
+  viewport. Its checkable items use a visual-only tick (same look as `Checkbox`)
+  because a real input cannot sit inside `role="menuitemcheckbox"`.
 
 ## No arrows (one convention per control)
 

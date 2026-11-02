@@ -92,6 +92,33 @@ Google/history lookups, or a link with no useful order). Pipeline has no table
 today (a board with one column per stage), so it has no click-to-sort. Code:
 `src/lib/list-sort.ts`, `src/components/SortableTh.tsx`.
 
+### People: row click and Classify menu
+
+A People row is interactive as a whole (`src/components/PersonRow.tsx`; the page
+stays a server component and passes the cells as children).
+
+- **Click:** a plain left click on a row opens the person's profile, only when
+  the profile is reachable (`personProfileHref`; with it closed the row is not
+  clickable and shows no pointer). Clicks on links, buttons, inputs, a text
+  selection, or a click with Ctrl/Cmd/Shift/Alt do nothing extra. The name stays
+  a real link (keyboard, screen readers, middle click). **Enter** on the focused
+  row also opens the profile.
+- **Classify menu** (`PersonContextMenu`): right click anywhere on the row, the
+  **ContextMenu** key / **Shift+F10** on the focused row, or the **Classify**
+  button in the Contact column (next to **Edit**) opens it. It holds **Potential LP**
+  (`setPotentialLpAction`; still needs an email, the message shows in the menu),
+  one checkable item per People group, **New group...** (name only: creates the
+  group with `createPeopleGroup` and adds the person), **Open profile** (when
+  reachable) and **Edit contact** (the existing dialog). Up/Down/Home/End move
+  between items; Escape, an outside press, scroll or resize close it.
+- **Groups:** one membership changes at a time with `setPersonGroupMembership`
+  (`src/lib/people-groups/actions.ts`); it uses the existing member insert/delete
+  RLS on `person_group_members`, so no migration is involved. The starter
+  Potential LPs group is not listed as a group item: it follows the Potential LP
+  flag through the database trigger, so that one toggle is the only way to change
+  it from the menu and the person is never added twice.
+- The old **Mark potential LP** button is gone from the Contact column.
+
 ## Company timeline: email history
 
 The Company detail page's **Timeline** merges stage history, manually logged

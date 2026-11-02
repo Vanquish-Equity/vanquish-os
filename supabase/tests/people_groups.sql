@@ -32,6 +32,13 @@ update public.people set is_potential_lp=false where id=(select person_id from g
 select pg_temp.expect((select count(*)=0 from public.person_group_members gm join public.person_groups g on g.id=gm.group_id where gm.person_id=(select person_id from group_test) and g.kind='potential_lp'),'unmarking LP removes starter membership');
 select pg_temp.expect((select count(*)=1 from public.person_group_members where group_id=(select group_id from group_test)),'custom membership remains');
 select pg_temp.expect(pg_temp.denied($q$select public.set_person_group_members((select group_id from group_test),array['00000000-0000-0000-0000-000000000000']::uuid[])$q$),'unknown person rejected atomically');
+-- The People row menu (setPersonGroupMembership) adds and removes ONE
+-- membership with plain member insert/delete; no policy change is needed.
+delete from public.person_group_members where group_id=(select group_id from group_test) and person_id=(select person_id from group_test);
+select pg_temp.expect((select count(*)=0 from public.person_group_members where group_id=(select group_id from group_test)),'single membership can be removed');
+insert into public.person_group_members(group_id,person_id) values ((select group_id from group_test),(select person_id from group_test)) on conflict (group_id,person_id) do nothing;
+insert into public.person_group_members(group_id,person_id) values ((select group_id from group_test),(select person_id from group_test)) on conflict (group_id,person_id) do nothing;
+select pg_temp.expect((select count(*)=1 from public.person_group_members where group_id=(select group_id from group_test)),'single membership can be added once, idempotently');
 -- RLS on delete silently matches zero rows rather than raising, so assert
 -- the row survives instead of expecting an exception.
 delete from public.person_groups where kind='potential_lp';

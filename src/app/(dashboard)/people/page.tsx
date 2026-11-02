@@ -10,6 +10,7 @@ import Link from "next/link";
 import { GoogleLookups, LastEmailCell, NextMeetingCell } from "./GoogleCells";
 import NewPersonModal from "@/components/NewPersonModal";
 import PersonContactActions from "@/components/PersonContactActions";
+import PersonRow, { PeopleGroupsProvider } from "@/components/PersonRow";
 import PeopleViewsBar from "@/components/PeopleViewsBar";
 import RelativeTime from "@/components/RelativeTime";
 import { requireMember } from "@/lib/auth/access";
@@ -54,6 +55,7 @@ type PersonRow = {
   is_potential_lp: boolean;
   organization: { id: string; name: string } | null;
   person_emails: { email: string; is_primary: boolean }[];
+  person_group_members: { group_id: string }[];
 };
 
 function primaryEmail(emails: { email: string; is_primary: boolean }[]) {
@@ -123,7 +125,7 @@ export default async function PeoplePage({
   let peopleQuery = supabase
     .from("people")
     .select(
-      "id,name,title,linkedin_url,primary_organization_id,is_potential_lp,organization:companies(id,name),person_emails(email,is_primary)"
+      "id,name,title,linkedin_url,primary_organization_id,is_potential_lp,organization:companies(id,name),person_emails(email,is_primary),person_group_members(group_id)"
     )
     .is("archived_at", null);
   if (showLps) peopleQuery = peopleQuery.eq("is_potential_lp", true);
@@ -161,8 +163,8 @@ export default async function PeoplePage({
       .select("id", { count: "exact", head: true })
       .is("archived_at", null)
       .eq("is_potential_lp", true),
-    supabase.from("person_groups").select("id,name").order("name") as unknown as Promise<{
-      data: Option[] | null;
+    supabase.from("person_groups").select("id,name,kind").order("name") as unknown as Promise<{
+      data: (Option & { kind: string })[] | null;
     }>,
     loadSavedViews(supabase, "people"),
     loadMailboxConnection(supabase),
@@ -201,6 +203,9 @@ export default async function PeoplePage({
   // the page itself never waits for Gmail or Calendar.
   const lastInteractionByPerson = new Map((lastInteractions ?? []).map((row) => [row.person_id, row]));
   const memberNames = new Map((memberDirectory ?? []).map((member) => [member.email, member.display_name || member.email.split("@")[0]]));
+  // The starter Potential LPs group follows the Potential LP flag, so the row
+  // menu offers it as that one toggle rather than as a second group item.
+  const menuGroups = (groups ?? []).filter((g) => g.kind !== "potential_lp").map(({ id, name }) => ({ id, name }));
   const columnCount = 2 + shown.size;
 
   const tabClass = (active: boolean) =>
@@ -291,6 +296,7 @@ export default async function PeoplePage({
       )}
 
       <div className="vq-card-static overflow-hidden rounded-[14px] bg-white">
+        <PeopleGroupsProvider groups={menuGroups}>
         <GoogleLookups emails={contactEmails} lastEmail={showLastEmail} nextMeeting={showNextMeeting}>
         <table className="w-full text-[12.5px]">
           <thead>
@@ -307,7 +313,15 @@ export default async function PeoplePage({
           </thead>
           <tbody>
             {rows.map((p) => (
-              <tr key={p.id} className="border-b border-neutral-50 last:border-0">
+              <PersonRow
+                key={p.id}
+                personId={p.id}
+                name={p.name}
+                email={primaryEmail(p.person_emails ?? [])}
+                isPotentialLp={p.is_potential_lp}
+                profileHref={personProfileHref(p.id, profileOpen)}
+                memberGroupIds={(p.person_group_members ?? []).map((m) => m.group_id)}
+              >
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2.5">
                     <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#f0fafb] text-[10.5px] font-semibold text-cyan-800">
@@ -402,7 +416,7 @@ export default async function PeoplePage({
                     isPotentialLp={p.is_potential_lp}
                   />
                 </td>
-              </tr>
+              </PersonRow>
             ))}
             {(!people || people.length === 0) && (
               <tr>
@@ -429,6 +443,7 @@ export default async function PeoplePage({
           </tbody>
         </table>
         </GoogleLookups>
+        </PeopleGroupsProvider>
       </div>
     </div>
   );

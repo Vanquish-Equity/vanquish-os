@@ -1,16 +1,20 @@
 "use client";
 import CustomFieldsRecord from "@/components/custom-fields/CustomFieldsRecord";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useContext, useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { setPotentialLpAction, updateContactAction } from "@/lib/people/actions";
+import { updateContactAction } from "@/lib/people/actions";
+import { PERSON_MENU_TEXT } from "@/components/PersonContextMenu";
+import { PersonRowContext } from "@/components/person-row-context";
 
 const inputClass =
   "w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[12.5px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100";
 const labelClass = "mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400";
 
-// Potential LP toggle and "Edit" (name + primary email) for one row of People.
+// "Classify" (opens the row menu) and "Edit" (name + primary email) for one row
+// of People. Inside a PersonRow both act on the row's shared menu and dialog;
+// on its own the component still offers Edit.
 export default function PersonContactActions({
   personId,
   name,
@@ -22,70 +26,48 @@ export default function PersonContactActions({
   email: string | null;
   isPotentialLp: boolean;
 }) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
-
-  function toggleLp() {
-    setError(null);
-    startTransition(async () => {
-      const result = await setPotentialLpAction({ personId, value: !isPotentialLp });
-      if (!result.ok) {
-        setError(result.message);
-        return;
-      }
-      router.refresh();
-    });
-  }
+  const row = useContext(PersonRowContext);
+  const [localEditing, setLocalEditing] = useState(false);
 
   return (
-    <div className="flex flex-col items-end gap-1">
-      <div className="flex items-center justify-end gap-1.5">
+    <div className="flex items-center justify-end gap-1.5">
+      {row && (
         <button
           type="button"
-          onClick={toggleLp}
-          disabled={isPending}
-          aria-pressed={isPotentialLp}
-          title={isPotentialLp ? "Unmark as potential LP" : "Mark as potential LP"}
-          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition disabled:opacity-50 ${
-            isPotentialLp
-              ? "bg-cyan-50 text-cyan-800 ring-1 ring-cyan-200 hover:bg-cyan-100"
-              : "border border-neutral-200 text-neutral-500 hover:border-cyan-300 hover:text-cyan-800"
+          onClick={(event) => row.openMenuFrom(event.currentTarget)}
+          aria-haspopup="menu"
+          aria-expanded={row.menuOpen}
+          aria-label={PERSON_MENU_TEXT.classifyButtonLabel(name)}
+          className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition ${
+            isPotentialLp || row.menuOpen
+              ? "border-cyan-200 bg-cyan-50 text-cyan-800"
+              : "border-neutral-200 text-neutral-600 hover:border-cyan-300 hover:text-cyan-800"
           }`}
         >
-          {isPotentialLp ? "Potential LP ✓" : "Mark potential LP"}
+          {PERSON_MENU_TEXT.classifyButton}
         </button>
-        <button
-          type="button"
-          onClick={() => {
-            setError(null);
-            setEditing(true);
-          }}
-          className="rounded-full border border-neutral-200 px-2.5 py-1 text-[11px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
-        >
-          Edit
-        </button>
-      </div>
-      {error && (
-        <p role="alert" className="max-w-[260px] text-right text-[11px] text-red-600">
-          {error}
-        </p>
       )}
-      {editing && (
+      <button
+        type="button"
+        onClick={() => (row ? row.openEdit() : setLocalEditing(true))}
+        className="rounded-full border border-neutral-200 px-2.5 py-1 text-[11px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
+      >
+        Edit
+      </button>
+      {!row && localEditing && (
         <EditContactDialog
           personId={personId}
           name={name}
           email={email}
           isPotentialLp={isPotentialLp}
-          onClose={() => setEditing(false)}
+          onClose={() => setLocalEditing(false)}
         />
       )}
     </div>
   );
 }
 
-function EditContactDialog({
+export function EditContactDialog({
   personId,
   name,
   email,
