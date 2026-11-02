@@ -9,12 +9,12 @@ describe("formatRelative", () => {
   });
 
   it("shows days for activity under fourteen days", () => {
-    expect(formatRelative("2026-09-20T12:00:00.000Z", now)).toBe("3d ago");
-    expect(formatRelative("2026-09-10T12:00:00.000Z", now)).toBe("13d ago");
+    expect(formatRelative("2026-09-20T12:00:00.000Z", now)).toBe("3 days ago");
+    expect(formatRelative("2026-09-10T12:00:00.000Z", now)).toBe("13 days ago");
   });
 
   it("shows weeks for activity under eight weeks", () => {
-    expect(formatRelative("2026-08-19T12:00:00.000Z", now)).toBe("5w ago");
+    expect(formatRelative("2026-08-19T12:00:00.000Z", now)).toBe("5 weeks ago");
   });
 
   it("shows month and year for older activity", () => {
@@ -28,7 +28,7 @@ describe("formatUpcoming", () => {
   it("reads naturally for the next two weeks", () => {
     expect(formatUpcoming("2026-09-23T15:00:00.000Z", now)).toBe("today");
     expect(formatUpcoming("2026-09-24T13:00:00.000Z", now)).toBe("tomorrow");
-    expect(formatUpcoming("2026-09-28T12:00:00.000Z", now)).toBe("in 5d");
+    expect(formatUpcoming("2026-09-28T12:00:00.000Z", now)).toBe("in 5 days");
   });
 
   it("shows the date for meetings further out", () => {

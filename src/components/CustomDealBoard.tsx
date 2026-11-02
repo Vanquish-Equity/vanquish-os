@@ -9,6 +9,8 @@ import MemberAssignMenu from "@/components/MemberAssignMenu";
 import SelectMenu from "@/components/SelectMenu";
 import { DealCardBody, type PipelineDeal } from "@/components/PipelineColumn";
 import Checkbox from "@/components/Checkbox";
+import LocalTime from "@/components/LocalTime";
+import { fromLocalInput, toLocalInput } from "@/lib/format-datetime";
 import BoardDirectoryImport from "@/components/BoardDirectoryImport";
 import BoardHeader, { type ShareScope } from "@/components/BoardHeader";
 import { addBoardItemAction, addColumnAction, addChecklistItemAction, clearChecklistAction, deleteChecklistItemAction, moveBoardCardAction, moveBoardItemAction, removeBoardCardAction, removeBoardItemAction, removeEmptyColumnAction, renameColumnAction, reorderColumnsAction, saveBoardItemAction, setBoardItemAssigneeAction, setChecklistItemDoneAction } from "@/lib/boards/actions";
@@ -40,7 +42,7 @@ function NativeCard({ item, boardId, members, onOpen, onToggleAssignee, active }
   >
     <span className="block text-[12.5px] font-semibold text-ink">{item.title}</span>
     {(item.source_person_id || item.source_company_id) && <span className="mt-1 block text-[10px] font-medium text-cyan-700">From {item.source_person_id ? "People" : "Companies"}</span>}
-    {item.due_at && <span className="mt-2 block text-[11px] text-neutral-500">Due {new Date(item.due_at).toLocaleDateString()}</span>}
+    {item.due_at && <span className="mt-2 block text-[11px] text-neutral-500">Due <LocalTime date={item.due_at} mode="day" /></span>}
     <div className="mt-2 flex justify-end"><MemberAssignMenu members={members} assigned={item.assignees} onToggle={onToggleAssignee} /></div>
   </div>;
 }
@@ -103,7 +105,7 @@ function ItemEditor({ item, columns, members, onClose, onSave, onMove, onDelete,
   const [title, setTitle] = useState(item.title);
   const [description, setDescription] = useState(item.description);
   const [editingDescription, setEditingDescription] = useState(false);
-  const [due, setDue] = useState(item.due_at?.slice(0, 16) ?? "");
+  const [due, setDue] = useState(toLocalInput(item.due_at));
   const [hideChecked, setHideChecked] = useState(false);
   const [newChecklistText, setNewChecklistText] = useState("");
   const done = item.checklist.filter((entry) => entry.done).length;
@@ -112,15 +114,18 @@ function ItemEditor({ item, columns, members, onClose, onSave, onMove, onDelete,
 
   function saveTitle() {
     if (!title.trim()) { setTitle(item.title); return; }
-    if (title.trim() === item.title && description === item.description && (due ? new Date(due).toISOString() : null) === item.due_at) return;
-    void onSave(title.trim(), description, due ? new Date(due).toISOString() : null);
+    // The input holds local wall-clock time; compare and store instants (to the minute, the input's precision).
+    const dueIso = fromLocalInput(due);
+    const minute = (iso: string | null) => (iso ? Math.floor(Date.parse(iso) / 60000) : null);
+    if (title.trim() === item.title && description === item.description && minute(dueIso) === minute(item.due_at)) return;
+    void onSave(title.trim(), description, dueIso);
   }
   function saveDue(value: string) {
     setDue(value);
-    void onSave(title.trim() || item.title, description, value ? new Date(value).toISOString() : null);
+    void onSave(title.trim() || item.title, description, fromLocalInput(value));
   }
   async function saveDescription() {
-    await onSave(title.trim() || item.title, description, due ? new Date(due).toISOString() : null);
+    await onSave(title.trim() || item.title, description, fromLocalInput(due));
     setEditingDescription(false);
   }
 
@@ -153,8 +158,8 @@ function ItemEditor({ item, columns, members, onClose, onSave, onMove, onDelete,
           <div className="mt-1.5"><MemberAssignMenu members={members} assigned={item.assignees} onToggle={onToggleAssignee} alwaysVisible /></div>
         </div>
         <div>
-          <label htmlFor="item-due" className="block text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">Due date</label>
-          <input id="item-due" type="datetime-local" value={due} onChange={(event) => saveDue(event.target.value)} className="mt-1.5 rounded-lg border border-neutral-200 px-2.5 py-1.5 text-xs" />
+          <label htmlFor="item-due" className="block text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">Due date and time</label>
+          <input id="item-due" type="datetime-local" value={due} onChange={(event) => saveDue(event.target.value)} className="mt-1.5 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-cyan-400" />
         </div>
       </div>
 

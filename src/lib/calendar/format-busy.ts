@@ -49,7 +49,7 @@ export function safeZone(zone: string): string {
   }
 }
 
-function dayKeyOf(ms: number, zone: string): string {
+export function dayKeyOf(ms: number, zone: string): string {
   const parts = dtf("en-CA", {
     timeZone: zone,
     year: "numeric",
@@ -82,7 +82,7 @@ function dayBounds(ms: number, zone: string): [number, number] {
 }
 
 /** UTC offset (ms, positive east) in force at `ms`. */
-function offsetOf(ms: number, zone: string): number {
+export function offsetOf(ms: number, zone: string): number {
   const parts = dtf("en-US", {
     timeZone: zone,
     hourCycle: "h23",
