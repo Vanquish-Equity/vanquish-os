@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { formatDay, formatStamp, browserZone } from "@/lib/format-datetime";
+import { formatDay, formatStamp, resolveZone } from "@/lib/format-datetime";
 import { formatLocalTimestamp, useTimePreferences } from "@/lib/settings/time";
 
 const noop = () => () => {};
@@ -21,7 +21,7 @@ export default function LocalTime({
 }) {
   const now = useSyncExternalStore(noop, () => Date.now(), () => null);
   const { zone, style } = useTimePreferences();
-  const readableZone = zone === "browser" ? browserZone() : zone;
+  const readableZone = resolveZone(zone);
   let text = "";
   if (now !== null) {
     const value = new Date(date);

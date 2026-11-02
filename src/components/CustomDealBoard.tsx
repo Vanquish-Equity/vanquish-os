@@ -10,7 +10,8 @@ import SelectMenu from "@/components/SelectMenu";
 import { DealCardBody, type PipelineDeal } from "@/components/PipelineColumn";
 import Checkbox from "@/components/Checkbox";
 import LocalTime from "@/components/LocalTime";
-import { fromLocalInput, toLocalInput } from "@/lib/format-datetime";
+import { fromLocalInput, resolveZone, toLocalInput } from "@/lib/format-datetime";
+import { useTimePreferences } from "@/lib/settings/time";
 import BoardDirectoryImport from "@/components/BoardDirectoryImport";
 import BoardHeader, { type ShareScope } from "@/components/BoardHeader";
 import { addBoardItemAction, addColumnAction, addChecklistItemAction, clearChecklistAction, deleteChecklistItemAction, moveBoardCardAction, moveBoardItemAction, removeBoardCardAction, removeBoardItemAction, removeEmptyColumnAction, renameColumnAction, reorderColumnsAction, saveBoardItemAction, setBoardItemAssigneeAction, setChecklistItemDoneAction } from "@/lib/boards/actions";
@@ -105,7 +106,9 @@ function ItemEditor({ item, columns, members, onClose, onSave, onMove, onDelete,
   const [title, setTitle] = useState(item.title);
   const [description, setDescription] = useState(item.description);
   const [editingDescription, setEditingDescription] = useState(false);
-  const [due, setDue] = useState(toLocalInput(item.due_at));
+  // Same zone as the "Due" label on the card (Settings zone, else the browser's).
+  const zone = resolveZone(useTimePreferences().zone);
+  const [due, setDue] = useState(toLocalInput(item.due_at, zone));
   const [hideChecked, setHideChecked] = useState(false);
   const [newChecklistText, setNewChecklistText] = useState("");
   const done = item.checklist.filter((entry) => entry.done).length;
@@ -115,17 +118,17 @@ function ItemEditor({ item, columns, members, onClose, onSave, onMove, onDelete,
   function saveTitle() {
     if (!title.trim()) { setTitle(item.title); return; }
     // The input holds local wall-clock time; compare and store instants (to the minute, the input's precision).
-    const dueIso = fromLocalInput(due);
+    const dueIso = fromLocalInput(due, zone);
     const minute = (iso: string | null) => (iso ? Math.floor(Date.parse(iso) / 60000) : null);
     if (title.trim() === item.title && description === item.description && minute(dueIso) === minute(item.due_at)) return;
     void onSave(title.trim(), description, dueIso);
   }
   function saveDue(value: string) {
     setDue(value);
-    void onSave(title.trim() || item.title, description, fromLocalInput(value));
+    void onSave(title.trim() || item.title, description, fromLocalInput(value, zone));
   }
   async function saveDescription() {
-    await onSave(title.trim() || item.title, description, fromLocalInput(due));
+    await onSave(title.trim() || item.title, description, fromLocalInput(due, zone));
     setEditingDescription(false);
   }
 

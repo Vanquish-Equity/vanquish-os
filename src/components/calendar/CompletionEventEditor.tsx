@@ -37,7 +37,7 @@ const TEXT = {
   repeat: "Repeat (leave empty for a one-time event)",
   repeatExample: "FREQ=WEEKLY;COUNT=12",
   repeatHelp:
-    "To repeat, type a rule that ends, for example FREQ=WEEKLY;COUNT=12 means every week, 12 times.",
+    "To repeat, type a rule that has an end. Every week, 12 times: FREQ=WEEKLY;COUNT=12. Every day, 5 times: FREQ=DAILY;COUNT=5. Every 2 weeks on Monday, 6 times: FREQ=WEEKLY;INTERVAL=2;BYDAY=MO;COUNT=6.",
   notify: "Notify guests",
   notifyAll: "Everyone",
   notifyNone: "No one",

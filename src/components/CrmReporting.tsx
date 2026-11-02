@@ -8,7 +8,7 @@ import {
   setWeeklySubscription,
 } from "@/lib/reporting/actions";
 import type { Metrics } from "@/lib/reporting/metrics";
-import { browserZone, formatDay, todayKey } from "@/lib/format-datetime";
+import { browserZone, formatDay, latestServerDay } from "@/lib/format-datetime";
 import { metricsReasonLabel } from "@/lib/reporting/labels";
 
 // User-facing text, grouped so it can be translated later.
@@ -56,11 +56,13 @@ export default function CrmReporting({
   funds: { id: string; name: string }[];
   today: string;
 }) {
-  // "Today" is the member's own day: the server can only offer its UTC day, so
-  // after hydration the browser's calendar day replaces it.
+  // "today" = the latest date the server accepts: the member's own day, capped
+  // at the current UTC day (east of UTC the local day can be ahead of the
+  // server's, and the database rejects future dates). The server can only offer
+  // its UTC day, so after hydration this replaces it.
   const today = useSyncExternalStore(
     noop,
-    () => todayKey(browserZone()),
+    () => latestServerDay(browserZone()),
     () => serverToday,
   );
   const [resource, setResource] = useState("deals"),

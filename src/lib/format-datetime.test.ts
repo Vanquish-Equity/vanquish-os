@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   formatDay,
   formatStamp,
+  latestServerDay,
+  resolveZone,
+  browserZone,
   fromLocalInput,
   NO_DATE,
   todayKey,
@@ -95,5 +98,34 @@ describe("datetime-local round trip", () => {
     expect(fromLocalInput(null, "UTC")).toBeNull();
     expect(fromLocalInput("2026-13-45T25:61", "UTC")).toBeNull();
     expect(fromLocalInput("2026-11-02", "UTC")).toBeNull();
+  });
+});
+
+describe("latestServerDay", () => {
+  it("never exceeds the UTC day, in any zone, at any hour", () => {
+    for (const zone of ["Asia/Tokyo", "Pacific/Auckland", "Pacific/Kiritimati", "America/Costa_Rica", "America/Los_Angeles", "UTC"]) {
+      for (let h = 0; h < 48; h++) {
+        const at = new Date(Date.UTC(2026, 10, 2, 0, 0) + h * 3_600_000);
+        expect(latestServerDay(zone, at) <= at.toISOString().slice(0, 10)).toBe(true);
+      }
+    }
+  });
+  it("uses the local day when it is behind UTC, else the UTC day", () => {
+    const at = new Date("2026-11-02T20:00:00Z"); // Tokyo is already Nov 3
+    expect(latestServerDay("Asia/Tokyo", at)).toBe("2026-11-02");
+    expect(latestServerDay("America/Costa_Rica", new Date("2026-11-02T03:00:00Z"))).toBe("2026-11-01");
+    expect(latestServerDay("UTC", at)).toBe("2026-11-02");
+  });
+});
+
+describe("one zone for the due label and the due input", () => {
+  it("resolves the Settings zone, else the browser's, and the field matches the label", () => {
+    expect(resolveZone("America/Costa_Rica")).toBe("America/Costa_Rica");
+    expect(resolveZone("browser")).toBe(browserZone());
+    const iso = "2026-11-02T23:30:00.000Z";
+    const zone = resolveZone("America/Los_Angeles");
+    expect(formatStamp(iso, zone, now)).toBe("Nov 2, 3:30 PM");
+    expect(toLocalInput(iso, zone)).toBe("2026-11-02T15:30");
+    expect(fromLocalInput(toLocalInput(iso, zone), zone)).toBe(iso);
   });
 });

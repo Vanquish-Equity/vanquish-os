@@ -6,41 +6,13 @@ import { describe, expect, it } from "vitest";
 // not carry backend jargon, migration numbers, repeat-rule syntax, raw record
 // ids or locale-less date formatting. It scans string literals and JSX text
 // (not identifiers or comments) in the screens and components below.
-const TOUCHED = [
-  "src/components/SyncHealth.tsx",
-  "src/components/CrmSyncSettings.tsx",
-  "src/components/LpScouting.tsx",
-  "src/components/LpFundraising.tsx",
-  "src/components/CrmReporting.tsx",
-  "src/components/ReportingOverview.tsx",
-  "src/components/DocumentIntake.tsx",
-  "src/components/WorkspaceGovernance.tsx",
-  "src/components/ChangeProposals.tsx",
-  "src/components/CustomDealBoard.tsx",
-  "src/components/RelationshipIntelligence.tsx",
-  "src/components/mail/MailReviewPanel.tsx",
-  "src/components/mail/MailReviewHistory.tsx",
-  "src/components/calendar/CompletionEventEditor.tsx",
-  "src/components/calendar/EventDetails.tsx",
-  "src/components/customization/ApplyTemplate.tsx",
-  "src/components/custom-fields/CustomFieldFilter.tsx",
-  "src/components/custom-fields/CustomFieldsAdmin.tsx",
-  "src/components/home/MyTasksCard.tsx",
-  "src/components/SettingsPanel.tsx",
-  "src/components/PortfolioMonitoring.tsx",
-  "src/app/(dashboard)/reporting/page.tsx",
-  "src/app/(dashboard)/integrations/page.tsx",
-  "src/app/(dashboard)/governance/page.tsx",
-  "src/app/(dashboard)/inbox/page.tsx",
-  "src/app/(dashboard)/boards/page.tsx",
-  "src/app/(dashboard)/chat/layout.tsx",
-  "src/app/(dashboard)/notifications/page.tsx",
-  "src/app/(dashboard)/tasks/page.tsx",
-  "src/app/(dashboard)/pipeline/page.tsx",
-  "src/app/(dashboard)/lp-scouting/page.tsx",
-  "src/app/(dashboard)/portfolio/fundraising/page.tsx",
-  "src/app/(dashboard)/portfolio/fundraising/[id]/page.tsx",
-];
+// Every screen and component is scanned (src/app/api route handlers excluded:
+// they return files and JSON, not text a person reads). Exceptions need a reason.
+const SKIP_FILES: Record<string, string> = {};
+const root = process.cwd();
+const TOUCHED = [...sources(join(root, "src/app")), ...sources(join(root, "src/components"))]
+  .map((f) => f.slice(root.length + 1))
+  .filter((f) => !f.startsWith("src/app/api/") && !(f in SKIP_FILES));
 
 const FORBIDDEN: [string, RegExp][] = [
   ["migration number", /migration\s+00\d\d/i],
@@ -101,13 +73,17 @@ describe("user-facing copy", () => {
     expect(hits).toEqual([]);
   });
 
+  // Number formatting, not dates: Number(value).toLocaleString() on amounts.
+  const NUMBER_FORMATTING = ["src/components/PortfolioMonitoring.tsx", "src/components/PortfolioScorecard.tsx"];
   it("formats no date without an explicit locale and zone choice", () => {
-    const hits = [...sources(join(process.cwd(), "src/app")), ...sources(join(process.cwd(), "src/components"))].flatMap(
+    const hits = [...sources(join(process.cwd(), "src/app")), ...sources(join(process.cwd(), "src/components"))]
+      .filter((file) => !NUMBER_FORMATTING.some((ok) => file.endsWith(ok)))
+      .flatMap(
       (file) =>
         readFileSync(file, "utf8")
           .split("\n")
           .flatMap((line, index) =>
-            /new Date\([^)]*\)\.toLocale(?:Date|Time)?String\(\s*\)/.test(line) ? [`${file}:${index + 1}`] : [],
+            /\.toLocale(?:Date|Time)?String\(\s*\)/.test(line) ? [`${file}:${index + 1}`] : [],
           ),
     );
     expect(hits).toEqual([]);

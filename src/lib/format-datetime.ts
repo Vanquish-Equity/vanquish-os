@@ -84,6 +84,16 @@ export function todayKey(zone: string, now: Date = new Date()): string {
   return dayKeyOf(now.getTime(), safeZone(zone));
 }
 
+/**
+ * Latest date the server accepts for a report date: the member's own day, but
+ * never later than the current UTC day (the database rejects future UTC dates).
+ */
+export function latestServerDay(zone: string, now: Date = new Date()): string {
+  const local = todayKey(zone, now);
+  const utc = now.toISOString().slice(0, 10);
+  return local < utc ? local : utc;
+}
+
 /** The browser's own zone (UTC where it cannot be read). */
 export function browserZone(): string {
   try {
@@ -91,6 +101,11 @@ export function browserZone(): string {
   } catch {
     return "UTC";
   }
+}
+
+/** The zone to show times in: the one chosen in Settings, else the browser's. */
+export function resolveZone(choice: string): string {
+  return choice === "browser" || !choice ? browserZone() : safeZone(choice);
 }
 
 const LOCAL_INPUT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
