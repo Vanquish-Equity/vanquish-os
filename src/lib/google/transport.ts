@@ -1,4 +1,27 @@
 import { decryptToken } from "../connections/crypto";
+import { googleLabel, type PerfLabel } from "../perf/labels";
+import { PERF_ENV } from "../perf/config";
+
+// Times one Google call for the performance panel (generic endpoint name
+// only). Loaded lazily and only when VQ_PERF_PANEL=1, so the sync worker and
+// normal requests never touch it.
+type PerfTimer = (label: PerfLabel, run: () => Promise<Response>) => Promise<Response>;
+async function perfTimer(): Promise<PerfTimer | null> {
+  const { perfCollector } = await import("../perf/request");
+  const collector = await perfCollector();
+  if (!collector) return null;
+  return async (label, run) => {
+    const end = collector.begin(label.kind, label.label);
+    try {
+      const response = await run();
+      end(response.status);
+      return response;
+    } catch (error) {
+      end("error");
+      throw error;
+    }
+  };
+}
 
 export class GoogleError extends Error {
   constructor(
@@ -41,8 +64,9 @@ export async function googleClientFromSecret(secret:GoogleSecret):Promise<Google
       "Google integration is not configured in this environment.",
     );
   let response: Response;
+  const perf = process.env[PERF_ENV] === "1" ? await perfTimer() : null;
   try {
-    response = await fetch("https://oauth2.googleapis.com/token", {
+    const tokenFetch = () => fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
       cache: "no-store",
       signal: AbortSignal.timeout(15000),
@@ -54,6 +78,7 @@ export async function googleClientFromSecret(secret:GoogleSecret):Promise<Google
         grant_type: "refresh_token",
       }),
     });
+    response = await (perf ? perf({ kind: "google", label: "google.oauth.token" }, tokenFetch) : tokenFetch());
   } catch {
     throw new GoogleError(
       "unavailable",
@@ -93,8 +118,7 @@ export async function googleClientFromSecret(secret:GoogleSecret):Promise<Google
           : service === "calendar" ? "https://www.googleapis.com/calendar/v3" : "https://www.googleapis.com/drive/v3";
       let res: Response;
       const { responseType, maxBytes = 4 * 1024 * 1024, ...requestInit } = init;
-      try {
-        res = await fetch(base + path, {
+      const callFetch = () => fetch(base + path, {
           ...requestInit,
           cache: "no-store",
           signal: AbortSignal.timeout(20000),
@@ -104,6 +128,8 @@ export async function googleClientFromSecret(secret:GoogleSecret):Promise<Google
             Authorization: `Bearer ${tokens.access_token}`,
           },
         });
+      try {
+        res = await (perf ? perf(googleLabel(service, path, (requestInit.method ?? "GET").toUpperCase()), callFetch) : callFetch());
       } catch {
         throw new GoogleError(
           "unavailable",

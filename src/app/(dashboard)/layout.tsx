@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { cookies } from "next/headers";
 import EntranceIntro from "@/components/EntranceIntro";
 import NavigationProgress from "@/components/NavigationProgress";
@@ -11,10 +12,13 @@ import RelationshipAutoSync from "@/components/RelationshipAutoSync";
 import { loadUnreadCounts } from "@/lib/chat/queries";
 import { createClient } from "@/lib/supabase/server";
 import { requireMember } from "@/lib/auth/access";
+import PerfServerData from "@/components/perf/PerfServerData";
+import { perfEnvEnabled } from "@/lib/perf/config";
+import { perfCollector } from "@/lib/perf/request";
 import { personProfileState } from "@/lib/people/profile-access";
 import { navCommands } from "@/lib/search/palette";
 import { parseSectionState } from "@/lib/auth/nav-sections";
-import { visibleNav, WORKSPACE_NAV } from "@/lib/auth/permissions";
+import { can, visibleNav, WORKSPACE_NAV } from "@/lib/auth/permissions";
 import { entranceBootScript, introCookieName, sidebarCookieName } from "@/lib/ui/entrance";
 import { noticeMask, notificationCookieName, notificationKinds } from "@/lib/settings/preferences";
 
@@ -26,6 +30,12 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const access = await requireMember();
+  // Performance panel (VQ_PERF_PANEL=1 + ?perf=1 + admin): null otherwise,
+  // and then nothing below changes.
+  const perf = perfEnvEnabled() ? await perfCollector() : null;
+  if (perf && !can(access, "admin")) perf.disable();
+  const measuring = perf?.isActive ?? false;
+  perf?.mark("layout.start");
   const preferenceCookie = sidebarCookieName(access.email);
   const cookieStore = await cookies();
   const collapsed = cookieStore.get(preferenceCookie)?.value === "1";
@@ -49,6 +59,7 @@ export default async function DashboardLayout({
     // only links to a profile that exists.
     personProfileState(),
   ]);
+  perf?.mark("layout.shell-data-ready");
 
   return (
     <UnreadCountsProvider key={`${access.email}:${noticePreference}`} me={access.email} initial={unread} noticeKinds={noticeKinds}>
@@ -80,6 +91,11 @@ export default async function DashboardLayout({
           <main className="vq-page min-h-0 min-w-0 flex-1 overflow-auto">{children}</main>
         </div>
       </div>
+      {measuring ? (
+        <Suspense fallback={null}>
+          <PerfServerData />
+        </Suspense>
+      ) : null}
     </UnreadCountsProvider>
   );
 }

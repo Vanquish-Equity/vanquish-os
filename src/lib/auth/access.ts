@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { timed } from "@/lib/perf/request";
 import {
   can,
   toPermissionSet,
@@ -11,7 +12,7 @@ import {
 // Resolves who is signed in and what they may use, once per request.
 // Identity comes from the verified JWT (getClaims); membership and
 // permissions come from tables whose RLS only returns the caller's rows.
-export const getAccess = cache(async (): Promise<AccessState> => {
+const resolveAccess = async (): Promise<AccessState> => {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();
   const claims = data?.claims;
@@ -45,7 +46,9 @@ export const getAccess = cache(async (): Promise<AccessState> => {
     avatarPath: member.avatar_path ?? null,
     providerName,
   };
-});
+};
+
+export const getAccess = cache(() => timed("access", "getAccess", resolveAccess));
 
 // For pages: sends visitors to /login and signed-in non-members to
 // /access-denied.

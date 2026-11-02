@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { supabaseCookieOptions } from "@/lib/supabase/cookies";
 import { NextResponse, type NextRequest } from "next/server";
 import { DEFAULT_AFTER_LOGIN, safeNextPath } from "@/lib/auth/redirect";
+import { startProxyPerf, type ProxyPerf } from "@/lib/perf/proxy";
 
 // Routes reachable without a session. Everything else requires one; the
 // dashboard layout then checks membership and area permissions, and RLS
@@ -16,6 +17,13 @@ function withSessionCookies(target: NextResponse, source: NextResponse) {
 }
 
 export async function updateSession(request: NextRequest) {
+  // null unless VQ_PERF_PANEL=1: the performance panel adds nothing otherwise.
+  const perf = startProxyPerf(request);
+  const response = await handleSession(request, perf);
+  return perf ? perf.finish(response) : response;
+}
+
+async function handleSession(request: NextRequest, perf: ProxyPerf | null) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -40,7 +48,12 @@ export async function updateSession(request: NextRequest) {
 
   // getClaims verifies the JWT (and refreshes an expiring session) instead
   // of trusting the cookie contents.
-  const { data } = await supabase.auth.getClaims();
+  const { data } = await (perf ? perf.claims(() => supabase.auth.getClaims()) : supabase.auth.getClaims());
+  if (perf?.relay(request)) {
+    // The render reads the timings from a request header, which only a
+    // response created after it was set forwards.
+    response = withSessionCookies(NextResponse.next({ request }), response);
+  }
   const signedIn = Boolean(data?.claims?.sub);
   const { pathname, search } = request.nextUrl;
 
