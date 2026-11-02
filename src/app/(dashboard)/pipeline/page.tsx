@@ -222,7 +222,7 @@ export default async function PipelinePage({
             have several deals.{" "}
             {!showArchived &&
               totalDeals === 0 &&
-              "No deals yet — add one in Supabase or wait for the migration."}
+              "No deals yet."}
           </p>
         </div>
         <NewDealModal
@@ -330,7 +330,7 @@ export default async function PipelinePage({
         </div>
       ) : !stages.length ? (
         <div className="vq-card-static rounded-[14px] bg-white p-6 text-sm text-neutral-500">
-          No pipeline stages found. Run the M1 migration in Supabase first.
+          No pipeline stages are set up yet. Ask an admin to set them up.
         </div>
       ) : (
         <PipelineBoard key={`${boardKey}:${memberParam ?? ""}`} stages={stages} deals={visibleDeals} members={members} me={member.email} initialMember={memberParam ?? null} />

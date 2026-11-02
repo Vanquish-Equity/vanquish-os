@@ -1,5 +1,5 @@
 "use client";
-import { startTransition, useState } from "react";
+import { startTransition, useState, useSyncExternalStore } from "react";
 import SelectMenu from "./SelectMenu";
 import Checkbox from "./Checkbox";
 import {
@@ -8,12 +8,47 @@ import {
   setWeeklySubscription,
 } from "@/lib/reporting/actions";
 import type { Metrics } from "@/lib/reporting/metrics";
+import { browserZone, formatDay, todayKey } from "@/lib/format-datetime";
+import { metricsReasonLabel } from "@/lib/reporting/labels";
+
+// User-facing text, grouped so it can be translated later.
+const TEXT = {
+  csvTitle: "Export to CSV",
+  csvIntro:
+    "Download up to 5,000 rows at a time. You only get what you are allowed to see, and there is an hourly limit on rows; if you reach it, try again later.",
+  csvNote:
+    "Dates and currencies are labeled in the file. Private boards, mailbox and LP scouting data, positions and private files are never included. If the download does not start, CSV export may not be turned on yet: ask an admin.",
+  csvButton: "Download CSV",
+  weeklyTitle: "Weekly report",
+  weeklyOptIn: "Send me the weekly report",
+  weeklyIntro:
+    "A summary of how many deals are in each stage, based on what you can see. Only you can download it. It is not emailed, and there is no PDF yet.",
+  optedIn: "You are signed up. Prepare and download the report here; it is not emailed yet.",
+  optedOut: "You are signed out of the weekly report.",
+  saveFailed: "Could not save your choice. Try again.",
+  weekLabel: "Week starting (pick a Monday)",
+  prepare: "Prepare weekly report",
+  reportReady: "Your report is ready. Use the download link.",
+  reportFailed: "Could not prepare the report. Pick a recent Monday, or ask an admin to turn weekly reports on.",
+  reportError: "Could not prepare the report. Try again.",
+  weeklyDownload: "Download weekly CSV",
+  fundTitle: "Fund metrics",
+  fundIntro:
+    "Fund performance (DPI, TVPI, XIRR) appears once an admin has approved the accounting basis and checked the fund's value and cash movements against the records. Commitments and capital calls are not money already paid in. Older wire records are left out.",
+  asOf: "As of date",
+  calculate: "Show fund metrics",
+  metricsError: "Could not load the metrics. Try again.",
+  noCurrency: "Currency not set",
+  warning:
+    "This view is not an audited financial statement. Check the accounting basis and cutoff date before relying on it.",
+};
+const noop = () => () => {};
 export default function CrmReporting({
   portfolio,
   documents,
   subscribed,
   funds,
-  today,
+  today: serverToday,
 }: {
   portfolio: boolean;
   documents: boolean;
@@ -21,16 +56,25 @@ export default function CrmReporting({
   funds: { id: string; name: string }[];
   today: string;
 }) {
+  // "Today" is the member's own day: the server can only offer its UTC day, so
+  // after hydration the browser's calendar day replaces it.
+  const today = useSyncExternalStore(
+    noop,
+    () => todayKey(browserZone()),
+    () => serverToday,
+  );
   const [resource, setResource] = useState("deals"),
     [enabled, setEnabled] = useState(subscribed);
-  const [week, setWeek] = useState(today),
+  const [weekPick, setWeekPick] = useState<string | null>(null),
     [report, setReport] = useState<string>();
   const [fund, setFund] = useState(""),
-    [asOf, setAsOf] = useState(today),
+    [asOfPick, setAsOfPick] = useState<string | null>(null),
     [basis, setBasis] = useState("");
   const [metrics, setMetrics] = useState<Metrics>(),
     [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const week = weekPick ?? today,
+    asOf = asOfPick ?? today;
   async function subscribe(value: boolean) {
     setBusy(true);
     setReport(undefined);
@@ -40,12 +84,12 @@ export default function CrmReporting({
         setEnabled(value);
         setMessage(
           value
-            ? "Opted in. Generate/download only; delivery is disabled."
-            : "Subscription revoked. Downloads recheck consent.",
+            ? TEXT.optedIn
+            : TEXT.optedOut,
         );
-      } else setMessage("Could not save subscription.");
+      } else setMessage(TEXT.saveFailed);
     } catch {
-      setMessage("Subscription unavailable.");
+      setMessage(TEXT.saveFailed);
     } finally {
       setBusy(false);
     }
@@ -53,11 +97,9 @@ export default function CrmReporting({
   return (
     <div className="grid min-w-0 gap-5 lg:grid-cols-2">
       <section className="vq-card-static min-w-0 rounded-xl bg-white p-5">
-        <h2 className="text-lg font-semibold">Authorized CSV</h2>
+        <h2 className="text-lg font-semibold">{TEXT.csvTitle}</h2>
         <p className="my-3 text-sm text-neutral-600">
-          Up to 5,000 rows; 10,000 reserved rows per UTC hour. Current
-          permissions apply to each batch. Concurrent exports are not accounting
-          snapshots.
+          {TEXT.csvIntro}
         </p>
         <label htmlFor="report-resource">Shared resource</label>
         <SelectMenu
@@ -78,16 +120,14 @@ export default function CrmReporting({
           className="mt-4 inline-flex min-h-11 items-center rounded-full border border-neutral-200 px-4 py-2 text-[12px] font-semibold text-ink transition hover:border-cyan-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400"
           href={`/api/reporting/export?resource=${resource}`}
         >
-          Download CSV
+          {TEXT.csvButton}
         </a>
         <p className="mt-3 text-xs text-neutral-500">
-          UTC and currency are labeled. Private boards, mailbox/LP evidence,
-          positions and private files are excluded. Owner activation of CSV is
-          required.
+          {TEXT.csvNote}
         </p>
       </section>
       <section className="vq-card-static min-w-0 rounded-xl bg-white p-5">
-        <h2 className="text-lg font-semibold">Weekly report</h2>
+        <h2 className="text-lg font-semibold">{TEXT.weeklyTitle}</h2>
         <label className="my-3 flex min-h-11 items-center gap-3">
           <Checkbox
             checked={enabled}
@@ -97,21 +137,20 @@ export default function CrmReporting({
               startTransition(() => subscribe(checked));
             }}
           />
-          Opt in to my weekly report
+          {TEXT.weeklyOptIn}
         </label>
         <p className="mb-3 text-sm text-neutral-600">
-          Only you can generate/download current authorized stage counts. No
-          email is sent. PDF and scheduled dispatch are deferred.
+          {TEXT.weeklyIntro}
         </p>
         <label className="block">
-          Week starting Monday (UTC)
+          {TEXT.weekLabel}
           <input
             className="my-2 block min-h-11 max-w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-cyan-400"
             type="date"
             value={week}
             max={today}
             onChange={(e) => {
-              setWeek(e.target.value);
+              setWeekPick(e.target.value);
               setReport(undefined);
             }}
           />
@@ -128,35 +167,33 @@ export default function CrmReporting({
                 setReport(r.id);
                 setMessage(
                   r.ok
-                    ? "Report reference ready. Access is checked again at download."
-                    : "Choose a recent Monday; weekly generation requires owner activation.",
+                    ? TEXT.reportReady
+                    : TEXT.reportFailed,
                 );
               } catch {
-                setMessage("Report unavailable.");
+                setMessage(TEXT.reportError);
               } finally {
                 setBusy(false);
               }
             })
           }
         >
-          Generate reference
+          {TEXT.prepare}
         </button>
         {report && (
           <a
             className="ml-3 inline-flex min-h-11 items-center underline"
             href={`/api/reporting/weekly?id=${report}`}
           >
-            Download weekly CSV
+            {TEXT.weeklyDownload}
           </a>
         )}
       </section>
       {portfolio && (
         <section className="vq-card-static min-w-0 rounded-xl bg-white p-5 lg:col-span-2">
-          <h2 className="text-lg font-semibold">Fund metrics</h2>
+          <h2 className="text-lg font-semibold">{TEXT.fundTitle}</h2>
           <p className="my-3 text-sm text-neutral-600">
-            Unavailable until owner activation, accounting-basis approval and a
-            dated NAV/flow reconciliation. Commitments and calls are not paid-in
-            capital. Legacy wires are excluded.
+            {TEXT.fundIntro}
           </p>
           <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="min-w-0">
@@ -179,21 +216,21 @@ export default function CrmReporting({
                 options={[
                   {
                     value: "gross",
-                    label: "Gross (contract deferred)",
+                    label: "Gross (not available yet)",
                     disabled: true,
                   },
-                  { value: "net", label: "Net (requires approval)" },
+                  { value: "net", label: "Net (needs admin approval)" },
                 ]}
               />
             </div>
             <label>
-              As of (UTC)
+              {TEXT.asOf}
               <input
                 className="block min-h-11 w-full min-w-0 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm focus:outline-cyan-400"
                 type="date"
                 value={asOf}
                 max={today}
-                onChange={(e) => setAsOf(e.target.value)}
+                onChange={(e) => setAsOfPick(e.target.value)}
               />
             </label>
           </div>
@@ -206,20 +243,21 @@ export default function CrmReporting({
                 try {
                   setMetrics(await loadFundMetrics(fund, asOf, basis));
                 } catch {
-                  setMessage("Metrics unavailable.");
+                  setMessage(TEXT.metricsError);
                 } finally {
                   setBusy(false);
                 }
               })
             }
           >
-            Calculate metrics
+            {TEXT.calculate}
           </button>
           {metrics && (
             <div className="mt-4 break-words" role="status">
               <p>
-                As of {metrics.asOf} · {metrics.basis} ·{" "}
-                {metrics.currency ?? "Currency unavailable"}
+                As of {formatDay(metrics.asOf)} ·{" "}
+                {metrics.basis === "net" ? "Net" : metrics.basis === "gross" ? "Gross" : metrics.basis} ·{" "}
+                {metrics.currency ?? TEXT.noCurrency}
               </p>
               {metrics.status === "available" ? (
                 <p>
@@ -234,14 +272,13 @@ export default function CrmReporting({
               ) : (
                 <p>
                   {metrics.status === "ambiguous"
-                    ? "Ambiguous"
+                    ? "Cannot be determined"
                     : "Not available"}
-                  : {metrics.reason}
+                  : {metricsReasonLabel(metrics.reason)}
                 </p>
               )}
               <p className="text-sm text-neutral-600">
-                Reconciliation warning: this view is not an audited financial
-                statement. Verify the reviewed basis and cutoff.
+                {TEXT.warning}
               </p>
             </div>
           )}

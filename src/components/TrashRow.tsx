@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import LocalTime from "@/components/LocalTime";
 import { restoreCompanyAction } from "@/lib/companies/actions";
 
 export default function TrashRow({
@@ -37,7 +38,7 @@ export default function TrashRow({
       <td className="px-4 py-3 font-semibold text-ink">{companyName}</td>
       <td className="px-4 py-3 text-neutral-600">{industryName}</td>
       <td className="px-4 py-3 text-neutral-600">
-        {new Date(deletedAt).toLocaleDateString()}
+        <LocalTime date={deletedAt} mode="day" />
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center justify-end gap-3">

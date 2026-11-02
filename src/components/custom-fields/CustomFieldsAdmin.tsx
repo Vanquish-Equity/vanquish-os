@@ -142,7 +142,7 @@ function DefinitionForm({
           />
         </label>
         <label htmlFor="cf-type" className="block text-xs">
-          Type (immutable once created)
+          Type (cannot be changed after the field is created)
         </label>
         <SelectMenu
           id="cf-type"
@@ -170,7 +170,7 @@ function DefinitionForm({
             disabled={pending}
             onChange={(e) => setFilterable(e.target.checked)}
           />
-          Allow bounded filtering (maximum 10 per object)
+          Allow filtering by this field (up to 10 per record type)
         </label>
         <label className="flex min-h-11 items-center gap-2 text-sm">
           <Checkbox
@@ -199,8 +199,8 @@ function DefinitionForm({
               Shared options (maximum 50)
             </h3>
             <p className="text-xs text-neutral-500">
-              Names can change; stable option IDs preserve selected values. Do
-              not put private record data here.
+              You can rename an option later without losing the choices already
+              made. Do not put private record data here.
             </p>
             {definition.options.map((o) => (
               <OptionForm

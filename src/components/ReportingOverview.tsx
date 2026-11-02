@@ -21,9 +21,9 @@ export default async function ReportingOverview() {
         CRM reporting
       </Link>
       <p className="text-sm text-neutral-600">
-        Authorized Deals created in the last 30 UTC dates:{" "}
-        {error || count === null ? "Unavailable" : count}. Restricted Deals
-        remain excluded. Up to 100 stage groups.
+        Deals you can see that were created in the last 30 days:{" "}
+        {error || count === null ? "not available right now" : count}.
+        Deals you do not have access to are not counted.
       </p>
     </section>
   );

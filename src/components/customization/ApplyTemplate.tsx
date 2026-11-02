@@ -41,8 +41,9 @@ export default function ApplyTemplate({
     >
       <h2 className="text-sm font-semibold">Apply a task/checklist template</h2>
       <p className="my-2 text-xs text-neutral-500">
-        Manual, atomic and idempotent. This never changes Deal stage. An
-        existing stage rule can create a similar task independently.
+        Adds this template&apos;s tasks and checklist when you choose, all at
+        once or not at all. It never changes the Deal stage. A stage rule may
+        still create a similar task on its own.
       </p>
       {!rows.length ? (
         <p className="text-xs">No active templates.</p>
@@ -75,7 +76,7 @@ export default function ApplyTemplate({
                 r.ok
                   ? r.alreadyApplied
                     ? "Already applied; nothing duplicated."
-                    : "Template applied atomically. Refresh Tasks or the board to see the new items."
+                    : "Template applied. Refresh Tasks or the board to see the new items."
                   : r.message,
               );
               if (r.ok) setRequest(crypto.randomUUID());
@@ -101,7 +102,7 @@ export default function ApplyTemplate({
             buttonClassName="min-h-11"
           />
           <label htmlFor={"apply-card-" + company} className="block text-xs">
-            First 50 authorized Company-linked board cards · required for
+            Board card (first 50 linked to this company) · needed for
             checklist items
           </label>
           <SelectMenu

@@ -1,4 +1,9 @@
 "use client";
+import { mailStateLabel } from "@/lib/google/mail-completion-labels";
+import { formatDay, formatStamp } from "@/lib/format-datetime";
+import { describeRepeat } from "@/lib/calendar/repeat-label";
+import { zoneLabel } from "@/lib/calendar/format-busy";
+import LocalTime from "@/components/LocalTime";
 import { useEffect, useRef, useState, startTransition } from "react";
 import SelectMenu from "@/components/SelectMenu";
 import Checkbox from "@/components/Checkbox";
@@ -27,6 +32,24 @@ import type {
   CalendarScope,
 } from "@/lib/google/calendar-completion-types";
 const field = "w-full min-w-0 rounded-xl border border-neutral-200 p-2 text-sm";
+// User-facing text, grouped so it can be translated later.
+const TEXT = {
+  repeat: "Repeat (leave empty for a one-time event)",
+  repeatExample: "FREQ=WEEKLY;COUNT=12",
+  repeatHelp:
+    "To repeat, type a rule that ends, for example FREQ=WEEKLY;COUNT=12 means every week, 12 times.",
+  notify: "Notify guests",
+  notifyAll: "Everyone",
+  notifyNone: "No one",
+  notifyNote: "Google may still send some notifications on its own.",
+  reminder: "Reminder, in minutes before (empty uses your default)",
+  myReply: "My reply",
+  operation: {
+    save: "Save event",
+    delete: "Delete event",
+    rsvp: "Reply to invitation",
+  } as Record<string, string>,
+};
 export default function CompletionEventEditor({
   event,
   proposed,
@@ -285,16 +308,17 @@ export default function CompletionEventEditor({
   }
   const labelTime = (t: EventTime) =>
     t.date
-      ? `${t.date} (all day; end exclusive)`
+      ? `${formatDay(t.date)} (all day)`
       : t.dateTime
-        ? new Intl.DateTimeFormat("en", {
-            timeZone: t.timeZone ?? editZone,
-            dateStyle: "medium",
-            timeStyle: "short",
-          }).format(new Date(t.dateTime))
-        : "Unavailable";
+        ? formatStamp(t.dateTime, t.timeZone ?? editZone)
+        : "Not set";
+  // An all-day end date is exclusive in Google's data: show the last day itself.
   const labelRange = (t: { start: EventTime; end: EventTime }) =>
-    `${labelTime(t.start)} to ${labelTime(t.end)}`;
+    t.start.date && t.end.date
+      ? t.end.date <= addDays(t.start.date, 1)
+        ? labelTime(t.start)
+        : `${labelTime(t.start)} to ${formatDay(addDays(t.end.date, -1))}`
+      : `${labelTime(t.start)} to ${labelTime(t.end)}`;
   return (
     <dialog
       ref={dialog}
@@ -454,26 +478,26 @@ export default function CompletionEventEditor({
         </label>
         {scope !== "occurrence" && (
           <label className="block">
-            Bounded RRULE (empty = no recurrence)
+            {TEXT.repeat}
             <input
               className={field}
               value={rule}
               maxLength={200}
               onChange={(e) => setRule(e.target.value)}
-              placeholder="RRULE:FREQ=WEEKLY;COUNT=12"
+              placeholder={TEXT.repeatExample}
             />
+            <span className="mt-1 block text-xs text-neutral-500">
+              {TEXT.repeatHelp}
+            </span>
           </label>
         )}
         <label className="block">
-          Guest notifications
+          {TEXT.notify}
           <SelectMenu
             value={sendUpdates}
             options={[
-              { value: "all", label: "All guests (sendUpdates=all)" },
-              {
-                value: "none",
-                label: "No updates requested (sendUpdates=none)",
-              },
+              { value: "all", label: TEXT.notifyAll },
+              { value: "none", label: TEXT.notifyNone },
             ]}
             onChange={(v) => {
               invalidate();
@@ -482,8 +506,7 @@ export default function CompletionEventEditor({
           />
         </label>
         <p className="text-xs">
-          Google may still send service notifications according to its own
-          policy.
+          {TEXT.notifyNote}
         </p>
         {!event && (
           <label className="flex min-h-11 items-center gap-2">
@@ -495,7 +518,7 @@ export default function CompletionEventEditor({
           </label>
         )}
         <label className="block">
-          Reminder minutes (or default)
+          {TEXT.reminder}
           <input
             className={field}
             value={reminder}
@@ -504,7 +527,7 @@ export default function CompletionEventEditor({
         </label>
         {event?.attendees?.some((a) => a.self && !a.organizer) && (
           <label className="block">
-            My RSVP
+            {TEXT.myReply}
             <SelectMenu
               value={response}
               options={["accepted", "tentative", "declined"].map((v) => ({
@@ -564,11 +587,18 @@ export default function CompletionEventEditor({
           className="vq-card-static my-4 min-w-0 space-y-3 rounded-xl bg-cyan-50 p-4 text-xs"
         >
           <h3 className="font-semibold">
-            Final {review.change.operation} · {review.change.scope}
+            {TEXT.operation[review.change.operation] ?? "Calendar change"}
+            {review.change.scope === "occurrence"
+              ? " · this occurrence only"
+              : review.change.scope === "series"
+                ? " · whole series"
+                : ""}
           </h3>
           <p className="break-words">
-            {review.change.summary} · ETag {review.change.etag || "new event"} ·{" "}
-            {review.change.start.timeZone ?? editZone}
+            <span title={review.change.etag ? `Version ${review.change.etag}` : undefined}>
+              {review.change.summary}
+            </span>{" "}
+            · {zoneLabel(review.change.start.timeZone ?? editZone)}
           </p>
           <p className="break-words">
             Before: {review.before ? labelRange(review.before) : "New event"}
@@ -578,7 +608,7 @@ export default function CompletionEventEditor({
             {labelRange({ start: review.change.start, end: review.change.end })}
           </p>
           <p className="break-words">
-            RRULE: {review.change.rrule || "None"} · RSVP:{" "}
+            Repeats: {describeRepeat(review.change.rrule)} · Your reply:{" "}
             {review.change.operation === "rsvp"
               ? review.change.response
               : "unchanged"}
@@ -587,28 +617,32 @@ export default function CompletionEventEditor({
             Guests: {review.change.attendees.join(", ") || "None"}
           </p>
           <p className="break-words">
-            Notification policy: {review.change.sendUpdates}; potential
-            recipients: {review.notified.join(", ") || "None requested"}
+            Notify guests:{" "}
+            {review.change.sendUpdates === "all" ? "Everyone" : "No one"}. People
+            who may be emailed: {review.notified.join(", ") || "None"}
           </p>
           <details>
             <summary className="vq-disclosure">
               Review location, description, Meet and reminder
             </summary>
             <p className="whitespace-pre-wrap break-words">
-              {review.change.location} · {review.change.description} · Meet:{" "}
-              {String(review.change.meet)} · Reminder:{" "}
+              {review.change.location} · {review.change.description} · Google
+              Meet: {review.change.meet ? "Yes" : "No"} · Reminder:{" "}
               {review.change.reminder ?? "default"}
             </p>
           </details>
-          <p>Expires: {review.expiresAt}</p>
+          <p>
+            Confirm before <LocalTime date={review.expiresAt} mode="stamp" />,
+            or review again.
+          </p>
           <label className="flex min-h-11 items-center gap-2">
             <Checkbox
               checked={checked}
               disabled={busy}
               onChange={(e) => setChecked(e.target.checked)}
             />
-            I confirm the scope, final dates, zone, recurrence, guests and
-            notifications.
+            I have checked what this changes, the dates and time zone, repeats,
+            guests and notifications.
           </label>
           <div className="flex flex-wrap gap-2">
             <button
@@ -643,7 +677,7 @@ export default function CompletionEventEditor({
       )}
       <details className="my-3 text-xs">
         <summary className="vq-disclosure">
-          My calendar review history (metadata only)
+          My recent calendar confirmations
         </summary>
         <button
           className="min-h-11 rounded-full border px-3"
@@ -655,13 +689,20 @@ export default function CompletionEventEditor({
             })
           }
         >
-          Refresh review history
+          Refresh the list
         </button>
         {history.map((r) => (
           <article className="break-words py-2" key={r.id}>
-            {r.operation} · {r.state} · {r.id}
+            <span title={`Reference ${r.id}`}>
+              {TEXT.operation[r.operation] ?? "Calendar change"} ·{" "}
+              {mailStateLabel(r.state)} ·{" "}
+              <LocalTime date={r.created_at} mode="stamp" />
+            </span>
             {r.state === "uncertain" && (
-              <p>Human review required; never retry automatically.</p>
+              <p>
+                We could not tell whether this went through. Check your
+                calendar before trying again.
+              </p>
             )}
             {r.state === "pending" && (
               <button
@@ -673,7 +714,7 @@ export default function CompletionEventEditor({
                   })
                 }
               >
-                Cancel pending review
+                Cancel this confirmation
               </button>
             )}
           </article>

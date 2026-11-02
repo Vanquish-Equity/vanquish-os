@@ -204,7 +204,7 @@ export default function MailComposer({
       setReview(prepared.data);
       setReviewForm(form);
     } catch {
-      setStatus("Review unavailable. No Google write was requested.");
+      setStatus("Couldn’t prepare the check. Nothing was sent or changed in Gmail. Try again.");
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -511,11 +511,11 @@ export default function MailComposer({
               disabled
               className="min-h-11 rounded-full border px-4 text-xs opacity-50"
             >
-              Schedule send — unavailable
+              Schedule send (not available yet)
             </button>
             <p className="text-xs text-neutral-500">
-              No dispatcher or message-body store is active. Push refresh is
-              also off.
+              Scheduled sending isn&apos;t turned on yet, so messages can only be
+              sent right away. Live updates of your mailbox are off too.
             </p>
             <MailReviewHistory />
           </div>

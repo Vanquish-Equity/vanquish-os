@@ -1,3 +1,4 @@
+import LocalTime from "@/components/LocalTime";
 import Link from "next/link";
 import DuplicatePairActions from "@/components/DuplicatePairActions";
 import { requireMember } from "@/lib/auth/access";
@@ -31,7 +32,7 @@ function PersonCard({ person }: { person: PersonRow }) {
       <div className="mt-1 flex flex-wrap gap-2 text-[10.5px] text-neutral-400">
         {person.is_potential_lp && <span className="font-semibold text-cyan-800">Potential LP</span>}
         {person.linkedin_url && <span>LinkedIn</span>}
-        <span>Added {new Date(person.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+        <span>Added <LocalTime date={person.created_at} mode="day" /></span>
       </div>
     </div>
   );

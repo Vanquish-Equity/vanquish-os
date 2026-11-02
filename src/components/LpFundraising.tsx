@@ -1,10 +1,39 @@
 "use client";
+import { formatDay } from "@/lib/format-datetime";
+import LocalTime from "./LocalTime";
 import Link from "next/link";
 import { useId, useState, useTransition } from "react";
 import SelectMenu from "./SelectMenu";
 import Checkbox from "./Checkbox";
 import { saveLpRecord } from "@/lib/lp-management/actions";
 export type LpRow = Record<string, string | number | boolean | null>;
+
+// User-facing text, grouped so it can be translated later.
+const TEXT = {
+  intro:
+    "Track each investor's commitments, cash flows and follow-up. Records are entered on purpose: sending messages or moving cards on your own board never creates a commitment or changes a fund stage.",
+  cashFlows: "Cash flows (older wire records left out)",
+  footnote:
+    "Each list shows up to 100 records (the investor and fund pickers show up to 500). This is not an accounting statement and does not add up amounts across currencies. Report preferences do not send anything automatically.",
+};
+const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+const DAY_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+const CODE_WORD = /^[a-z]+(_[a-z]+)+$/;
+/** "stage_entered_at" -> "Stage entered", "due_date" -> "Due date". */
+function fieldLabel(key: string) {
+  const text = key.replace(/_(at|on)$/, "").replaceAll("_", " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+/** Dates and times in the viewer's zone, yes/no, and no snake_case codes. */
+function cellValue(value: string | number | boolean | null) {
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "string") {
+    if (INSTANT.test(value)) return <LocalTime date={value} mode="stamp" />;
+    if (DAY_ONLY.test(value)) return formatDay(value);
+    if (CODE_WORD.test(value)) return value.replaceAll("_", " ");
+  }
+  return String(value);
+}
 export type LpData = {
   funds: LpRow[];
   investors: LpRow[];
@@ -164,10 +193,8 @@ function Records({
             )
             .map(([k, v]) => (
               <div key={k} className="min-w-0">
-                <dt className="text-xs text-neutral-500">
-                  {k.replaceAll("_", " ")}
-                </dt>
-                <dd className="break-words">{String(v)}</dd>
+                <dt className="text-xs text-neutral-500">{fieldLabel(k)}</dt>
+                <dd className="break-words">{cellValue(v)}</dd>
               </div>
             ))}
           {r.investor_id && (
@@ -226,11 +253,7 @@ export default function LpFundraising({
             ? `${labels[investorId] ?? "Investor"} · LP 360`
             : "LP fundraising"}
         </h1>
-        <p className="mt-1 text-sm text-neutral-500">
-          Portfolio access required. Financial records are entered explicitly;
-          messages and personal board moves never create commitments or update
-          fund stages.
-        </p>
+        <p className="mt-1 text-sm text-neutral-500">{TEXT.intro}</p>
       </header>
       <nav className="flex flex-wrap gap-4 text-sm text-cyan-800">
         <Link href="/portfolio/fundraising">All LPs</Link>
@@ -308,7 +331,7 @@ export default function LpFundraising({
           <RecordForm
             key={`${e.id}:${e.stage}`}
             kind="pipeline"
-            title={`${labels[String(e.investor_id)] ?? "Investor"} · ${labels[String(e.fund_id)] ?? "Fund"} · ${e.stage} · since ${String(e.stage_entered_at ?? "unknown").slice(0, 10)}`}
+            title={`${labels[String(e.investor_id)] ?? "Investor"} · ${labels[String(e.fund_id)] ?? "Fund"} · ${String(e.stage).replaceAll("_", " ")} · since ${e.stage_entered_at ? formatDay(String(e.stage_entered_at)) : "unknown"}`}
             initial={{
               investorId: String(e.investor_id),
               fundId: String(e.fund_id),
@@ -434,7 +457,7 @@ export default function LpFundraising({
       <Records title="Funds" rows={data.funds} labels={labels} />
       <Records title="Commitments" rows={data.commitments} labels={labels} />
       <Records
-        title="Normalized cash flows (historical wires excluded)"
+        title={TEXT.cashFlows}
         rows={data.flows}
         labels={labels}
       />
@@ -462,9 +485,7 @@ export default function LpFundraising({
         />
       ))}
       <p className="text-xs text-neutral-500">
-        Each section is bounded to 100 records (identity selectors: 500). This
-        view is not an accounting snapshot and does not aggregate currencies.
-        Report preferences do not schedule delivery.
+        {TEXT.footnote}
       </p>
     </div>
   );

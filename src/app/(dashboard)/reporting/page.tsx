@@ -23,12 +23,20 @@ export default async function ReportingPage() {
   ]);
   return (
     <div className="min-w-0 space-y-5 p-4 sm:p-7">
-      <h1 className="text-2xl font-semibold">CRM reporting</h1>
+      <div>
+        <h1 className="font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">
+          CRM reporting
+        </h1>
+        <p className="mt-1 text-sm text-neutral-500">
+          Download your deals and funds as CSV files and get a weekly summary of deals by stage.
+        </p>
+      </div>
       <CrmReporting
         portfolio={portfolio}
         documents={access.permissions.has("documents")}
         subscribed={subscription?.enabled === true}
         funds={funds.data ?? []}
+        // The server only knows the UTC day; the page swaps in the member's own day after load.
         today={new Date().toISOString().slice(0, 10)}
       />
     </div>

@@ -1,4 +1,5 @@
 "use client";
+import { formatDay, formatStamp } from "@/lib/format-datetime";
 import { useEffect, useRef } from "react";
 import useMovableDialog from "@/components/dialog/useMovableDialog";
 import { eventTimeLabel } from "@/lib/google/calendar-format";
@@ -51,12 +52,11 @@ export default function EventDetails({
         </button>
       </div>
       <p className="my-3 text-[13px] text-neutral-500">
-        {event.start.date ??
-          (event.start.dateTime
-            ? new Date(event.start.dateTime).toLocaleString(undefined, {
-                timeZone: zone,
-              })
-            : "")}{" "}
+        {event.start.date
+          ? formatDay(event.start.date)
+          : event.start.dateTime
+            ? formatStamp(event.start.dateTime, zone)
+            : ""}{" "}
         {event.start.date
           ? " · All day"
           : ` – ${eventTimeLabel(event.end, zone)}`}

@@ -1,4 +1,5 @@
 "use client";
+import { browserZone, formatStamp } from "@/lib/format-datetime";
 import Link from "next/link";
 import {
   mailCompletionState,
@@ -315,7 +316,7 @@ export default function MailWorkspace({
       subject: /^re:/i.test(message.subject)
         ? message.subject
         : `Re: ${message.subject}`,
-      html: `<br><br><p>On ${message.date}, ${plainTextToHtml(message.from)} wrote:</p><div>${plainTextToHtml(message.text || "[Original HTML message — see conversation above]")}</div>`,
+      html: `<br><br><p>On ${Number.isFinite(Date.parse(message.date)) ? formatStamp(message.date, browserZone()) : message.date}, ${plainTextToHtml(message.from)} wrote:</p><div>${plainTextToHtml(message.text || "[Original HTML message — see conversation above]")}</div>`,
       threadId: message.threadId,
       replyMessageId: message.messageId,
       references: [message.references, message.messageId]

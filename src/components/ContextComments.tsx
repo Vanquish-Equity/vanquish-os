@@ -1,5 +1,6 @@
 "use client";
 
+import LocalTime from "@/components/LocalTime";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
@@ -260,7 +261,7 @@ export default function ContextComments() {
               <div key={root.id} id={`context-${root.id}`} className={`mb-3 rounded-xl border bg-[#f8fafb] p-3 text-[12px] ${hash === `#comment-${root.id}` ? "border-cyan-300 ring-2 ring-cyan-100" : "border-neutral-100"}`}>
                 {root.visible_to && <p className="mb-1 text-[10px] font-semibold text-cyan-800">Private thread · {root.visible_to.length} recipients</p>}
                 {root.value_snapshot && <blockquote className="mb-2 border-l-2 border-cyan-200 pl-2 text-[11px] text-neutral-500">{root.value_snapshot}</blockquote>}
-                <div className="flex items-center justify-between gap-2"><span className="font-semibold text-ink">{members.find((m) => m.email === root.author_email)?.name ?? root.author_email}</span><span className="text-[10px] text-neutral-400">{new Date(root.created_at).toLocaleDateString()}</span></div>
+                <div className="flex items-center justify-between gap-2"><span className="font-semibold text-ink">{members.find((m) => m.email === root.author_email)?.name ?? root.author_email}</span><span className="text-[10px] text-neutral-400"><LocalTime date={root.created_at} mode="day" /></span></div>
                 <p className="mt-1 whitespace-pre-wrap break-words text-ink">{root.deleted_at ? "Comment deleted by author" : root.body}</p>
                 {root.edited_at && !root.deleted_at && <span className="text-[10px] text-neutral-400">(edited)</span>}
                 {root.resolved_at && <span className="ml-2 text-[10px] font-semibold text-cyan-800">Resolved</span>}
