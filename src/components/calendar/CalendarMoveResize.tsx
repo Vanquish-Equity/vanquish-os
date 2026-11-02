@@ -95,12 +95,12 @@ export default function CalendarMoveResize({
         aria-label={`Date selectors for ${event.summary || "event"}`}
         onClick={() => setShow((v) => !v)}
       >
-        ↕
+        Dates
       </button>
       {show && (
         <div className="absolute left-0 top-full z-30 min-w-52 rounded-xl border bg-white p-2 text-xs shadow-lg">
           <p>
-            Every change opens review. Alt ↑/↓ moves 15 minutes; Ctrl+Alt
+            Every change opens review. Alt+Up/Down moves 15 minutes; Ctrl+Alt
             resizes.
           </p>
           <SelectMenu

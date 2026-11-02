@@ -61,7 +61,7 @@ export default async function Page({
           href={`/portfolio/investors/${id}`}
           className="text-sm text-cyan-800 underline"
         >
-          Investor positions and SPV requirements →
+          Investor positions and SPV requirements
         </Link>
         <h2 className="font-semibold">Investor documents</h2>
         {!access.permissions.has("documents") ? (

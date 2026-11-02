@@ -294,7 +294,7 @@ export default function CompletionEventEditor({
           }).format(new Date(t.dateTime))
         : "Unavailable";
   const labelRange = (t: { start: EventTime; end: EventTime }) =>
-    `${labelTime(t.start)} → ${labelTime(t.end)}`;
+    `${labelTime(t.start)} to ${labelTime(t.end)}`;
   return (
     <dialog
       ref={dialog}
@@ -591,7 +591,7 @@ export default function CompletionEventEditor({
             recipients: {review.notified.join(", ") || "None requested"}
           </p>
           <details>
-            <summary className="min-h-11 cursor-pointer py-3">
+            <summary className="vq-disclosure">
               Review location, description, Meet and reminder
             </summary>
             <p className="whitespace-pre-wrap break-words">
@@ -642,7 +642,7 @@ export default function CompletionEventEditor({
         </p>
       )}
       <details className="my-3 text-xs">
-        <summary className="min-h-11 cursor-pointer py-3">
+        <summary className="vq-disclosure">
           My calendar review history (metadata only)
         </summary>
         <button

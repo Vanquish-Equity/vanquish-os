@@ -201,7 +201,7 @@ export default function LpScouting({
               signal: {s.last_seen_at}
             </p>
             <details>
-              <summary className="cursor-pointer text-sm">Evidence</summary>
+              <summary className="vq-disclosure">Evidence</summary>
               <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all text-xs">
                 {JSON.stringify(s.evidence, null, 2)}
               </pre>

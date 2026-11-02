@@ -619,7 +619,7 @@ export default function MailWorkspace({
                   disabled={loading || tokens.length <= 1}
                   onClick={() => setTokens((v) => v.slice(0, -1))}
                 >
-                  ‹ Previous
+                  Previous
                 </button>
                 <button
                   type="button"
@@ -630,7 +630,7 @@ export default function MailWorkspace({
                       setTokens((v) => [...v, page.nextPageToken!]);
                   }}
                 >
-                  Next ›
+                  Next
                 </button>
               </div>
               <MailThreadRows

@@ -57,7 +57,7 @@ export default function NewConversation({ members }: { members: DirectoryEntry[]
   return (
     <div className="flex h-full flex-col overflow-y-auto px-4 py-5 sm:px-6">
       <Link href="/chat" className="text-[12px] font-semibold text-neutral-500 hover:text-cyan-700 md:hidden">
-        ← Conversations
+        Back to Conversations
       </Link>
       <h1 className="mt-1 font-[family-name:var(--font-display)] text-[20px] font-semibold tracking-tight text-ink">
         New conversation

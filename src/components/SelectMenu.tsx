@@ -1,5 +1,6 @@
 "use client";
 
+import ListMark from "./ListMark";
 import { useEffect, useId, useRef, useState } from "react";
 
 export type SelectMenuOption = {
@@ -86,24 +87,7 @@ export default function SelectMenu({
         <span className={selectedOption ? "truncate" : "truncate text-neutral-400"}>
           {selectedOption?.label ?? placeholder}
         </span>
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 12 12"
-          fill="none"
-          className={`flex-shrink-0 text-neutral-400 transition-transform ${
-            open ? "rotate-180" : ""
-          }`}
-          aria-hidden="true"
-        >
-          <path
-            d="M2.5 4.5L6 8L9.5 4.5"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <ListMark className={open ? "text-cyan-600" : ""} />
       </button>
 
       {open && (

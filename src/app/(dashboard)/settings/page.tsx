@@ -67,12 +67,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="mx-auto flex w-full max-w-[990px] flex-col gap-5 px-4 py-6 sm:px-7">
-      {access.permissions.has("lp_scouting") && <Link href="/lp-scouting" className="w-fit text-sm text-cyan-800 underline">Private LP scouting →</Link>}
+      {access.permissions.has("lp_scouting") && <Link href="/lp-scouting" className="w-fit text-sm text-cyan-800 underline">Private LP scouting</Link>}
       <header>
         <h1 className="font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">Settings</h1>
         <p className="mt-1 text-[13px] text-neutral-500">Your profile, experience and connected accounts.</p>
       </header>
-      <Link href="/integrations" className="w-fit rounded-full border border-neutral-200 px-4 py-2 text-[12px] font-semibold text-cyan-800">CRM synchronization & integration health →</Link>
+      <Link href="/integrations" className="w-fit rounded-full border border-neutral-200 px-4 py-2 text-[12px] font-semibold text-cyan-800">CRM synchronization & integration health</Link>
       <SettingsPanel
         email={access.email}
         displayName={profile?.display_name ?? access.displayName ?? ""}

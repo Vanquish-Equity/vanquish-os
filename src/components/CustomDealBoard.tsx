@@ -144,8 +144,8 @@ function ItemEditor({ item, columns, members, onClose, onSave, onMove, onDelete,
         className="mt-4 w-full rounded-lg border border-transparent px-1 py-1 text-lg font-semibold text-ink outline-none transition hover:border-neutral-200 focus:border-cyan-300 focus:bg-white focus:ring-2 focus:ring-cyan-100"
       />
 
-      {item.source_company_id && <Link href={`/companies/${item.source_company_id}`} className="mt-1 inline-block text-xs font-semibold text-cyan-700 hover:underline">Open source Company ↗</Link>}
-      {item.source_person_id && <Link href="/people" className="mt-1 inline-block text-xs font-semibold text-cyan-700 hover:underline">Open People directory ↗</Link>}
+      {item.source_company_id && <Link href={`/companies/${item.source_company_id}`} className="mt-1 inline-block text-xs font-semibold text-cyan-700 hover:underline">Open source Company</Link>}
+      {item.source_person_id && <Link href="/people" className="mt-1 inline-block text-xs font-semibold text-cyan-700 hover:underline">Open People directory</Link>}
 
       <div className="mt-4 flex flex-wrap gap-6">
         <div>

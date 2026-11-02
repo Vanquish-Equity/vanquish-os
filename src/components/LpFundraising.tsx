@@ -55,7 +55,7 @@ function RecordForm({
     [message, setMessage] = useState("");
   return (
     <details className="vq-card-static rounded-[14px] bg-white p-4">
-      <summary className="cursor-pointer font-semibold">{title}</summary>
+      <summary className="vq-disclosure">{title}</summary>
       <form
         className="mt-4 grid gap-3 sm:grid-cols-2"
         onSubmit={(e) => {

@@ -281,7 +281,7 @@ export default function CalendarWorkspace({
           onClick={() => shift(-1)}
           aria-label="Previous period"
         >
-          ‹
+          Previous
         </button>
         <button
           type="button"
@@ -289,7 +289,7 @@ export default function CalendarWorkspace({
           onClick={() => shift(1)}
           aria-label="Next period"
         >
-          ›
+          Next
         </button>
         <h2 className="ml-2 flex-1 text-[16px] font-semibold text-ink">
           {new Date(`${anchor}T12:00Z`).toLocaleDateString(undefined, {

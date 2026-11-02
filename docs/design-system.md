@@ -157,3 +157,39 @@ fundraising UUIDs survive retries. No new design-system exception is introduced.
 - **Open menus over cards:** cards are isolated stacking contexts, so `globals.css`
   lifts a card to `z-index: 20` while it holds `[aria-haspopup][aria-expanded="true"]`
   (SelectMenu, member/board menus). Disclosure toggles and the Sidebar are excluded; dialogs (z-50+) stay above.
+
+## No arrows (one convention per control)
+
+The interface uses no arrow, chevron, triangle or direction glyph, in text or
+icons. `src/components/no-arrows.test.ts` fails if one comes back. Controls say
+what they do in words or with a non-directional mark:
+
+- **Native `<details>` / `<summary>`:** `globals.css` hides the browser marker
+  on every `summary`. Give the summary `className="vq-disclosure"`: a
+  `rounded-full` pill (border neutral-200, 12px semibold, cyan hover and
+  `focus-visible` outline, 44px touch area) that turns soft cyan while
+  `details[open]`. The open state is the pill colour plus the panel itself;
+  keyboard (Enter/Space) and the implicit expanded state are native.
+- **Selectors and menu triggers** (`SelectMenu`, View menu): field styling plus
+  `ListMark`, three thin non-rotating lines, at the end. `aria-haspopup` and
+  `aria-expanded` stay; the mark turns cyan while open.
+- **Sortable headers** (`SortableTh`, `ViewsTable`): the active column shows a
+  cyan `A–Z` or `Z–A` tag (hidden text reserves the width on other columns);
+  `aria-sort` and the "Sort by..." label are unchanged.
+- **Calendar and pagination:** pills with the words "Previous" and "Next".
+- **Collapsible groups** (Sidebar sections, Pipeline column): a `+` or `−`
+  mark; `aria-expanded`, `aria-controls` and the section cookie are unchanged.
+  The Filters toggle in the view bars takes the active pill style when open.
+- **Links:** plain text ("Back to Communications"); no arrow or external-link glyphs.
+- **Icons:** no arrow shapes (inbox, sign out, collapse/expand, replay use
+  tray, door, panel, clock drawings).
+- **Sort tags by column type:** `ViewsTable` shows `A–Z`/`Z–A` for text
+  columns and text fields, `Low–High`/`High–Low` for numbers, `Old–New`/`New–Old`
+  for dates, and neutral `Asc`/`Desc` for Stage (pipeline order), selects,
+  booleans and unknown types. Width is reserved per column for its longest tag.
+- **Always-visible state:** the Sidebar `+`/`−` mark sits at a fixed 70%
+  opacity (100% on hover or focus), in the rail and in the mobile drawer.
+- **CSS precedence:** the `summary` and `.vq-disclosure` rules in `globals.css`
+  are outside `@layer`, so they win over Tailwind utilities on a
+  `summary.vq-disclosure`; do not add conflicting utilities there. The pill
+  radius is `1.125rem` so long text that wraps at 390px is not clipped.

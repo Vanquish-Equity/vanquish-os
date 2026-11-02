@@ -116,22 +116,12 @@ export default function PipelineViewsBar({
             onClick={() => setFiltersOpen((v) => !v)}
             aria-expanded={filtersOpen}
             className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition ${
-              isFiltered
+              isFiltered || filtersOpen
                 ? "border border-cyan-200 bg-[#f0fafb] text-cyan-800"
                 : "border border-neutral-200 text-neutral-500 hover:border-cyan-300 hover:text-cyan-800"
             }`}
           >
             Filters{isFiltered ? " · on" : ""}
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 12 12"
-              fill="none"
-              className={`transition-transform ${filtersOpen ? "rotate-180" : ""}`}
-              aria-hidden="true"
-            >
-              <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
           </button>
         </div>
       </div>

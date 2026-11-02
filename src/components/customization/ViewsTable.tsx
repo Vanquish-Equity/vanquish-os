@@ -30,6 +30,26 @@ const T = {
     "Sorting only covers the rows shown. Save the view to sort everyone.",
 };
 
+// The words on the active header, by what the column holds: text sorts A–Z,
+// numbers Low–High, dates Old–New. Select fields, booleans, Stage (pipeline
+// order) and unknown types stay neutral (Asc/Desc).
+export function sortTag(
+  key: string,
+  definition: Definition | null,
+  direction: "asc" | "desc",
+): string {
+  const type = isCustom(key) ? (definition?.field_type ?? "") : key;
+  const [asc, desc] =
+    type === "name" || type === "company" || type === "email" || type === "linkedin" || type === "text"
+      ? ["A–Z", "Z–A"]
+      : type === "number"
+        ? ["Low–High", "High–Low"]
+        : type === "date"
+          ? ["Old–New", "New–Old"]
+          : ["Asc", "Desc"];
+  return direction === "desc" ? desc : asc;
+}
+
 export function cellValue(
   row: RecordRow,
   key: string,
@@ -160,9 +180,9 @@ export default function ViewsTable({
                     {name(k)}
                     <span
                       aria-hidden="true"
-                      className={`text-[9px] ${sort.key === k ? "text-cyan-700" : "text-transparent"}`}
+                      className={`inline-block whitespace-nowrap rounded-full px-1.5 text-center text-[9px] ${sortTag(k, definition, "asc").length > 4 ? "min-w-[3.75rem]" : "min-w-[2.25rem]"} ${sort.key === k ? "bg-cyan-50 text-cyan-800" : "text-transparent"}`}
                     >
-                      {sort.key === k && sort.direction === "desc" ? "▼" : "▲"}
+                      {sortTag(k, definition, sort.key === k && sort.direction === "desc" ? "desc" : "asc")}
                     </span>
                   </button>
                 </th>

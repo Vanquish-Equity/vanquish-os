@@ -16,7 +16,7 @@ export function sortLabel<K extends string>(current: ListSort<K>, key: K, column
 
 // A table header that sorts the list with one click. It is a real link, so it
 // works with the keyboard (Tab, Enter) and keeps every other URL parameter.
-// The arrow always takes up its space, so nothing shifts when it appears.
+// The A-Z / Z-A tag always takes up its space, so nothing shifts when it appears.
 export default function SortableTh<K extends string>({
   label,
   sortKey,
@@ -41,9 +41,9 @@ export default function SortableTh<K extends string>({
         {label}
         <span
           aria-hidden="true"
-          className={`w-2.5 text-[9px] ${active ? "text-cyan-700" : "text-transparent group-hover:text-neutral-300 group-focus-visible:text-neutral-300"}`}
+          className={`inline-block min-w-[2.25rem] whitespace-nowrap rounded-full px-1.5 text-center text-[9px] ${active ? "bg-cyan-50 text-cyan-800" : "text-transparent group-hover:text-neutral-300 group-focus-visible:text-neutral-300"}`}
         >
-          {active && sort?.dir === "desc" ? "▼" : "▲"}
+          {active && sort?.dir === "desc" ? "Z–A" : "A–Z"}
         </span>
       </Link>
     </th>
