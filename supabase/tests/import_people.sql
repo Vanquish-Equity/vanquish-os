@@ -161,8 +161,13 @@ select pg_temp.expect(
   'an archived person chosen by id is refused unless restore is true');
 select pg_temp.expect(
   public.import_people('[{"name":"x","email":"imp.arch.new@example.com","person_id":"dddddddd-0000-0000-0000-000000000005","restore":true}]'::jsonb)
-    = '{"created":0,"linked":1,"marked":0,"grouped":0}'::jsonb
-  and (select archived_at is null and not is_potential_lp from public.people where id = 'dddddddd-0000-0000-0000-000000000005'),
+    = '{"created":0,"linked":1,"marked":0,"grouped":0}'::jsonb,
+  'restore by id links the email and creates nobody');
+-- A separate statement: a subquery in the statement that calls the function
+-- would not see the function's own changes.
+select pg_temp.expect(
+  (select archived_at is null and not is_potential_lp from public.people where id = 'dddddddd-0000-0000-0000-000000000005')
+  and exists (select 1 from public.person_emails where person_id = 'dddddddd-0000-0000-0000-000000000005' and lower(email) = 'imp.arch.new@example.com'),
   'restore by id restores the person, adds the email, and does not mark them');
 
 -- Flag and group together.
