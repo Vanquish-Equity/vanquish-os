@@ -349,7 +349,7 @@ function SidebarBody({
                 {!holdsActive && (
                   <span
                     aria-hidden="true"
-                    className={`w-3 text-center text-[13px] leading-none transition group-hover:opacity-100 group-focus-visible:opacity-100 ${open ? "opacity-0" : "opacity-70"}`}
+                    className={`w-3 text-center text-[13px] leading-none opacity-70 transition group-hover:opacity-100 group-focus-visible:opacity-100`}
                   >
                     {open ? "−" : "+"}
                   </span>

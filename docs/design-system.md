@@ -180,6 +180,16 @@ what they do in words or with a non-directional mark:
 - **Collapsible groups** (Sidebar sections, Pipeline column): a `+` or `−`
   mark; `aria-expanded`, `aria-controls` and the section cookie are unchanged.
   The Filters toggle in the view bars takes the active pill style when open.
-- **Links:** plain text ("Back to Communications"); no `←`, `→` or `↗`.
+- **Links:** plain text ("Back to Communications"); no arrow or external-link glyphs.
 - **Icons:** no arrow shapes (inbox, sign out, collapse/expand, replay use
   tray, door, panel, clock drawings).
+- **Sort tags by column type:** `ViewsTable` shows `A–Z`/`Z–A` for text
+  columns and text fields, `Low–High`/`High–Low` for numbers, `Old–New`/`New–Old`
+  for dates, and neutral `Asc`/`Desc` for Stage (pipeline order), selects,
+  booleans and unknown types. Width is reserved per column for its longest tag.
+- **Always-visible state:** the Sidebar `+`/`−` mark sits at a fixed 70%
+  opacity (100% on hover or focus), in the rail and in the mobile drawer.
+- **CSS precedence:** the `summary` and `.vq-disclosure` rules in `globals.css`
+  are outside `@layer`, so they win over Tailwind utilities on a
+  `summary.vq-disclosure`; do not add conflicting utilities there. The pill
+  radius is `1.125rem` so long text that wraps at 390px is not clipped.

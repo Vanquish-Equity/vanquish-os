@@ -82,6 +82,7 @@ export default function EventDetails({
           href={event.hangoutLink}
           target="_blank"
           rel="noopener noreferrer"
+          aria-label="Join Google Meet (opens in a new tab)"
           className="mt-4 inline-block rounded-full bg-cyan-50 px-4 py-2 text-[12px] font-semibold text-cyan-900"
         >
           Join Google Meet
@@ -106,6 +107,7 @@ export default function EventDetails({
             href={event.htmlLink}
             target="_blank"
             rel="noopener noreferrer"
+            aria-label="Open in Google (opens in a new tab)"
             className={button}
           >
             Open in Google

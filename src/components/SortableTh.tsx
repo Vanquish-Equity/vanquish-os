@@ -41,7 +41,7 @@ export default function SortableTh<K extends string>({
         {label}
         <span
           aria-hidden="true"
-          className={`inline-block min-w-[2.25rem] rounded-full px-1.5 text-center text-[9px] ${active ? "bg-cyan-50 text-cyan-800" : "text-transparent group-hover:text-neutral-300 group-focus-visible:text-neutral-300"}`}
+          className={`inline-block min-w-[2.25rem] whitespace-nowrap rounded-full px-1.5 text-center text-[9px] ${active ? "bg-cyan-50 text-cyan-800" : "text-transparent group-hover:text-neutral-300 group-focus-visible:text-neutral-300"}`}
         >
           {active && sort?.dir === "desc" ? "Z–A" : "A–Z"}
         </span>

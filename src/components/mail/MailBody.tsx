@@ -42,7 +42,7 @@ export default function MailBody({ message }: { message: MailMessage }) {
               className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-[12px] text-ink hover:border-cyan-300"
               href={`/api/mail/attachment?message=${encodeURIComponent(message.id)}&part=${encodeURIComponent(file.partId)}`}
             >
-              {file.name}{" "}
+              Download {file.name}{" "}
               <span className="ml-2 text-neutral-400">
                 {Math.ceil(file.size / 1024)} KB
               </span>

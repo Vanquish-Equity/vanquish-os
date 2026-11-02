@@ -513,10 +513,8 @@ html[data-vq-intro="play"] .vq-intro-card::before {
 summary {
   list-style: none;
 }
-summary::marker,
 summary::-webkit-details-marker {
   display: none;
-  content: "";
 }
 .vq-disclosure {
   position: relative;
@@ -526,7 +524,7 @@ summary::-webkit-details-marker {
   align-items: center;
   cursor: pointer;
   border: 1px solid #e5e5e5;
-  border-radius: 9999px;
+  border-radius: 1.125rem;
   padding: 0.375rem 0.75rem;
   font-size: 12px;
   font-weight: 600;
@@ -551,8 +549,6 @@ details[open] > .vq-disclosure {
   border-color: #a5f3fc;
   background-color: #f0fafb;
   color: #155e75;
-}
-details[open] > .vq-disclosure {
   margin-bottom: 0.5rem;
 }
 
