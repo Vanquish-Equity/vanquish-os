@@ -58,6 +58,9 @@ function latestDate(values: Array<string | null | undefined>) {
 export default async function CompaniesPage() {
   const supabase = await createClient();
   const endTimer = startDevPageTimer("page:data:companies");
+  // Independent of the company list, so they run alongside it.
+  const documentsPermission = hasPermission("documents");
+  const customFieldsPromise = readCustomFieldsState();
   const { data: companyRows } = (await supabase
     .from("companies")
     .select(
@@ -70,7 +73,7 @@ export default async function CompaniesPage() {
     (company.deals ?? []).map((deal) => deal.id)
   );
   // Diligence progress is Documents data.
-  const canDocuments = await hasPermission("documents");
+  const canDocuments = await documentsPermission;
   const { data: requirementRows } = canDocuments && dealIds.length
     ? ((await supabase
         .from("document_requirements")
@@ -81,6 +84,7 @@ export default async function CompaniesPage() {
         data: RequirementRow[] | null;
       })
     : { data: [] };
+  const customFieldsOn = await customFieldsPromise;
   endTimer();
 
   const requirementsByDeal = new Map<string, RequirementRow[]>();
@@ -158,7 +162,7 @@ export default async function CompaniesPage() {
         </Link>
       </header>
 
-      <CustomFieldsGate enabled={await readCustomFieldsState()}><CustomFieldFilter object="companies" /></CustomFieldsGate>
+      <CustomFieldsGate enabled={customFieldsOn}><CustomFieldFilter object="companies" /></CustomFieldsGate>
 
       <Suspense
         fallback={
