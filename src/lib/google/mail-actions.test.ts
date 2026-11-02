@@ -34,6 +34,44 @@ beforeEach(() => {
     request: mocks.request,
   });
 });
+describe("thread metadata fan-out", () => {
+  it("fetches 50 threads with at most 12 in flight and keeps result order", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    mocks.request.mockImplementation(async (_api: string, path: string) => {
+      if (path.startsWith("/threads?"))
+        return { threads: Array.from({ length: 50 }, (_, i) => ({ id: `t${i}` })) };
+      inFlight++;
+      peak = Math.max(peak, inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      const id = path.split("/threads/")[1].split("?")[0];
+      return {
+        id,
+        messages: [
+          {
+            id: `m-${id}`,
+            threadId: id,
+            internalDate: String(1_700_000_000_000 + Number(id.slice(1))),
+            payload: {
+              headers: [
+                { name: "Subject", value: `S-${id}` },
+                { name: "From", value: "jane@example.com" },
+                { name: "To", value: "me@example.com" },
+              ],
+            },
+          },
+        ],
+      };
+    });
+    const result = await listMailForContacts(["jane@example.com"]);
+    expect(result.ok && result.data.map((t) => t.id)).toEqual(
+      Array.from({ length: 50 }, (_, i) => `t${i}`),
+    );
+    expect(peak).toBeGreaterThan(5);
+    expect(peak).toBeLessThanOrEqual(12);
+  });
+});
 describe("Gmail mailbox operations", () => {
   it("forwards provider pagination and loads thread metadata without message bodies", async () => {
     mocks.request

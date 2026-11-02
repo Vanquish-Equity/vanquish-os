@@ -83,6 +83,7 @@ export async function listMail(
     };
   });
 }
+const THREAD_FETCH_WORKERS = 12;
 function cleanContactEmails(emails: string[], limit: number) {
   return [
     ...new Set(
@@ -112,31 +113,36 @@ async function searchThreadsForAddresses(
     `/threads?${params}`,
   );
   const ids = list.threads ?? [];
-  const threads: MailThreadSummary[] = [];
-  for (let start = 0; start < ids.length; start += 5) {
-    const group = await Promise.all(
-      ids.slice(start, start + 5).map(async ({ id }) => {
-        try {
-          return summarizeThread(
-            await client.request<GmailThread>(
-              "gmail",
-              `/threads/${resourceId(id)}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To`,
-            ),
-          );
-        } catch (error) {
-          if (
-            error instanceof Error &&
-            "code" in error &&
-            error.code === "not_found"
-          )
-            return null;
-          throw error;
-        }
-      }),
-    );
-    threads.push(...group.filter((t): t is MailThreadSummary => t !== null));
-  }
-  return threads;
+  // A small pool instead of groups of 5: a group waited for its slowest
+  // request, so 50 threads took ~10 serial rounds (about 2.5 s measured on
+  // /people). Twelve workers pull the next id as soon as one finishes.
+  const found: (MailThreadSummary | null)[] = new Array(ids.length).fill(null);
+  let next = 0;
+  const worker = async () => {
+    while (next < ids.length) {
+      const index = next++;
+      try {
+        found[index] = summarizeThread(
+          await client.request<GmailThread>(
+            "gmail",
+            `/threads/${resourceId(ids[index].id)}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To`,
+          ),
+        );
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          "code" in error &&
+          error.code === "not_found"
+        )
+          continue;
+        throw error;
+      }
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(THREAD_FETCH_WORKERS, ids.length) }, worker),
+  );
+  return found.filter((t): t is MailThreadSummary => t !== null);
 }
 
 export async function listMailForContacts(emails: string[]) {
