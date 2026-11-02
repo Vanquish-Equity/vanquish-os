@@ -41,7 +41,8 @@ import {
   visibleSpec,
   toggleColumn as toggleColumnSafe,
 } from "@/lib/customization/view-helpers";
-import Popover, { Chevron, pillClass } from "./Popover";
+import ListMark from "../ListMark";
+import Popover, { pillClass } from "./Popover";
 import ViewsTable, { cellValue } from "./ViewsTable";
 import ViewsKanban from "./ViewsKanban";
 
@@ -159,7 +160,7 @@ function ViewMenu({
         <>
           <span className="font-normal text-neutral-500">{T.viewLabel}</span>
           <span className="max-w-[12rem] truncate">{label}</span>
-          <Chevron />
+          <ListMark />
         </>
       }
     >
@@ -323,7 +324,7 @@ export function ColumnsContent({
       )}
       {kanban && single.length > 0 && (
         <details className="mt-2 border-t border-neutral-100 pt-2">
-          <summary className="flex min-h-11 cursor-pointer items-center text-[12px] font-semibold text-neutral-600">
+          <summary className="vq-disclosure">
             {T.advanced}
           </summary>
           <div className="flex flex-col gap-2 pb-1">

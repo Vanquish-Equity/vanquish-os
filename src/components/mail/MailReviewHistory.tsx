@@ -15,7 +15,7 @@ export default function MailReviewHistory() {
   }
   return (
     <details className="rounded-xl border border-neutral-200 p-3 text-xs">
-      <summary className="min-h-11 cursor-pointer py-3">
+      <summary className="vq-disclosure">
         My operation reviews (metadata only)
       </summary>
       <button

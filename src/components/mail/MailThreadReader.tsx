@@ -33,7 +33,7 @@ export default function MailThreadReader({
     <div className="p-5">
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => onBack()} className={button}>
-          ← Back
+          Back
         </button>
         {(["archive", "unread", "trash"] as const).map((op) => (
           <button

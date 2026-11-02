@@ -77,7 +77,7 @@ export default function MailFolderNav({
         href="/calendar"
         className="rounded-xl px-3 py-2.5 text-[12px] font-medium text-cyan-800"
       >
-        Calendar ↗
+        Calendar
       </Link>
     </nav>
   );

@@ -15,7 +15,7 @@ export default async function NewDraftPage() {
     <div className="flex flex-col gap-4 px-7 pt-6">
       <header>
         <Link href="/communications" className="text-[12px] font-semibold text-neutral-500 hover:text-cyan-700">
-          ← Communications
+          Back to Communications
         </Link>
         <h1 className="mt-1 font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">
           New email draft

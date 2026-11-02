@@ -707,7 +707,7 @@ export default async function CompanyDetailPage({
           )}
           {dealGroups.archived.length > 0 && (
             <details className="mt-3 text-[12px]">
-              <summary className="cursor-pointer font-semibold text-neutral-400 hover:text-neutral-600">
+              <summary className="vq-disclosure">
                 Archived deals ({dealGroups.archived.length})
               </summary>
               <div className="mt-2 flex flex-col gap-1.5">

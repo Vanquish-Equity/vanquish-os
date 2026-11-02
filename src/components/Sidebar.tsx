@@ -285,7 +285,7 @@ function SidebarBody({
             aria-label="Close navigation"
             className={`rounded-md p-1.5 text-neutral-500 transition hover:bg-white/[0.06] hover:text-white ${FOCUS}`}
           >
-            <NavIcon name="collapse" className="h-4 w-4" />
+            <NavIcon name="close" className="h-4 w-4" />
           </button>
         )}
         {onToggleCollapsed && (
@@ -347,10 +347,12 @@ function SidebarBody({
               >
                 {section.label}
                 {!holdsActive && (
-                  <NavIcon
-                    name="chevron"
-                    className={`h-3 w-3 transition group-hover:opacity-100 group-focus-visible:opacity-100 ${open ? "rotate-90 opacity-0" : "opacity-70"}`}
-                  />
+                  <span
+                    aria-hidden="true"
+                    className={`w-3 text-center text-[13px] leading-none transition group-hover:opacity-100 group-focus-visible:opacity-100 ${open ? "opacity-0" : "opacity-70"}`}
+                  >
+                    {open ? "−" : "+"}
+                  </span>
                 )}
               </button>
               {/* In the rail every item shows; a thin rule separates sections. */}

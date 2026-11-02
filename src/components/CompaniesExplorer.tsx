@@ -75,7 +75,7 @@ function FilterMenu({
 }) {
   return (
     <details className="relative">
-      <summary className="list-none rounded-full border border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800">
+      <summary className="vq-disclosure">
         {label}
         {selected.length > 0 ? ` (${selected.length})` : ""}
       </summary>

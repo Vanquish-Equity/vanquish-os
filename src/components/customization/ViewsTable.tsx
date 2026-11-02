@@ -160,9 +160,9 @@ export default function ViewsTable({
                     {name(k)}
                     <span
                       aria-hidden="true"
-                      className={`text-[9px] ${sort.key === k ? "text-cyan-700" : "text-transparent"}`}
+                      className={`inline-block min-w-[2.25rem] rounded-full px-1.5 text-center text-[9px] ${sort.key === k ? "bg-cyan-50 text-cyan-800" : "text-transparent"}`}
                     >
-                      {sort.key === k && sort.direction === "desc" ? "▼" : "▲"}
+                      {sort.key === k && sort.direction === "desc" ? "Z–A" : "A–Z"}
                     </span>
                   </button>
                 </th>

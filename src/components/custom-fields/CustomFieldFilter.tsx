@@ -43,7 +43,7 @@ export default function CustomFieldFilter({ object }: { object: FieldObject }) {
       className="vq-card-static min-w-0 rounded-[14px] bg-white p-4 motion-reduce:[&_*]:animate-none motion-reduce:[&_*]:transition-none"
     >
       <details>
-        <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">
+        <summary className="vq-disclosure">
           Custom field matches
         </summary>
         <p className="my-2 text-xs text-neutral-500">

@@ -186,7 +186,7 @@ export default async function CommunicationsPage({
         href="/communications"
         className="text-[12px] font-semibold text-cyan-800"
       >
-        ← Back to Gmail mailbox
+        Back to Gmail mailbox
       </Link>
       <>
         <div className="vq-card-static flex flex-wrap items-center justify-between gap-2 rounded-[14px] bg-white px-4 py-3 text-[12.5px]">

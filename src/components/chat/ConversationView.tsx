@@ -239,7 +239,7 @@ export default function ConversationView({
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex items-center gap-3 border-b border-neutral-100 px-4 py-3 sm:px-5">
         <Link href="/chat" className="rounded-lg p-1 text-[18px] text-neutral-500 hover:text-ink md:hidden" aria-label="Back to conversations">
-          ←
+          Back
         </Link>
         <div className="min-w-0 flex-1">
           <h1 className="truncate font-[family-name:var(--font-display)] text-[17px] font-semibold text-ink">{title}</h1>

@@ -165,23 +165,9 @@ export default function PipelineColumn({
               aria-label={expanded ? "Collapse column" : "Expand column"}
               className="flex h-5 w-5 items-center justify-center rounded-full text-neutral-400 transition hover:bg-[#eef1f2] hover:text-neutral-700"
             >
-              <svg
-                width="11"
-                height="11"
-                viewBox="0 0 12 12"
-                fill="none"
-                className={`transition-transform duration-150 ${
-                  expanded ? "rotate-180" : ""
-                }`}
-              >
-                <path
-                  d="M2.5 4.5L6 8L9.5 4.5"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <span aria-hidden="true" className="text-[14px] leading-none">
+                {expanded ? "−" : "+"}
+              </span>
             </button>
           )}
         </div>

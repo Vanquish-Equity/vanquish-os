@@ -68,7 +68,7 @@ export default async function HomePage() {
             href="/overview"
             className="rounded-full border border-neutral-200 px-3.5 py-2 text-[12px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
           >
-            How Vanquish is doing →
+            How Vanquish is doing
           </Link>
         </div>
       </header>

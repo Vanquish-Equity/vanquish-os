@@ -37,10 +37,10 @@ describe("SortableTh", () => {
     expect(html.match(/aria-sort/g)).toHaveLength(1);
     expect(html).toContain('aria-sort="ascending"');
     expect(html).toContain("sort=name&amp;dir=desc");
-    expect(html).toContain("▲");
+    expect(html).toContain("A–Z");
     const desc = header({ key: "name", dir: "desc" });
     expect(desc).toContain('aria-sort="descending"');
-    expect(desc).toContain("▼");
+    expect(desc).toContain("Z–A");
     expect(desc).toContain('href="/people?view=lps&amp;group=g1"');
     expect(desc).toContain('aria-label="Stop sorting by Name"');
   });

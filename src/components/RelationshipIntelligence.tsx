@@ -206,7 +206,7 @@ export default function RelationshipIntelligence({
                     <ul className="mt-2 space-y-2 text-xs text-neutral-500">
                       {p.edges.map((e) => (
                         <li key={e.member + e.person}>
-                          {e.memberName} ↔ {e.personName}:{" "}
+                          {e.memberName} with {e.personName}:{" "}
                           {relationshipEvidence(e, graph.asOf!)}
                         </li>
                       ))}

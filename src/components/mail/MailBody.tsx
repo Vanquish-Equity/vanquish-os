@@ -44,7 +44,7 @@ export default function MailBody({ message }: { message: MailMessage }) {
             >
               {file.name}{" "}
               <span className="ml-2 text-neutral-400">
-                {Math.ceil(file.size / 1024)} KB ↓
+                {Math.ceil(file.size / 1024)} KB
               </span>
             </a><AttachmentImport messageId={message.id} file={file} /></div>
           ))}

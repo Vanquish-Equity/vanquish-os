@@ -1,10 +1,10 @@
 import type { NavIcon as NavIconName } from "@/lib/auth/permissions";
 
 // Line icons for the sidebar (24px grid, drawn with currentColor).
-const PATHS: Record<NavIconName | "collapse" | "expand" | "signout" | "sound-on" | "sound-off" | "menu" | "replay" | "comment" | "chevron", React.ReactNode> = {
+const PATHS: Record<NavIconName | "collapse" | "expand" | "signout" | "sound-on" | "sound-off" | "menu" | "replay" | "comment" | "close", React.ReactNode> = {
   documents: <><path d="M6 3h8l4 4v14H6zM14 3v5h4M9 12h6M9 16h6" /></>,
   integrations: <><path d="M8 3v5M16 3v5M6 8h12v3a6 6 0 0 1-6 6v4M9 12h6" /></>,
-  inbox: <><path d="M4 11v9h16v-9M4 15h4l2 3h4l2-3h4M12 3v9m-4-4 4 4 4-4" /></>,
+  inbox: <><path d="M4 11v9h16v-9M4 15h4l2 3h4l2-3h4M8 7h8M9.5 10.5h5" /></>,
   network: <><circle cx="12" cy="5" r="2.5" /><circle cx="5" cy="18" r="2.5" /><circle cx="19" cy="18" r="2.5" /><path d="m10.5 7.5-4 8M13.5 7.5l4 8M7.5 18h9" /></>,
   governance: <><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6zM8 12l3 3 5-6" /></>,
   settings: (
@@ -75,7 +75,7 @@ const PATHS: Record<NavIconName | "collapse" | "expand" | "signout" | "sound-on"
       <path d="M12 6.8v10.4M14.6 9.4c-.6-.8-1.5-1.2-2.6-1.2-1.4 0-2.5.8-2.5 1.9 0 2.6 5 1.3 5 3.9 0 1.1-1.1 1.9-2.5 1.9-1.1 0-2-.4-2.6-1.2" />
     </>
   ),
-  chevron: <path d="m9 6 6 6-6 6" />,
+  close: <path d="m6 6 12 12M18 6 6 18" />,
   companies: (
     <>
       <path d="M4 20.5V5.5a1.5 1.5 0 0 1 1.5-1.5h7A1.5 1.5 0 0 1 14 5.5v15" />
@@ -122,29 +122,26 @@ const PATHS: Record<NavIconName | "collapse" | "expand" | "signout" | "sound-on"
     <>
       <rect x="3.5" y="4" width="17" height="16" rx="2.5" />
       <path d="M9.5 4v16" />
-      <path d="m16 9.5-2.5 2.5 2.5 2.5" />
     </>
   ),
   expand: (
     <>
       <rect x="3.5" y="4" width="17" height="16" rx="2.5" />
       <path d="M9.5 4v16" />
-      <path d="m13.5 9.5 2.5 2.5-2.5 2.5" />
+      <path d="M6 4h3.5v16H6z" fill="currentColor" />
     </>
   ),
   menu: <path d="M4 7h16M4 12h16M4 17h16" />,
   replay: (
     <>
-      <path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3" />
-      <path d="M4.5 4.5v3.2h3.2" />
-      <path d="m10.5 9.2 4.3 2.8-4.3 2.8z" />
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 7.5V12l3 2" />
     </>
   ),
   signout: (
     <>
       <path d="M14 4.5h3.5A1.5 1.5 0 0 1 19 6v12a1.5 1.5 0 0 1-1.5 1.5H14" />
-      <path d="M10 8 6 12l4 4" />
-      <path d="M6 12h9.5" />
+      <path d="M7 12h6" />
     </>
   ),
   "sound-on": (

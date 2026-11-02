@@ -70,7 +70,7 @@ export default function TaskRow({
   const unread = useUnreadCounts();
   const done = status === "done";
 
-  // Opened from a link to this task (e.g. Home → /tasks#task-<id>): bring it
+  // Opened from a link to this task (e.g. Home to /tasks#task-<id>): bring it
   // into view and highlight it briefly. Client navigation does not update
   // CSS :target, so this is done here. It also marks the viewer's
   // notifications about this task as read.

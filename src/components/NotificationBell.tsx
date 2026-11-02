@@ -22,7 +22,7 @@ export default function NotificationBell() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationView[] | null | "error">(null);
-  const [position, setPosition] = useState<{ top: number; left: number; width: number; arrow: number } | null>(null);
+  const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const [isPending, startTransition] = useTransition();
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -57,8 +57,7 @@ export default function NotificationBell() {
     if (!rect) return;
     const width = Math.min(PANEL_WIDTH, window.innerWidth - GUTTER * 2);
     const left = Math.max(GUTTER, Math.min(rect.right - width, window.innerWidth - width - GUTTER));
-    const arrow = Math.min(Math.max(rect.left + rect.width / 2 - left, 16), width - 16);
-    setPosition({ top: rect.bottom + 10, left, width, arrow });
+    setPosition({ top: rect.bottom + 10, left, width });
   }, []);
 
   useLayoutEffect(() => {
@@ -174,11 +173,6 @@ export default function NotificationBell() {
             style={{ top: position.top, left: position.left, width: position.width }}
             className="fixed z-[70] flex max-h-[min(560px,calc(100vh-80px))] flex-col rounded-2xl border border-neutral-200 bg-white shadow-[0_18px_50px_-12px_rgba(9,17,20,0.28)] outline-none"
           >
-            <span
-              aria-hidden="true"
-              style={{ left: position.arrow - 7 }}
-              className="absolute -top-[7px] h-3.5 w-3.5 rotate-45 border-l border-t border-neutral-200 bg-white"
-            />
             <div className="flex items-center justify-between gap-2 border-b border-neutral-100 px-4 py-3">
               <h2 className="text-[13.5px] font-semibold text-ink">
                 Notifications

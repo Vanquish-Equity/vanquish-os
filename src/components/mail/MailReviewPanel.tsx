@@ -52,7 +52,7 @@ export default function MailReviewPanel({
           : "None"}
       </p>
       <details>
-        <summary className="min-h-11 cursor-pointer py-3">
+        <summary className="vq-disclosure">
           Review exact sanitized HTML content
         </summary>
         <iframe
