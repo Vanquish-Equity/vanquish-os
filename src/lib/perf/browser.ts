@@ -1,3 +1,4 @@
+import { getHydratedAt } from "./boot";
 import {
   fileName,
   safePath,
@@ -24,7 +25,7 @@ function nav(): PerformanceNavigationTiming | undefined {
 export function readBrowserMetrics(extra: { lcp?: number; longTasks: { count: number; total: number }; interactions: InteractionTiming[] }): BrowserMetrics {
   const n = nav();
   const resources = performance.getEntriesByType("resource") as ResourceEntry[];
-  const hydrated = performance.getEntriesByName("vq-perf-hydrated", "mark")[0]?.startTime;
+  const hydrated = getHydratedAt();
   const fcp = performance.getEntriesByName("first-contentful-paint", "paint")[0]?.startTime;
 
   const scripts = resources.filter((r) => r.initiatorType === "script" || /\.js(\?|$)/.test(r.name));

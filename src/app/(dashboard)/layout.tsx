@@ -12,7 +12,6 @@ import RelationshipAutoSync from "@/components/RelationshipAutoSync";
 import { loadUnreadCounts } from "@/lib/chat/queries";
 import { createClient } from "@/lib/supabase/server";
 import { requireMember } from "@/lib/auth/access";
-import PerfServerData from "@/components/perf/PerfServerData";
 import { perfEnvEnabled } from "@/lib/perf/config";
 import { perfCollector } from "@/lib/perf/request";
 import { personProfileState } from "@/lib/people/profile-access";
@@ -34,7 +33,8 @@ export default async function DashboardLayout({
   // and then nothing below changes.
   const perf = perfEnvEnabled() ? await perfCollector() : null;
   if (perf && !can(access, "admin")) perf.disable();
-  const measuring = perf?.isActive ?? false;
+  // Loaded only while measuring, so the panel adds nothing to the normal bundle.
+  const PerfServerData = perf?.isActive ? (await import("@/components/perf/PerfServerData")).default : null;
   perf?.mark("layout.start");
   const preferenceCookie = sidebarCookieName(access.email);
   const cookieStore = await cookies();
@@ -90,12 +90,13 @@ export default async function DashboardLayout({
           <WorkspaceTopBar personProfiles={profiles.open} commands={navCommands(access.permissions, { chatAvailable: unread.available })} />
           <main className="vq-page min-h-0 min-w-0 flex-1 overflow-auto">{children}</main>
         </div>
+        {/* Last child of the shell, so it does not shift the generated ids of anything else. */}
+        {PerfServerData ? (
+          <Suspense fallback={null}>
+            <PerfServerData />
+          </Suspense>
+        ) : null}
       </div>
-      {measuring ? (
-        <Suspense fallback={null}>
-          <PerfServerData />
-        </Suspense>
-      ) : null}
     </UnreadCountsProvider>
   );
 }

@@ -10,7 +10,6 @@ vi.mock("next/headers", () => ({
   cookies: async () => ({ getAll: () => [], set: () => {} }),
 }));
 vi.mock("@/lib/auth/access", () => ({ getAccess: async () => access }));
-vi.mock("@/components/perf/PerfPanelLoader", () => ({ default: () => <div data-testid="panel-loader" /> }));
 const createServerClient = vi.fn(() => ({}));
 vi.mock("@supabase/ssr", () => ({ createServerClient: (...args: unknown[]) => (createServerClient as (...a: unknown[]) => unknown)(...args) }));
 
@@ -60,7 +59,7 @@ describe("activation needs the flag, ?perf=1 and an admin", () => {
     const html = await render();
     expect(html).toContain('id="vq-perf-server"');
     expect(html).toContain("db select deals");
-    expect(html).toContain("panel-loader");
+    expect(html).toContain("vq-perf-ready");
     expect(html).toContain('"claims":12.3');
   });
 

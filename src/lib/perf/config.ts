@@ -8,6 +8,8 @@ export const PERF_REQUEST_HEADER = "x-vq-perf";
 export const PERF_PROXY_HEADER = "x-vq-perf-proxy";
 export const PERF_QUERY = "perf";
 export const PERF_SCRIPT_ID = "vq-perf-server";
+// Dispatched by an inline script after the timeline JSON, to open the panel.
+export const PERF_READY_EVENT = "vq-perf-ready";
 
 export function perfEnvEnabled() {
   return process.env[PERF_ENV] === "1";

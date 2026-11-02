@@ -129,7 +129,9 @@ Labels pass a validator that replaces anything that is not a short identifier
   nothing is written to the page. The browser-sent `x-vq-perf` headers are
   ignored; only the proxy can mark a request.
 - Collection is capped at 400 calls per request.
-- The panel code is a separate lazy chunk, requested only when it is shown.
+- The panel code is a separate lazy chunk, requested only when the timeline is
+  in the page. The only code every page carries is a few hundred bytes in
+  `NavigationProgress` (`src/lib/perf/boot.ts`) that looks for the timeline.
 
 ## Where it is implemented
 
@@ -138,5 +140,6 @@ Labels pass a validator that replaces anything that is not a short identifier
 - `src/lib/supabase/server.ts`: passes the timed `fetch` only while measuring.
 - `src/lib/google/transport.ts`: times Google calls only while measuring.
 - `src/lib/supabase/middleware.ts`: proxy session timing and `Server-Timing`.
-- `src/components/perf/`: server component that writes the timeline, lazy
-  loader and the panel.
+- `src/components/perf/`: server component that writes the timeline, the panel
+  and the function that mounts it. `src/lib/perf/boot.ts` (called from
+  `NavigationProgress`) opens it when the timeline is present.

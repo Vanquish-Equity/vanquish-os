@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
+import { watchForPerfPanel } from "@/lib/perf/boot";
 import { usePathname, useSearchParams } from "next/navigation";
 
 type Phase = "idle" | "running" | "done";
@@ -70,6 +71,8 @@ function Bar() {
 }
 
 export default function NavigationProgress() {
+  // Opens the admin performance panel when the server wrote a timeline; otherwise a no-op.
+  useEffect(() => watchForPerfPanel(), []);
   return (
     <Suspense fallback={null}>
       <Bar />
