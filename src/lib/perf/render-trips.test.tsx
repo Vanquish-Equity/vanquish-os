@@ -101,6 +101,10 @@ vi.mock("@/components/customization/ViewsPanel", stub);
 vi.mock("@/components/custom-fields/CustomFieldFilter", stub);
 vi.mock("@/components/NewPersonModal", stub);
 vi.mock("@/components/PersonContactActions", stub);
+vi.mock("@/components/PersonRow", () => ({
+  default: () => null,
+  PeopleGroupsProvider: ({ children }: { children: ReactNode }) => createElement(Fragment, null, children),
+}));
 vi.mock("@/components/PeopleViewsBar", stub);
 vi.mock("@/components/RelativeTime", stub);
 vi.mock("@/components/SortableTh", stub);
