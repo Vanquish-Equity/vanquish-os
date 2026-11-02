@@ -40,4 +40,12 @@ describe("New deal / person / task dialogs render on the server when opened on l
     const html = renderToString(<NewPersonModal companies={option} initialOpen openOnNewParam />);
     expect(html).toContain('role="dialog"');
   });
+
+  it("NewPersonModal from a group tab says which group the person joins", () => {
+    const html = renderToString(
+      <NewPersonModal companies={option} group={{ id: "g1", name: "Family Offices" }} initialOpen />,
+    ).replace(/<!-- -->/g, "");
+    expect(html).toContain("Will be added to the group");
+    expect(html).toContain("Family Offices");
+  });
 });

@@ -5,19 +5,21 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import SelectMenu from "@/components/SelectMenu";
-import { importPotentialLpsAction } from "@/lib/communications/actions";
+import { importPeopleAction } from "@/lib/communications/actions";
 import { parseCsv } from "@/lib/communications/csv";
+import { describe, plural, resultLines } from "@/lib/communications/import-copy";
 import {
   analyzeRows,
   COLUMN_LABELS,
   guessMapping,
-  importPayload,
+  importRequest,
   rowsFromCsv,
   summarize,
   type AnalyzedRow,
   type ColumnKey,
   type ColumnMapping,
   type ExistingContact,
+  type ImportOptions,
   type ImportRow,
   type RowStatus,
 } from "@/lib/communications/import";
@@ -41,27 +43,20 @@ const STATUS_LABELS: Record<RowStatus, string> = {
 const inputClass =
   "w-full min-w-[140px] rounded-lg border border-neutral-200 bg-white px-2 py-1 text-[12px] text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100";
 
-function describe(row: AnalyzedRow) {
-  const { analysis } = row;
-  switch (analysis.kind) {
-    case "invalid":
-      return analysis.problems.join(" · ");
-    case "repeated":
-      return `Repeated email: same as row ${analysis.firstLine}. Only the first one is used.`;
-    case "already_lp":
-      return `Already a potential LP in People (${analysis.person.name}).`;
-    case "mark_existing":
-      return `Already in People as ${analysis.person.name}: will be marked as potential LP, no new person.`;
-    case "archived_match":
-      return `This email belongs to ${analysis.person.name}, who is archived in People.`;
-    case "name_match":
-      return `Someone with this name is already in People without this email.`;
-    default:
-      return "New person in People, marked as potential LP.";
-  }
-}
+type CustomGroup = { id: string; name: string };
 
-export default function LpImporter({ existing }: { existing: ExistingContact[] }) {
+export default function PeopleImporter({
+  existing,
+  groups = [],
+  defaultPotentialLp = false,
+  defaultGroupId = null,
+}: {
+  existing: ExistingContact[];
+  // Custom groups only: the starter Potential LPs group follows the checkbox.
+  groups?: CustomGroup[];
+  defaultPotentialLp?: boolean;
+  defaultGroupId?: string | null;
+}) {
   const router = useRouter();
   const [fileName, setFileName] = useState<string | null>(null);
   const [cells, setCells] = useState<string[][]>([]);
@@ -71,10 +66,20 @@ export default function LpImporter({ existing }: { existing: ExistingContact[] }
   const [filter, setFilter] = useState<Filter>("all");
   const [readError, setReadError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ created: number; linked: number; marked: number } | null>(null);
+  const [markPotentialLp, setMarkPotentialLp] = useState(defaultPotentialLp);
+  const [groupId, setGroupId] = useState<string | null>(
+    defaultGroupId && groups.some((group) => group.id === defaultGroupId) ? defaultGroupId : null,
+  );
+  const [result, setResult] = useState<{
+    counts: { created: number; linked: number; marked: number; grouped: number };
+    options: ImportOptions;
+    groupName: string | null;
+  } | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const analyzed = useMemo(() => analyzeRows(rows, existing), [rows, existing]);
+  const options = useMemo<ImportOptions>(() => ({ markPotentialLp, groupId }), [markPotentialLp, groupId]);
+  const groupName = groups.find((group) => group.id === groupId)?.name ?? null;
+  const analyzed = useMemo(() => analyzeRows(rows, existing, options), [rows, existing, options]);
   const summary = useMemo(() => summarize(analyzed), [analyzed]);
   const visibleRows = filter === "all" ? analyzed : analyzed.filter((row) => row.status === filter);
   const columnCount = Math.max(0, ...cells.map((row) => row.length));
@@ -111,7 +116,7 @@ export default function LpImporter({ existing }: { existing: ExistingContact[] }
     setHasHeader(guess.hasHeader);
     const nextRows = rowsFromCsv(parsed, guess.mapping, guess.hasHeader);
     setRows(nextRows);
-    setFilter(summarize(analyzeRows(nextRows, existing)).review > 0 ? "review" : "all");
+    setFilter(summarize(analyzeRows(nextRows, existing, options)).review > 0 ? "review" : "all");
   }
 
   function remap(nextMapping: ColumnMapping, nextHasHeader: boolean) {
@@ -126,14 +131,20 @@ export default function LpImporter({ existing }: { existing: ExistingContact[] }
 
   function runImport() {
     setServerError(null);
-    const payload = importPayload(analyzed);
+    const request = importRequest(analyzed, options);
+    const used = options;
+    const usedGroupName = groupName;
     startTransition(async () => {
-      const response = await importPotentialLpsAction(payload);
+      const response = await importPeopleAction(request);
       if (!response.ok) {
         setServerError(response.message);
         return;
       }
-      setResult({ created: response.created, linked: response.linked, marked: response.marked });
+      setResult({
+        counts: { created: response.created, linked: response.linked, marked: response.marked, grouped: response.grouped },
+        options: used,
+        groupName: usedGroupName,
+      });
       setRows([]);
       setCells([]);
       router.refresh();
@@ -151,17 +162,33 @@ export default function LpImporter({ existing }: { existing: ExistingContact[] }
       <section className="vq-card-static rounded-[14px] bg-white p-5">
         <h2 className="font-[family-name:var(--font-display)] text-[17px] font-semibold text-ink">Import finished</h2>
         <ul className="mt-2 text-[12.5px] text-neutral-600">
-          <li>{result.created} new people added as potential LPs</li>
-          <li>{result.linked} emails added to people who were already in People</li>
-          <li>{result.marked} existing people marked as potential LPs</li>
+          {resultLines(result.counts, result.options, result.groupName).map((line) => (
+            <li key={line}>{line}</li>
+          ))}
         </ul>
-        <div className="mt-4 flex gap-2">
+        <div className="mt-4 flex flex-wrap gap-2">
           <Link
-            href="/people?view=lps"
+            href="/people"
             className="rounded-full bg-ink px-3.5 py-2 text-[12px] font-semibold text-white transition hover:bg-neutral-800"
           >
-            View potential LPs
+            View all people
           </Link>
+          {result.options.markPotentialLp && (
+            <Link
+              href="/people?view=lps"
+              className="rounded-full border border-neutral-200 px-3.5 py-2 text-[12px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
+            >
+              View potential LPs
+            </Link>
+          )}
+          {result.options.groupId && (
+            <Link
+              href={`/people?group=${result.options.groupId}`}
+              className="rounded-full border border-neutral-200 px-3.5 py-2 text-[12px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
+            >
+              View {result.groupName ?? "the group"}
+            </Link>
+          )}
           <button
             type="button"
             onClick={reset}
@@ -176,6 +203,14 @@ export default function LpImporter({ existing }: { existing: ExistingContact[] }
 
   return (
     <div className="flex flex-col gap-4">
+      <ImportOptionsCard
+        markPotentialLp={markPotentialLp}
+        onMarkPotentialLp={setMarkPotentialLp}
+        groupId={groupId}
+        onGroupId={setGroupId}
+        groups={groups}
+      />
+
       <section className="vq-card-static rounded-[14px] bg-white p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-[560px]">
@@ -183,8 +218,9 @@ export default function LpImporter({ existing }: { existing: ExistingContact[] }
             <p className="mt-1 text-[12px] text-neutral-500">
               Exports from Excel (“CSV UTF-8”), Outlook, Google Contacts or a CRM work. Columns such as{" "}
               <span className="font-semibold">Name</span> or <span className="font-semibold">First name / Last name</span>,{" "}
-              <span className="font-semibold">Email</span> and optionally <span className="font-semibold">Title</span> are
-              recognised in English or Spanish; you can change the mapping below. Other columns are ignored.
+              <span className="font-semibold">Email</span> (needed only to mark potential LPs) and optionally{" "}
+              <span className="font-semibold">Title</span> are recognised in English or Spanish; you can change the
+              mapping below. Other columns are ignored.
             </p>
           </div>
           <label className="cursor-pointer rounded-full bg-ink px-3.5 py-2 text-[12px] font-semibold text-white transition hover:bg-neutral-800">
@@ -245,8 +281,10 @@ export default function LpImporter({ existing }: { existing: ExistingContact[] }
               </div>
             ))}
           </div>
-          {mapping.email === null && (
-            <p className="mt-3 text-[12px] text-amber-700">Choose the column that holds the email.</p>
+          {mapping.email === null && markPotentialLp && (
+            <p className="mt-3 text-[12px] text-amber-700">
+              Choose the column that holds the email: potential LPs need one.
+            </p>
           )}
           {mapping.name === null && mapping.firstName === null && mapping.lastName === null && (
             <p className="mt-1 text-[12px] text-amber-700">Choose the column(s) that hold the name.</p>
@@ -299,7 +337,13 @@ export default function LpImporter({ existing }: { existing: ExistingContact[] }
               </thead>
               <tbody>
                 {visibleRows.map((row) => (
-                  <ImportRowView key={row.line} row={row} onChange={(patch) => updateRow(row.line, patch)} />
+                  <ImportRowView
+                    key={row.line}
+                    row={row}
+                    options={options}
+                    groupName={groupName}
+                    onChange={(patch) => updateRow(row.line, patch)}
+                  />
                 ))}
                 {visibleRows.length === 0 && (
                   <tr>
@@ -332,7 +376,7 @@ export default function LpImporter({ existing }: { existing: ExistingContact[] }
                 disabled={isPending || summary.review > 0 || summary.ready === 0}
                 className="rounded-full bg-ink px-3.5 py-2 text-[12px] font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isPending ? "Importing..." : `Import ${summary.ready} contact${summary.ready === 1 ? "" : "s"}`}
+                {isPending ? "Importing..." : `Import ${plural(summary.ready, "person", "people")}`}
               </button>
             </div>
           </div>
@@ -348,7 +392,80 @@ export default function LpImporter({ existing }: { existing: ExistingContact[] }
   );
 }
 
-function ImportRowView({ row, onChange }: { row: AnalyzedRow; onChange: (patch: Partial<ImportRow>) => void }) {
+function ImportOptionsCard({
+  markPotentialLp,
+  onMarkPotentialLp,
+  groupId,
+  onGroupId,
+  groups,
+}: {
+  markPotentialLp: boolean;
+  onMarkPotentialLp: (value: boolean) => void;
+  groupId: string | null;
+  onGroupId: (value: string | null) => void;
+  groups: CustomGroup[];
+}) {
+  return (
+    <section className="vq-card-static rounded-[14px] bg-white p-5">
+      <h2 className="text-[13px] font-semibold text-ink">Options</h2>
+      <p className="mt-1 text-[12px] text-neutral-500">
+        Both are optional and apply to every row of the file. With neither, people are just added to People.
+      </p>
+      <div className="mt-3 flex flex-wrap items-start gap-x-8 gap-y-4">
+        <label className="flex max-w-[360px] items-start gap-2.5 text-[12px] text-neutral-600">
+          <Checkbox checked={markPotentialLp} onChange={(event) => onMarkPotentialLp(event.target.checked)} />
+          <span>
+            <span className="font-semibold text-ink">Mark as potential LPs</span>
+            <span className="block text-[11px] text-neutral-500">
+              They can then be selected as recipients in Communications, so every row needs an email. Leave it
+              unchecked to import by name only.
+            </span>
+          </span>
+        </label>
+        <div className="min-w-[220px]">
+          <label
+            htmlFor="import-group"
+            className="mb-1 block text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400"
+          >
+            Add to group
+          </label>
+          <SelectMenu
+            id="import-group"
+            value={groupId ?? ""}
+            placeholder="No group"
+            options={[{ value: "", label: "No group" }, ...groups.map((group) => ({ value: group.id, label: group.name }))]}
+            onChange={(value) => onGroupId(value === "" ? null : value)}
+          />
+          <p className="mt-1 max-w-[260px] text-[11px] text-neutral-500">
+            {groups.length === 0 ? (
+              <>
+                No groups yet. Create one in{" "}
+                <Link href="/people/groups" className="font-semibold text-cyan-700 hover:underline">
+                  Manage groups
+                </Link>
+                .
+              </>
+            ) : (
+              "Potential LPs is not listed: it follows the checkbox."
+            )}
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ImportRowView({
+  row,
+  options,
+  groupName,
+  onChange,
+}: {
+  row: AnalyzedRow;
+  options: ImportOptions;
+  groupName: string | null;
+  onChange: (patch: Partial<ImportRow>) => void;
+}) {
   const { analysis } = row;
   const muted = row.status === "excluded" || row.status === "skip";
 
@@ -377,7 +494,7 @@ function ImportRowView({ row, onChange }: { row: AnalyzedRow; onChange: (patch: 
         <span className={`inline-block rounded-full px-2 py-0.5 text-[10.5px] font-semibold ring-1 ${STATUS_STYLES[row.status]}`}>
           {STATUS_LABELS[row.status]}
         </span>
-        <p className="mt-1 max-w-[340px] text-[11px] text-neutral-500">{describe(row)}</p>
+        <p className="mt-1 max-w-[340px] text-[11px] text-neutral-500">{describe(row, options, groupName)}</p>
       </td>
       <td className="px-4 py-2 text-right">
         <div className="flex flex-col items-end gap-1.5">
@@ -388,7 +505,8 @@ function ImportRowView({ row, onChange }: { row: AnalyzedRow; onChange: (patch: 
               aria-pressed={row.decision === "restore"}
               className={decisionClass(row.decision === "restore")}
             >
-              Restore {analysis.person.name} as potential LP
+              Restore {analysis.person.name}
+              {options.markPotentialLp ? " as potential LP" : ""}
             </button>
           )}
           {!row.excluded && analysis.kind === "name_match" && (
@@ -401,8 +519,8 @@ function ImportRowView({ row, onChange }: { row: AnalyzedRow; onChange: (patch: 
                   aria-pressed={row.decision === `link:${person.id}`}
                   className={decisionClass(row.decision === `link:${person.id}`)}
                 >
-                  Same person: add email to {person.name}
-                  {person.emails[0] ? " (has another email)" : ""}
+                  {row.email ? `Same person: add email to ${person.name}` : `Same person: use ${person.name}`}
+                  {row.email && person.emails[0] ? " (has another email)" : ""}
                 </button>
               ))}
               <button

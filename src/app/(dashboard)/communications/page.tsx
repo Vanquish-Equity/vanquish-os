@@ -202,7 +202,7 @@ export default async function CommunicationsPage({
               Manage potential LPs
             </Link>
             <Link
-              href="/people/import"
+              href="/people/import?lp=1"
               className="text-cyan-700 hover:underline"
             >
               Import CSV

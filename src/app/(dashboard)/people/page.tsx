@@ -12,6 +12,8 @@ import NewPersonModal from "@/components/NewPersonModal";
 import PersonContactActions from "@/components/PersonContactActions";
 import PersonRow, { PeopleGroupsProvider } from "@/components/PersonRow";
 import PeopleViewsBar from "@/components/PeopleViewsBar";
+import PeopleGroupTabs from "@/components/PeopleGroupTabs";
+import { activeTabKey, buildPeopleTabs, groupsWithCounts, showsPotentialLps } from "@/lib/people-groups/tabs";
 import RelativeTime from "@/components/RelativeTime";
 import { requireMember } from "@/lib/auth/access";
 import { accessFirst } from "@/lib/auth/access-first";
@@ -86,8 +88,9 @@ export default async function PeoplePage({
 }) {
   const { view, group, q, cols: colsMarker, col, sort: sortParam, dir: dirParam } = await searchParams;
   const sort = parseListSort(PEOPLE_SORT_KEYS, sortParam, dirParam);
-  const showLps = view === "lps";
   const groupId = group || null;
+  // A chosen group wins over ?view=lps (see activeTabKey in people-groups/tabs).
+  const showLps = showsPotentialLps(view === "lps" ? "lps" : "all", groupId);
   const search = (q ?? "").trim();
   const filters: PeopleViewFilters = {
     view: showLps ? "lps" : "all",
@@ -141,7 +144,7 @@ export default async function PeoplePage({
     { data: companies },
     { count: allCount },
     { count: lpCount },
-    { data: groups },
+    { data: groupRows },
     savedViews,
     mailbox,
     [{ data: lastInteractions }, { data: memberDirectory }],
@@ -163,8 +166,20 @@ export default async function PeoplePage({
       .select("id", { count: "exact", head: true })
       .is("archived_at", null)
       .eq("is_potential_lp", true),
-    supabase.from("person_groups").select("id,name,kind").order("name") as unknown as Promise<{
-      data: (Option & { kind: string })[] | null;
+    // One query for every group tab: the members are embedded (not counted
+    // one group at a time) and archived people are left out in groupsWithCounts.
+    supabase
+      .from("person_groups")
+      .select("id,name,kind,person_group_members(person:people(archived_at))")
+      .order("name") as unknown as Promise<{
+      data:
+        | {
+            id: string;
+            name: string;
+            kind: string;
+            person_group_members: { person: { archived_at: string | null } | null }[] | null;
+          }[]
+        | null;
     }>,
     loadSavedViews(supabase, "people"),
     loadMailboxConnection(supabase),
@@ -182,6 +197,13 @@ export default async function PeoplePage({
       : Promise.resolve([{ data: null }, { data: null }] as const),
   ]);
   endTimer();
+
+  const groups = groupsWithCounts(groupRows);
+  const activeKey = activeTabKey(filters.view, groupId, groups);
+  const activeGroup = groups.find((g) => g.id === activeKey && g.kind !== "potential_lp") ?? null;
+  const tabs = buildPeopleTabs({ groups, allCount: allCount ?? 0, lpCount: lpCount ?? 0, filters, sort });
+  // The Import people button keeps the context it was opened from.
+  const importHref = activeGroup ? `/people/import?group=${activeGroup.id}` : activeKey === "lps" ? "/people/import?lp=1" : "/people/import";
 
   const profileOpen = profileState.open;
   const rows = sortListRows(
@@ -205,15 +227,8 @@ export default async function PeoplePage({
   const memberNames = new Map((memberDirectory ?? []).map((member) => [member.email, member.display_name || member.email.split("@")[0]]));
   // The starter Potential LPs group follows the Potential LP flag, so the row
   // menu offers it as that one toggle rather than as a second group item.
-  const menuGroups = (groups ?? []).filter((g) => g.kind !== "potential_lp").map(({ id, name }) => ({ id, name }));
+  const menuGroups = groups.filter((g) => g.kind !== "potential_lp").map(({ id, name }) => ({ id, name }));
   const columnCount = 2 + shown.size;
-
-  const tabClass = (active: boolean) =>
-    `rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition ${
-      active
-        ? "bg-ink text-white"
-        : "border border-neutral-200 text-neutral-600 hover:border-cyan-300 hover:text-cyan-800"
-    }`;
 
   return (
     <div className="flex flex-col gap-4 px-7 py-6">
@@ -230,15 +245,16 @@ export default async function PeoplePage({
           <Link href="/people/groups" className="rounded-full border border-neutral-200 px-3.5 py-2 text-[12px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800">Manage groups</Link>
           <Link href="/people/duplicates" className="rounded-full border border-neutral-200 px-3.5 py-2 text-[12px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800">Duplicates</Link>
           <Link
-            href="/people/import"
+            href={importHref}
             className="rounded-full border border-neutral-200 px-3.5 py-2 text-[12px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
           >
-            Import potential LPs (CSV)
+            Import people (CSV)
           </Link>
           <NewPersonModal
-            key={showLps ? "lp" : "all"}
+            key={activeGroup ? `group:${activeGroup.id}` : showLps ? "lp" : "all"}
             companies={companies ?? []}
             defaultPotentialLp={showLps}
+            group={activeGroup ? { id: activeGroup.id, name: activeGroup.name } : undefined}
             label={showLps ? "Add potential LP" : "New Person"}
             openOnNewParam
           />
@@ -248,27 +264,9 @@ export default async function PeoplePage({
       <CustomFieldsGate enabled={viewsState.views}><ViewsPanel kind="people" kanban={viewsState.kanban}/></CustomFieldsGate>
       <CustomFieldsGate enabled={customFieldsOn}><CustomFieldFilter object="people" /></CustomFieldsGate>
       <PeopleViewsBar
-        tabs={
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Link href="/people" className={tabClass(!showLps)}>
-                All people ({allCount ?? 0})
-              </Link>
-              <Link href="/people?view=lps" className={tabClass(showLps)}>
-                Potential LPs ({lpCount ?? 0})
-              </Link>
-            </div>
-            <p className="text-[11.5px] text-neutral-500">
-              Potential LPs can be selected as recipients in{" "}
-              <Link href="/communications" className="font-semibold text-cyan-700 hover:underline">
-                Communications
-              </Link>
-              .
-            </p>
-          </div>
-        }
+        tabs={<PeopleGroupTabs tabs={tabs} />}
         views={savedViews}
-        groups={groups ?? []}
+        groups={groups.map(({ id, name }) => ({ id, name }))}
         filters={filters}
         sort={sort}
         me={access.email ?? ""}
@@ -425,11 +423,23 @@ export default async function PeoplePage({
                     <div className="mx-auto max-w-[460px]">
                       <p className="font-semibold text-ink">No potential LPs yet.</p>
                       <p className="mt-1 text-[12px] text-neutral-500">
-                        When the LP list arrives, use <span className="font-semibold">Import potential LPs (CSV)</span> to
-                        review and load it. Until then, add one with <span className="font-semibold">Add potential LP</span>{" "}
+                        When the LP list arrives, use <span className="font-semibold">Import people (CSV)</span> (with
+                        &ldquo;Mark as potential LPs&rdquo; checked) to review and load it. Until then, add one with <span className="font-semibold">Add potential LP</span>{" "}
                         or mark an existing person from{" "}
                         <Link href="/people" className="font-semibold text-cyan-700 hover:underline">
                           All people
+                        </Link>
+                        .
+                      </p>
+                    </div>
+                  ) : activeGroup && !search ? (
+                    <div className="mx-auto max-w-[460px]">
+                      <p className="font-semibold text-ink">No one in {activeGroup.name} yet.</p>
+                      <p className="mt-1 text-[12px] text-neutral-500">
+                        Add a new person with <span className="font-semibold">New Person</span>, load a file with{" "}
+                        <span className="font-semibold">Import people (CSV)</span>, or add existing people from{" "}
+                        <Link href="/people/groups" className="font-semibold text-cyan-700 hover:underline">
+                          Manage groups
                         </Link>
                         .
                       </p>

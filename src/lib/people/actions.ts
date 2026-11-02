@@ -12,6 +12,8 @@ export type PersonActionResult =
   | { ok: true; personId?: string }
   | { ok: false; message: string };
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function cleanText(value: string | null | undefined) {
   return (value ?? "").trim();
 }
@@ -49,6 +51,9 @@ export type CreatePersonInput = {
   linkedinUrl: string;
   email: string;
   isPotentialLp?: boolean;
+  // A custom group the new person joins (the starter Potential LPs group
+  // follows isPotentialLp and is refused here).
+  groupId?: string | null;
 };
 
 export async function createPersonAction(
@@ -66,6 +71,15 @@ export async function createPersonAction(
   }
 
   const supabase = await createClient();
+
+  // Checked before anything is created, so a bad group leaves no half-made person.
+  const groupId = input.groupId ? String(input.groupId) : null;
+  if (groupId) {
+    if (!UUID.test(groupId)) return { ok: false, message: "Invalid group selection." };
+    const { data: group } = await supabase.from("person_groups").select("id,kind").eq("id", groupId).maybeSingle();
+    if (!group) return { ok: false, message: "That group no longer exists. Reload People and try again." };
+    if (group.kind !== "custom") return { ok: false, message: "Use Potential LP to add someone to that group." };
+  }
 
   // One person per email: an existing contact is reused, never duplicated.
   if (email && (await emailOwner(supabase, email))) {
@@ -111,6 +125,19 @@ export async function createPersonAction(
     },
     supabase
   );
+
+  if (groupId) {
+    const { error: memberError } = await supabase
+      .from("person_group_members")
+      .upsert({ group_id: groupId, person_id: person.id }, { onConflict: "group_id,person_id", ignoreDuplicates: true });
+    if (memberError) {
+      revalidatePeoplePaths(input.companyId);
+      return {
+        ok: false,
+        message: "The person was created but could not be added to the group. Add them from the row menu in People.",
+      };
+    }
+  }
 
   revalidatePeoplePaths(input.companyId);
   return { ok: true, personId: person.id };

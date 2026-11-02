@@ -1,7 +1,12 @@
-// Turns a CSV of contacts into reviewed import rows. Nothing here writes:
-// the importer shows every row with what will happen to it, and only rows
-// that are ready (or that the user explicitly resolved) are sent to the
-// database function import_potential_lps.
+// Turns a CSV of people into reviewed import rows. Nothing here writes: the
+// importer shows every row with what will happen to it, and only rows that
+// are ready (or that the user explicitly resolved) are sent to the database
+// (import_people, or import_potential_lps when the only option is "mark as
+// potential LPs").
+//
+// Two optional choices apply to the whole file (ImportOptions): mark everyone
+// as a potential LP (which needs an email per row) and/or add everyone to one
+// custom group. With neither, a row only needs a name.
 
 export const EMAIL_PATTERN = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
 
@@ -126,13 +131,30 @@ export type ExistingContact = {
   emails: string[];
   isPotentialLp: boolean;
   archived: boolean;
+  // Custom groups the person already belongs to (to skip rows with nothing to do).
+  groupIds: string[];
 };
+
+// The choices made once for the whole file.
+export type ImportOptions = {
+  markPotentialLp: boolean;
+  // A custom group (never the starter Potential LPs group, which follows the
+  // potential LP flag), or null.
+  groupId: string | null;
+};
+
+export const DEFAULT_IMPORT_OPTIONS: ImportOptions = { markPotentialLp: false, groupId: null };
+
+// What an already-existing person (matched by email) would change.
+export type ExistingChanges = { lp: boolean; group: boolean };
 
 export type RowAnalysis =
   | { kind: "invalid"; problems: string[] }
   | { kind: "repeated"; firstLine: number }
-  | { kind: "already_lp"; person: ExistingContact }
-  | { kind: "mark_existing"; person: ExistingContact }
+  // Matched by email; nothing to change with the chosen options.
+  | { kind: "unchanged"; person: ExistingContact }
+  // Matched by email; no new person, but the chosen options change them.
+  | { kind: "update_existing"; person: ExistingContact; changes: ExistingChanges }
   | { kind: "archived_match"; person: ExistingContact }
   | { kind: "name_match"; people: ExistingContact[] }
   | { kind: "new" };
@@ -143,7 +165,11 @@ export type RowStatus = "ready" | "skip" | "review" | "excluded";
 
 export type AnalyzedRow = ImportRow & { analysis: RowAnalysis; status: RowStatus };
 
-export function analyzeRows(rows: ImportRow[], existing: ExistingContact[]): AnalyzedRow[] {
+export function analyzeRows(
+  rows: ImportRow[],
+  existing: ExistingContact[],
+  options: ImportOptions = DEFAULT_IMPORT_OPTIONS
+): AnalyzedRow[] {
   const byEmail = new Map<string, ExistingContact>();
   const byName = new Map<string, ExistingContact[]>();
   for (const person of existing) {
@@ -153,38 +179,55 @@ export function analyzeRows(rows: ImportRow[], existing: ExistingContact[]): Ana
     if (key) byName.set(key, [...(byName.get(key) ?? []), person]);
   }
 
-  const firstLineByEmail = new Map<string, number>();
+  const firstLineByKey = new Map<string, number>();
 
   return rows.map((row) => {
-    const analysis = analyzeOne(row, byEmail, byName, firstLineByEmail);
+    const analysis = analyzeOne(row, options, byEmail, byName, firstLineByKey);
     return { ...row, analysis, status: statusFor(row, analysis) };
   });
 }
 
+// Rows repeat by email; a row without an email repeats by name, so the same
+// name twice in one file does not create two people.
+function repeatKey(row: ImportRow) {
+  return row.email ? `email:${row.email}` : `name:${normalizePersonName(row.name)}`;
+}
+
 function analyzeOne(
   row: ImportRow,
+  options: ImportOptions,
   byEmail: Map<string, ExistingContact>,
   byName: Map<string, ExistingContact[]>,
-  firstLineByEmail: Map<string, number>
+  firstLineByKey: Map<string, number>
 ): RowAnalysis {
   const problems: string[] = [];
-  if (!row.email) problems.push("Missing email");
-  else if (!isValidEmail(row.email)) problems.push("Email is not valid (one address per row)");
+  if (!row.email) {
+    // An email is only required to mark a potential LP (they are picked as
+    // email recipients); without that, a name is enough.
+    if (options.markPotentialLp) problems.push("Missing email (needed to mark as potential LP)");
+  } else if (!isValidEmail(row.email)) {
+    problems.push("Email is not valid (one address per row)");
+  }
 
   const match = row.email ? byEmail.get(row.email) : undefined;
   if (!row.name && !match) problems.push("Missing name");
   if (problems.length > 0) return { kind: "invalid", problems };
 
   if (!row.excluded) {
-    const firstLine = firstLineByEmail.get(row.email);
+    const key = repeatKey(row);
+    const firstLine = firstLineByKey.get(key);
     if (firstLine !== undefined) return { kind: "repeated", firstLine };
-    firstLineByEmail.set(row.email, row.line);
+    firstLineByKey.set(key, row.line);
   }
 
   if (match) {
     if (match.archived) return { kind: "archived_match", person: match };
-    if (match.isPotentialLp) return { kind: "already_lp", person: match };
-    return { kind: "mark_existing", person: match };
+    const changes: ExistingChanges = {
+      lp: options.markPotentialLp && !match.isPotentialLp,
+      group: options.groupId !== null && !match.groupIds.includes(options.groupId),
+    };
+    if (!changes.lp && !changes.group) return { kind: "unchanged", person: match };
+    return { kind: "update_existing", person: match, changes };
   }
 
   const sameName = byName.get(normalizePersonName(row.name)) ?? [];
@@ -198,7 +241,7 @@ function statusFor(row: ImportRow, analysis: RowAnalysis): RowStatus {
     case "invalid":
       return "review";
     case "repeated":
-    case "already_lp":
+    case "unchanged":
       return "skip";
     case "archived_match":
       return row.decision === "restore" ? "ready" : "review";
@@ -223,6 +266,7 @@ export function summarize(rows: AnalyzedRow[]): ImportSummary {
 
 export type ImportPayloadRow = {
   name: string;
+  // Empty for a person imported by name only (no potential LP).
   email: string;
   title?: string;
   person_id?: string;
@@ -241,4 +285,11 @@ export function importPayload(rows: AnalyzedRow[]): ImportPayloadRow[] {
       }
       return payload;
     });
+}
+
+// What the server action receives: the ready rows and the file-wide choices.
+export type ImportRequest = ImportOptions & { rows: ImportPayloadRow[] };
+
+export function importRequest(rows: AnalyzedRow[], options: ImportOptions): ImportRequest {
+  return { ...options, rows: importPayload(rows) };
 }
