@@ -6,6 +6,20 @@ import { formatLocalTimestamp, useTimePreferences } from "@/lib/settings/time";
 
 const noop = () => () => {};
 
+// useSyncExternalStore calls getSnapshot again after every render to see if it
+// changed. A bare Date.now() is a different number each call, so React thought
+// the store changed after each render and re-rendered forever ("Maximum update
+// depth exceeded"): a page with many timestamps (Documents history) crashed
+// with "This page couldn't load". The snapshot is now the same value for a
+// whole minute, which is all "same day" and "today" need.
+let cachedNow = 0;
+function getNowSnapshot(): number {
+  const t = Date.now();
+  if (t - cachedNow >= 60_000) cachedNow = t;
+  return cachedNow;
+}
+const getServerSnapshot = (): number | null => null;
+
 // Formats a timestamp in the viewer's time zone. Rendered after hydration
 // (the server does not know the zone), with the ISO time in the markup.
 // "day" reads "Mon, Nov 2" and "stamp" "Nov 2, 3:30 PM"; both use the zone
@@ -19,7 +33,7 @@ export default function LocalTime({
   mode?: "time" | "datetime" | "smart" | "day" | "stamp";
   className?: string;
 }) {
-  const now = useSyncExternalStore(noop, () => Date.now(), () => null);
+  const now = useSyncExternalStore(noop, getNowSnapshot, getServerSnapshot);
   const { zone, style } = useTimePreferences();
   const readableZone = resolveZone(zone);
   let text = "";
