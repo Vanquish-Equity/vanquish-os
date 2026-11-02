@@ -269,6 +269,15 @@ describe("People row", () => {
     open.mockRestore();
   });
 
+  it("opts out of the app-wide comment menu so only one menu opens on right click", async () => {
+    const row = await mount();
+    expect(row.hasAttribute("data-context-exclude")).toBe(true);
+    // Same check ContextComments makes before it opens its own menu.
+    expect(row.querySelector('[data-testid="plain"]')!.closest("input,textarea,select,[contenteditable],[data-context-exclude]")).not.toBeNull();
+    await rightClick(row.querySelector('[data-testid="plain"]')!);
+    expect(document.querySelectorAll('[role="menu"]').length).toBe(1);
+  });
+
   it("does not add a tab stop per row and does not claim a popup on the row role", async () => {
     const row = await mount();
     expect(row.getAttribute("tabindex")).toBe("-1");

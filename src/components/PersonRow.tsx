@@ -147,6 +147,11 @@ export default function PersonRow({
       <tr
         ref={rowRef}
         tabIndex={-1}
+        // The app-wide comment menu (ContextComments) opens on any right click
+        // inside <main> unless the element opts out; without this both menus
+        // showed at once. Where this row deliberately leaves the browser menu
+        // (links, selected text, Shift) the browser menu now shows as well.
+        data-context-exclude=""
         aria-expanded={menu !== null}
         onMouseDown={() => {
           suppressClick.current = menuStateRef.current !== null;
