@@ -319,7 +319,7 @@ export default async function PeoplePage({
         </div>
       </header>
 
-      {openContact && <ContactDrawer key={openContact} closeHref={closeHref}>
+      {openContact && <ContactDrawer key={openContact} closeHref={closeHref} profileHref={`/people/${openContact}`}>
         <ContactProfile id={openContact} companies={companies ?? []} />
       </ContactDrawer>}
       <CustomFieldsGate enabled={viewsState.views}><ViewsPanel kind="people" kanban={viewsState.kanban} peopleGroups={menuGroups} peopleHref={closeHref}/></CustomFieldsGate>

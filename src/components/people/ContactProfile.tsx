@@ -8,8 +8,8 @@ import RelationshipIntelligenceSection from "@/components/RelationshipIntelligen
 import { relationshipIntelligenceState } from "@/lib/relationships/intelligence-queries";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function ContactProfile({ id, companies }: {
-  id: string; companies: { id: string; name: string }[];
+export default async function ContactProfile({ id, companies, full = false }: {
+  id: string; full?: boolean; companies: { id: string; name: string }[];
 }) {
   const [db, access] = await Promise.all([createClient(), getAccess()]);
   if (access.status !== "member") return null;
@@ -95,6 +95,8 @@ export default async function ContactProfile({ id, companies }: {
     </dl>
     {(activity.data?.length ?? 0) > 120 && <p className="text-xs text-neutral-500">Relationship totals reflect the 120 latest entries shown in this profile.</p>}
 
+    <div className={full ? "grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]" : "space-y-4"}>
+    <div className="min-w-0 space-y-4">
     <section className="vq-card-static space-y-3 rounded-[14px] bg-white p-4">
       <h2 className="text-sm font-semibold">Contact details</h2>
       <dl className="grid gap-3 text-sm sm:grid-cols-2">
@@ -135,6 +137,8 @@ export default async function ContactProfile({ id, companies }: {
           </li>
         ))}</ul>}
     </section>
+    </div>
+    <div className="min-w-0 space-y-4">
     <ContactActivity today={today} failed={!!activity.error} limited={(activity.data?.length ?? 0) > 120}
       items={rows.map((item, index) => ({ key: String(index), member: names.get(item.member_email) ?? null, kind: item.kind, day: item.occurred_on }))} />
 
@@ -146,6 +150,8 @@ export default async function ContactProfile({ id, companies }: {
         {deal.stage && <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs">{deal.stage.name}</span>}
       </li>)}</ul>
     </section>}
+    </div>
+    </div>
     {intelligence.enabled && intelligence.allowed && <RelationshipIntelligenceSection people={[{ id, name: person.name }]} allowed />}
   </div>;
 }
