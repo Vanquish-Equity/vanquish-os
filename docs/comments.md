@@ -74,13 +74,15 @@ checks that each mention is an active member.
 ## Notification bell
 
 A shared top bar above every workspace page holds a round bell with the
-unread count. It is not shown on Chat or on the Notifications page, which
-have their own navigation.
+unread count. It is the only entry point to Notifications (the sidebar has
+none), and its panel ends with an *All notifications* link to the full page.
+It is not shown on Chat or on the Notifications page, which have their own
+navigation.
 
 - **Opening:** clicking the bell opens a small panel that floats over the
   page, anchored under the bell. It is rendered in a portal with fixed
   positioning, so layout containers do not clip it and nothing on the page
-  moves. It never navigates by itself; *View all* opens `/notifications`.
+  moves. It never navigates by itself; *All notifications* opens `/notifications`.
 - **Content:** the recent notifications, unread ones marked, each opening its
   destination. There are *Mark all as read* and a real empty state.
 - **Data:** the panel uses the same data and counter as the inbox, Home and

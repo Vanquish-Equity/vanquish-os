@@ -348,7 +348,7 @@ Clicking a Pipeline or Deal-board card opens a large accessible overlay while th
 | Stage rules | Show required inputs and optionally create tasks or notifications on stage entry. | Admin-defined rules create tasks on stage entry, and stage requirements block entry until required inputs exist (see below). |
 | LP outreach | Own workflow for prospects, communications and investments. | Private per-member LP follow-up boards and shared People LP flags exist; explicit linking, communication history and investment status remain. |
 | Search/quick actions | Find People, Companies and Deals globally; add notes/tasks in context. | Global search (⌘K / Ctrl+K or the top-bar box) finds People by name or email, Companies and Deals by name, under the member's RLS; quick actions from search remain. |
-| Analytics | Time per stage, stale Deals, movement, outcomes, owner and investment potential. | Overview shows a pipeline-by-stage breakdown, potential LP count, activity in the last 7 days, a **Time in stage** table and **Pipeline trends** (see below); stale-deal trends and outcome analysis remain. |
+| Analytics | Time per stage, stale Deals, movement, outcomes, owner and investment potential. | The Home Dashboard tab (`/home?tab=dashboard`, formerly Overview) shows a pipeline-by-stage breakdown, potential LP count, activity in the last 7 days, a **Time in stage** table and **Pipeline trends** (see below); stale-deal trends and outcome analysis remain. |
 | Templates | Start from Investment Deal, LP Outreach or Tasks, then customize. | Later, once each record workflow exists. |
 | Connected activity | An authorized Gmail mailbox and calendar attach activity and update last interaction. | Provider connections and sync remain separate roadmap work. |
 
@@ -464,8 +464,8 @@ variable, both off by default; manual own-account scans remain available.
 
 ## Phase 3 reporting
 
-`/reporting` provides bounded, permission-checked CSV, member-only opt-in weekly
-generation/download and explicit fund metrics. Overview adds RLS SQL stage counts
+The Reports tab of Home (`/home?tab=reports`, formerly `/reporting`) provides bounded, permission-checked CSV, member-only opt-in weekly
+generation/download and explicit fund metrics. The Dashboard adds RLS SQL stage counts
 for recent Deal creation. Feature activation defaults off; no emails or reporting
 worker capability are introduced. Private boards/mailbox/LP evidence and positions
 are excluded from shared exports. See [reporting](crm-reporting.md), including

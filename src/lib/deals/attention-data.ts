@@ -22,7 +22,7 @@ export type AttentionSourceDeal = {
   relationship_state: { name: string } | null;
 };
 
-// Active deals plus the "needs attention" lists shown on Overview and Home.
+// Active deals plus the "needs attention" lists shown on Home (Today and Dashboard).
 // Document signals are only read for members with Documents; for others the
 // query is not run at all (RLS would return nothing anyway).
 export async function loadAttentionDeals(supabase: SupabaseClient, { canDocuments }: { canDocuments: boolean }) {

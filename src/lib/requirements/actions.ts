@@ -30,7 +30,7 @@ function revalidateTargets(
   extraPath?: string | null,
   dealId?: string | null
 ) {
-  revalidatePath("/overview");
+  revalidatePath("/home");
   if (companyId) revalidatePath(`/companies/${companyId}`);
   if (companyId && dealId) revalidatePath(`/companies/${companyId}/deals/${dealId}`);
   if (extraPath) revalidatePath(extraPath);
@@ -489,6 +489,6 @@ export async function applyPortfolioTemplateAction(input: {
 
   if (input.revalidatePath) revalidatePath(input.revalidatePath);
   revalidatePath("/portfolio");
-  revalidatePath("/overview");
+  revalidatePath("/home");
   return { ok: true };
 }

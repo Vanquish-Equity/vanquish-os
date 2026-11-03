@@ -28,7 +28,7 @@ function normalizeAssignee(value: string | null | undefined) {
 
 function revalidateTaskPaths(companyId?: string | null, dealId?: string | null) {
   revalidatePath("/tasks");
-  revalidatePath("/overview");
+  revalidatePath("/home");
   revalidatePath("/home");
   if (companyId) revalidatePath(`/companies/${companyId}`);
   if (companyId && dealId) revalidatePath(`/companies/${companyId}/deals/${dealId}`);

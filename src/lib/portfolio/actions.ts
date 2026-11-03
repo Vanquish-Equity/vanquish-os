@@ -73,6 +73,6 @@ export async function addCapitalEventAction(
 
   revalidatePath(returnPath);
   revalidatePath("/portfolio");
-  revalidatePath("/overview");
+  revalidatePath("/home");
   return { ok: true };
 }

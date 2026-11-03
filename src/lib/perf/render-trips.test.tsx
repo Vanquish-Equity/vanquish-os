@@ -54,7 +54,8 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/lib/performance", () => ({ startDevPageTimer: () => () => {} }));
 vi.mock("next/link", () => ({
-  default: ({ children, ...props }: { children: ReactNode }) => createElement("a", props, children),
+  default: ({ children, prefetch: _prefetch, ...props }: { children: ReactNode; prefetch?: boolean }) =>
+    createElement("a", props, children),
 }));
 vi.mock("@/lib/google/mail-actions", async () => {
   const { trip } = await import("./trip-recorder");
@@ -120,7 +121,7 @@ vi.mock("@/components/home/MyTasksCard", stub);
 vi.mock("@/components/NavIcon", stub);
 vi.mock("@/components/NotificationList", stub);
 vi.mock("@/components/ReportingOverview", stub);
-vi.mock("@/components/OverviewAttentionPanel", stub);
+vi.mock("@/components/home/NeedsAttentionPanel", stub);
 vi.mock("@/components/NewTaskModal", stub);
 vi.mock("@/components/TaskRow", stub);
 vi.mock("@/components/LocalTime", stub);
@@ -133,11 +134,18 @@ const routes = {
   "/companies": () => import("@/app/(dashboard)/companies/page"),
   "/pipeline": () => import("@/app/(dashboard)/pipeline/page"),
   "/home": () => import("@/app/(dashboard)/home/page"),
-  "/overview": () => import("@/app/(dashboard)/overview/page"),
+  "/home?tab=dashboard": () => import("@/app/(dashboard)/home/page"),
+  "/home?tab=reports": () => import("@/app/(dashboard)/home/page"),
   "/tasks": () => import("@/app/(dashboard)/tasks/page"),
   "/inbox": () => import("@/app/(dashboard)/inbox/page"),
 } as const;
 type Route = keyof typeof routes | "layout";
+
+// Home is one page with three tabs; each route key above names a tab by its URL.
+const queryOf = (route: Route): Record<string, string> => {
+  const query = route.split("?")[1];
+  return query ? Object.fromEntries(new URLSearchParams(query)) : {};
+};
 
 async function Resolved({ promise }: { promise: Promise<ReactNode> }) {
   return await promise;
@@ -157,7 +165,7 @@ function renderAll(element: ReactNode) {
   });
 }
 
-export async function measure(route: Route, searchParams: Record<string, string> = {}) {
+export async function measure(route: Route, searchParams: Record<string, string> = queryOf(route)) {
   // Load the module first so import time is not counted as request time.
   const loaded = route === "layout" ? null : await routes[route]();
   resetRequest();
@@ -222,14 +230,15 @@ const MAX_SEQUENTIAL_SUPABASE_TRIPS: Record<Route, number> = {
   "/companies": 4,
   "/pipeline": 4,
   "/home": 5,
-  "/overview": 4,
+  "/home?tab=dashboard": 4,
+  "/home?tab=reports": 4,
   "/tasks": 4,
   "/inbox": 5,
 };
 
 describe("round trips per route", () => {
   const all: Awaited<ReturnType<typeof measure>>[] = [];
-  const order: Route[] = ["layout", "/people", "/companies", "/pipeline", "/home", "/overview", "/tasks", "/inbox"];
+  const order: Route[] = ["layout", "/people", "/companies", "/pipeline", "/home", "/home?tab=dashboard", "/home?tab=reports", "/tasks", "/inbox"];
 
   for (const route of order) {
     it(`measures ${route}`, async () => {
@@ -251,6 +260,47 @@ describe("round trips per route", () => {
       }
     });
   }
+});
+
+// Home is one page with three tabs, and only the active tab's data may be
+// fetched: Today must not run the Dashboard's or Reports' queries, and so on.
+describe("home tabs fetch only their own data", () => {
+  const tables = async (route: Route) => {
+    const result = await measure(route);
+    return result.trips.map((entry) => entry.split(":").slice(1).join(":"));
+  };
+  const has = (labels: string[], name: string) => labels.some((label) => label.includes(name));
+
+  it("Today does not run Dashboard or Reports queries", async () => {
+    const labels = await tables("/home");
+    expect(has(labels, "tasks")).toBe(true);
+    for (const other of ["activity_events", "reporting_overview", "weekly_report_subscriptions", "deal_assignees", "investments"]) {
+      expect(has(labels, other), other).toBe(false);
+    }
+  });
+
+  it("Dashboard does not run Today or Reports queries", async () => {
+    const labels = await tables("/home?tab=dashboard");
+    expect(has(labels, "activity_events")).toBe(true);
+    for (const other of ["review_items", "email_drafts", "weekly_report_subscriptions"]) {
+      expect(has(labels, other), other).toBe(false);
+    }
+  });
+
+  it("Reports does not run Today or Dashboard queries", async () => {
+    const labels = await tables("/home?tab=reports");
+    expect(has(labels, "weekly_report_subscriptions")).toBe(true);
+    for (const other of ["review_items", "email_drafts", "activity_events", "deal_status_history", "reporting_overview"]) {
+      expect(has(labels, other), other).toBe(false);
+    }
+  });
+
+  it("a tab the member cannot see falls back to Today, and an unknown one too", async () => {
+    for (const tab of ["nope", "TODAY", ""]) {
+      const result = await measure("/home", { tab });
+      expect(result.trips.some((entry) => entry.includes("weekly_report_subscriptions"))).toBe(false);
+    }
+  });
 });
 
 // Access failures. requireMember redirects by throwing; the queries that were

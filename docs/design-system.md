@@ -44,7 +44,9 @@ The native selectors in SettingsPanel, TaskRow and CommentsSection now reuse Sel
 Work holds the daily-action entries (Tasks, Action center, Communications,
 Calendar, Review) plus Document intake (Documents permission). Integration
 health and Workspace governance (admin) sit in System, the last section;
-there is no "More". Sidebar labels equal the page's h1. Every item has a
+there is no "More". Sidebar labels equal the page's h1. Overview, CRM reporting
+and Notifications have no entry (Home tabs and the top-bar bell; see
+[`home.md`](home.md)). Every item has a
 distinct icon (LP follow-up and LP fundraising no longer share one), so the
 collapsed rail is unambiguous. Fund and System start collapsed so
 the admin sidebar fits 900 px tall with a few boards (a collapsed heading shows a chevron; the open/closed choice is saved per member).
@@ -100,7 +102,7 @@ and the offline Vanquish AI panel stays fixed without moving the sidebar.
   transition wins), and scrollbars are thin and quiet.
 - **Router cache:** `experimental.staleTimes` is `{ dynamic: 0, static: 30 }`.
   Nothing is cached by default. Hovering (or focusing/touching) a sidebar link to
-  Overview, Pipeline, Companies, Network or Portfolio preloads the whole page
+  Pipeline, Companies, Network or Portfolio preloads the whole page
   (`prefetch={true}`), so the click is instant, and that copy lives 30 s. Own
   edits still show at once because those screens refresh with
   `router.refresh()`/`revalidatePath`, which clears the cache. Mail, Calendar,
@@ -232,3 +234,14 @@ what they do in words or with a non-directional mark:
   Components keep their wording in a `TEXT` constant so a later translation
   touches one place. `src/components/user-copy.test.ts` fails if the obvious
   jargon, a UUID or a locale-less date comes back in the listed screens.
+
+## Home tabs
+
+`HomeTabs` (`src/components/home/HomeTabs.tsx`) is a `role="tablist"` of links
+using the same pill as `PeopleGroupTabs` (`bg-ink text-white` active,
+bordered otherwise) with a visible `focus-visible` outline and no glyphs. It is
+the one pattern for page-level tabs that are real navigations: roving tab stop,
+arrow keys move focus only, Enter/Space opens, links are not prefetched. Known
+exception: `PeopleGroupTabs` and the Notifications Unread/All links still use
+`nav` + `aria-current` rather than tab roles, because they filter one list
+instead of switching between sections.

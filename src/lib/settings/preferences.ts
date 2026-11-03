@@ -23,9 +23,15 @@ export function notificationKinds(mask: number): string[] {
   ];
 }
 
+// The saved value keeps the route names of earlier versions, so every cookie
+// saved so far (and a rollback) keeps working: "/overview" now means the
+// Dashboard tab of Home. `landingDestination` is where it actually goes.
 export type LandingPage = "/home" | "/overview" | "/pipeline";
 export function landingPage(value: string | undefined): LandingPage {
   return value === "/overview" || value === "/pipeline" ? value : "/home";
+}
+export function landingDestination(page: LandingPage): string {
+  return page === "/overview" ? "/home?tab=dashboard" : page;
 }
 export type PipelineDefault = "all" | "active";
 export function pipelineDefault(value: string | undefined): PipelineDefault {

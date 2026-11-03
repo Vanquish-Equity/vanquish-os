@@ -33,7 +33,7 @@ export async function resolveReviewItemAction(input: {
     if (!ignored) return { ok: false, message: "This review item was already resolved." };
     await logActivity({ eventType: "REVIEW_RESOLVED", targetType: "review_item", targetId: reviewItemId, payload: { action: "ignore" } }, supabase);
     revalidatePath("/review");
-    revalidatePath("/overview");
+    revalidatePath("/home");
     return { ok: true };
   }
   const { data, error } = await supabase.rpc("resolve_duplicate_tracker_review", {
@@ -46,7 +46,7 @@ export async function resolveReviewItemAction(input: {
   if (!data) return { ok: false, message: "This review item was already resolved." };
 
   revalidatePath("/review");
-  revalidatePath("/overview");
+  revalidatePath("/home");
   revalidatePath("/pipeline");
   revalidatePath("/companies");
   return { ok: true };

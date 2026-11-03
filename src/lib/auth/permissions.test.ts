@@ -42,16 +42,16 @@ describe("area permissions", () => {
     expect(memberANav).toContain("Portfolio");
   });
 
-  it("lists Reporting for every member, with no permission requirement", () => {
-    const reporting = WORKSPACE_NAV.find((item) => item.href === "/reporting");
-    expect(reporting).toMatchObject({ label: "CRM reporting", icon: "reporting" });
-    expect(reporting?.requires).toBeUndefined();
-    expect(visibleNav(WORKSPACE_NAV, toPermissionSet([])).map((item) => item.href)).toContain("/reporting");
+  it("no longer lists Overview, CRM reporting or Notifications in the sidebar", () => {
+    const hrefs = WORKSPACE_NAV.map((item) => item.href);
+    for (const gone of ["/overview", "/reporting", "/notifications"]) expect(hrefs).not.toContain(gone);
+    expect(WORKSPACE_NAV.map((item) => item.label)).not.toEqual(expect.arrayContaining(["Overview", "CRM reporting", "Notifications"]));
   });
 
-  it("starts with Home, Notifications, Chat and Overview, and gives every item an icon", () => {
-    expect(WORKSPACE_NAV.slice(0, 4).map((item) => item.href)).toEqual(QUICK_LINK_HREFS);
-    expect(WORKSPACE_NAV.filter((item) => item.badge).map((item) => item.badge)).toEqual(["notifications", "chat"]);
+  it("starts with Home and Chat, and gives every item an icon", () => {
+    expect(WORKSPACE_NAV.slice(0, 2).map((item) => item.href)).toEqual(QUICK_LINK_HREFS);
+    expect(QUICK_LINK_HREFS).toEqual(["/home", "/chat"]);
+    expect(WORKSPACE_NAV.filter((item) => item.badge).map((item) => item.badge)).toEqual(["chat"]);
     expect(WORKSPACE_NAV.every((item) => Boolean(item.icon))).toBe(true);
   });
 

@@ -1,7 +1,5 @@
 import ReportingOverview from "@/components/ReportingOverview";
 import Link from "next/link";
-import { hasPermission } from "@/lib/auth/access";
-import OverviewAttentionPanel from "@/components/OverviewAttentionPanel";
 import RelativeTime from "@/components/RelativeTime";
 import { loadAttentionDeals } from "@/lib/deals/attention-data";
 import { pipelineAnalytics, type StageChange } from "@/lib/deals/pipeline-analytics";
@@ -10,8 +8,6 @@ import { getPipelineStages } from "@/lib/taxonomies";
 import { introCard } from "@/lib/ui/entrance";
 import { startDevPageTimer } from "@/lib/performance";
 import { createClient } from "@/lib/supabase/server";
-
-export const dynamic = "force-dynamic";
 
 type TaskRow = {
   id: string;
@@ -105,20 +101,24 @@ function describeEvent(event: ActivityRow) {
   }
 }
 
-export default async function OverviewPage() {
-  const [canPortfolio, canDocuments] = await Promise.all([
-    hasPermission("portfolio"),
-    hasPermission("documents"),
-  ]);
+// Home > Dashboard: how Vanquish is doing (the former Overview page). Runs only
+// when this tab is the active one. "Needs attention" lives on Today.
+export default async function DashboardTab({
+  canPortfolio,
+  canDocuments,
+}: {
+  canPortfolio: boolean;
+  canDocuments: boolean;
+}) {
   // Portfolio checklists are both portfolio data and documents.
   const showPortfolioHealth = canPortfolio && canDocuments;
   const supabase = await createClient();
-  const endTimer = startDevPageTimer("page:data:overview");
+  const endTimer = startDevPageTimer("page:data:dashboard");
 
   const weekAgo = new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const [
-    { deals, importedDeals, staleDeals },
+    { deals },
     { data: openTasks },
     { data: activity },
     { data: requirements },
@@ -243,18 +243,10 @@ export default async function OverviewPage() {
     }));
 
   return (
-    <div className="flex flex-col gap-4 px-7 py-6">
+    <div className="flex flex-col gap-4">
       <ReportingOverview />
-      <header>
-        <h1 className="font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">
-          Overview
-        </h1>
-        <p className="mt-1 text-[13px] text-neutral-500">
-          What is moving, what needs attention, what is missing.
-        </p>
-      </header>
 
-      <div className="vq-card-grid grid grid-cols-6 gap-3.5">
+      <div className="vq-card-grid grid grid-cols-2 gap-3.5 sm:grid-cols-3 xl:grid-cols-6">
         <StatTile
           label="Active Deals"
           index={0}
@@ -467,13 +459,7 @@ export default async function OverviewPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-[1.4fr_1fr] gap-3.5">
-        <OverviewAttentionPanel
-          importedDeals={importedDeals}
-          staleDeals={staleDeals}
-          introIndex={4}
-        />
-
+      <div className="grid grid-cols-1 gap-3.5">
         <div id="recent-activity" data-comment-anchor="recent-activity" data-comment-label="Recent activity" className="vq-card-static vq-intro-card rounded-[14px] bg-white p-5 scroll-mt-16" style={introCard(5)}>
           <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
             Recent Activity
@@ -517,7 +503,7 @@ export default async function OverviewPage() {
             Portfolio
           </Link>
         </div>
-        <div className="vq-card-grid grid grid-cols-[180px_180px_1fr] gap-3">
+        <div className="vq-card-grid grid grid-cols-1 gap-3 sm:grid-cols-[180px_180px_1fr]">
           <Link href="/portfolio?filter=critical_missing" className="rounded-xl bg-[#f7f9fa] p-3 transition hover:ring-1 hover:ring-cyan-200">
             <div className="text-[10.5px] uppercase tracking-wide text-neutral-400">
               Critical Missing
