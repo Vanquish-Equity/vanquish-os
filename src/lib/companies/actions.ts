@@ -200,3 +200,13 @@ export async function archiveSelectedCompanies(ids: string[]): Promise<CompanyAc
   if (data?.length !== new Set(ids).size) return { ok: false, message: "Some selected companies were already archived or unavailable." };
   return { ok: true };
 }
+
+export async function setCompanyLpFollowUp(companyId: string, value: boolean): Promise<CompanyActionResult> {
+  if (!isUuid(companyId) || typeof value !== "boolean") return { ok: false, message: "Invalid company update." };
+  const supabase = await createClient();
+  const { error, count } = await supabase.from("companies").update({ lp_follow_up: value }, { count: "exact" })
+    .eq("id", companyId).is("deleted_at", null);
+  if (error || count !== 1) return { ok: false, message: "Couldn't update LP Follow-up." };
+  revalidateCompanyPaths(companyId);
+  return { ok: true };
+}

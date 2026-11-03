@@ -15,6 +15,8 @@ export type CompanyListItem = {
   hasInvestment: boolean;
   id: string;
   industryName: string | null;
+  industryId?: string | null;
+  lpFollowUp?: boolean;
   investmentCount: number;
   lastUpdateAt: string | null;
   name: string;

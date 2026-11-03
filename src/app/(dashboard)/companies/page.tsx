@@ -1,3 +1,4 @@
+import { getIndustryOptions } from "@/lib/taxonomies";
 import CustomFieldsAdmin from "@/components/custom-fields/CustomFieldsAdmin";
 import { isUuid, type FieldDefinition, type FieldValue } from "@/lib/custom-fields/model";
 import { readCustomFieldsState } from "@/lib/custom-fields/state";
@@ -23,6 +24,8 @@ type CompanyRow = {
   updated_at: string;
   last_activity_at: string | null;
   industry: { name: string } | null;
+  industry_id: string | null;
+  lp_follow_up?: boolean;
   company_aliases: { alias: string }[];
   deals: {
     id: string;
@@ -84,17 +87,21 @@ export default async function CompaniesPage({ searchParams }: {
   documentsPermission.catch(() => {});
   customFieldsPromise.catch(() => {});
   const groupsPromise = supabase.from("company_groups").select("id,name").order("name").limit(100);
-  const companyQuery = supabase
+  const loadCompanies = (withFollowUp: boolean) => {
+    const companyQuery = supabase
     .from("companies")
     .select(
-      `id,name,website,updated_at,last_activity_at,people!people_primary_organization_id_fkey(id,name,archived_at),industry:industries(name),company_aliases(alias),deals(id,name,archived_at,updated_at,last_activity_at,stage:pipeline_stages(name,is_terminal),priority:priorities(name),outcome:deal_outcomes(name),deal_assignees(member_email)),investments(id),tasks(id,status,archived_at)${groupId ? ",company_group_members!inner(group_id)" : ""}`
+      `id,name,website,industry_id,${withFollowUp ? "lp_follow_up," : ""}updated_at,last_activity_at,people!people_primary_organization_id_fkey(id,name,archived_at),industry:industries(name),company_aliases(alias),deals(id,name,archived_at,updated_at,last_activity_at,stage:pipeline_stages(name,is_terminal),priority:priorities(name),outcome:deal_outcomes(name),deal_assignees(member_email)),investments(id),tasks(id,status,archived_at)${groupId ? ",company_group_members!inner(group_id)" : ""}`
     )
     .is("deleted_at", null)
     .order("name");
-  const [{ data: companyRows }, groups] = await Promise.all([
-    (groupId ? companyQuery.eq("company_group_members.group_id", groupId) : companyQuery) as unknown as Promise<{ data: CompanyRow[] | null }>,
-    groupsPromise,
+    return (groupId ? companyQuery.eq("company_group_members.group_id", groupId) : companyQuery) as unknown as PromiseLike<{ data: CompanyRow[] | null; error: { code: string } | null }>;
+  };
+  const [initialCompanies, groups, industryOptions] = await Promise.all([
+    loadCompanies(true), groupsPromise, getIndustryOptions().catch(() => undefined),
   ]);
+  const followUpAvailable = initialCompanies.error?.code !== "42703";
+  const { data: companyRows } = followUpAvailable ? initialCompanies : await loadCompanies(false);
 
   const dealIds = (companyRows ?? []).flatMap((company) =>
     (company.deals ?? []).map((deal) => deal.id)
@@ -188,6 +195,8 @@ export default async function CompaniesPage({ searchParams }: {
       hasInvestment: (company.investments ?? []).length > 0,
       id: company.id,
       industryName: company.industry?.name ?? null,
+      industryId: company.industry_id,
+      lpFollowUp: company.lp_follow_up,
       investmentCount: (company.investments ?? []).length,
       lastUpdateAt,
       name: company.name,
@@ -232,7 +241,7 @@ export default async function CompaniesPage({ searchParams }: {
           </div>
         }
       >
-        <CompaniesExplorer companies={companies} groups={groups.error ? undefined : (groups.data ?? [])} groupId={groupId} filterOptions={filterOptions} extraFilters={customFieldsOn ? <CustomFieldFilter object="companies" /> : undefined}
+        <CompaniesExplorer companies={companies} industryOptions={industryOptions} followUpAvailable={followUpAvailable} groups={groups.error ? undefined : (groups.data ?? [])} groupId={groupId} filterOptions={filterOptions} extraFilters={customFieldsOn ? <CustomFieldFilter object="companies" /> : undefined}
           fieldDefinitions={definitions} fieldValues={fieldValues} fieldsUnavailable={customValues.some(({ error }) => Boolean(error))}
           columnEditor={customFieldsOn && isAdmin ? <CustomFieldsAdmin fixedObject="companies" /> : undefined} />
       </Suspense>

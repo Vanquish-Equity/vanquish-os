@@ -247,3 +247,5 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/tests/company_directory_actions.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261103210000_comment_mentions_direct_chat.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/comment_mentions_direct_chat.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261103220000_company_lp_follow_up.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/company_lp_follow_up.sql > /dev/null
