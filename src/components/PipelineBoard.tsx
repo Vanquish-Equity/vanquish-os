@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -109,6 +109,7 @@ export default function PipelineBoard({
   members,
   me,
   initialMember = null,
+  toolbar,
 }: {
   stages: PipelineStage[];
   deals: PipelineDeal[];
@@ -116,6 +117,7 @@ export default function PipelineBoard({
   me: string;
   // From ?member=<email> or ?member=unassigned (the Home Dashboard's deal-team table).
   initialMember?: string | null;
+  toolbar?: ReactNode;
 }) {
   const router = useRouter();
   const stageIds = useMemo(
@@ -295,10 +297,12 @@ export default function PipelineBoard({
         </p>
       )}
 
-      <div className="relative mb-3 flex flex-wrap items-center gap-2">
-        <button type="button" onClick={() => setFiltersOpen((open) => !open)} aria-expanded={filtersOpen} className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-ink hover:border-cyan-300">☷ Filter{activeFilterCount ? ` (${activeFilterCount})` : ""}</button>
+      <div className="relative mb-3 flex shrink-0 flex-wrap items-center gap-2">
+        {toolbar}
+        <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => setFiltersOpen((open) => !open)} aria-expanded={filtersOpen} className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-ink hover:border-cyan-300">Filter cards{activeFilterCount ? ` (${activeFilterCount})` : ""}</button>
         {activeFilterCount > 0 && <><span className="text-xs text-neutral-500">{Object.values(filteredByStage).reduce((n, group) => n + group.length, 0)} matching Deals</span><button type="button" onClick={() => { setQuery(""); setMemberEmails([]); setPriorities([]); setStageFilter([]); setUnassigned(false); setOverdue(false); setNoNextAction(false); }} className="text-xs font-semibold text-cyan-800">Clear filters</button></>}
-        {filtersOpen && <div className="absolute left-0 top-full z-30 mt-2 max-h-[min(70vh,600px)] w-[min(360px,90vw)] overflow-y-auto rounded-xl border border-neutral-200 bg-white p-4 shadow-xl">
+        {filtersOpen && <div className="absolute left-0 top-full z-30 mt-2 max-h-[min(70vh,600px)] w-[min(360px,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-neutral-200 bg-white p-4 shadow-xl">
           <div className="flex items-center justify-between"><h2 className="text-sm font-semibold text-ink">Filter cards</h2><button type="button" onClick={() => setFiltersOpen(false)} aria-label="Close filters" className="text-lg text-neutral-500">×</button></div>
           <label className="mt-4 block text-xs font-semibold text-neutral-600" htmlFor="pipeline-search">Search</label><input id="pipeline-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Company, Deal or legacy owner" className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm" />
           <fieldset className="mt-4"><legend className="text-xs font-semibold text-neutral-600">Members</legend><label className="mt-2 flex gap-2 text-sm"><Checkbox checked={memberEmails.includes(me)} onChange={() => toggle(me, memberEmails, setMemberEmails)} /> Assigned to me</label><label className="mt-2 flex gap-2 text-sm"><Checkbox checked={unassigned} onChange={(event) => setUnassigned(event.target.checked)} /> No team member</label><div className="mt-2 max-h-36 space-y-2 overflow-y-auto">{members.filter((member) => member.email !== me).map((member) => <label key={member.email} className="flex gap-2 text-sm"><Checkbox checked={memberEmails.includes(member.email)} onChange={() => toggle(member.email, memberEmails, setMemberEmails)} /> {member.name}</label>)}</div></fieldset>
@@ -306,9 +310,10 @@ export default function PipelineBoard({
           <fieldset className="mt-4"><legend className="text-xs font-semibold text-neutral-600">Stage</legend><div className="mt-2 space-y-2">{stages.map((stage) => <label key={stage.id} className="flex gap-2 text-sm"><Checkbox checked={stageFilter.includes(stage.id)} onChange={() => toggle(stage.id, stageFilter, setStageFilter)} /> {stage.name}</label>)}</div></fieldset>
           <fieldset className="mt-4"><legend className="text-xs font-semibold text-neutral-600">Follow-up</legend><label className="mt-2 flex gap-2 text-sm"><Checkbox checked={overdue} onChange={(event) => setOverdue(event.target.checked)} /> Next action overdue</label><label className="mt-2 flex gap-2 text-sm"><Checkbox checked={noNextAction} onChange={(event) => setNoNextAction(event.target.checked)} /> No next action</label></fieldset>
         </div>}
+        </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto pb-2">
+      <div className="min-h-48 flex-1 overflow-auto pb-2">
       <div
         className="vq-card-grid grid gap-3"
         style={{

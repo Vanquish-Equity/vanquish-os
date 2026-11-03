@@ -23,6 +23,7 @@ import { formatExactDate } from "@/lib/dates";
 import { dealLabel } from "@/lib/deals/display";
 import { dealHref } from "@/lib/deals/scope";
 import { loadDealAssignees } from "@/lib/deals/assignee-queries";
+import PipelineOptions from "@/components/PipelineOptions";
 import PipelineViewsBar from "@/components/PipelineViewsBar";
 import {
   loadPipelineSavedViews,
@@ -224,8 +225,31 @@ export default async function PipelinePage({
         : "border border-neutral-200 text-neutral-600 hover:border-cyan-300 hover:text-cyan-800"
     }`;
 
+  const toolbarTabs = (
+    <div className="flex items-center gap-2">
+      <Link href="/pipeline" className={tabClass(!showArchived)}>Active</Link>
+      <Link href="/pipeline?view=archived" className={tabClass(showArchived)}>Archived ({archivedCount ?? 0})</Link>
+    </div>
+  );
+  const toolbar = (
+    <>
+      {toolbarTabs}
+      <PipelineOptions active={Boolean(stage || priority || !shouldHideTerminal)}>
+        <PipelineViewsBar
+          tabs={null}
+          views={savedPipelineViews}
+          stages={stages}
+          priorities={priorities}
+          filters={pipelineFilters}
+          me={member.email}
+        />
+        <CustomFieldsGate enabled={customFieldsOn}><CustomFieldFilter object="deals" /></CustomFieldsGate>
+      </PipelineOptions>
+    </>
+  );
+
   return (
-    <div className={`flex flex-col gap-4 px-7 py-6 ${showArchived || !stages.length ? "" : "h-full"}`}>
+    <div className={`flex min-w-0 flex-col gap-3 px-4 py-4 sm:px-7 sm:py-6 ${showArchived || !stages.length ? "" : "h-full"}`}>
       <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">
@@ -250,35 +274,8 @@ export default async function PipelinePage({
       </header>
 
       <CustomFieldsGate enabled={viewsState.views}><ViewsPanel kind="pipeline" kanban={viewsState.kanban}/></CustomFieldsGate>
-      {!showArchived && <CustomFieldsGate enabled={customFieldsOn}><CustomFieldFilter object="deals" /></CustomFieldsGate>}
-      {showArchived ? (
-        <div className="vq-card-static flex flex-wrap items-center gap-2 rounded-[14px] bg-white px-3 py-2">
-          <Link href="/pipeline" className={tabClass(!showArchived)}>
-            Active
-          </Link>
-          <Link href="/pipeline?view=archived" className={tabClass(showArchived)}>
-            Archived ({archivedCount ?? 0})
-          </Link>
-        </div>
-      ) : (
-        <PipelineViewsBar
-          tabs={
-            <div className="flex items-center gap-2">
-              <Link href="/pipeline" className={tabClass(!showArchived)}>
-                Active
-              </Link>
-              <Link href="/pipeline?view=archived" className={tabClass(showArchived)}>
-                Archived ({archivedCount ?? 0})
-              </Link>
-            </div>
-          }
-          views={savedPipelineViews}
-          stages={stages ?? []}
-          priorities={priorities ?? []}
-          filters={pipelineFilters}
-          me={member.email ?? ""}
-        />
-      )}
+      {showArchived && toolbarTabs}
+      {!showArchived && !stages.length && toolbar}
 
       {showArchived ? (
         <div className="vq-card-static rounded-[14px] bg-white">
@@ -347,7 +344,7 @@ export default async function PipelinePage({
           No pipeline stages are set up yet. Ask an admin to set them up.
         </div>
       ) : (
-        <PipelineBoard key={`${boardKey}:${memberParam ?? ""}`} stages={stages} deals={visibleDeals} members={members} me={member.email} initialMember={memberParam ?? null} />
+        <PipelineBoard toolbar={toolbar} key={`${boardKey}:${memberParam ?? ""}`} stages={stages} deals={visibleDeals} members={members} me={member.email} initialMember={memberParam ?? null} />
       )}
     </div>
   );

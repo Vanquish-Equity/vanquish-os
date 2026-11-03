@@ -515,3 +515,14 @@ for recent Deal creation. Feature activation defaults off; no emails or reportin
 worker capability are introduced. Private boards/mailbox/LP evidence and positions
 are excluded from shared exports. See [reporting](crm-reporting.md), including
 concurrent-export limits, reviewed NAV/flow requirements and rollback.
+
+### Pipeline and LP follow-up workspace layout
+
+Pipeline groups the Active/Archived links, saved-filter settings and the live card
+filter in one wrapping toolbar. **Views & filters** opens saved filters and custom
+field matches without reducing the board height. The versioned view selector
+remains separate because an applied view replaces the default board.
+
+LP follow-up lists fill the height left below the board header. The row scrolls
+sideways, and long card lists scroll within their columns. On short screens the
+page can scroll to preserve a usable minimum board height.

@@ -26,8 +26,8 @@ export default async function LpBoardPage({ searchParams }: { searchParams: Prom
     db.rpc("assignable_members"),
   ]);
   if (columns.error || cards.error || shares.error || directory.error) throw new Error("Could not load LP board data.");
-  return <div className="px-7 py-6">
-    <div className="mb-4"><SectionLinks label="LP areas" links={[
+  return <div className="flex h-full min-w-0 flex-col gap-4 px-4 py-4 sm:px-7 sm:py-6">
+    <div className="shrink-0"><SectionLinks label="LP areas" links={[
       { href: "/lp-board", label: "LP follow-up", current: true },
       ...(member.permissions.has("lp_scouting") ? [{ href: "/lp-scouting", label: "Private LP scouting" }] : []),
       ...(member.permissions.has("portfolio") ? [{ href: "/portfolio/fundraising", label: "Fundraising & LP 360" }] : []),
