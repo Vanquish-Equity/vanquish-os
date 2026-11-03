@@ -223,7 +223,7 @@ export default function SettingsPanel({ email, displayName, avatarUrl, profileAv
         <p className="mt-1 text-[12px] text-neutral-500">These choices are saved in this browser for your account.</p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <label className="text-[12px] font-semibold text-ink">Page after sign-in
-            <SelectMenu value={landing} onChange={(nextValue) => { const value = nextValue as LandingPage; setLanding(value); saveCookie(landingCookieName(email), value); }} options={[{value:"/home",label:"Home"},{value:"/overview",label:"Overview"},{value:"/pipeline",label:"Pipeline"}]} rootClassName="mt-1.5" />
+            <SelectMenu value={landing} onChange={(nextValue) => { const value = nextValue as LandingPage; setLanding(value); saveCookie(landingCookieName(email), value); }} options={[{value:"/home",label:"Home: Today"},{value:"/overview",label:"Home: Dashboard"},{value:"/pipeline",label:"Pipeline"}]} rootClassName="mt-1.5" />
           </label>
           <label className="text-[12px] font-semibold text-ink">Default Pipeline filter
             <SelectMenu value={pipeline} onChange={(nextValue) => { const value = nextValue as PipelineDefault; setPipeline(value); saveCookie(pipelineCookieName(email), value); router.refresh(); }} options={[{value:"all",label:"Show terminal outcomes"},{value:"active",label:"Hide terminal outcomes"}]} rootClassName="mt-1.5" />

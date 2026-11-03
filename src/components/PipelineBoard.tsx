@@ -114,7 +114,7 @@ export default function PipelineBoard({
   deals: PipelineDeal[];
   members: DealMember[];
   me: string;
-  // From ?member=<email> or ?member=unassigned (Overview's deal-team table).
+  // From ?member=<email> or ?member=unassigned (the Home Dashboard's deal-team table).
   initialMember?: string | null;
 }) {
   const router = useRouter();

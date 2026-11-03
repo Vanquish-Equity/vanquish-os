@@ -1,199 +1,54 @@
-import Link from "next/link";
-import HomeGreeting from "@/components/home/HomeGreeting";
-import HomeInboxLinks from "@/components/home/HomeInboxLinks";
-import RefreshOnUnreadChange from "@/components/RefreshOnUnreadChange";
-import MyTasksCard from "@/components/home/MyTasksCard";
-import NavIcon, { type IconName } from "@/components/NavIcon";
-import NotificationList from "@/components/NotificationList";
-import RelativeTime from "@/components/RelativeTime";
+import DashboardTab from "@/components/home/DashboardTab";
+import HomeTabs, { HOME_PANEL_ID, homeTabId } from "@/components/home/HomeTabs";
+import ReportsTab from "@/components/home/ReportsTab";
+import TodayTab from "@/components/home/TodayTab";
 import { requireMember } from "@/lib/auth/access";
 import { can } from "@/lib/auth/permissions";
-import { loadDirectory } from "@/lib/chat/queries";
-import { loadHomeData } from "@/lib/home/data";
-import { loadNotifications } from "@/lib/notifications/queries";
-import { startDevPageTimer } from "@/lib/performance";
-import { createClient } from "@/lib/supabase/server";
-import { greetingName, introCard } from "@/lib/ui/entrance";
+import { homeTabsFor, resolveHomeTab } from "@/lib/home/tabs";
 
 export const dynamic = "force-dynamic";
 
-// Home answers "what do I need to attend to today?". Overview stays the
-// view of how Vanquish is doing.
-export default async function HomePage() {
-  const access = await requireMember();
-  const canDocuments = can(access, "documents");
-  const canPortfolio = can(access, "portfolio");
-  const supabase = await createClient();
-  const endTimer = startDevPageTimer("page:data:home");
-  const [data, directory] = await Promise.all([
-    loadHomeData(supabase, { email: access.email, canDocuments, canPortfolio }),
-    loadDirectory(supabase),
-  ]);
-  // With migration 0018 the notices come from the notifications inbox; the
-  // notices derived from tasks and drafts are only the fallback without it,
-  // so an event never shows twice.
-  const notifications = await loadNotifications(supabase, access.email, directory, { limit: 6 });
-  endTimer();
+// Home: Today (what needs my attention), Dashboard (how Vanquish is doing,
+// the former /overview) and Reports (CRM reporting and exports, the former
+// /reporting). Only the active tab's component runs, so only its data is
+// fetched. The tab is resolved on the server against the member's permissions:
+// a tab they may not see is neither listed nor rendered, and a direct
+// `?tab=` for it shows Today.
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string | string[] }>;
+}) {
+  const [access, { tab: rawTab }] = await Promise.all([requireMember(), searchParams]);
+  const tabs = homeTabsFor(access.permissions);
+  const active = resolveHomeTab(rawTab, access.permissions);
 
-  const name = greetingName(access.displayName, access.providerName);
-
-  const quickActions: { href: string; label: string; detail: string; icon: IconName }[] = [
-    ...(notifications !== null
-      ? [{ href: "/chat/new", label: "New message", detail: "Chat with a member or a group", icon: "chat" as IconName }]
-      : []),
-    { href: "/tasks?new=1", label: "New task", detail: "Assign a follow-up", icon: "tasks" },
-    { href: "/communications/new", label: "New email draft", detail: "Prepare a message to potential LPs", icon: "communications" },
-    { href: "/pipeline", label: "Pipeline", detail: "Deals by stage", icon: "pipeline" },
-    { href: "/companies", label: "Companies", detail: "Search and open companies", icon: "companies" },
-    { href: "/people?view=lps", label: "Potential LPs", detail: "Contacts and CSV import", icon: "people" },
-    { href: "/review", label: "Review queue", detail: "Decide open review items", icon: "review" },
-    { href: "/overview", label: "Overview", detail: "How Vanquish is doing", icon: "overview" },
-    ...(canPortfolio
-      ? [{ href: "/portfolio", label: "Portfolio", detail: "Vehicles and positions", icon: "portfolio" as IconName }]
-      : []),
-  ];
-
-  const card = "vq-card-static vq-intro-card rounded-[14px] bg-white p-5";
+  // The tab bodies are async components that fetch their own data. They are
+  // called here, not rendered as elements, so their queries start with the
+  // page (beside the layout's) instead of after the layout has finished.
+  const body =
+    active === "dashboard"
+      ? await DashboardTab({ canPortfolio: can(access, "portfolio"), canDocuments: can(access, "documents") })
+      : active === "reports"
+        ? await ReportsTab({ access })
+        : await TodayTab({ access });
 
   return (
-    <div className="flex flex-col gap-4 px-4 py-6 sm:px-7">
-      <header className="flex flex-wrap items-end justify-between gap-3">
+    <div className="flex min-w-0 flex-col gap-4 px-4 py-6 sm:px-7">
+      <header className="flex flex-col gap-3">
         <div>
-          <HomeGreeting name={name} />
-          <p className="mt-1 text-[13px] text-neutral-500">What needs your attention today.</p>
+          <h1 className="font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">
+            Home
+          </h1>
+          <p className="mt-1 text-[13px] text-neutral-500">
+            What needs your attention, how Vanquish is doing, and CRM reports.
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <HomeInboxLinks />
-          <Link
-            href="/overview"
-            className="rounded-full border border-neutral-200 px-3.5 py-2 text-[12px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
-          >
-            How Vanquish is doing
-          </Link>
-        </div>
+        <HomeTabs tabs={tabs} active={active} />
       </header>
 
-      <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2 xl:grid-cols-[1.2fr_1fr]">
-        <section aria-labelledby="home-tasks" data-comment-anchor="home-tasks" data-comment-label="My tasks" className={card} style={introCard(0)}>
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 id="home-tasks" className="text-[14.5px] font-semibold text-ink">
-              My tasks
-            </h2>
-            <Link href="/tasks?new=1" className="text-[11.5px] font-semibold text-cyan-700 hover:underline">
-              New task
-            </Link>
-          </div>
-          <MyTasksCard
-            available={data.tasks.available}
-            tasks={data.tasks.items}
-            unassignedOpen={data.tasks.unassignedOpen}
-          />
-        </section>
-
-        <section aria-labelledby="home-attention" data-comment-anchor="home-attention" data-comment-label="Needs attention" className={card} style={introCard(1)}>
-          <h2 id="home-attention" className="mb-3 text-[14.5px] font-semibold text-ink">
-            Needs attention
-          </h2>
-          {data.attention.length === 0 ? (
-            <p className="text-[12.5px] text-neutral-500">Nothing needs your attention right now.</p>
-          ) : (
-            <ul className="divide-y divide-neutral-50">
-              {data.attention.map((item) => (
-                <li key={item.key}>
-                  <Link href={item.href} className="group flex items-start gap-3 py-2.5">
-                    <span
-                      aria-hidden="true"
-                      className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${item.tone === "warn" ? "bg-amber-500" : "bg-cyan-500"}`}
-                    />
-                    <span className="min-w-0">
-                      <span className="block truncate text-[12.5px] font-medium text-ink group-hover:text-cyan-700">
-                        {item.title}
-                      </span>
-                      <span className="block text-[11.5px] text-neutral-500">{item.detail}</span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-          {data.staleMore > 0 && (
-            <Link href="/overview" className="mt-2 inline-block text-[11.5px] font-semibold text-cyan-700 hover:underline">
-              {data.staleMore} more deals without recent activity in Overview
-            </Link>
-          )}
-        </section>
-
-        <section aria-labelledby="home-notices" data-comment-anchor="home-notices" data-comment-label="Notices for you" className={card} style={introCard(2)}>
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 id="home-notices" className="text-[14.5px] font-semibold text-ink">
-              Notices for you
-            </h2>
-            {notifications !== null && (
-              <Link href="/notifications" className="text-[11.5px] font-semibold text-cyan-700 hover:underline">
-                All notifications
-              </Link>
-            )}
-          </div>
-          {notifications !== null ? (
-            <>
-              <RefreshOnUnreadChange />
-              {notifications.length === 0 ? (
-                <div className="text-[12.5px] text-neutral-500">
-                  <p className="font-semibold text-ink">No notifications yet.</p>
-                  <p className="mt-1">
-                    Direct messages, @mentions, group messages, and tasks or email drafts assigned to you appear here.
-                    Only events from Vanquish OS appear; email accounts are not connected.
-                  </p>
-                </div>
-              ) : (
-                <NotificationList items={notifications} compact />
-              )}
-            </>
-          ) : data.notices.length === 0 ? (
-            <div className="text-[12.5px] text-neutral-500">
-              <p className="font-semibold text-ink">No new notices.</p>
-              <p className="mt-1">
-                You will see here when someone assigns you a task or prepares an email draft for you (last 14 days). Only
-                events from Vanquish OS appear; email accounts are not connected.
-              </p>
-            </div>
-          ) : (
-            <ul className="divide-y divide-neutral-50">
-              {data.notices.map((notice) => (
-                <li key={notice.key}>
-                  <Link href={notice.href} className="group flex items-start justify-between gap-3 py-2.5">
-                    <span className="text-[12.5px] text-ink group-hover:text-cyan-700">{notice.text}</span>
-                    <RelativeTime date={notice.at} className="flex-shrink-0 text-[11px] text-neutral-400" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section aria-labelledby="home-actions" data-comment-anchor="home-actions" data-comment-label="Quick actions" className={card} style={introCard(3)}>
-          <h2 id="home-actions" className="mb-3 text-[14.5px] font-semibold text-ink">
-            Quick actions
-          </h2>
-          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {quickActions.map((action) => (
-              <li key={action.href}>
-                <Link
-                  href={action.href}
-                  className="flex items-center gap-3 rounded-xl bg-[#f7f9fa] px-3 py-2.5 transition hover:ring-1 hover:ring-cyan-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
-                >
-                  <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-white text-cyan-800 ring-1 ring-neutral-100">
-                    <NavIcon name={action.icon} className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[12.5px] font-semibold text-ink">{action.label}</span>
-                    <span className="block truncate text-[11px] text-neutral-500">{action.detail}</span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
+      <div id={HOME_PANEL_ID} role="tabpanel" aria-labelledby={homeTabId(active)} className="min-w-0">
+        {body}
       </div>
     </div>
   );

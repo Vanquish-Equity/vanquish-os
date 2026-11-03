@@ -15,7 +15,7 @@ export type NavSection = {
 // Ordered by how often the work happens: pipeline and companies/people first,
 // administration last.
 export const NAV_SECTIONS: NavSection[] = [
-  { key: "crm", label: "CRM", defaultOpen: true, hrefs: ["/pipeline", "/companies", "/people", "/network", "/lp-board", "/reporting"] },
+  { key: "crm", label: "CRM", defaultOpen: true, hrefs: ["/pipeline", "/companies", "/people", "/network", "/lp-board"] },
   { key: "work", label: "Work", defaultOpen: true, hrefs: ["/tasks", "/inbox", "/communications", "/calendar", "/review", "/documents"] },
   { key: "boards", label: "Boards", defaultOpen: true, hrefs: ["/boards"] },
   { key: "fund", label: "Fund", defaultOpen: false, hrefs: ["/portfolio", "/portfolio/fundraising"] },
@@ -47,6 +47,6 @@ export function sectionIsOpen(section: NavSection, state: Record<string, boolean
   return (state[section.key] ?? section.defaultOpen) || holdsActive;
 }
 
-// Home, Notifications, Chat and Overview: a labeled 2x2 block above the
-// sections (expanded desktop sidebar and the mobile drawer).
-export const QUICK_LINK_HREFS = ["/home", "/notifications", "/chat", "/overview"];
+// Home and Chat: a labeled row above the sections (expanded desktop sidebar
+// and the mobile drawer).
+export const QUICK_LINK_HREFS = ["/home", "/chat"];

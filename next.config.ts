@@ -7,6 +7,17 @@ const nextConfig: NextConfig = {
   logging: {
     serverFunctions: false,
   },
+  // Overview and Reporting became tabs of Home. Temporary (307) redirects so
+  // bookmarks, notification links and saved landing pages keep working and the
+  // move can be reversed. Query values of the request are passed through by
+  // Next.js and the browser keeps a #fragment. `/api/reporting/*` is not
+  // matched: exports stay where they are.
+  async redirects() {
+    return [
+      { source: "/overview", destination: "/home?tab=dashboard", permanent: false },
+      { source: "/reporting", destination: "/home?tab=reports", permanent: false },
+    ];
+  },
   experimental: {
     // Only links opted in to a full prefetch (the sidebar's read-mostly pages,
     // on hover) use `static`; everything else stays uncached (`dynamic: 0`).

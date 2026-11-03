@@ -5,7 +5,7 @@ Prerequisite: main `2e680eb`, including Phase 2 through
 change worker identity/capabilities, modify its scheduler or send messages.
 Preview and production share a database: neither is a test target.
 
-`/reporting` and the Overview reporting card use current member RLS. The new
+The Reports tab of Home (`/home?tab=reports`, formerly `/reporting`) and the Dashboard reporting card use current member RLS. The new
 Overview aggregate groups authorized, unarchived Deals created within a bounded
 UTC date range (maximum 366 days; maximum 100 stage groups). This supplements
 existing operational Overview charts; it is not a new accounting snapshot.

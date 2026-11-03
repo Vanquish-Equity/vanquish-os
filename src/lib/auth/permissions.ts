@@ -67,19 +67,19 @@ export type NavItem = {
   badge?: "chat" | "notifications";
 };
 
+// Overview and CRM reporting are tabs of Home (src/lib/home/tabs.ts), and
+// Notifications is opened from the bell in the top bar (its page is still
+// /notifications; the palette lists it, see src/lib/search/palette.ts).
 // Display order: the sidebar renders these in this order. Labels match the
 // h1 of the page they open. Permissions (`requires`) are unchanged.
 export const WORKSPACE_NAV: NavItem[] = [
   { href: "/home", label: "Home", icon: "home" },
-  { href: "/notifications", label: "Notifications", icon: "bell", badge: "notifications" },
   { href: "/chat", label: "Chat", icon: "chat", badge: "chat" },
-  { href: "/overview", label: "Overview", icon: "overview" },
   { href: "/pipeline", label: "Pipeline", icon: "pipeline" },
   { href: "/companies", label: "Companies", icon: "companies" },
   { href: "/people", label: "People", icon: "people" },
   { href: "/network", label: "Network", icon: "network" },
   { href: "/lp-board", label: "LP follow-up", icon: "lp" },
-  { href: "/reporting", label: "CRM reporting", icon: "reporting" },
   { href: "/boards", label: "CRM boards", icon: "boards" },
   { href: "/tasks", label: "Tasks", icon: "tasks" },
   { href: "/inbox", label: "Action center", icon: "inbox" },

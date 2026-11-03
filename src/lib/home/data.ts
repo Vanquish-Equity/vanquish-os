@@ -2,6 +2,7 @@ import { loadAssignableMembers } from "@/lib/communications/queries";
 import { memberLabel, type Member } from "@/lib/communications/drafts";
 import { checkRecipient, primaryFirst } from "@/lib/communications/recipients";
 import { loadAttentionDeals } from "@/lib/deals/attention-data";
+import { mergeNeedsAttention, type AttentionDealRow, type AttentionItem } from "@/lib/home/attention-merge";
 import { dealHref } from "@/lib/deals/scope";
 import { dealLabel } from "@/lib/deals/display";
 import { createClient } from "@/lib/supabase/server";
@@ -20,13 +21,7 @@ export type HomeTask = {
   contextHref: string | null;
 };
 
-export type HomeItem = {
-  key: string;
-  title: string;
-  detail: string;
-  href: string;
-  tone: "warn" | "info";
-};
+export type HomeItem = AttentionItem;
 
 export type HomeNotice = {
   key: string;
@@ -37,8 +32,11 @@ export type HomeNotice = {
 
 export type HomeData = {
   tasks: { available: boolean; items: HomeTask[]; unassignedOpen: number };
+  // One needs-attention list: these items, then every stale deal, then the
+  // deals imported from the tracker with no activity yet.
   attention: HomeItem[];
-  staleMore: number;
+  staleDeals: AttentionDealRow[];
+  importedDeals: AttentionDealRow[];
   notices: HomeNotice[];
   members: Member[];
 };
@@ -233,6 +231,7 @@ export async function loadHomeData(
           detail: `Due diligence · ${count} critical item${count === 1 ? "" : "s"} outstanding`,
           href: `${dealHref(deal.company?.id ?? "", deal.id)}#due-diligence`,
           tone: "warn",
+          dealId: deal.id,
         });
       });
   }
@@ -259,16 +258,7 @@ export async function loadHomeData(
     });
   }
 
-  const stale = attentionDeals.staleDeals;
-  stale.slice(0, 3).forEach((deal) => {
-    attention.push({
-      key: `stale-${deal.id}`,
-      title: deal.name,
-      detail: `No activity for ${deal.daysSinceActivity} days · ${deal.stageName ?? "No stage"}`,
-      href: dealHref(deal.companyId, deal.id),
-      tone: "info",
-    });
-  });
+  const merged = mergeNeedsAttention(attention, attentionDeals.staleDeals, attentionDeals.importedDeals);
 
   // Notices: real events addressed to this member.
   const notices: HomeNotice[] = [];
@@ -294,8 +284,9 @@ export async function loadHomeData(
 
   return {
     tasks: { available: tasksAvailable, items: tasks, unassignedOpen: tasksAvailable ? unassigned.count ?? 0 : 0 },
-    attention,
-    staleMore: Math.max(0, stale.length - 3),
+    attention: merged.items,
+    staleDeals: merged.staleDeals,
+    importedDeals: merged.importedDeals,
     notices: notices.slice(0, 8),
     members,
   };

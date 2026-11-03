@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback } from "react";
 import LocalTime from "@/components/LocalTime";
 import { snippetFor } from "@/components/chat/snippet";
+import { useUnreadCounts } from "@/components/UnreadCounts";
 import { useLiveSignal } from "@/lib/realtime/useLiveSignal";
 
 export type ConversationListEntry = {
@@ -20,6 +21,7 @@ export type ConversationListEntry = {
 export default function ConversationList({ items, me }: { items: ConversationListEntry[]; me: string }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { notifications, available } = useUnreadCounts();
   // New messages anywhere reorder the list and update unread counts.
   const refresh = useCallback(() => router.refresh(), [router]);
   useLiveSignal({ key: `chat-list:${me}`, table: "chat_messages", onSignal: refresh, pollMs: 10000, safetyMs: 45000 });
@@ -35,6 +37,23 @@ export default function ConversationList({ items, me }: { items: ConversationLis
           New conversation
         </Link>
       </div>
+      {available && (
+        // The top bar (and its bell) is not shown on Chat, and the sidebar has no
+        // Notifications entry, so Chat links to the page itself.
+        <Link
+          href="/notifications"
+          data-chat-notifications
+          className="flex items-center justify-between gap-2 border-b border-neutral-100 px-4 py-2.5 text-[12px] font-semibold text-cyan-700 hover:bg-neutral-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
+        >
+          <span>Notifications</span>
+          {notifications > 0 && (
+            <span data-chat-notifications-count className="rounded-full bg-cyan-600 px-1.5 text-[10px] font-semibold leading-[18px] text-white">
+              {notifications > 99 ? "99+" : notifications}
+              <span className="sr-only"> unread</span>
+            </span>
+          )}
+        </Link>
+      )}
       {items.length === 0 ? (
         <div className="px-4 py-10 text-center text-[12.5px] text-neutral-500">
           <p className="font-semibold text-ink">No conversations yet.</p>

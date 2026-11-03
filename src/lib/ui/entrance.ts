@@ -10,7 +10,7 @@ export const WELCOME_COOKIE = "vq_welcome";
 export const WELCOME_MAX_AGE_SECONDS = 120;
 
 // The intro only plays when the first screen is one of these.
-export const INTRO_PATHS = ["/home", "/overview", "/pipeline"];
+export const INTRO_PATHS = ["/home", "/pipeline"];
 
 // The dashboard server renders this script before the first paint. Keep it
 // outside the client component so it can be called during server rendering.
@@ -24,7 +24,7 @@ if(${JSON.stringify(INTRO_PATHS)}.indexOf(p)<0)return;
 d.documentElement.setAttribute("data-vq-intro","play");
 }catch(e){}})();`;
 
-// "Replay intro" (user menu): replays on Home/Overview, or goes to Home and
+// "Replay intro" (user menu): replays on Home, or goes to Home and
 // replays there. For reviewing the sequence without signing out.
 export const INTRO_REPLAY_EVENT = "vq-intro-replay";
 const REPLAY_KEY = "vq.replayIntro";

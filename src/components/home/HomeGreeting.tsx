@@ -19,13 +19,13 @@ export default function HomeGreeting({ name }: { name: string }) {
   const greeting = hour === null ? "Good day" : greetingFor(hour);
 
   return (
-    <h1
-      className={`font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink transition-opacity duration-200 ${
+    <p
+      className={`font-[family-name:var(--font-display)] text-[17px] font-semibold tracking-tight text-ink transition-opacity duration-200 ${
         hour === null ? "opacity-0" : "opacity-100"
       }`}
     >
       {greeting}
       {name ? `, ${name}` : ""}
-    </h1>
+    </p>
   );
 }

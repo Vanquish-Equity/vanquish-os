@@ -1,9 +1,13 @@
-import { requireMember } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/server";
 import CrmReporting from "@/components/CrmReporting";
-export const dynamic = "force-dynamic";
-export default async function ReportingPage() {
-  const access = await requireMember();
+import type { AccessState } from "@/lib/auth/permissions";
+
+type Member = Extract<AccessState, { status: "member" }>;
+
+// Home > Reports: CRM reporting and exports (the former /reporting page). Runs
+// only when this tab is the active one. The CSV and weekly-report downloads are
+// still the API routes under /api/reporting, which check access themselves.
+export default async function ReportsTab({ access }: { access: Member }) {
   const client = await createClient();
   const portfolio = access.permissions.has("portfolio");
   const [{ data: subscription }, funds] = await Promise.all([
@@ -22,11 +26,9 @@ export default async function ReportingPage() {
       : Promise.resolve({ data: [] }),
   ]);
   return (
-    <div className="min-w-0 space-y-5 p-4 sm:p-7">
+    <div className="min-w-0 space-y-5">
       <div>
-        <h1 className="font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">
-          CRM reporting
-        </h1>
+        <h2 className="text-[14.5px] font-semibold text-ink">CRM reporting</h2>
         <p className="mt-1 text-sm text-neutral-500">
           Download your deals and funds as CSV files and get a weekly summary of deals by stage.
         </p>

@@ -71,7 +71,7 @@ owner SQL; Phase 2 seeds no real member or service identity.
 
 `/auth/callback` only redirects to same-site paths from `next`; external or
 malformed values fall back to `/home`. Home is the default entry point; an explicit
-internal `next` (for example `/overview` or a deal link) is kept. After a
+internal `next` (for example `/home?tab=dashboard` or a deal link; the old `/overview` and `/reporting` redirect to Home tabs) is kept. After a
 successful exchange the callback also sets the one-time `vq_welcome` cookie
 that plays the entrance once (see [`home.md`](home.md)); it carries no
 identity or session data.

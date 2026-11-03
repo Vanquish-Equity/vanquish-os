@@ -12,11 +12,29 @@ const appRoot = join(process.cwd(), "src", "app", "(dashboard)");
 const pageFor = (href: string) => join(appRoot, ...href.split("/").filter(Boolean), "page.tsx");
 
 describe("palette index (Go to ...)", () => {
-  it("matches WORKSPACE_NAV for a member with every permission", () => {
+  it("lists WORKSPACE_NAV plus the Home tabs and Notifications for a member with every permission", () => {
     const all = ["admin", "portfolio", "documents"];
-    expect(navCommands(toPermissionSet(all))).toEqual(
-      WORKSPACE_NAV.map(({ href, label, icon }) => ({ href, label, icon })),
-    );
+    const hrefsOf = navCommands(toPermissionSet(all)).map((command) => command.href);
+    expect(hrefsOf.filter((href) => WORKSPACE_NAV.some((item) => item.href === href))).toEqual(WORKSPACE_NAV.map((item) => item.href));
+    expect(hrefsOf.slice(0, 4)).toEqual(["/home", "/home?tab=dashboard", "/home?tab=reports", "/notifications"]);
+  });
+
+  it("finds the Home tabs and Notifications by name, and the old names too", () => {
+    const commands = navCommands(toPermissionSet([]));
+    const find = (query: string) => matchCommands(commands, query).map((command) => command.href);
+    expect(find("home")).toEqual(expect.arrayContaining(["/home", "/home?tab=dashboard", "/home?tab=reports"]));
+    expect(find("dashboard")).toEqual(["/home?tab=dashboard"]);
+    expect(find("reports")).toEqual(["/home?tab=reports"]);
+    expect(find("overview")).toEqual(["/home?tab=dashboard"]);
+    expect(find("reporting")).toEqual(["/home?tab=reports"]);
+    expect(find("notifications")).toEqual(["/notifications"]);
+    expect(commands.find((command) => command.href === "/home")?.label).toBe("Home");
+  });
+
+  it("every Home tab and Notifications command points to a page that exists", () => {
+    for (const command of navCommands(toPermissionSet(["admin", "portfolio", "documents"]))) {
+      expect(existsSync(pageFor(command.href.split("?")[0])), command.href).toBe(true);
+    }
   });
 
   it("filters by permission with the same rule as the sidebar", () => {
@@ -46,6 +64,8 @@ describe("palette index (Go to ...)", () => {
     const without = hrefs([], { chatAvailable: false });
     expect(without).not.toContain("/chat");
     expect(without).not.toContain("/notifications");
+    // The Home tabs do not depend on chat.
+    expect(without).toContain("/home?tab=dashboard");
     expect(hrefs([])).toContain("/chat");
   });
 

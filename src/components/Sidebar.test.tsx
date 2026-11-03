@@ -86,4 +86,23 @@ describe("Sidebar", () => {
     expect(html).not.toContain(">Fund<");
     expect(html).not.toContain("Workspace governance");
   });
+
+  it("has one Home entry: no Overview, CRM reporting or Notifications", () => {
+    for (const permissions of [[], ["admin", "portfolio", "documents"]]) {
+      const html = render(permissions);
+      expect(html).toContain(">Home<");
+      expect(html).toContain(">Chat<");
+      for (const gone of ["Overview", "CRM reporting", "Notifications", 'href="/overview"', 'href="/reporting"', 'href="/notifications"']) {
+        expect(html, gone).not.toContain(gone);
+      }
+    }
+  });
+
+  it("keeps the sidebar within eight top-level entries by default", () => {
+    // Home, Chat, and the section headings (CRM, Work, Boards, Fund, System).
+    const html = render(["admin", "portfolio", "documents"]);
+    const headings = [...html.matchAll(/aria-controls="vq-nav-([a-z]+)"/g)].length;
+    expect(headings + 2).toBeLessThanOrEqual(8);
+  });
 });
+

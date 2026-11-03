@@ -73,6 +73,6 @@ export async function logInteractionAction(
 
   revalidatePath(`/companies/${companyId}`);
   if (dealId) revalidatePath(`/companies/${companyId}/deals/${dealId}`);
-  revalidatePath("/overview");
+  revalidatePath("/home");
   return { ok: true, interactionId: data.id };
 }
