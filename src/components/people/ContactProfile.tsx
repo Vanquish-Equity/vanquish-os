@@ -82,7 +82,7 @@ export default async function ContactProfile({ id, companies }: {
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         {emails[0] && <a className={pill} href={`mailto:${emails[0].email}`}>Email contact</a>}
-        {linkedin && <a className={pill} href={linkedin} target="_blank" rel="noreferrer">LinkedIn ↗</a>}
+        {linkedin && <a className={pill} href={linkedin} target="_blank" rel="noreferrer">LinkedIn</a>}
         {person.is_potential_lp && <span className="self-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-950">Potential LP</span>}
       </div>
     </header>
