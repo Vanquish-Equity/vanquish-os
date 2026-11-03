@@ -539,3 +539,9 @@ An organization can be a link to an existing CRM Company or a contact-only name
 (for example, a family office). Both New Person and Edit organization support
 these choices. The CSV Company column saves a name on newly created contacts; it
 does not create Companies or Deals or overwrite existing affiliations.
+
+In the People directory, select contacts individually or with the header
+checkbox (up to 100 visible contacts per batch). Add them to an existing custom
+group without removing any memberships, or confirm Archive to hide them from
+the directory without permanently deleting their records. Changing the list
+filters clears the selection.

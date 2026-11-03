@@ -1,3 +1,4 @@
+import PeopleBulkSelection, { PeopleSelectAll, PeopleSelectRow } from "@/components/people/PeopleBulkSelection";
 import { customizationState } from "@/lib/customization/state";
 import ViewsPanel from "@/components/customization/ViewsPanel";
 import { readCustomFieldsState } from "@/lib/custom-fields/state";
@@ -258,7 +259,7 @@ export default async function PeoplePage({
   // The starter Potential LPs group follows the Potential LP flag, so the row
   // menu offers it as that one toggle rather than as a second group item.
   const menuGroups = groups.filter((g) => g.kind !== "potential_lp").map(({ id, name }) => ({ id, name }));
-  const columnCount = 2 + shown.size;
+  const columnCount = 3 + shown.size;
 
   return (
     <div className="flex flex-col gap-4 px-7 py-6">
@@ -324,11 +325,14 @@ export default async function PeoplePage({
       )}
 
       <div className="vq-card-static overflow-hidden rounded-[14px] bg-white">
+        <PeopleBulkSelection key={closeHref} ids={rows.map((person) => person.id)} groups={menuGroups}>
         <PeopleGroupsProvider groups={menuGroups}>
         <GoogleLookups emails={contactEmails} lastEmail={showLastEmail} nextMeeting={showNextMeeting}>
+        <div className="overflow-x-auto">
         <table className="w-full text-[12.5px]">
           <thead>
             <tr className="border-b border-neutral-100 text-left text-[10.5px] uppercase tracking-wide text-neutral-400">
+              <th scope="col" className="w-11"><PeopleSelectAll /></th>
               <SortableTh label="Name" sortKey="name" sort={sort} baseHref={sortBaseHref} />
               {shown.has("company") && <SortableTh label="Company" sortKey="company" sort={sort} baseHref={sortBaseHref} />}
               {shown.has("email") && <SortableTh label="Email" sortKey="email" sort={sort} baseHref={sortBaseHref} />}
@@ -350,6 +354,7 @@ export default async function PeoplePage({
                 profileHref={contactHref(p.id)}
                 memberGroupIds={(p.person_group_members ?? []).map((m) => m.group_id)}
               >
+                <td><PeopleSelectRow id={p.id} name={p.name} /></td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2.5">
                     <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#f0fafb] text-[10.5px] font-semibold text-cyan-800">
@@ -478,8 +483,10 @@ export default async function PeoplePage({
             )}
           </tbody>
         </table>
+        </div>
         </GoogleLookups>
         </PeopleGroupsProvider>
+        </PeopleBulkSelection>
       </div>
       {openContact && <ContactDrawer key={openContact} closeHref={closeHref}>
         <ContactProfile id={openContact} companies={companies ?? []} />
