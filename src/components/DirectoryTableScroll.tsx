@@ -26,7 +26,7 @@ export default function DirectoryTableScroll({ children, label }: { children: Re
 
   return (
     <div className="min-w-0">
-      <div ref={viewport} className="max-h-[max(14rem,calc(100dvh-16rem))] overflow-auto [&::-webkit-scrollbar:horizontal]:h-0"
+      <div ref={viewport} data-directory-table-viewport="" className="max-h-[max(14rem,calc(100dvh-16rem))] overflow-auto [&::-webkit-scrollbar:horizontal]:h-0"
         onScroll={(event) => {
           if (scrollbar.current && scrollbar.current.scrollLeft !== event.currentTarget.scrollLeft) {
             scrollbar.current.scrollLeft = event.currentTarget.scrollLeft;

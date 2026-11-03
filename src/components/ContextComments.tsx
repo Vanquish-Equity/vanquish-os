@@ -168,10 +168,26 @@ export default function ContextComments() {
           if (!element) continue;
           const rect = element.getBoundingClientRect();
           if (rect.bottom < 48 || rect.top > window.innerHeight || rect.width === 0) continue;
+          let x = Math.min(window.innerWidth - 36, Math.max(8, rect.right - 28));
+          let y = Math.min(window.innerHeight - 38, Math.max(54, rect.top + 8));
+          const viewport = element.closest<HTMLElement>("[data-directory-table-viewport]");
+          if (viewport) {
+            // The pin is portaled to the body, so the table's overflow and
+            // sticky header don't clip it the way they clip the actual row.
+            const clip = viewport.getBoundingClientRect();
+            const main = viewport.closest("main")?.getBoundingClientRect();
+            const header = element.closest("table")?.tHead?.getBoundingClientRect();
+            const top = Math.max(54, clip.top + viewport.clientTop, main?.top ?? 0, header?.bottom ?? 0);
+            const bottom = Math.min(window.innerHeight, clip.top + viewport.clientTop + viewport.clientHeight, main?.bottom ?? Infinity, rect.bottom);
+            const left = Math.max(8, clip.left + viewport.clientLeft, rect.left);
+            const right = Math.min(window.innerWidth - 8, clip.left + viewport.clientLeft + viewport.clientWidth, rect.right);
+            if (bottom - Math.max(top, rect.top) < 28 || right - left < 28) continue;
+            x = right - 28;
+            y = Math.max(top, Math.min(rect.top + 8, bottom - 28));
+          }
           placed.push({
             anchor: { key, label: items[0].target_label || key }, count: items.length,
-            x: Math.min(window.innerWidth - 36, Math.max(8, rect.right - 28)),
-            y: Math.min(window.innerHeight - 38, Math.max(54, rect.top + 8)),
+            x, y,
           });
         }
         setPins(placed);
@@ -255,8 +271,8 @@ export default function ContextComments() {
         <button key={pin.anchor.key} type="button" data-context-pin={pin.anchor.key}
           aria-label={`${pin.count} comment threads on ${pin.anchor.label}`}
           style={{ left: pin.x, top: pin.y }}
-          className="fixed z-[75] flex h-7 min-w-7 items-center justify-center rounded-full border-2 border-white bg-cyan-700 px-1 text-[11px] font-bold text-white shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
-          onClick={() => open(pin.anchor)}>{pin.count}</button>
+          className="fixed z-[75] flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-cyan-700 px-1 text-[11px] font-bold text-white shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
+          onClick={() => open(pin.anchor)}>{pin.count > 99 ? "99+" : pin.count}</button>
       ))}
       {menu && (
         <div ref={menuRef} role="menu" aria-label="Page actions" data-context-menu

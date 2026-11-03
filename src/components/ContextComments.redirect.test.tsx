@@ -80,6 +80,31 @@ describe("a #comment-<id> link that opens the wrong tab", () => {
     expect(state.replace).not.toHaveBeenCalled();
   });
 
+  it("hides the company pin when its row scrolls behind the sticky table header", async () => {
+    document.querySelector("main")!.innerHTML = `<div data-directory-table-viewport>
+      <table><thead><tr><th>Name</th></tr></thead><tbody>
+      <tr data-comment-anchor="company:synthetic"><td>Synthetic company</td></tr>
+      </tbody></table></div>`;
+    const viewport = document.querySelector<HTMLElement>("[data-directory-table-viewport]")!;
+    const row = viewport.querySelector("tbody tr")!;
+    const rect = (top: number, height: number) => new DOMRect(12, top, 400, height);
+    document.querySelector("main")!.getBoundingClientRect = () => rect(48, 500);
+    viewport.getBoundingClientRect = () => rect(196, 300);
+    Object.defineProperties(viewport, { clientHeight: { value: 300 }, clientWidth: { value: 400 } });
+    viewport.querySelector("thead")!.getBoundingClientRect = () => rect(196, 34);
+    row.getBoundingClientRect = () => rect(235, 34);
+
+    await open("/companies", [comment("company:synthetic")]);
+    const pin = () => document.querySelector('[data-context-pin="company:synthetic"]');
+    expect(pin()).not.toBeNull();
+    row.getBoundingClientRect = () => rect(207, 34);
+    await act(async () => {
+      viewport.dispatchEvent(new Event("scroll"));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(pin()).toBeNull();
+  });
+
   it("does not navigate for a comment that is not in the readable list", async () => {
     await open(`/tasks#comment-${ID}`, []);
     expect(state.replace).not.toHaveBeenCalled();
