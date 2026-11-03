@@ -18,6 +18,8 @@ vi.mock("@/components/UnreadCounts", () => ({
   useUnreadCounts: () => ({ notifications: 0, chat: state.chat, available: true, refresh: vi.fn() }),
 }));
 
+import SidebarRail from "./SidebarRail";
+import { railEntries } from "@/lib/ui/sidebar-rail";
 import Sidebar, { sidebarModel, type SidebarNavItem } from "./Sidebar";
 import { toPermissionSet, visibleNav, WORKSPACE_NAV } from "@/lib/auth/permissions";
 import { FLYOUT_CLOSE_DELAY_MS, FLYOUT_OPEN_DELAY_MS } from "@/lib/ui/flyout-intent";
@@ -71,7 +73,7 @@ describe("collapsed sidebar rail", () => {
     const rail = screen.getByRole("navigation", { name: "Workspace" });
     const names = Array.from(rail.querySelectorAll("[data-rail-entry]")).map((el) => el.textContent);
     const { iconRowItems, sections } = sidebarModel(items(ALL), "/home");
-    expect(names).toEqual([...iconRowItems.map((i) => i.label), ...sections.map((s) => (s.items.length === 1 ? s.items[0].label : s.label))]);
+    expect(names).toEqual([...iconRowItems.map((i) => i.label), ...sections.map((s) => (s.items.length === 1 ? `${s.label}: ${s.items[0].label}` : s.label))]);
     expect(screen.getAllByRole("button", { name: /^(CRM|Work|Boards|Fund|System)$/ })).toHaveLength(5);
     // No per-item icons for the pages inside a section.
     expect(rail.querySelector('a[href="/pipeline"]')).toBeNull();
@@ -170,6 +172,98 @@ describe("collapsed sidebar rail", () => {
     expect(document.activeElement).toBe(within(flyouts()[0]).getAllByRole("link")[0]);
     fireEvent.click(crm);
     expect(flyouts()).toHaveLength(0);
+  });
+
+  it("pins a hover-opened flyout on click: it stays, ignores pointerleave, and a second click closes it", () => {
+    mount();
+    const crm = screen.getByRole("button", { name: "CRM" });
+    hover(crm);
+    wait(FLYOUT_OPEN_DELAY_MS);
+    fireEvent.click(crm);
+    expect(flyouts()).toHaveLength(1);
+    expect(document.activeElement).toBe(within(flyouts()[0]).getAllByRole("link")[0]);
+    unhover(crm);
+    unhover(flyouts()[0]);
+    wait(FLYOUT_CLOSE_DELAY_MS * 5);
+    expect(flyouts()).toHaveLength(1);
+    fireEvent.click(crm);
+    expect(flyouts()).toHaveLength(0);
+  });
+
+  it("closes a pinned flyout on Escape, on an outside press, and when another section opens", () => {
+    mount();
+    const crm = screen.getByRole("button", { name: "CRM" });
+    fireEvent.click(crm);
+    fireEvent.keyDown(document.activeElement as Element, { key: "Escape" });
+    expect(flyouts()).toHaveLength(0);
+    fireEvent.click(crm);
+    fireEvent.pointerDown(document.body);
+    expect(flyouts()).toHaveLength(0);
+    fireEvent.click(crm);
+    hover(screen.getByRole("button", { name: "Work" }));
+    expect(flyouts()).toHaveLength(1);
+    expect(within(flyouts()[0]).getByRole("heading").textContent).toBe("Work");
+    // The new one was opened by hover, so it is not pinned.
+    unhover(screen.getByRole("button", { name: "Work" }));
+    wait(FLYOUT_CLOSE_DELAY_MS);
+    expect(flyouts()).toHaveLength(0);
+  });
+
+  it("closes when focus leaves the flyout for the page, but not for another rail icon", () => {
+    mount();
+    fireEvent.click(screen.getByRole("button", { name: "CRM" }));
+    const first = document.activeElement as HTMLElement;
+    const outside = screen.getByRole("button", { name: /Sounds/ });
+    act(() => outside.focus());
+    expect(flyouts()).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "CRM" }));
+    act(() => screen.getByRole("button", { name: "Work" }).focus());
+    expect(first.isConnected).toBe(false);
+    expect(flyouts()).toHaveLength(1);
+    expect(within(flyouts()[0]).getByRole("heading").textContent).toBe("Work");
+  });
+
+  it("keeps the section name and icon for a section with one visible page, and clicking goes to the page", () => {
+    mount([]);
+    const { sections } = sidebarModel(items([]), "/home");
+    const single = sections.filter((s) => s.items.length === 1);
+    expect(single.length).toBeGreaterThan(0);
+    for (const section of single) {
+      const link = screen.getByRole("link", { name: `${section.label}: ${section.items[0].label}` });
+      expect(link.getAttribute("href")).toBe(section.items[0].href);
+      expect(link.hasAttribute("aria-expanded")).toBe(false);
+    }
+  });
+
+  it("closes on a pathname change even when a sidebar click set a pending target", () => {
+    const view = mount();
+    fireEvent.click(screen.getByRole("button", { name: "CRM" }));
+    fireEvent.click(within(flyouts()[0]).getByRole("link", { name: "People" }));
+    fireEvent.click(screen.getByRole("button", { name: "CRM" }));
+    expect(flyouts()).toHaveLength(1);
+    state.pathname = "/companies";
+    view.rerender(sidebar(ALL));
+    expect(flyouts()).toHaveLength(0);
+  });
+
+  it("marks a section icon with a dot when only a page inside it has unread items", () => {
+    state.chat = 2;
+    const section = {
+      key: "work",
+      label: "Work",
+      items: [
+        { href: "/chat", label: "Chat", icon: "chat" as const, badge: "chat" as const },
+        { href: "/tasks", label: "Tasks", icon: "tasks" as const },
+      ],
+    };
+    const rail = railEntries([], [section]);
+    rtlRender(<SidebarRail quick={rail.quick} sections={rail.sections} activeHref="/home" onNavigate={() => {}} />);
+    const button = screen.getByRole("button", { name: "Work" });
+    expect(button.querySelector('[data-badge="section"]')).not.toBeNull();
+    state.chat = 0;
+    cleanup();
+    rtlRender(<SidebarRail quick={rail.quick} sections={rail.sections} activeHref="/home" onNavigate={() => {}} />);
+    expect(screen.getByRole("button", { name: "Work" }).querySelector('[data-badge="section"]')).toBeNull();
   });
 
   it("ignores hover from a touch pointer (a tap toggles through click only)", () => {

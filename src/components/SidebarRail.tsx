@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import NavIcon from "@/components/NavIcon";
@@ -58,11 +59,16 @@ export default function SidebarRail({
   const navRef = useRef<HTMLElement | null>(null);
   const layerRef = useRef<HTMLDivElement | null>(null);
   const focusFirst = useRef(false);
+  // A flyout opened or clicked by the member stays until dismissed; one opened
+  // by hover alone closes when the pointer leaves.
+  const pinned = useRef(false);
+  const pathname = usePathname();
   // eslint-disable-next-line react-hooks/refs -- the callback only runs from events and timers, never during render
   const [intent] = useState(() =>
     createFlyoutIntent((key, previous) => {
       // Focus inside a closing window goes back to its icon, never to <body>.
       if (key === null && previous && layerRef.current?.contains(document.activeElement)) anchors.current.get(previous)?.focus();
+      pinned.current = false;
       setOpenKey(key);
     }),
   );
@@ -74,7 +80,7 @@ export default function SidebarRail({
   // A route change (or the pending target of a click) closes the window.
   useEffect(() => {
     intent.closeNow();
-  }, [activeHref, intent]);
+  }, [activeHref, pathname, intent]);
 
   useEffect(() => {
     if (!openKey) return;
@@ -117,7 +123,7 @@ export default function SidebarRail({
         if (event.pointerType !== "touch") intent.enter(entry.key);
       },
       onPointerLeave: (event: React.PointerEvent) => {
-        if (event.pointerType !== "touch") intent.leave();
+        if (event.pointerType !== "touch" && !pinned.current) intent.leave();
       },
       onFocus: (event: React.FocusEvent<HTMLElement>) => {
         // A single page shows its name on keyboard focus. A section opens on
@@ -139,10 +145,19 @@ export default function SidebarRail({
         moveFocus(entry.key, event.key === "ArrowDown" ? 1 : -1);
       } else if (event.key === "ArrowRight" && entry.kind === "section") {
         event.preventDefault();
-        focusFirst.current = true;
-        intent.openNow(entry.key);
+        pinOpen(entry.key);
       }
     };
+  }
+
+  // Click, Enter, Space or Right: open (or keep open) the flyout, keep it open
+  // until dismissed, and move focus to its first link.
+  function pinOpen(key: string) {
+    const alreadyOpen = intent.current === key;
+    if (!alreadyOpen) intent.openNow(key);
+    pinned.current = true;
+    if (alreadyOpen) layerRef.current?.querySelector<HTMLElement>("a[href]")?.focus();
+    else focusFirst.current = true;
   }
 
   const tone = (active: boolean, expanded: boolean) =>
@@ -192,11 +207,8 @@ export default function SidebarRail({
         type="button"
         {...entryProps(entry)}
         onClick={() => {
-          if (intent.current === entry.key) intent.closeNow();
-          else {
-            focusFirst.current = true;
-            intent.openNow(entry.key);
-          }
+          if (intent.current === entry.key && pinned.current) intent.closeNow();
+          else pinOpen(entry.key);
         }}
         onKeyDown={railKeys(entry)}
         aria-expanded={expanded}
@@ -234,7 +246,13 @@ export default function SidebarRail({
             activeHref={activeHref}
             count={count}
             onHold={() => intent.hold()}
-            onLeave={() => intent.leave()}
+            onFocusOut={(next) => {
+              // Focus moved to something outside the window and the rail.
+              if (next && !next.closest("[data-rail-entry]")) intent.closeNow();
+            }}
+            onLeave={() => {
+              if (!pinned.current) intent.leave();
+            }}
             onItem={(href) => {
               intent.closeNow();
               onNavigate(href);
@@ -263,6 +281,7 @@ function FlyoutLayer({
   activeHref,
   count,
   onHold,
+  onFocusOut,
   onLeave,
   onItem,
   onBack,
@@ -276,6 +295,7 @@ function FlyoutLayer({
   activeHref: string;
   count: (item: RailItem) => number;
   onHold: () => void;
+  onFocusOut: (next: Element | null) => void;
   onLeave: () => void;
   onItem: (href: string) => void;
   onBack: () => void;
@@ -341,6 +361,10 @@ function FlyoutLayer({
       onPointerEnter={(event) => event.pointerType !== "touch" && onHold()}
       onPointerLeave={(event) => event.pointerType !== "touch" && onLeave()}
       onKeyDown={onKeyDown}
+      onBlur={(event) => {
+        const next = event.relatedTarget as Element | null;
+        if (!layerRef.current?.contains(next)) onFocusOut(next);
+      }}
     >
       <nav
         id={id}

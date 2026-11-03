@@ -27,12 +27,17 @@ export function railEntries<T extends RailItem>(quick: T[], sections: RailSectio
   const link = (item: T): RailEntry<T> => ({ kind: "link", key: item.href, label: item.label, icon: item.icon, item });
   return {
     quick: quick.map(link),
-    sections: sections.map((section): RailEntry<T> =>
-      // One page: no flyout needed, the icon is a link to it.
-      section.items.length === 1
-        ? link(section.items[0])
-        : { kind: "section", key: section.key, label: section.label, icon: SECTION_ICONS[section.key] ?? section.items[0].icon, items: section.items },
-    ),
+    sections: sections.map((section): RailEntry<T> => {
+      const icon = SECTION_ICONS[section.key] ?? section.items[0].icon;
+      // One visible page: no flyout needed. The icon stays the section's icon
+      // and the name is "Boards: CRM boards" (section first); a click goes
+      // straight to the page.
+      if (section.items.length === 1) {
+        const item = section.items[0];
+        return { kind: "link", key: item.href, label: `${section.label}: ${item.label}`, icon, item };
+      }
+      return { kind: "section", key: section.key, label: section.label, icon, items: section.items };
+    }),
   };
 }
 

@@ -169,7 +169,7 @@ fundraising UUIDs survive retries. No new design-system exception is introduced.
   (WCAG AA): row text 12.6:1 (9.2:1 on hover), heading 6.3:1, current page
   7.9:1, tooltip text 15.8:1, unread badge text 10.7:1, icons 4.6:1 on hover
   (3:1 needed). It is a labelled `<nav>` of links, not `role="menu"`, and
-  carries no arrow or chevron. See "Collapsed rail" in [`home.md`](home.md).
+  carries no arrow or chevron. A section with one visible page keeps the section icon and is named "Section: page". See "Collapsed rail" in [`home.md`](home.md).
 - **Pointer-placed menus:** the People row menu (`PersonContextMenu`) opens at
   the pointer, so it is a `fixed` portal at `z-[55]` (above dialogs at z-50,
   below the intro layer) instead of hanging under a trigger; it is clamped to the

@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("next/link", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- drop the prefetch prop so it is not rendered on <a>
   default: ({ href, children, prefetch: _prefetch, ...props }: { href: string; children: React.ReactNode; prefetch?: boolean }) => (
     <a href={href} {...props}>{children}</a>
   ),

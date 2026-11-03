@@ -93,16 +93,23 @@ visible page has no icon, so no label leaks.
   dark floating window beside the rail: the section title and the same links as the
   expanded section (label, unread badge, current page highlighted; Boards
   keeps its limit of 5 boards plus the current one and the "All boards (N)"
-  row, and scrolls inside the window). Clicking again closes it; it never
+  row, and scrolls inside the window). A click on a window
+  opened by hover pins it open (it then ignores the pointer leaving) and
+  focuses its first link; a click on a pinned window closes it. The icon never
   navigates by itself.
-- **One page (Home, Chat, Notifications, Overview, or a section with a single
-  visible page):** a plain link; hover or keyboard focus shows its name (and
-  unread count) in a small window.
+- **One page:** a plain link; hover or keyboard focus shows its name (and
+  unread count) in a small window. Home and Chat (quick links) keep their own
+  icon and name. A section that has only one visible page keeps the
+  **section's icon** and is named with the section first ("Boards: CRM
+  boards"); a click goes straight to that page.
 - The icon of the section holding the current page is highlighted (`aria-current`).
 - **Timing:** open after 100 ms; when one is already open, moving to another
   icon switches at once; leaving closes after 200 ms, cancelled when the
   pointer enters the window, so a diagonal move into it keeps it open. Only
-  one window is open. Touch pointers skip hover and use the click toggle.
+  one window is open. Touch pointers skip hover and use the click toggle. A window
+  opened by click, Enter, Space or Right is pinned: it closes on Escape, an
+  outside press, a route change (including Back/Forward), resize, collapsing
+  or when another section opens.
 - **Closing:** Escape (focus returns to the icon), a click outside, a route
   change, resizing, scrolling the rail, collapsing or expanding the sidebar.
 - **Keyboard:** Up/Down move between the icons; Right (or Enter/Space) opens

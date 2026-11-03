@@ -372,7 +372,7 @@ function SidebarBody({
               <div className={`mx-auto mb-1 h-px w-5 bg-white/10 ${narrow}`} aria-hidden="true" />
               <div id={listId} className={`flex-col gap-px ${open ? "flex" : `${narrow}`}`}>
                 {section.items.map((item) => (
-                  <NavLink key={item.href} item={item} nested={item.href.startsWith("/boards/")} />
+                  <NavLink key={item.extra ? `${item.href}#all` : item.href} item={item} nested={item.href.startsWith("/boards/")} />
                 ))}
               </div>
             </div>
