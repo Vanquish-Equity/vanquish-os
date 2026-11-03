@@ -216,6 +216,26 @@ describe("Gmail 5A guarded mutations — provider entirely mocked", () => {
     expect(JSON.stringify(args)).not.toContain("Synthetic body");
     expect(JSON.stringify(args)).not.toContain("recipient@");
   });
+  it("adds a private pixel only on an opted-in confirmed send", async () => {
+    vi.stubEnv("MAIL_TRACKING_ORIGIN", "https://workspace.synthetic.test");
+    try {
+      const request = form("synthetic-draft");
+      request.set("trackOpen", "1");
+      expect(await reviewMailMutation("send", request)).toMatchObject({ ok: true, data: { trackOpen: true } });
+      expect(mocks.rpc.mock.calls.some(([name]) => name === "register_mail_open_tracking")).toBe(false);
+      expect(await executeMailMutation(reviewId, "send", request, true)).toMatchObject({ ok: true });
+      const payload = mocks.request.mock.calls.find((call) => call[1] === "/messages/send")?.[2]?.body;
+      const raw = Buffer.from(JSON.parse(String(payload)).raw, "base64url").toString();
+      const encoded = raw.match(/Content-Transfer-Encoding: base64\r\n\r\n([\s\S]*?)\r\n--/)?.[1] ?? "";
+      const html = Buffer.from(encoded, "base64").toString();
+      expect(html).toMatch(/workspace\.synthetic\.test\/api\/mail\/open\/[\w-]{43}\/pixel\.gif/);
+      expect(html).not.toContain("tracking.synthetic.test");
+      expect(mocks.rpc).toHaveBeenCalledWith("register_mail_open_tracking", expect.objectContaining({ p_hash: expect.stringMatching(/^[a-f0-9]{64}$/) }));
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("requires explicit confirmation before reading or writing Google", async () => {
     expect(
       (

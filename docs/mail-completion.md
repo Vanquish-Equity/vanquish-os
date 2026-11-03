@@ -68,3 +68,16 @@ Owner activation, not performed:
 6. Pause with enabled=false and refresh pages; remove the member permission if needed. New dispatch fences fail, in-flight outcomes may still be uncertain. Explicitly review Gmail/Sent and metadata; never press retry automatically or requeue a claimed operation. Review the empty-only rollback separately; protected records mean pause/retain, not delete-and-retry.
 
 5B must wait for 5A green CI at its exact SHA and a new user instruction. No Calendar implementation belongs in this PR.
+
+### Optional open signals
+
+Deploy the open-signals migration before setting `MAIL_TRACKING_ORIGIN` to the
+public HTTPS origin of this deployment. Unset it to pause collection and hide
+the option. An individually reviewed send to one saved CRM contact (no CC/BCC)
+can explicitly opt in. No pixel is persisted in Gmail drafts. Only confirmed
+sends record signals, for up to 30 days; the sender alone can see them in the
+contact profile. The app stores the token hash and at most one timestamp per
+hour per classification; it does not store IP addresses or user agents.
+Suspected automated loads are separate; classification is heuristic and proxy
+caches and blocked images prevent accurate read counts. This does not track
+clicks or past mail.

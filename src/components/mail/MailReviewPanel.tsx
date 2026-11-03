@@ -28,6 +28,7 @@ export default function MailReviewPanel({
             ? "Check before sending now"
             : "Check before deleting the draft"}
       </h3>
+      {review.trackOpen && <p className="text-xs text-neutral-600">Includes an open-tracking pixel. Signals do not confirm a read.</p>}
       <dl className="space-y-1 break-words">
         <div>
           <dt className="inline font-semibold">From: </dt>
@@ -54,7 +55,7 @@ export default function MailReviewPanel({
       </p>
       <details>
         <summary className="vq-disclosure">
-          Preview the message exactly as it will be sent
+          Preview the message
         </summary>
         <iframe
           title="Reviewed message body"

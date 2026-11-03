@@ -1,3 +1,4 @@
+import { mailTrackingOrigin } from "@/lib/google/mail-open-tracking";
 import { getAccess } from "@/lib/auth/access";
 import { can } from "@/lib/auth/permissions";
 import ContactWorkspace from "@/components/people/ContactWorkspace";
@@ -29,7 +30,7 @@ export default async function ContactProfile({ id, companies, full = false }: {
 
   const today = new Date().toISOString().slice(0, 10);
   const since = new Date(Date.parse(today) - 89 * 86_400_000).toISOString().slice(0, 10);
-  const [intelligence, activity, members, groupResult, dealResult, noteResult, reminderResult, fileResult] = await Promise.all([
+  const [intelligence, activity, members, groupResult, dealResult, noteResult, reminderResult, mailSignals, fileResult] = await Promise.all([
     relationshipIntelligenceState().catch(() => ({ enabled: false, allowed: false })),
     db.from("relationship_interactions").select("member_email,kind,occurred_on,last_at")
       .eq("person_id", id).gte("occurred_on", since).lte("occurred_on", today)
@@ -42,6 +43,7 @@ export default async function ContactProfile({ id, companies, full = false }: {
       .order("created_at", { ascending: false }).order("id").limit(30),
     db.from("tasks").select("id,title,due_at,status").eq("person_id", id).eq("assignee_email", access.email)
       .is("archived_at", null).order("status", { ascending: false }).order("due_at").order("id").limit(30),
+    mailTrackingOrigin() ? db.rpc("person_mail_open_signals", { p_person: id }) : undefined,
     canReadFiles ? db.storage.from("contact-files").list(id, { limit: 50, sortBy: { column: "created_at", order: "desc" } }) : undefined,
   ]);
   const names = new Map(((members.data ?? []) as { email: string; display_name: string | null }[]).map((member) => [member.email, member.display_name]));
@@ -142,6 +144,18 @@ export default async function ContactProfile({ id, companies, full = false }: {
     <ContactActivity today={today} failed={!!activity.error} limited={(activity.data?.length ?? 0) > 120}
       items={rows.map((item, index) => ({ key: String(index), member: names.get(item.member_email) ?? null, kind: item.kind, day: item.occurred_on }))} />
 
+    {!!mailSignals?.data?.length && <section className="vq-card-static rounded-[14px] bg-white p-4">
+      <h2 className="text-sm font-semibold">Your email opening signals</h2>
+      <p className="mt-1 text-xs text-neutral-500">Signals reflect image requests, not confirmed reads. Repeated requests are grouped by hour.</p>
+      <ul className="mt-2 divide-y divide-neutral-100 text-sm">
+        {(mailSignals.data as { review_id: string; sent_at: string; detected_at: string | null; automated: boolean | null }[]).map((item) => (
+          <li key={`${item.review_id}:${item.detected_at}:${item.automated}`} className="flex flex-wrap justify-between gap-2 py-2">
+            <span>{item.detected_at ? item.automated ? "Suspected automatic load" : "Opening signal" : "Sent · no signal yet"}</span>
+            <time dateTime={item.detected_at ?? item.sent_at} className="text-xs text-neutral-600">{(item.detected_at ?? item.sent_at).slice(0, 16).replace("T", " ")} UTC</time>
+          </li>
+        ))}
+      </ul>
+    </section>}
     {deals.length > 0 && <section className="vq-card-static rounded-[14px] bg-white p-4">
       <h2 className="text-sm font-semibold">Linked deals</h2>
       <ul className="mt-2 divide-y divide-neutral-100 text-sm">{deals.map(({ role, deal }) => <li key={deal.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
