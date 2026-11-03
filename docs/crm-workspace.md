@@ -593,4 +593,4 @@ tab, downloads, uploads, and removal require Documents access. Downloads
 are signed for one minute. Archived contacts no longer expose notes or files;
 archiving is not a storage purge. Reminders are CRM tasks, not calendar
 events or scheduled emails. Apply `20261103230000_contact_workspace.sql`
-before using these sections.
+before using these sections. In Supabase Storage, create a private bucket named\n`contact-files` with a 3 MiB file-size limit. The migration configures object\npolicies without requiring SQL write access to the managed bucket catalog.

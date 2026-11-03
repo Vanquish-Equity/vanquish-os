@@ -27,14 +27,7 @@ create index if not exists tasks_person_due_idx on public.tasks(person_id,due_at
 create policy tasks_contact_insert on public.tasks as restrictive for insert to authenticated
   with check (person_id is null or exists (select 1 from public.people p where p.id=person_id and p.archived_at is null));
 
-insert into storage.buckets(id,name,public) values ('contact-files','contact-files',false) on conflict (id) do nothing;
--- The disposable CI bootstrap has only the basic bucket columns.
-do $$begin
-  if exists (select 1 from information_schema.columns where table_schema='storage' and table_name='buckets' and column_name='file_size_limit') then
-    execute 'update storage.buckets set file_size_limit=3145728 where id=''contact-files''';
-  end if;
-end$$;
-
+-- Provision the private contact-files bucket through Storage before use.
 create function private.can_access_contact_file(object_name text) returns boolean
 language sql stable security invoker set search_path='' as $$
   select (select private.is_member()) and (select not private.is_machine_identity())
