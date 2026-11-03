@@ -1,3 +1,4 @@
+import Checkbox from "@/components/Checkbox";
 import PeopleBulkSelection, { PeopleSelectAll, PeopleSelectRow } from "@/components/people/PeopleBulkSelection";
 import { customizationState } from "@/lib/customization/state";
 import ViewsPanel from "@/components/customization/ViewsPanel";
@@ -5,7 +6,11 @@ import { readCustomFieldsState } from "@/lib/custom-fields/state";
 import ContactDrawer from "@/components/people/ContactDrawer";
 import ContactProfile from "@/components/people/ContactProfile";
 import CustomFieldsGate from "@/components/custom-fields/CustomFieldsGate";
-import CustomFieldFilter from "@/components/custom-fields/CustomFieldFilter";
+import CustomFieldsAdmin from "@/components/custom-fields/CustomFieldsAdmin";
+import PeopleFieldCell from "@/components/people/PeopleFieldCell";
+import { loadFieldSchema } from "@/lib/custom-fields/actions";
+import { isUuid, type FieldValue } from "@/lib/custom-fields/model";
+import { PEOPLE_FIELD_COLUMN_LIMIT, matchesPeopleFieldFilters, peopleFieldFilters } from "@/lib/people/grid-fields";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { GoogleLookups, LastEmailCell, NextMeetingCell } from "./GoogleCells";
@@ -83,6 +88,9 @@ export default async function PeoplePage({
   searchParams: Promise<{
     tab?: string | string[];
     contact?: string | string[];
+    field?: string | string[];
+    tag?: string | string[];
+    fields?: string;
     view?: string | string[];
     group?: string | string[];
     q?: string | string[];
@@ -225,7 +233,7 @@ export default async function PeoplePage({
   const importHref = activeGroup ? `/people/import?group=${activeGroup.id}` : activeKey === "lps" ? "/people/import?lp=1" : "/people/import";
 
   const selected = firstParam(params.contact);
-  const openContact = selected && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(selected) ? selected : null;
+  const openContact = isUuid(selected) ? selected : null;
   const listParams = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (key === "contact" || key === "tab" || value === undefined) continue;
@@ -237,12 +245,51 @@ export default async function PeoplePage({
     next.set("contact", id);
     return `/people?${next}`;
   };
-  const rows = sortListRows(
+  const baseRows = sortListRows(
     people ?? [],
     sort,
     (p, key) => (key === "name" ? p.name : key === "company" ? (p.organization?.name ?? p.organization_name) : primaryEmail(p.person_emails ?? [])),
     (p) => p.id,
   );
+  const schema = customFieldsOn ? await loadFieldSchema("people") : null;
+  const definitions = schema?.ok ? schema.definitions : [];
+  const requested = new Set(Array.isArray(params.field) ? params.field.slice(0, 30) : params.field ? [params.field] : []);
+  const fields = definitions.filter((def) => params.fields ? requested.has(def.id) : true).slice(0, PEOPLE_FIELD_COLUMN_LIMIT);
+  const tagEntries = Array.isArray(params.tag) ? params.tag : params.tag ? [params.tag] : [];
+  const tagFilters = peopleFieldFilters(fields, tagEntries);
+  const values = new Map<string, Map<string, FieldValue>>();
+  let valuesFailed = false;
+  if (fields.length && baseRows.length) {
+    const batches = await Promise.all(Array.from({ length: Math.ceil(baseRows.length / 100) }, (_, i) =>
+      supabase.from("custom_field_values")
+        .select("id,definition_id,record_id,is_set,text_value,number_value,date_value,boolean_value,option_value,multi_value,token")
+        .in("definition_id", fields.map(({ id }) => id))
+        .in("person_id", baseRows.slice(i * 100, (i + 1) * 100).map(({ id }) => id))
+        .limit(100 * PEOPLE_FIELD_COLUMN_LIMIT)));
+    valuesFailed = batches.some((batch) => Boolean(batch.error));
+    if (!valuesFailed) for (const batch of batches) for (const value of (batch.data ?? []) as FieldValue[]) {
+      const byField = values.get(value.record_id) ?? new Map<string, FieldValue>();
+      byField.set(value.definition_id, value);
+      values.set(value.record_id, byField);
+    }
+  }
+  const rows = tagFilters.size
+    ? baseRows.filter((row) => !valuesFailed && matchesPeopleFieldFilters(values.get(row.id) ?? new Map(), tagFilters))
+    : baseRows;
+  const gridHref = (fieldId: string) => {
+    const next = new URLSearchParams(listParams);
+    const selectedFields = fields.map(({ id }) => id);
+    next.delete("field");
+    next.delete("tag");
+    next.set("fields", "1");
+    const fieldIds = selectedFields.includes(fieldId)
+      ? selectedFields.filter((id) => id !== fieldId) : [...selectedFields, fieldId];
+    for (const id of fieldIds) next.append("field", id);
+    for (const [id, options] of tagFilters) for (const tag of options) {
+      if (fieldIds.includes(id)) next.append("tag", `${id}:${tag}`);
+    }
+    return `/people?${next}`;
+  };
   // Both per-row signals cost a Google round trip, so they only run when
   // their column is visible and the list is small enough (see
   // LAST_EMAIL_MAX_ROWS) to be meaningful.
@@ -259,11 +306,11 @@ export default async function PeoplePage({
   // The starter Potential LPs group follows the Potential LP flag, so the row
   // menu offers it as that one toggle rather than as a second group item.
   const menuGroups = groups.filter((g) => g.kind !== "potential_lp").map(({ id, name }) => ({ id, name }));
-  const columnCount = 3 + shown.size;
+  const columnCount = 3 + shown.size + fields.length;
 
   return (
-    <div className="flex flex-col gap-4 px-7 py-6">
-      <header className="flex items-start justify-between gap-4">
+    <div className="flex min-w-0 flex-col gap-4 px-4 py-6 sm:px-7">
+      <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">
             People
@@ -272,7 +319,8 @@ export default async function PeoplePage({
             Founders, executives, LPs and advisors across every company.
           </p>
         </div>
-        <div className="flex flex-shrink-0 items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href="/people/archived" className="rounded-full border border-neutral-200 px-3.5 py-2 text-xs font-semibold">Archived</Link>
           <Link href="/people/groups" className="rounded-full border border-neutral-200 px-3.5 py-2 text-[12px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800">Manage groups</Link>
           <Link href="/people/duplicates" className="rounded-full border border-neutral-200 px-3.5 py-2 text-[12px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800">Duplicates</Link>
           <Link
@@ -293,7 +341,7 @@ export default async function PeoplePage({
       </header>
 
       <CustomFieldsGate enabled={viewsState.views}><ViewsPanel kind="people" kanban={viewsState.kanban}/></CustomFieldsGate>
-      <CustomFieldsGate enabled={customFieldsOn}><CustomFieldFilter object="people" /></CustomFieldsGate>
+
       <PeopleViewsBar
         tabs={<PeopleGroupTabs tabs={tabs} />}
         views={savedViews}
@@ -303,6 +351,23 @@ export default async function PeoplePage({
         me={access.email ?? ""}
       />
 
+      {customFieldsOn && <details className="vq-card-static rounded-xl px-4 py-3">
+        <summary className="cursor-pointer text-sm font-semibold">Manage custom columns</summary>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {definitions.map((field) => {
+            const visible = fields.some(({ id }) => id === field.id);
+            return visible || fields.length < PEOPLE_FIELD_COLUMN_LIMIT
+              ? <Link key={field.id} href={gridHref(field.id)} scroll={false} className="rounded-full border px-3 py-2 text-xs">{visible ? "Hide" : "Show"} {field.name}</Link>
+              : <span key={field.id} className="px-3 py-2 text-xs text-neutral-500">{field.name} (hide another column first)</span>;
+          })}
+        </div>
+        {access.permissions.has("admin") && <details className="mt-3">
+          <summary className="cursor-pointer text-xs font-semibold text-cyan-800">Create or edit shared fields and labels</summary>
+          <CustomFieldsAdmin />
+        </details>}
+      </details>}
+      {valuesFailed && <p role="status" className="text-sm text-neutral-600">Custom field values are unavailable. Refresh to try again.</p>}
+      {tagFilters.size > 0 && <p className="text-xs text-neutral-600">{rows.length} matches in the loaded directory. Selected labels in each column match any of those labels.</p>}
       {!mailbox.connected && rows.length > 0 && (
         <p className="text-[11.5px] text-neutral-400">
           <Link href="/settings" className="font-semibold text-cyan-700 hover:underline">
@@ -318,7 +383,7 @@ export default async function PeoplePage({
         </p>
       )}
 
-      {rows.length >= PEOPLE_FETCH_CAP && (
+      {baseRows.length >= PEOPLE_FETCH_CAP && (
         <p className="text-[11.5px] text-neutral-400">
           Showing the first {PEOPLE_FETCH_CAP} people. Use search to narrow down.
         </p>
@@ -329,8 +394,8 @@ export default async function PeoplePage({
         <PeopleGroupsProvider groups={menuGroups}>
         <GoogleLookups emails={contactEmails} lastEmail={showLastEmail} nextMeeting={showNextMeeting}>
         <div className="overflow-x-auto">
-        <table className="w-full text-[12.5px]">
-          <thead>
+        <table className="w-full text-[12.5px] [&_td]:border-r [&_td]:border-neutral-100 [&_th]:border-r [&_th]:border-neutral-200">
+          <thead className="bg-neutral-50">
             <tr className="border-b border-neutral-100 text-left text-[10.5px] uppercase tracking-wide text-neutral-400">
               <th scope="col" className="w-11"><PeopleSelectAll /></th>
               <SortableTh label="Name" sortKey="name" sort={sort} baseHref={sortBaseHref} />
@@ -340,6 +405,23 @@ export default async function PeoplePage({
               {shown.has("last_email") && <th className="px-4 py-3 font-semibold">Last email</th>}
               {shown.has("next_meeting") && <th className="px-4 py-3 font-semibold">Next meeting</th>}
               {shown.has("last_interaction") && <th className="px-4 py-3 font-semibold">Last interaction</th>}
+              {fields.map((field) => <th key={field.id} scope="col" className="min-w-36 px-2 py-2 align-top">
+                {field.filterable && field.options.length ? <details>
+                  <summary className="cursor-pointer normal-case text-neutral-800">{field.name}{tagFilters.has(field.id) ? ` · ${tagFilters.get(field.id)?.size} selected` : ""}</summary>
+                  <form action="/people" className="mt-1 max-h-48 space-y-1 overflow-auto rounded-lg border bg-white p-2 normal-case">
+                    {[...listParams].filter(([key]) => !["tag", "field", "fields"].includes(key)).map(([key, value], i) =>
+                      <input key={i} type="hidden" name={key} value={value} />)}
+                    <input type="hidden" name="fields" value="1" />
+                    {fields.map(({ id }) => <input key={id} type="hidden" name="field" value={id} />)}
+                    {[...tagFilters].filter(([id]) => id !== field.id).flatMap(([id, options]) =>
+                      [...options].map((option) => <input key={`${id}:${option}`} type="hidden" name="tag" value={`${id}:${option}`} />))}
+                    {field.options.map((option) => <label key={option.id} className="flex min-h-9 cursor-pointer items-center gap-2 text-neutral-800">
+                      <Checkbox name="tag" value={`${field.id}:${option.id}`} defaultChecked={tagFilters.get(field.id)?.has(option.id)} />{option.label}
+                    </label>)}
+                    <button className="min-h-9 rounded-full bg-ink px-3 text-white">Apply</button>
+                  </form>
+                </details> : field.name}
+              </th>)}
               <th className="px-4 py-3 text-right font-semibold">Contact</th>
             </tr>
           </thead>
@@ -437,6 +519,11 @@ export default async function PeoplePage({
                   })()}
                 </td>
                 )}
+                {fields.map((field) => {
+                  const stored = values.get(p.id)?.get(field.id);
+                  return <td key={field.id} className="min-w-36 align-top">{!valuesFailed &&
+                    <PeopleFieldCell key={stored?.token ?? field.version} definition={field} person={p.id} stored={stored} />}</td>;
+                })}
                 <td className="px-4 py-3">
                   <PersonContactActions
                     personId={p.id}

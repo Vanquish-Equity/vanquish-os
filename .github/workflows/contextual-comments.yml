@@ -241,3 +241,5 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/tests/views_templates_rollback_assert.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/custom_fields.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/auth_worker_identity.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261103170000_people_archive_delete.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/people_archive_delete.sql > /dev/null

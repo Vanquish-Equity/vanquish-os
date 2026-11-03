@@ -545,3 +545,15 @@ checkbox (up to 100 visible contacts per batch). Add them to an existing custom
 group without removing any memberships, or confirm Archive to hide them from
 the directory without permanently deleting their records. Changing the list
 filters clears the selection.
+
+**Archived** shows archived contacts in batches of 100. Members can restore
+them; active admins can permanently delete archived contacts after confirmation.
+Foreign keys can block deletion when another record must be kept. Permanent
+deletion requires the People archive delete migration.
+
+With custom fields enabled, **Manage custom columns** shows or hides up to six
+custom columns in the People directory. Admins can create shared fields and
+labels there. Click a cell to edit a value or open a filterable choice column
+heading to select labels. The directory matches any selected label within each
+column, and all filtered columns together. This filters the loaded directory
+(up to 1,000 contacts after the base group/name filter), not the entire database.
