@@ -3,6 +3,7 @@
 import { getAccess } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/server";
 import { escapeLike, normalizeSearchQuery, SEARCH_MIN_LENGTH } from "@/lib/search/text";
+import { taskHref } from "@/lib/tasks/tabs";
 
 export type SearchResult = {
   kind: "person" | "company" | "deal" | "note" | "document" | "task";
@@ -24,7 +25,7 @@ export async function globalSearch(raw: string): Promise<SearchResult[]> {
   const pattern = `%${escapeLike(query)}%`;
   const supabase = await createClient();
   const ranked = await supabase.rpc("search_workspace", { p_query: query });
-  if (!ranked.error) return ((ranked.data ?? []) as SearchResult[]).map(row => row.kind === "person" ? {...row,href:`/people?q=${encodeURIComponent(row.title)}`} : row);
+  if (!ranked.error) return ((ranked.data ?? []) as SearchResult[]).map(row => row.kind === "person" ? {...row,href:`/people?q=${encodeURIComponent(row.title)}`} : row.kind === "task" ? {...row,href:taskHref(row.id)} : row);
 
   const [people, emails, companies, deals] = await Promise.all([
     supabase

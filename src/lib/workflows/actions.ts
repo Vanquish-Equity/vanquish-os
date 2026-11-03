@@ -9,14 +9,14 @@ export async function proposeChange(input: { companyId: string; dealId: string |
   const { error } = await (await createClient()).rpc("propose_change", {
     p_company: input.companyId, p_deal: input.dealId, p_field: input.field, p_value: input.value, p_reason: input.reason,
   });
-  revalidatePath("/review");
+  revalidatePath("/tasks");
   return { ok: !error, message: error ? "Could not submit the change. Check the record and field." : "Change submitted for review." };
 }
 
 export async function decideChange(id: string, accept: boolean) {
   if ((await getAccess()).status !== "member") return { ok: false, message: "Access denied." };
   const { data, error } = await (await createClient()).rpc("decide_change", { p_id: id, p_accept: accept });
-  if (!error) { revalidatePath("/review"); revalidatePath("/companies", "layout"); revalidatePath("/inbox"); }
+  if (!error) { revalidatePath("/tasks"); revalidatePath("/companies", "layout"); }
   return { ok: !error, message: error ? "Could not decide this change." : data === "conflict" ? "The field changed since this proposal. Create a fresh proposal after checking the current value." : `Change ${data}.` };
 }
 

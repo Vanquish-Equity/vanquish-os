@@ -32,7 +32,7 @@ export async function resolveReviewItemAction(input: {
     if (ignoreError) return { ok: false, message: ignoreError.message };
     if (!ignored) return { ok: false, message: "This review item was already resolved." };
     await logActivity({ eventType: "REVIEW_RESOLVED", targetType: "review_item", targetId: reviewItemId, payload: { action: "ignore" } }, supabase);
-    revalidatePath("/review");
+    revalidatePath("/tasks");
     revalidatePath("/home");
     return { ok: true };
   }
@@ -45,7 +45,7 @@ export async function resolveReviewItemAction(input: {
   if (error) return { ok: false, message: error.message };
   if (!data) return { ok: false, message: "This review item was already resolved." };
 
-  revalidatePath("/review");
+  revalidatePath("/tasks");
   revalidatePath("/home");
   revalidatePath("/pipeline");
   revalidatePath("/companies");

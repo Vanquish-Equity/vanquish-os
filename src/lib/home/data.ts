@@ -6,6 +6,7 @@ import { mergeNeedsAttention, type AttentionDealRow, type AttentionItem } from "
 import { dealHref } from "@/lib/deals/scope";
 import { dealLabel } from "@/lib/deals/display";
 import { createClient } from "@/lib/supabase/server";
+import { myTaskHref, REVIEW_HREF } from "@/lib/tasks/tabs";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -253,7 +254,7 @@ export async function loadHomeData(
       key: "review",
       title: "Review queue",
       detail: `${count} open item${count === 1 ? "" : "s"} to decide`,
-      href: "/review",
+      href: REVIEW_HREF,
       tone: "info",
     });
   }
@@ -267,7 +268,7 @@ export async function loadHomeData(
     notices.push({
       key: `task-${task.id}`,
       text: `${name(task.assigned_by)} assigned you “${task.title}”`,
-      href: `/tasks?view=mine#task-${task.id}`,
+      href: myTaskHref(task.id),
       at: task.assigned_at,
     });
   }

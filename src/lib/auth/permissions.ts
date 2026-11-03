@@ -67,7 +67,8 @@ export type NavItem = {
   badge?: "chat" | "notifications";
 };
 
-// Overview and CRM reporting are tabs of Home (src/lib/home/tabs.ts), and
+// Action center and Review are tabs of Tasks (src/lib/tasks/tabs.ts; /inbox and
+// /review redirect there). Overview and CRM reporting are tabs of Home (src/lib/home/tabs.ts), and
 // Notifications is opened from the bell in the top bar (its page is still
 // /notifications; the palette lists it, see src/lib/search/palette.ts).
 // Display order: the sidebar renders these in this order. Labels match the
@@ -82,10 +83,8 @@ export const WORKSPACE_NAV: NavItem[] = [
   { href: "/lp-board", label: "LP follow-up", icon: "lp" },
   { href: "/boards", label: "CRM boards", icon: "boards" },
   { href: "/tasks", label: "Tasks", icon: "tasks" },
-  { href: "/inbox", label: "Action center", icon: "inbox" },
   { href: "/communications", label: "Communications", icon: "communications" },
   { href: "/calendar", label: "Calendar", icon: "calendar" },
-  { href: "/review", label: "Review", icon: "review" },
   { href: "/documents", label: "Document intake", icon: "documents", requires: "documents" },
   { href: "/portfolio", label: "Portfolio", icon: "portfolio", requires: "portfolio" },
   { href: "/portfolio/fundraising", label: "LP fundraising", icon: "fundraising", requires: "portfolio" },

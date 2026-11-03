@@ -125,6 +125,9 @@ vi.mock("@/components/home/NeedsAttentionPanel", stub);
 vi.mock("@/components/NewTaskModal", stub);
 vi.mock("@/components/TaskRow", stub);
 vi.mock("@/components/LocalTime", stub);
+vi.mock("@/components/ChangeProposals", stub);
+vi.mock("@/components/ReviewItemActions", stub);
+vi.mock("@/components/ScoutingReview", stub);
 
 import DashboardLayout from "@/app/(dashboard)/layout";
 import { buildWorld, PROXY_AUTH_CALLS } from "./synthetic-world";
@@ -137,11 +140,14 @@ const routes = {
   "/home?tab=dashboard": () => import("@/app/(dashboard)/home/page"),
   "/home?tab=reports": () => import("@/app/(dashboard)/home/page"),
   "/tasks": () => import("@/app/(dashboard)/tasks/page"),
-  "/inbox": () => import("@/app/(dashboard)/inbox/page"),
+  "/tasks?tab=all": () => import("@/app/(dashboard)/tasks/page"),
+  "/tasks?tab=review": () => import("@/app/(dashboard)/tasks/page"),
+  "/tasks?tab=activity": () => import("@/app/(dashboard)/tasks/page"),
 } as const;
 type Route = keyof typeof routes | "layout";
 
-// Home is one page with three tabs; each route key above names a tab by its URL.
+// Home and Tasks are one page with several tabs; each route key above names a
+// tab by its URL.
 const queryOf = (route: Route): Record<string, string> => {
   const query = route.split("?")[1];
   return query ? Object.fromEntries(new URLSearchParams(query)) : {};
@@ -232,13 +238,17 @@ const MAX_SEQUENTIAL_SUPABASE_TRIPS: Record<Route, number> = {
   "/home": 5,
   "/home?tab=dashboard": 4,
   "/home?tab=reports": 4,
+  // Tasks: the old pages measured Tasks 4, Action center (/inbox) 5 and
+  // Review (/review) 6. Each tab must not go over the page it replaced.
   "/tasks": 4,
-  "/inbox": 5,
+  "/tasks?tab=all": 4,
+  "/tasks?tab=review": 4, // the old page waited in three steps (6); its queries now start together
+  "/tasks?tab=activity": 5,
 };
 
 describe("round trips per route", () => {
   const all: Awaited<ReturnType<typeof measure>>[] = [];
-  const order: Route[] = ["layout", "/people", "/companies", "/pipeline", "/home", "/home?tab=dashboard", "/home?tab=reports", "/tasks", "/inbox"];
+  const order: Route[] = ["layout", "/people", "/companies", "/pipeline", "/home", "/home?tab=dashboard", "/home?tab=reports", "/tasks", "/tasks?tab=all", "/tasks?tab=review", "/tasks?tab=activity"];
 
   for (const route of order) {
     it(`measures ${route}`, async () => {
@@ -326,6 +336,59 @@ describe("home tabs fetch only their own data", () => {
     for (const tab of ["nope", "TODAY", ""]) {
       const result = await measure("/home", { tab });
       expect(result.trips.some((entry) => entry.includes("weekly_report_subscriptions"))).toBe(false);
+    }
+  });
+});
+
+// Tasks is one page with four tabs, and only the active tab's data may be
+// fetched: Mine and All must not run the Review or Activity queries, Activity
+// (the heaviest) must not run when Mine is open, and so on.
+describe("tasks tabs fetch only their own data", () => {
+  const tables = async (route: Route, query?: Record<string, string>) => {
+    const result = await measure(route, query);
+    return result.trips.map((entry) => entry.split(":").slice(1).join(":"));
+  };
+  const has = (labels: string[], name: string) => labels.includes(name);
+  const REVIEW_ONLY = ["review_items", "change_proposals", "company_suggestions", "contact_requests"];
+  const ACTIVITY_ONLY = ["interactions", "document_analysis", "rpc:member_directory"];
+  const LIST_ONLY = ["tasks", "rpc:assignable_members", "priorities"];
+
+  for (const route of ["/tasks", "/tasks?tab=all"] as const) {
+    it(`${route} reads tasks and none of the Review or Activity data`, async () => {
+      const labels = await tables(route);
+      for (const table of LIST_ONLY) expect(has(labels, table), table).toBe(true);
+      for (const other of [...REVIEW_ONLY, ...ACTIVITY_ONLY]) expect(has(labels, other), other).toBe(false);
+      // Only the layout's notification count, not the Activity lane's second read.
+      expect(labels.filter((label) => label === "notifications")).toHaveLength(1);
+    });
+  }
+
+  it("To review reads the review data and none of the task list or Activity data", async () => {
+    const labels = await tables("/tasks?tab=review");
+    for (const table of REVIEW_ONLY) expect(has(labels, table), table).toBe(true);
+    for (const other of [...LIST_ONLY, ...ACTIVITY_ONLY]) expect(has(labels, other), other).toBe(false);
+  });
+
+  it("Activity reads its lanes and none of the task list's options or the Review-only reads", async () => {
+    const labels = await tables("/tasks?tab=activity");
+    for (const table of ACTIVITY_ONLY) expect(has(labels, table), table).toBe(true);
+    // The lanes count open decisions, but they do not load the list's options.
+    for (const other of ["rpc:assignable_members", "priorities", "companies", "deals"]) expect(has(labels, other), other).toBe(false);
+  });
+
+  it("Activity skips the Documents lane for a member without the Documents permission", async () => {
+    world.fixtures.tables.member_permissions = [];
+    const labels = await tables("/tasks?tab=activity");
+    expect(has(labels, "document_analysis")).toBe(false);
+    expect(has(labels, "interactions")).toBe(true);
+  });
+
+  it("an unknown tab shows Mine, and the old ?view= links open the task list", async () => {
+    const queries: Record<string, string>[] = [{ tab: "nope" }, { tab: "REVIEW" }, { tab: "" }, { view: "mine" }, { view: "unassigned" }];
+    for (const query of queries) {
+      const labels = await tables("/tasks", query);
+      expect(has(labels, "tasks"), JSON.stringify(query)).toBe(true);
+      for (const other of [...REVIEW_ONLY, ...ACTIVITY_ONLY]) expect(has(labels, other), `${JSON.stringify(query)} ${other}`).toBe(false);
     }
   });
 });

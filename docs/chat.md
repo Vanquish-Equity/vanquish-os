@@ -34,7 +34,7 @@ The database re-checks that every mention is an active participant.
 | Direct message | The other member | The conversation |
 | @mention | The mentioned participant (instead of the group notice) | The conversation |
 | Group message | Every other active participant | The conversation |
-| Task assigned (`0017`) | The assignee, when someone else assigns it | `/tasks?view=mine#task-<id>` |
+| Task assigned (`0017`) | The assignee, when someone else assigns it | `/tasks?tab=mine#task-<id>` |
 
 - Nobody is notified of their own message or task.
 - One notification per recipient and event: a unique

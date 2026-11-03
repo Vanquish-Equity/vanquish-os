@@ -48,6 +48,14 @@ describe("area permissions", () => {
     expect(WORKSPACE_NAV.map((item) => item.label)).not.toEqual(expect.arrayContaining(["Overview", "CRM reporting", "Notifications"]));
   });
 
+  it("no longer lists Action center or Review: they are tabs of Tasks", () => {
+    const hrefs = WORKSPACE_NAV.map((item) => item.href);
+    for (const gone of ["/inbox", "/review"]) expect(hrefs).not.toContain(gone);
+    const labels = WORKSPACE_NAV.map((item) => item.label);
+    expect(labels).toContain("Tasks");
+    for (const gone of ["Action center", "Review"]) expect(labels).not.toContain(gone);
+  });
+
   it("starts with Home and Chat, and gives every item an icon", () => {
     expect(WORKSPACE_NAV.slice(0, 2).map((item) => item.href)).toEqual(QUICK_LINK_HREFS);
     expect(QUICK_LINK_HREFS).toEqual(["/home", "/chat"]);

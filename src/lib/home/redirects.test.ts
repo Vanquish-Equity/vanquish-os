@@ -9,10 +9,12 @@ import nextConfig from "../../../next.config";
 describe("old Overview and Reporting URLs", () => {
   it("redirect temporarily (reversible) to the Home tabs", async () => {
     const rules = await nextConfig.redirects!();
-    expect(rules).toEqual([
-      { source: "/overview", destination: "/home?tab=dashboard", permanent: false },
-      { source: "/reporting", destination: "/home?tab=reports", permanent: false },
-    ]);
+    expect(rules).toEqual(
+      expect.arrayContaining([
+        { source: "/overview", destination: "/home?tab=dashboard", permanent: false },
+        { source: "/reporting", destination: "/home?tab=reports", permanent: false },
+      ]),
+    );
   });
 
   it("do not capture the reporting exports, which stay API routes", async () => {

@@ -2,7 +2,7 @@ export type ContextScope = { page: string | null; companyId: string | null; deal
 
 // Explicit route allowlist: restricted areas never create or display pins.
 export function contextScope(pathname: string): ContextScope | null {
-  const page = pathname.match(/^\/(home|overview|pipeline|tasks|people|review|companies|documents|inbox)\/?$/);
+  const page = pathname.match(/^\/(home|pipeline|tasks|people|companies|documents)\/?$/);
   if (page) return { page: page[1], companyId: null, dealId: null };
   // Boards share one flat page scope across the list and every board's
   // detail page, the same way "pipeline" covers every deal without a
@@ -17,6 +17,9 @@ export function contextScope(pathname: string): ContextScope | null {
   return null;
 }
 
+// `/review` and `/inbox` are not listed on purpose: they redirect to tabs of
+// Tasks, which has one scope (see TASKS_PAGE_KEYS).
+
 // Home has three tabs but one comment scope, `home`. Comments pinned on the
 // former Overview page were stored with the page key `overview`; they are read
 // together with `home` (see HOME_PAGE_KEYS) and shown on the Dashboard tab,
@@ -26,6 +29,28 @@ export const HOME_PAGE_KEYS = ["home", "overview"] as const;
 // Anchors that only exist on the Dashboard tab (the former Overview page).
 const DASHBOARD_ANCHOR = /^(stat:\d+|pipeline-by-stage|pipeline-analytics|pipeline-trends|recent-activity)$/;
 
+// Tasks has four tabs but one comment scope, `tasks`. Pins made on the former
+// Review page were stored with the page key `review`, and pins made on the
+// former Action center with `inbox`. They are read together with `tasks`
+// (see TASKS_PAGE_KEYS) and shown on the To review and Activity tabs, where
+// their anchors live. New comments are stored as `tasks`; a reply uses its
+// root's key (see replyPageKey), because the database compares them.
+export const TASKS_PAGE_KEYS = ["tasks", "review", "inbox"] as const;
+
+// Every page key a scope reads. Only `home` and `tasks` absorbed other pages.
+export function pageKeysFor(page: string): string[] {
+  if (page === "home") return [...HOME_PAGE_KEYS];
+  if (page === "tasks") return [...TASKS_PAGE_KEYS];
+  return [page];
+}
+
+// The page key a reply must carry: its root comment's key when that is a
+// legacy key of the same scope, otherwise the scope's own page.
+export function replyPageKey(page: string | null, parentPageKey: string | null | undefined) {
+  if (page && parentPageKey && parentPageKey !== page && pageKeysFor(page).includes(parentPageKey)) return parentPageKey;
+  return page;
+}
+
 // Tab hint for a Home comment link, so the link opens the tab that holds the
 // anchor. Anything else (Today anchors, the generic "page" anchor, the
 // Reports tab, which has no anchors of its own) opens Today.
@@ -34,6 +59,21 @@ function homeTabHint(page: string, targetKey?: string | null) {
   // Any other legacy Overview comment opens the Dashboard, except the old
   // Needs attention card, which moved to Today.
   if (page === "overview" && targetKey !== "needs-attention") return "?tab=dashboard";
+  return "";
+}
+
+// Anchors that only exist on one tab of Tasks.
+const REVIEW_ANCHOR = /^(review|proposal|suggestion|contact-request):/;
+const ACTIVITY_ANCHOR = /^(interaction|document):/;
+
+// Tab hint for a Tasks comment link. Legacy `review` and `inbox` comments open
+// the tab that replaced their page. A `tasks` comment opens the tab holding
+// its anchor: a task row lives in All (Mine would hide other people's tasks);
+// anything else opens the default tab.
+function tasksTabHint(page: string, targetKey?: string | null) {
+  if (page === "review" || (targetKey && REVIEW_ANCHOR.test(targetKey))) return "?tab=review";
+  if (page === "inbox" || (targetKey && ACTIVITY_ANCHOR.test(targetKey))) return "?tab=activity";
+  if (targetKey?.startsWith("task:")) return "?tab=all";
   return "";
 }
 
@@ -47,6 +87,9 @@ export function contextHref(scope: ContextScope, id: string, targetKey?: string 
   }
   if (scope.page === "home" || scope.page === "overview") {
     return `/home${homeTabHint(scope.page, targetKey)}#comment-${id}`;
+  }
+  if (scope.page === "tasks" || scope.page === "review" || scope.page === "inbox") {
+    return `/tasks${tasksTabHint(scope.page, targetKey)}#comment-${id}`;
   }
   const base = scope.page ? `/${scope.page}` : scope.dealId
     ? `/companies/${scope.companyId}/deals/${scope.dealId}`

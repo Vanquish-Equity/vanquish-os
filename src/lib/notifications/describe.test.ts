@@ -23,7 +23,7 @@ describe("describeNotification", () => {
     });
     expect(describeNotification(row({ kind: "chat_group", conversation_id: "c1", message_id: "m1" }), context).title).toBe("Alpha wrote in Deal team");
     expect(describeNotification(row({ kind: "task_assigned", task_id: "t1", read_at: "x" }), context)).toMatchObject({
-      title: "Alpha assigned you a task", snippet: "Call LP", href: "/tasks?view=mine#task-t1", unread: false,
+      title: "Alpha assigned you a task", snippet: "Call LP", href: "/tasks?tab=mine#task-t1", unread: false,
     });
     expect(describeNotification(row({ kind: "draft_assigned", draft_id: "d1" }), context).href).toBe("/communications/d1");
   });

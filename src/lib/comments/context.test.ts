@@ -6,11 +6,11 @@ describe("contextual comments routing", () => {
     expect(contextScope("/home")?.page).toBe("home");
     expect(contextScope("/people")?.page).toBe("people");
     expect(contextScope("/documents")?.page).toBe("documents");
-    expect(contextScope("/inbox")?.page).toBe("inbox");
+    expect(contextScope("/tasks")?.page).toBe("tasks");
     const company = "11111111-1111-1111-1111-111111111111";
     const deal = "22222222-2222-2222-2222-222222222222";
     expect(contextScope(`/companies/${company}/deals/${deal}`)).toEqual({ page: null, companyId: company, dealId: deal });
-    for (const path of ["/chat", "/chat/new", "/notifications", "/communications", "/communications/new", "/portfolio", "/people/import", "/companies/trash"]) {
+    for (const path of ["/chat", "/chat/new", "/notifications", "/communications", "/communications/new", "/portfolio", "/people/import", "/companies/trash", "/inbox", "/review"]) {
       expect(contextScope(path)).toBeNull();
     }
   });

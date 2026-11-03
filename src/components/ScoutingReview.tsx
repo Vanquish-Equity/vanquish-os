@@ -25,7 +25,7 @@ function SuggestionCard({ suggestion, onDone }: { suggestion: Suggestion; onDone
       onDone(result.message ?? (result.ok ? "Done." : "Could not save the change."));
     });
   return (
-    <div className="vq-card-static flex flex-col gap-3 rounded-[14px] bg-white p-4">
+    <div id={`suggestion-${suggestion.id}`} className="vq-card-static flex flex-col gap-3 rounded-[14px] bg-white p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-[11px] text-neutral-400">{suggestion.domain}</div>
@@ -101,7 +101,7 @@ export default function ScoutingReview({ suggestions, requests }: { suggestions:
           </p>
           <ul className="mt-3 divide-y divide-neutral-100 rounded-xl border border-neutral-100">
             {requests.map((request) => (
-              <li key={request.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 text-[12px]">
+              <li key={request.id} id={`contact-request-${request.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 text-[12px]">
                 <div className="min-w-[180px] flex-1">
                   <div className="font-semibold text-ink">{request.name}</div>
                   <div className="truncate text-neutral-500">

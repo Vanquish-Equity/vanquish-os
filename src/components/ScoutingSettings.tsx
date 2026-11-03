@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import RelativeTime from "@/components/RelativeTime";
 import SelectMenu from "@/components/SelectMenu";
 import { scanMailboxNow, setContactMode, type ContactMode } from "@/lib/scouting/actions";
+import { REVIEW_HREF } from "@/lib/tasks/tabs";
 
 const MODES: { value: ContactMode; label: string }[] = [
   { value: "request", label: "Ask me first (contact requests)" },
@@ -41,7 +42,7 @@ export default function ScoutingSettings({
       <p className="mt-1 max-w-[720px] text-[12px] text-neutral-500">
         Looks through the last 30 days of your Gmail (newest 500 emails, outside Promotions, Social, Updates, Forums,
         Spam and Trash) for companies you write with that aren&apos;t in Companies yet, and lists them in{" "}
-        <Link href="/review" className="font-semibold text-cyan-700 hover:underline">Review</Link>. Only you see your
+        <Link href={REVIEW_HREF} className="font-semibold text-cyan-700 hover:underline">Review</Link>. Only you see your
         suggestions. Stored per suggestion: the domain, thread counts, dates and the contacts&apos; names and emails —
         never subjects or message content. Runs every few hours while you use Vanquish OS.
       </p>

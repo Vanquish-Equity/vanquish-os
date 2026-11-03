@@ -37,6 +37,7 @@ import {
   getPipelineStages,
   getPriorityOptions,
 } from "@/lib/taxonomies";
+import { OPEN_TASKS_HREF, REVIEW_HREF } from "@/lib/tasks/tabs";
 
 export const dynamic = "force-dynamic";
 
@@ -565,7 +566,7 @@ export default async function CompanyDetailPage({
                       href={
                         task.deal_id
                           ? `${dealHref(company.id, task.deal_id)}#tasks`
-                          : "/tasks?status=open"
+                          : OPEN_TASKS_HREF
                       }
                       className="font-medium text-ink hover:text-cyan-700"
                     >
@@ -618,7 +619,7 @@ export default async function CompanyDetailPage({
                   {openReviewItems.map((item) => (
                     <Link
                       key={item.id}
-                      href="/review"
+                      href={REVIEW_HREF}
                       className="font-medium text-ink hover:text-cyan-700"
                     >
                       {humanizeCode(item.review_type)}

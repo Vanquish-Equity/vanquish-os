@@ -1,4 +1,5 @@
 import { memberName, type Directory } from "../chat/format";
+import { myTaskHref } from "@/lib/tasks/tabs";
 
 // Text and destination for an in-app notification. Everything shown comes
 // from rows the recipient can read under RLS: the message (only while they
@@ -72,7 +73,7 @@ export function describeNotification(row: NotificationRow, context: Notification
         ...base,
         title: `${actor} assigned you a task`,
         snippet: title ?? null,
-        href: `/tasks?view=mine#task-${row.task_id}`,
+        href: myTaskHref(row.task_id as string),
       };
     }
     case "comment_mention":

@@ -16,6 +16,10 @@ const nextConfig: NextConfig = {
     return [
       { source: "/overview", destination: "/home?tab=dashboard", permanent: false },
       { source: "/reporting", destination: "/home?tab=reports", permanent: false },
+      // Action center and Review became tabs of Tasks (same rules: temporary,
+      // query and #fragment preserved). Neither old route had sub-routes.
+      { source: "/inbox", destination: "/tasks?tab=activity", permanent: false },
+      { source: "/review", destination: "/tasks?tab=review", permanent: false },
     ];
   },
   experimental: {
