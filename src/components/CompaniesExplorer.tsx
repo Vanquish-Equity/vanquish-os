@@ -103,7 +103,6 @@ function IndustryPicker({ company, value, label, options, disabled, onChange }: 
           edge: above ? window.innerHeight - rect.top + 4 : rect.bottom + 4, above });
       }}>
       <CompanyTag kind="industry" value={label} />
-      <span aria-hidden="true" className="text-[9px] text-neutral-500">▾</span>
     </button>
     {position && createPortal(
       <div ref={panel} id={id} role="listbox" aria-label={`Industry for ${company}`}
