@@ -1,3 +1,5 @@
+import CustomFieldsAdmin from "@/components/custom-fields/CustomFieldsAdmin";
+import { isUuid, type FieldDefinition, type FieldValue } from "@/lib/custom-fields/model";
 import { readCustomFieldsState } from "@/lib/custom-fields/state";
 import CustomFieldFilter from "@/components/custom-fields/CustomFieldFilter";
 import { Suspense } from "react";
@@ -57,12 +59,25 @@ function latestDate(values: Array<string | null | undefined>) {
   }, null);
 }
 
-export default async function CompaniesPage() {
+export default async function CompaniesPage({ searchParams }: {
+  searchParams?: Promise<{ columns?: string | string[] }>;
+} = {}) {
+  const rawColumns = (await searchParams)?.columns;
+  const requestedFields = (typeof rawColumns === "string" ? rawColumns : rawColumns?.[0] ?? "")
+    .split(",").filter((key) => key.startsWith("cf:")).map((key) => key.slice(3)).filter(isUuid).slice(0, 6);
   const supabase = await createClient();
   const endTimer = startDevPageTimer("page:data:companies");
   // Independent of the company list, so they run alongside it.
   const documentsPermission = hasPermission("documents");
   const customFieldsPromise = readCustomFieldsState();
+  const adminPermission = hasPermission("admin");
+  const definitionsPromise = customFieldsPromise.then(async (enabled) => enabled
+    ? await supabase.from("custom_field_definitions")
+      .select("id,object_type,name,field_type,version,sort_order,archived,filterable,options:custom_field_options(id,definition_id,label,sort_order,version)")
+      .eq("object_type", "companies").eq("archived", false).order("sort_order").order("id").limit(30)
+    : { data: [] });
+  adminPermission.catch(() => {});
+  definitionsPromise.catch(() => {});
   // Awaited only after the list query, so mark them as handled now.
   documentsPermission.catch(() => {});
   customFieldsPromise.catch(() => {});
@@ -84,19 +99,21 @@ export default async function CompaniesPage() {
   const visiblePeople = (companyRows ?? []).flatMap((company) =>
     (company.people ?? []).filter((person) => !person.archived_at).map(({ id }) => id));
   const batches = Array.from({ length: Math.ceil(visiblePeople.length / 150) }, (_, i) => visiblePeople.slice(i * 150, (i + 1) * 150));
-  const [interactions, directory, locationResult, requirementsResult, customFieldsOn] = await Promise.all([
+  const [interactions, directory, locationResult, requirementsResult, customFieldsOn, definitionsResult, isAdmin] = await Promise.all([
     Promise.all(batches.map((ids) => supabase.from("person_last_interaction").select("person_id,last_at").in("person_id", ids))),
     (companyRows ?? []).some((company) => company.deals?.some((deal) => deal.deal_assignees?.length))
       ? supabase.rpc("deal_assignee_directory") : { data: [] },
     customFieldsPromise.then(async (enabled) => enabled
       ? await supabase.from("custom_field_values")
-          .select("company_id,text_value,definition:custom_field_definitions!inner(id)")
+          .select("id,company_id,record_id,definition_id,is_set,text_value,number_value,date_value,boolean_value,option_value,multi_value,token,definition:custom_field_definitions!inner(id)")
           .eq("definition.object_type", "companies").eq("definition.field_type", "text")
           .eq("definition.archived", false).ilike("definition.name", "Location")
           .eq("is_set", true).not("company_id", "is", null).limit(1000)
       : { data: [] }),
     requirementsPromise,
     customFieldsPromise,
+    definitionsPromise,
+    adminPermission,
   ]);
   const locations = locationResult.data;
   const requirementRows = requirementsResult.data as RequirementRow[] | null;
@@ -104,6 +121,19 @@ export default async function CompaniesPage() {
   const names = new Map(((directory.data ?? []) as { email: string; display_name: string | null }[])
     .map(({ email, display_name }) => [email, display_name || email]));
   const lastByPerson = new Map(interactions.flatMap(({ data }) => (data ?? []).map(({ person_id, last_at }) => [person_id, last_at] as const)));
+  const definitions = (definitionsResult.data ?? []) as FieldDefinition[];
+  const chosen = definitions.filter(({ id }) => requestedFields.includes(id));
+  const ids = (companyRows ?? []).map(({ id }) => id);
+  const customValues = chosen.length && ids.length
+    ? await Promise.all(Array.from({ length: Math.ceil(ids.length / 100) }, (_, i) =>
+      supabase.from("custom_field_values")
+        .select("id,record_id,definition_id,is_set,text_value,number_value,date_value,boolean_value,option_value,multi_value,token")
+        .in("definition_id", chosen.map(({ id }) => id)).in("company_id", ids.slice(i * 100, (i + 1) * 100)).limit(600)))
+    : [];
+  const fieldValues = [
+    ...((locations ?? []) as FieldValue[]),
+    ...customValues.flatMap(({ data }) => (data ?? []) as FieldValue[]),
+  ];
   endTimer();
 
   const requirementsByDeal = new Map<string, RequirementRow[]>();
@@ -195,7 +225,9 @@ export default async function CompaniesPage() {
           </div>
         }
       >
-        <CompaniesExplorer companies={companies} filterOptions={filterOptions} extraFilters={customFieldsOn ? <CustomFieldFilter object="companies" /> : undefined} />
+        <CompaniesExplorer companies={companies} filterOptions={filterOptions} extraFilters={customFieldsOn ? <CustomFieldFilter object="companies" /> : undefined}
+          fieldDefinitions={definitions} fieldValues={fieldValues} fieldsUnavailable={customValues.some(({ error }) => Boolean(error))}
+          columnEditor={customFieldsOn && isAdmin ? <CustomFieldsAdmin fixedObject="companies" /> : undefined} />
       </Suspense>
     </div>
   );

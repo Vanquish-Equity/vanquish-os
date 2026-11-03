@@ -110,6 +110,7 @@ export async function saveFieldDefinition(input: DefinitionInput) {
     if (error) return unavailable;
     revalidatePath("/settings");
     revalidatePath("/people");
+    revalidatePath("/companies");
     return { ok: true as const };
   } catch {
     return unavailable;
@@ -151,6 +152,7 @@ export async function saveFieldOption(input: {
     if (error) return unavailable;
     revalidatePath("/settings");
     revalidatePath("/people");
+    revalidatePath("/companies");
     return { ok: true as const };
   } catch {
     return unavailable;

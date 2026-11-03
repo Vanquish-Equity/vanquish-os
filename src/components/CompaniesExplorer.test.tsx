@@ -33,6 +33,7 @@ import CompaniesExplorer from "./CompaniesExplorer";
 
 const make = (id: string, name: string, stage: string, updated: string) => ({
   aliases: [],
+  owners: id === "c2" ? ["Sam"] : id === "c1" ? ["Scott", "Sam"] : [],
   currentPriorityName: "High",
   currentStageName: stage,
   ddReceivedCount: 0,
@@ -137,19 +138,31 @@ describe("CompaniesExplorer URL handling", () => {
   it("shows the CRM columns and lets the user replace one from the toolbar", () => {
     open("/companies?view=table");
     for (const name of ["Connections", "Owner", "Last Contact", "Location"]) {
-      expect(screen.getByRole("columnheader", { name })).toBeTruthy();
+      expect(screen.getByRole("columnheader", { name: new RegExp(`^${name}`) })).toBeTruthy();
     }
-    fireEvent.click(screen.getByText("Columns", { selector: "summary" }));
+    fireEvent.click(screen.getByRole("button", { name: "Columns" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Location" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Industry" }));
     expect(screen.queryByRole("columnheader", { name: "Location" })).toBeNull();
-    expect(screen.getByRole("columnheader", { name: "Industry" })).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: /^Industry/ })).toBeTruthy();
     expect(nav.router.replace).not.toHaveBeenCalled();
+  });
+
+  it("matches any chosen owner, including an owner on a company with multiple assignees", () => {
+    open("/companies?view=table");
+    fireEvent.click(screen.getByRole("button", { name: "Filter Owner" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Scott" }));
+    expect(names()).toEqual(["Alpha Co"]);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Sam" }));
+    expect(names()).toEqual(["Alpha Co", "Bravo Co"]);
+    fireEvent.click(screen.getByRole("button", { name: "Clear this filter" }));
+    expect(names()).toEqual(["Alpha Co", "Bravo Co", "Charlie Co"]);
   });
 
   it("clears filters but keeps the view, with no server navigation", () => {
     open("/companies?view=cards&stage=Screening");
     expect(names()).toEqual(["Alpha Co", "Charlie Co"]);
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
     fireEvent.click(screen.getByRole("button", { name: /clear filters/i }));
     expect(window.location.search).toBe("?view=cards");
     expect(names()).toEqual(["Alpha Co", "Bravo Co", "Charlie Co"]);

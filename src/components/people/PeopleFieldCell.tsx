@@ -23,7 +23,7 @@ export default function PeopleFieldCell({ definition, person, stored }: {
     setStatus("");
     start(async () => {
       try {
-        const result = await saveRecordField({ object: "people", recordId: person, definitionId: definition.id,
+        const result = await saveRecordField({ object: definition.object_type, recordId: person, definitionId: definition.id,
           version: definition.version, token: stored?.token ?? null, value, clear });
         if (!result.ok) { setStatus(result.message); return; }
         setEditing(false);

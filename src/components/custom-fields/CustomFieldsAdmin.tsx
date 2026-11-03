@@ -222,8 +222,8 @@ function DefinitionForm({
     </div>
   );
 }
-export default function CustomFieldsAdmin() {
-  const [object, setObject] = useState<FieldObject>("people"),
+export default function CustomFieldsAdmin({ fixedObject }: { fixedObject?: FieldObject } = {}) {
+  const [object, setObject] = useState<FieldObject>(fixedObject ?? "people"),
     [defs, setDefs] = useState<FieldDefinition[] | null>(null),
     [selected, setSelected] = useState("");
   useEffect(() => {
@@ -253,6 +253,7 @@ export default function CustomFieldsAdmin() {
         fields are excluded. Maximum 30 definitions per object, including
         archived ones. Fields never change Deal stage.
       </p>
+      {!fixedObject && <>
       <label htmlFor="cf-object" className="block text-xs">
         Object
       </label>
@@ -267,6 +268,7 @@ export default function CustomFieldsAdmin() {
           setSelected("");
         }}
       />
+      </>}
       <label htmlFor="cf-definition" className="mt-3 block text-xs">
         Definition
       </label>

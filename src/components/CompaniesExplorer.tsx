@@ -1,5 +1,8 @@
 "use client";
 
+import Popover from "@/components/customization/Popover";
+import PeopleFieldCell from "@/components/people/PeopleFieldCell";
+import type { FieldDefinition, FieldValue } from "@/lib/custom-fields/model";
 import Checkbox from "@/components/Checkbox";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
@@ -133,15 +136,25 @@ export default function CompaniesExplorer({
   companies,
   filterOptions,
   extraFilters,
+  fieldDefinitions = [],
+  fieldValues = [],
+  columnEditor,
+  fieldsUnavailable = false,
 }: {
   companies: CompanyListItem[];
   filterOptions: FilterOptions;
   extraFilters?: ReactNode;
+  fieldDefinitions?: FieldDefinition[];
+  fieldValues?: FieldValue[];
+  columnEditor?: ReactNode;
+  fieldsUnavailable?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const query = searchParams.get("q") ?? "";
+  const [openColumnFilter, setOpenColumnFilter] = useState<string | null>(null);
+  const [filterSearch, setFilterSearch] = useState("");
   const [draftQueryState, setDraftQueryState] = useState({
     sourceQuery: query,
     value: query,
@@ -152,6 +165,19 @@ export default function CompaniesExplorer({
   const sort = readSort(searchParams);
   const selectedColumns = searchParams.get("columns");
   const columns = selectedColumns === null ? DEFAULT_COLUMNS : readList(searchParams, "columns");
+
+  const customFields = fieldDefinitions.filter(({ id, name, field_type }) =>
+    columns.includes(`cf:${id}`) && !(name.trim().toLowerCase() === "location" && field_type === "text")).slice(0, 6);
+  const locationField = fieldDefinitions.find(({ name, field_type }) => name.trim().toLowerCase() === "location" && field_type === "text");
+  const byCell = useMemo(() => new Map(fieldValues.map((value) => [`${value.record_id}:${value.definition_id}`, value])), [fieldValues]);
+  function toggleColumn(key: string, checked: boolean) {
+    const next = checked ? [...columns, key] : columns.filter((item) => item !== key);
+    const value = next.join(",") || "none";
+    if (!key.startsWith("cf:")) { updateQuery({ columns: value }); return; }
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("columns", value);
+    router.replace(`${pathname}?${params}`, { scroll: false });
+  }
 
   const filters: CompanyFilters = useMemo(
     () => ({
@@ -207,10 +233,54 @@ export default function CompaniesExplorer({
     }
   }, [searchParams, updateQuery]);
 
-  const rows = useMemo(
-    () => sortCompanies(filterCompanies(companies, filters), sort),
-    [companies, filters, sort]
-  );
+  const filterColumns = [
+    ["owner", "Owner"], ["location", "Location"], ["industry", "Industry"],
+    ["stage", "Stage"], ["priority", "Priority"], ["outcome", "Outcome"],
+    ...customFields.filter((field) => field.filterable && field.options.length)
+      .map((field) => [`cf:${field.id}`, field.name]),
+  ];
+  function valuesFor(company: CompanyListItem, key: string): string[] {
+    if (key === "owner") return company.owners ?? [];
+    if (key === "outcome") return company.outcomeNames;
+    if (key.startsWith("cf:")) {
+      const field = customFields.find(({ id }) => id === key.slice(3));
+      if (!field) return [];
+      const value = byCell.get(`${company.id}:${field.id}`);
+      return value?.multi_value ?? (value?.option_value ? [value.option_value] : []);
+    }
+    const value = key === "location" ? company.location : key === "industry" ? company.industryName
+      : key === "stage" ? company.currentStageName : company.currentPriorityName;
+    return value ? [value] : [];
+  }
+  function readChoices(key: string): string[] {
+    try {
+      const raw = searchParams.get(`match-${key}`);
+      const parsed: unknown = raw && raw.length < 8000 ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string").slice(0, 50) : [];
+    } catch { return []; }
+  }
+  const matches = filterColumns.map(([key]) => ({ key, selected: readChoices(key) })).filter(({ selected }) => selected.length);
+  const rows = sortCompanies(filterCompanies(companies, filters).filter((company) =>
+    matches.every(({ key, selected }) => valuesFor(company, key).some((value) => selected.includes(value)))), sort);
+  const activeFilter = filterColumns.find(([key]) => key === openColumnFilter);
+  const filterKey = activeFilter?.[0] ?? "";
+  const selectedChoices = filterKey ? readChoices(filterKey) : [];
+  const customFilter = customFields.find(({ id }) => `cf:${id}` === filterKey);
+  const filterChoices = !filterKey ? [] : customFilter
+    ? customFilter.options.map(({ id, label }) => ({ value: id, label }))
+    : [...new Set(companies.flatMap((company) => valuesFor(company, filterKey)))].sort((a, b) => a.localeCompare(b))
+      .map((value) => ({ value, label: value }));
+
+  function filterButton(key: string, label: string) {
+    if (!filterColumns.some(([id]) => id === key)) return null;
+    const count = readChoices(key).length;
+    return <button type="button" aria-label={`Filter ${label}`} aria-expanded={openColumnFilter === key}
+      aria-controls={openColumnFilter === key ? "company-column-filter" : undefined}
+      className={`rounded px-1.5 py-1 ${count ? "bg-cyan-100 text-cyan-900" : "hover:bg-neutral-100"}`}
+      onClick={() => { setOpenColumnFilter(openColumnFilter === key ? null : key); setFilterSearch(""); }}>
+      <span aria-hidden="true">⏷{count ? ` ${count}` : ""}</span>
+    </button>;
+  }
 
   function setListParam(key: string, values: string[]) {
     updateQuery({ [key]: values.length ? values.join(",") : null });
@@ -262,7 +332,7 @@ export default function CompaniesExplorer({
   return (
     <div className="flex flex-col gap-3.5">
       <div className="vq-card-static rounded-[14px] bg-white p-3">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex flex-wrap items-center gap-2">
           <input
             value={draftQuery}
             onChange={(event) =>
@@ -275,8 +345,8 @@ export default function CompaniesExplorer({
             placeholder="Find companies"
             className="min-w-0 flex-1 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[12.5px] font-medium text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
           />
-          <details className="rounded-full border border-neutral-200 px-3 py-1.5 text-xs">
-            <summary className="cursor-pointer font-semibold">Filters</summary>
+          <Popover label="Company filters" trigger="Filters" panelClassName="sm:left-auto sm:!right-0 sm:w-80 lg:w-96">
+            {() => <>
             <div className="mt-2 flex flex-wrap gap-2">
           <FilterMenu
             label="Industry"
@@ -327,18 +397,26 @@ export default function CompaniesExplorer({
           </button>
             </div>
             {extraFilters && <div className="mt-2">{extraFilters}</div>}
-          </details>
-          {view === "table" && <details className="rounded-full border border-neutral-200 px-3 py-1.5 text-xs">
-            <summary className="cursor-pointer font-semibold">Columns</summary>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              {COLUMNS.map(([key, label]) => <label key={key} className="flex items-center gap-2">
-                <Checkbox checked={columns.includes(key)} onChange={(event) => {
-                  const next = event.target.checked ? [...columns, key] : columns.filter((item) => item !== key);
-                  updateQuery({ columns: next.join(",") || "none" });
-                }} />{label}
-              </label>)}
-            </div>
-          </details>}
+            </>}
+          </Popover>
+          {view === "table" && <Popover label="Company columns" trigger="Columns" panelClassName="sm:left-auto sm:!right-0 sm:w-80">
+            {() => <>
+              <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+                {COLUMNS.map(([key, label]) => <label key={key} className="flex min-h-9 items-center gap-2 text-xs">
+                  <Checkbox checked={columns.includes(key)} onChange={(event) => toggleColumn(key, event.target.checked)} />{label}
+                </label>)}
+                {fieldDefinitions.filter(({ id }) => id !== locationField?.id).map(({ id, name }) => <label key={id} className="flex min-h-9 items-center gap-2 text-xs">
+                  <Checkbox checked={columns.includes(`cf:${id}`)} disabled={!columns.includes(`cf:${id}`) && customFields.length >= 6}
+                    onChange={(event) => toggleColumn(`cf:${id}`, event.target.checked)} />{name}
+                </label>)}
+              </div>
+              {customFields.length >= 6 && <p className="text-xs text-neutral-500">Up to six additional columns.</p>}
+              {columnEditor && <details className="mt-2 border-t border-neutral-100 pt-2">
+                <summary className="cursor-pointer text-xs font-semibold text-cyan-800">Add or edit columns</summary>
+                <div className="mt-2">{columnEditor}</div>
+              </details>}
+            </>}
+          </Popover>}
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <div className="text-[12px] font-medium text-neutral-500">
@@ -401,6 +479,29 @@ export default function CompaniesExplorer({
         </div>
       </div>
 
+      {activeFilter && <section id="company-column-filter" aria-label={`Filter ${activeFilter[1]}`}
+        className="vq-card-static space-y-2 rounded-xl bg-white p-3 text-xs"
+        onKeyDown={(event) => { if (event.key === "Escape") setOpenColumnFilter(null); }}>
+        <div className="flex flex-wrap items-center gap-3">
+          <strong>Filter {activeFilter[1]}</strong>
+          <input type="search" aria-label={`Find ${activeFilter[1]} values`} value={filterSearch}
+            onChange={(event) => setFilterSearch(event.target.value)} className="rounded-lg border px-2 py-1.5" placeholder="Find a value" />
+          <button type="button" className="text-cyan-800 underline" onClick={() => updateQuery({ [`match-${filterKey}`]: null })}>Clear this filter</button>
+          <button type="button" className="ml-auto text-cyan-800 underline" onClick={() => setOpenColumnFilter(null)}>Done</button>
+        </div>
+        <div className="flex max-h-44 flex-wrap gap-x-4 overflow-auto">
+          {filterChoices.filter(({ label }) => label.toLowerCase().includes(filterSearch.toLowerCase())).map(({ value, label }) => (
+            <label key={value} className="flex min-h-9 items-center gap-2">
+              <Checkbox checked={selectedChoices.includes(value)} disabled={!selectedChoices.includes(value) && selectedChoices.length >= 50} onChange={() => {
+                const next = selectedChoices.includes(value) ? selectedChoices.filter((item) => item !== value) : [...selectedChoices, value];
+                updateQuery({ [`match-${filterKey}`]: next.length ? JSON.stringify(next) : null });
+              }} />{label}
+            </label>
+          ))}
+        </div>
+        {filterChoices.length === 0 && <p className="text-neutral-500">No values to filter.</p>}
+      </section>}
+      {fieldsUnavailable && <p role="status" className="text-xs text-neutral-600">Some column values could not be loaded. Refresh before editing them.</p>}
       {rows.length === 0 ? (
         <div className="vq-card-static rounded-[14px] bg-white p-8 text-center">
           <h2 className="text-[15px] font-semibold text-ink">No matching companies</h2>
@@ -431,6 +532,7 @@ export default function CompaniesExplorer({
               <tr className="border-b border-neutral-100 text-left text-[10.5px] uppercase tracking-wide text-neutral-400">
                 {([["company", "Name"], ...COLUMNS.filter(([key]) => columns.includes(key))] as const).map(([key, label]) => (
                   <th key={key} className="px-4 py-3 font-semibold">
+                    <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => toggleSort(key as CompanySortKey)}
@@ -439,8 +541,11 @@ export default function CompaniesExplorer({
                       {label}
                       <span>{sortIndicator(key as CompanySortKey)}</span>
                     </button>
+                    {filterButton(key, label)}
+                    </div>
                   </th>
                 ))}
+                {customFields.map((field) => <th key={field.id} scope="col" className="px-4 py-3"><div className="flex items-center gap-2">{field.name}{filterButton(`cf:${field.id}`, field.name)}</div></th>)}
               </tr>
             </thead>
             <tbody>
@@ -451,9 +556,9 @@ export default function CompaniesExplorer({
                   data-comment-label={company.name}
                   role="link"
                   tabIndex={0}
-                  onClick={() => router.push(`/companies/${company.id}`)}
+                  onClick={(event) => { if (!(event.target as Element).closest("[data-company-cell-editor]")) router.push(`/companies/${company.id}`); }}
                   onKeyDown={(event) => {
-                    if (event.key === "Enter") router.push(`/companies/${company.id}`);
+                    if (event.key === "Enter" && event.target === event.currentTarget) router.push(`/companies/${company.id}`);
                   }}
                   className="cursor-pointer border-b border-neutral-50 transition hover:bg-[#f7f9fa]"
                 >
@@ -475,8 +580,14 @@ export default function CompaniesExplorer({
                       : key === "deals" ? company.dealCount
                       : key === "last_update" ? <RelativeTime date={company.lastUpdateAt} />
                       : <InvestedBadge count={company.investmentCount} />;
+                    if (key === "location" && locationField) return <td key={key} data-company-cell-editor="">
+                      <PeopleFieldCell definition={locationField} person={company.id} stored={byCell.get(`${company.id}:${locationField.id}`)} />
+                    </td>;
                     return <td key={key} className="whitespace-nowrap px-4 py-3 text-neutral-600">{content}</td>;
                   })}
+                  {customFields.map((field) => <td key={field.id} data-company-cell-editor="" className="min-w-36">
+                    {!fieldsUnavailable && <PeopleFieldCell definition={field} person={company.id} stored={byCell.get(`${company.id}:${field.id}`)} />}
+                  </td>)}
                 </tr>
               ))}
             </tbody>
