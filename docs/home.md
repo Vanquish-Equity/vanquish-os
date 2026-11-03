@@ -38,8 +38,8 @@ and Home says My tasks needs the migration.
 ## Sidebar
 
 - **Collapse / expand** with the icon button next to the logo (keyboard:
-  Tab to it, Enter). Collapsed shows icons; each item keeps its accessible
-  name and shows a tooltip on hover or keyboard focus.
+  Tab to it, Enter). Collapsed shows one icon per section (see "Collapsed
+  rail" below); each icon keeps its accessible name.
 - The choice is remembered per member on this browser in a cookie
   (`vq_sidebar_<hash of the email>`), read by the server so the page is
   rendered in the right state without a flash.
@@ -70,13 +70,56 @@ and Home says My tasks needs the migration.
   is always listed; with more than 5 boards the sidebar shows the first 5
   (plus the one being viewed) and an "All boards (N)" row. At 900 px tall
   nothing scrolls with up to 3 boards; with many boards the list scrolls
-  inside the sidebar (thin visible scrollbar). Collapsed, every item shows as an icon with a thin rule between
-  sections.
+  inside the sidebar (thin visible scrollbar).
 - **Home, Notifications, Chat and Overview** render as a labeled 2 x 2 block
   above the sections (expanded desktop sidebar, or the mobile drawer), with
-  their badges. Collapsed or on a narrow screen, they fall back to the normal
-  vertical icon list with tooltips. `QUICK_LINK_HREFS` in
+  their badges. Collapsed, each is a direct icon link (see below); on a narrow
+  screen with the sidebar expanded they fall back to the normal vertical icon
+  list with tooltips. `QUICK_LINK_HREFS` in
   `src/lib/auth/nav-sections.ts` controls which items get this treatment.
+
+### Collapsed rail
+
+Collapsed (the cookie state, any screen width), the sidebar shows **one icon
+per section** the member can see, from the same quick links and sections as
+the expanded list (`sidebarModel` in `Sidebar.tsx`; `SidebarRail.tsx` draws
+the rail, `src/lib/ui/sidebar-rail.ts` builds the entries and
+`src/lib/ui/flyout-intent.ts` holds the hover timing). A section with no
+visible page has no icon, so no label leaks.
+
+- **Several pages (CRM, Work, Boards, Fund, System):** a button with
+  `aria-expanded` and `aria-controls`, named by the section. Hovering it for
+  100 ms, clicking it, or pressing Enter, Space or Right opens a small
+  floating window beside the rail: the section title and the same links as the
+  expanded section (label, unread badge, current page highlighted; Boards
+  keeps its limit of 5 boards plus the current one and the "All boards (N)"
+  row, and scrolls inside the window). Clicking again closes it; it never
+  navigates by itself.
+- **One page (Home, Chat, Notifications, Overview, or a section with a single
+  visible page):** a plain link; hover or keyboard focus shows its name (and
+  unread count) in a small window.
+- The icon of the section holding the current page is highlighted (`aria-current`).
+- **Timing:** open after 100 ms; when one is already open, moving to another
+  icon switches at once; leaving closes after 200 ms, cancelled when the
+  pointer enters the window, so a diagonal move into it keeps it open. Only
+  one window is open. Touch pointers skip hover and use the click toggle.
+- **Closing:** Escape (focus returns to the icon), a click outside, a route
+  change, resizing, scrolling the rail, collapsing or expanding the sidebar.
+- **Keyboard:** Up/Down move between the icons; Right (or Enter/Space) opens
+  the window and focuses its first link; Up/Down/Home/End move between its
+  links; Left returns to the icon; Tab returns to the icon and closes the
+  window. Focusing a section icon does not open it (so Tab does not pop a
+  window on every icon), except when moving with the arrow keys while another
+  window is open. The window is a labelled `<nav>` with a list of links (the
+  disclosure-navigation pattern), not `role="menu"`.
+- The window is rendered in a portal on `<body>` (`z-40`, above cards and the
+  rail, below dialogs), placed beside the icon and clamped inside the
+  viewport. It fades in over 90 ms, with no animation under
+  `prefers-reduced-motion`. Opening it fetches nothing and its links use
+  `prefetch={false}` (which in this Next version also disables prefetching on
+  hover), so no Google-backed page is warmed.
+- The expanded sidebar, the mobile drawer and the rail shown on a narrow
+  screen while the sidebar is expanded are unchanged.
 
 ## Top bar: search palette and "+ New"
 

@@ -9,7 +9,9 @@ import type { NavIcon as NavIconName } from "@/lib/auth/permissions";
 import { BOARDS_VISIBLE_LIMIT, NAV_SECTIONS, QUICK_LINK_HREFS, sectionIsOpen, serializeSectionState, type NavSection } from "@/lib/auth/nav-sections";
 import { requestIntroReplay, SIDEBAR_COOKIE_MAX_AGE_SECONDS } from "@/lib/ui/entrance";
 import { playUiSound, setSoundPref, useSoundPref } from "@/lib/ui/sound";
+import SidebarRail from "@/components/SidebarRail";
 import { useUnreadCounts } from "@/components/UnreadCounts";
+import { isActive, railEntries } from "@/lib/ui/sidebar-rail";
 
 export type SidebarNavItem = { href: string; label: string; icon: NavIconName; badge?: "chat" | "notifications"; child?: boolean; extra?: boolean };
 
@@ -17,8 +19,6 @@ export type SidebarNavItem = { href: string; label: string; icon: NavIconName; b
 // belongs to the section listing its href; Boards also owns every individual
 // board (/boards/<id>). A page nobody listed (a future page) is drawn at the
 // end of System, so it is never lost or drawn under the wrong heading.
-const isActive = (activeHref: string, href: string) =>
-  activeHref === href || (href !== "/boards" && activeHref.startsWith(href + "/"));
 
 // Visible text for the group headings and the quick-link block. Kept together
 // so the interface can be translated in one place.
@@ -41,6 +41,19 @@ function sectionItems(section: NavSection, items: SidebarNavItem[], activeHref =
   const current = boards.find((item) => isActive(activeHref, item.href));
   if (current && !shown.includes(current)) shown.push(current);
   return [...listed, ...shown, { href: "/boards", label: NAV_TEXT.allBoards(boards.length), icon: "boards" as const, extra: true }];
+}
+
+// The quick links and the visible sections, shared by the expanded sidebar and
+// the collapsed rail so both list exactly the same pages.
+export function sidebarModel(navItems: SidebarNavItem[], activeHref: string) {
+  const iconRowItems = navItems.filter((item) => QUICK_LINK_HREFS.includes(item.href));
+  const sectioned = new Set(NAV_SECTIONS.flatMap((section) => sectionItems(section, navItems).map((item) => item.href)));
+  const unlisted = navItems.filter((item) => !QUICK_LINK_HREFS.includes(item.href) && !sectioned.has(item.href) && !item.href.startsWith("/boards/"));
+  const sections = NAV_SECTIONS.map((section) => ({
+    ...section,
+    items: [...sectionItems(section, navItems, activeHref), ...(section.key === "system" ? unlisted : [])],
+  })).filter((section) => section.items.length > 0);
+  return { iconRowItems, sections };
 }
 
 // The member's saved name as written; otherwise their email's local part
@@ -248,13 +261,8 @@ function SidebarBody({
     );
   }
 
-  const iconRowItems = navItems.filter((item) => QUICK_LINK_HREFS.includes(item.href));
-  const sectioned = new Set(NAV_SECTIONS.flatMap((section) => sectionItems(section, navItems).map((item) => item.href)));
-  const unlisted = navItems.filter((item) => !QUICK_LINK_HREFS.includes(item.href) && !sectioned.has(item.href) && !item.href.startsWith("/boards/"));
-  const sections = NAV_SECTIONS.map((section) => ({
-    ...section,
-    items: [...sectionItems(section, navItems, activeHref), ...(section.key === "system" ? unlisted : [])],
-  })).filter((section) => section.items.length > 0);
+  const { iconRowItems, sections } = sidebarModel(navItems, activeHref);
+  const rail = railEntries(iconRowItems, sections);
 
   return (
     <>
@@ -314,6 +322,11 @@ function SidebarBody({
         )}
       </div>
 
+      {mode === "rail" ? (
+        // Collapsed: one icon per section; a section's pages open in a flyout.
+        <SidebarRail quick={rail.quick} sections={rail.sections} activeHref={activeHref} onNavigate={onNavigate} />
+      ) : (
+      <>
       {iconRowItems.length > 0 && (
         <>
           <div role="group" aria-label={NAV_TEXT.quickLinks} className={`mb-3 grid-cols-[2fr_3fr] gap-0.5 rounded-lg bg-white/[0.03] p-0.5 ${byMode(mode, { rail: "hidden", full: "grid", responsive: "hidden md:grid" })}`}>
@@ -366,6 +379,8 @@ function SidebarBody({
           );
         })}
       </nav>
+      </>
+      )}
 
       <div className="mt-2 border-t border-white/[0.06] pt-2">
         <div className={`flex items-center gap-1 ${byMode(mode, { rail: "flex-col", full: "", responsive: "flex-col md:flex-row" })}`}>

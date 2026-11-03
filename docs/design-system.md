@@ -157,6 +157,14 @@ fundraising UUIDs survive retries. No new design-system exception is introduced.
 - **Open menus over cards:** cards are isolated stacking contexts, so `globals.css`
   lifts a card to `z-index: 20` while it holds `[aria-haspopup][aria-expanded="true"]`
   (SelectMenu, member/board menus). Disclosure toggles and the Sidebar are excluded; dialogs (z-50+) stay above.
+- **Collapsed-sidebar flyout:** the rail (one icon per section) opens a small
+  `vq-card-static` window (`rounded-xl border-neutral-200 bg-white p-1`,
+  `text-[12.5px]` rows, `hover:bg-neutral-50`, current page `bg-cyan-50`) in a
+  `fixed` portal at `z-40`: above page cards and the rail, below dialogs
+  (z-50+). It is a labelled `<nav>` of links, not `role="menu"`, and carries no
+  arrow or chevron. See "Collapsed rail" in [`home.md`](home.md). Known
+  exception: the window is white while the rail is dark, matching the other
+  floating menus rather than the rail.
 - **Pointer-placed menus:** the People row menu (`PersonContextMenu`) opens at
   the pointer, so it is a `fixed` portal at `z-[55]` (above dialogs at z-50,
   below the intro layer) instead of hanging under a trigger; it is clamped to the
