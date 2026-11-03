@@ -46,8 +46,8 @@ export function PeopleSelectRow({ id, name }: { id: string; name: string }) {
   </label>;
 }
 
-export default function PeopleBulkSelection({ ids, groups, children }: {
-  ids: string[]; groups: { id: string; name: string }[]; children: ReactNode;
+export default function PeopleBulkSelection({ ids, groups, children, onChanged }: {
+  ids: string[]; groups: { id: string; name: string }[]; children: ReactNode; onChanged?: () => Promise<void>;
 }) {
   const [stored, set] = useState<Set<string>>(() => new Set());
   const [groupId, setGroupId] = useState("");
@@ -65,6 +65,7 @@ export default function PeopleBulkSelection({ ids, groups, children }: {
         const result = await bulkPeopleAction({ ids: [...selected], action, groupId });
         if (!result.ok) { setMessage(result.message); return; }
         set(new Set());
+        await onChanged?.();
         setMessage(action === "archive"
           ? `${result.count} of ${size} selected contacts archived.`
           : `${result.count} selected contacts are now in the group.`);

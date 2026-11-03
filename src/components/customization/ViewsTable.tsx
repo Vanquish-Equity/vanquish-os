@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import PeopleBulkSelection, { PeopleSelectAll, PeopleSelectRow } from "@/components/people/PeopleBulkSelection";
+import { peopleAvatarClass, peopleInitials, peopleTableClass } from "@/components/people/directory-style";
 import type {
   Definition,
   RecordRow,
@@ -69,14 +71,24 @@ function Cell({
   kind,
   definition,
   pendingField,
+  peopleHref,
 }: {
   row: RecordRow;
   column: string;
   kind: ViewObject;
   definition: Definition | null;
   pendingField: boolean;
+  peopleHref?: string;
 }) {
   const dash = <span className="text-neutral-300">—</span>;
+  if (column === "name" && kind === "people") {
+    const href = peopleHref ? `${peopleHref}${peopleHref.includes("?") ? "&" : "?"}contact=${encodeURIComponent(row.id)}` : null;
+    return <div className="flex items-center gap-2.5">
+      <span aria-hidden="true" className={peopleAvatarClass}>{peopleInitials(row.name)}</span>
+      <span data-person-name>{href ? <Link href={href} scroll={false} prefetch={false} className="font-semibold text-ink hover:text-cyan-700 hover:underline">{row.name}</Link>
+        : <span className="font-semibold text-ink">{row.name}</span>}</span>
+    </div>;
+  }
   if (column === "name")
     return kind === "pipeline" && row.company_id ? (
       <Link
@@ -114,7 +126,11 @@ function Cell({
     );
   if (isCustom(column) && pendingField) return dash;
   const v = cellValue(row, column, definition);
-  return v === null || v === "" ? dash : <>{String(v)}</>;
+  if (v === null || v === "") return dash;
+  if (kind === "people" && isCustom(column) && definition?.options.some((option) => option.id === row.field_value)) {
+    return <span className="rounded bg-cyan-50 px-1.5 py-0.5 text-cyan-900">{String(v)}</span>;
+  }
+  return <>{String(v)}</>;
 }
 
 // The list the view produces. Headers are buttons: one click sorts, a second
@@ -132,6 +148,9 @@ export default function ViewsTable({
   sortedLocally,
   fieldName,
   onSort,
+  peopleGroups,
+  peopleHref,
+  onPeopleChanged,
 }: {
   kind: ViewObject;
   columns: string[];
@@ -144,26 +163,20 @@ export default function ViewsTable({
   sortedLocally: boolean;
   fieldName: string | null;
   onSort: (key: string) => void;
+  peopleGroups?: { id: string; name: string }[];
+  peopleHref?: string;
+  onPeopleChanged?: () => Promise<void>;
 }) {
   const t = T[kind];
   const name = (k: string) =>
     columnLabel(k, fieldName ?? definition?.name ?? null);
-  return (
-    <div className="flex flex-col gap-2">
-      {warning && (
-        <p role="status" className="text-[11.5px] text-neutral-500">
-          {T.fieldGone}
-        </p>
-      )}
-      {pendingField && (
-        <p role="status" className="text-[11.5px] text-neutral-500">
-          {T.needsSave}
-        </p>
-      )}
-      <div className="vq-card-static overflow-x-auto rounded-[14px] bg-white">
-        <table className="w-full text-[12.5px]">
-          <thead>
+  const bulk = kind === "people" && peopleGroups !== undefined;
+  const table = (
+      <div className="overflow-x-auto">
+        <table className={kind === "people" ? peopleTableClass : "w-full text-[12.5px]"}>
+          <thead className={kind === "people" ? "bg-neutral-50" : undefined}>
             <tr className="border-b border-neutral-100 text-left text-[10.5px] uppercase tracking-wide text-neutral-400">
+              {bulk && <th scope="col" className="w-11"><PeopleSelectAll /></th>}
               {columns.map((k) => (
                 <th
                   key={k}
@@ -195,6 +208,7 @@ export default function ViewsTable({
                 key={row.id}
                 className="border-b border-neutral-50 last:border-0"
               >
+                {bulk && <td><PeopleSelectRow id={row.id} name={row.name} /></td>}
                 {columns.map((k) => (
                   <td
                     key={k}
@@ -206,6 +220,7 @@ export default function ViewsTable({
                       kind={kind}
                       definition={definition}
                       pendingField={pendingField}
+                      peopleHref={peopleHref}
                     />
                   </td>
                 ))}
@@ -214,7 +229,7 @@ export default function ViewsTable({
             {!rows.length && (
               <tr>
                 <td
-                  colSpan={columns.length}
+                  colSpan={columns.length + (bulk ? 1 : 0)}
                   className="px-4 py-10 text-center text-neutral-400"
                 >
                   {t.empty}
@@ -223,6 +238,24 @@ export default function ViewsTable({
             )}
           </tbody>
         </table>
+      </div>
+  );
+  return (
+    <div className="flex flex-col gap-2">
+      {warning && (
+        <p role="status" className="text-[11.5px] text-neutral-500">
+          {T.fieldGone}
+        </p>
+      )}
+      {pendingField && (
+        <p role="status" className="text-[11.5px] text-neutral-500">
+          {T.needsSave}
+        </p>
+      )}
+      <div className="vq-card-static overflow-hidden rounded-[14px] bg-white">
+        {bulk ? <PeopleBulkSelection ids={rows.map(({ id }) => id)} groups={peopleGroups ?? []} onChanged={onPeopleChanged}>
+          {table}
+        </PeopleBulkSelection> : table}
       </div>
       {partial && (
         <p role="status" className="text-[11.5px] text-neutral-500">

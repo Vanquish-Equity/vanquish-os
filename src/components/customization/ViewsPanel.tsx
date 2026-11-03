@@ -577,12 +577,16 @@ export default function ViewsPanel({
   kanban,
   initialCatalog,
   initialSelected,
+  peopleGroups,
+  peopleHref,
 }: {
   kind: ViewObject;
   kanban: boolean;
   // Only for tests and previews: skips the first load.
   initialCatalog?: Catalog;
   initialSelected?: string;
+  peopleGroups?: { id: string; name: string }[];
+  peopleHref?: string;
 }) {
   const router = useRouter();
   const [catalog, setCatalog] = useState<Catalog | null>(
@@ -623,10 +627,10 @@ export default function ViewsPanel({
     });
   }, [refresh, initialCatalog]);
 
-  const load = useCallback(async (id: string) => {
+  const load = useCallback(async (id: string, keepRows = false) => {
     const mine = ++seq.current;
     setPhase("loading");
-    setData(null);
+    if (!keepRows) setData(null);
     const r = await viewData(id, [null]);
     if (mine !== seq.current) return;
     if (!r.ok) return setPhase("error");
@@ -897,6 +901,9 @@ export default function ViewsPanel({
           columns={spec.columns}
           sort={spec.sort}
           rows={rows}
+          peopleGroups={peopleGroups}
+          peopleHref={peopleHref}
+          onPeopleChanged={kind === "people" ? () => load(selected, true) : undefined}
           definition={data.definition}
           partial={data.partial}
           warning={data.warning}

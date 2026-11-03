@@ -99,7 +99,7 @@ const data = {
 function page(kind: "people" | "pipeline" = "people") {
   return render(
     <main>
-      <ViewsPanel kind={kind} kanban={false} initialCatalog={catalog} />
+      <ViewsPanel kind={kind} kanban={false} initialCatalog={catalog} peopleGroups={kind === "people" ? [] : undefined} peopleHref="/people?q=Alex" />
       <div data-testid="legacy-filters">legacy filters</div>
       <p data-testid="legacy-notice">legacy notice</p>
       <ul data-testid="legacy-list" />
@@ -116,7 +116,7 @@ const names = () =>
   screen
     .getAllByRole("row")
     .slice(1)
-    .map((r) => r.firstElementChild?.textContent);
+    .map((r) => r.querySelector("[data-person-name]")?.textContent ?? r.firstElementChild?.textContent);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -164,7 +164,7 @@ describe("view menu", () => {
     expect(hidden()).toEqual([false, false, false]);
     await apply("Mine");
     expect(hidden()).toEqual([true, true, true]);
-    expect(screen.getByRole("status").textContent).toBe("Showing view: Mine");
+    expect(screen.getAllByRole("status").map((status) => status.textContent)).toContain("Showing view: Mine");
     fireEvent.click(menu());
     fireEvent.click(screen.getByRole("menuitemradio", { name: "All people" }));
     expect(hidden()).toEqual([false, false, false]);
@@ -182,6 +182,14 @@ describe("view menu", () => {
 });
 
 describe("sorting and saving changes", () => {
+  it("keeps the People directory selection and contact link in a saved view", async () => {
+    page();
+    await apply("Mine");
+    expect(screen.getByRole("checkbox", { name: "Select all visible contacts" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Alex" }).getAttribute("href")).toBe("/people?q=Alex&contact=2");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Alex" }));
+    expect(screen.getByRole("button", { name: "Archive selected" })).toBeTruthy();
+  });
   it("one header click sorts the rows and sets aria-sort; a second flips", async () => {
     page();
     await apply("Mine");

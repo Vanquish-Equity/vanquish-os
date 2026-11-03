@@ -1,3 +1,4 @@
+import { peopleAvatarClass, peopleInitials, peopleTableClass } from "@/components/people/directory-style";
 import Checkbox from "@/components/Checkbox";
 import PeopleBulkSelection, { PeopleSelectAll, PeopleSelectRow } from "@/components/people/PeopleBulkSelection";
 import { customizationState } from "@/lib/customization/state";
@@ -70,15 +71,6 @@ type PersonRow = {
 
 function primaryEmail(emails: { email: string; is_primary: boolean }[]) {
   return emails.find((e) => e.is_primary)?.email ?? emails[0]?.email ?? null;
-}
-
-function initials(name: string) {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
 }
 
 export default async function PeoplePage({
@@ -325,7 +317,10 @@ export default async function PeoplePage({
         </div>
       </header>
 
-      <CustomFieldsGate enabled={viewsState.views}><ViewsPanel kind="people" kanban={viewsState.kanban}/></CustomFieldsGate>
+      {openContact && <ContactDrawer key={openContact} closeHref={closeHref}>
+        <ContactProfile id={openContact} companies={companies ?? []} />
+      </ContactDrawer>}
+      <CustomFieldsGate enabled={viewsState.views}><ViewsPanel kind="people" kanban={viewsState.kanban} peopleGroups={menuGroups} peopleHref={closeHref}/></CustomFieldsGate>
 
       <PeopleViewsBar
         tabs={<PeopleGroupTabs tabs={tabs} />}
@@ -366,7 +361,7 @@ export default async function PeoplePage({
         <PeopleGroupsProvider groups={menuGroups}>
         <GoogleLookups emails={contactEmails} lastEmail={showLastEmail} nextMeeting={showNextMeeting}>
         <div className="overflow-x-auto">
-        <table className="w-full text-[12.5px] [&_td]:border-r [&_td]:border-neutral-100 [&_th]:border-r [&_th]:border-neutral-200">
+        <table className={peopleTableClass}>
           <thead className="bg-neutral-50">
             <tr className="border-b border-neutral-100 text-left text-[10.5px] uppercase tracking-wide text-neutral-400">
               <th scope="col" className="w-11"><PeopleSelectAll /></th>
@@ -411,8 +406,8 @@ export default async function PeoplePage({
                 <td><PeopleSelectRow id={p.id} name={p.name} /></td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2.5">
-                    <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#f0fafb] text-[10.5px] font-semibold text-cyan-800">
-                      {initials(p.name)}
+                    <div className={peopleAvatarClass}>
+                      {peopleInitials(p.name)}
                     </div>
                     <div>
                       <div className="font-semibold text-ink">
@@ -547,9 +542,6 @@ export default async function PeoplePage({
         </PeopleGroupsProvider>
         </PeopleBulkSelection>
       </div>
-      {openContact && <ContactDrawer key={openContact} closeHref={closeHref}>
-        <ContactProfile id={openContact} companies={companies ?? []} />
-      </ContactDrawer>}
     </div>
   );
 }
