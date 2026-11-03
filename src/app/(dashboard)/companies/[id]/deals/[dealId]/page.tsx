@@ -1,3 +1,5 @@
+import RecordWorkspace, { RecordPanel } from "@/components/RecordWorkspace";
+import { isRequirementSatisfied } from "@/lib/documents/requirements";
 import { customizationState } from "@/lib/customization/state";
 import ApplyTemplate from "@/components/customization/ApplyTemplate";
 import { readCustomFieldsState } from "@/lib/custom-fields/state";
@@ -485,8 +487,13 @@ export default async function DealDetailPage({
   ];
   const documentsById = new Map(signedDocuments.map((document) => [document.id, document]));
 
+  const nextTask = isArchived ? undefined : [...openTasks].sort((a, b) =>
+    (a.dueAt ?? "9999-12-31").localeCompare(b.dueAt ?? "9999-12-31") || a.id.localeCompare(b.id)
+  )[0];
+  const outstanding = requirementItems.filter((item) => item.required && !isRequirementSatisfied(item));
+
   return (
-    <div className="flex flex-col gap-4 px-7 py-6">
+    <div className="flex flex-col gap-4 px-4 py-6 sm:px-7">
       {isArchived && (
         <div className="flex items-start justify-between gap-4 rounded-[14px] border border-amber-200 bg-amber-50 px-4 py-3 text-[12.5px] text-amber-900">
           <div>
@@ -519,7 +526,7 @@ export default async function DealDetailPage({
         </div>
       )}
 
-      <header className="flex items-start justify-between gap-4">
+      <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
             <Link href="/companies" className="hover:text-cyan-700">
@@ -601,28 +608,64 @@ export default async function DealDetailPage({
         </div>
       )}
 
-      <nav className="sticky top-0 z-20 flex flex-wrap gap-2 border-b border-neutral-100 bg-white/95 py-2 backdrop-blur">
-        {[
-          ["deal-overview", "Deal overview"],
-          ...(canDocuments ? [["due-diligence", "Due diligence"]] : []),
-          ["tasks", "Tasks"],
-          ...(comments ? [["comments", "Comments"]] : []),
-          ...(canDocuments ? [["documents", "Documents"]] : []),
-          ["activity", "Activity"],
-        ].map(([href, label]) => (
-          <a
-            key={href}
-            href={`#${href}`}
-            className="rounded-full border border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-500 transition hover:border-cyan-300 hover:text-cyan-800"
-          >
-            {label}
-          </a>
-        ))}
-      </nav>
-
+      <RecordWorkspace tabs={[
+        { key: "overview", label: "Overview" },
+        ...(canDocuments ? [{ key: "diligence", label: "Due diligence", anchors: ["due-diligence"] }] : []),
+        { key: "tasks", label: "Tasks", anchors: ["tasks"] },
+        { key: "activity", label: "Activity", anchors: ["activity", "log-update"] },
+        ...(comments && currentUserEmail ? [{ key: "comments", label: "Comments", anchors: ["comments"] }] : []),
+        ...(canDocuments ? [{ key: "documents", label: "Documents", anchors: ["documents"] }] : []),
+        { key: "details", label: "Details", anchors: ["deal-overview"] },
+      ]}>
+      <RecordPanel name="overview">
+        <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+          <section className="vq-card-static rounded-[14px] bg-white p-5">
+            <h2 className="text-sm font-semibold">Next step</h2>
+            {nextTask ? <>
+              <a href={`#task-${nextTask.id}`} className="mt-2 inline-block text-base font-semibold text-cyan-800 hover:underline">{nextTask.title}</a>
+              <p className="mt-1 text-xs text-neutral-600">
+                {nextTask.assigneeEmail ? assignmentMembers.find((member) => member.email === nextTask.assigneeEmail)?.name ?? "Assigned member" : nextTask.owner ?? "Unassigned"}
+                {" · "}{nextTask.dueAt ? `Due ${formatExactDate(nextTask.dueAt)}` : "No due date"}
+              </p>
+            </> : <p className="mt-2 text-sm text-neutral-600">{taskRows ? "No next step recorded." : "Tasks are unavailable right now."}</p>}
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              {!isArchived && <NewTaskModal companies={[]} deals={[]} priorities={priorities ?? []}
+                link={{ companyId: company.id, companyName: company.name, dealId: deal.id, dealName: label }}
+                members={taskMembers} currentUserEmail={currentUserEmail} buttonLabel="Add Task" />}
+              <a href="#tasks" className="text-xs font-semibold text-cyan-800 hover:underline">View tasks ({openTasks.length} open)</a>
+            </div>
+          </section>
+          <section className="vq-card-static rounded-[14px] bg-white p-5">
+            <h2 className="text-sm font-semibold">Deal at a glance</h2>
+            <dl className="my-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-sm">
+              <dt className="text-neutral-600">Stage</dt><dd className="font-semibold">{deal.stage?.name ?? "No stage"}</dd>
+              <dt className="text-neutral-600">Priority</dt><dd>{deal.priority?.name ?? "Not set"}</dd>
+              <dt className="text-neutral-600">Responsible</dt><dd>{(assignmentsByDeal.get(deal.id) ?? []).map((member) => member.name).join(", ") || deal.owner || "Unassigned"}</dd>
+            </dl>
+            {!isArchived && <a href="#deal-overview" className="text-xs font-semibold text-cyan-800 hover:underline">Edit stage and deal details</a>}
+          </section>
+        </div>
+        {canDocuments && <section className="vq-card-static rounded-[14px] bg-white p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold">Due diligence</h2>
+            <a href="#due-diligence" className="text-xs font-semibold text-cyan-800 hover:underline">Open checklist</a>
+          </div>
+          <p className="mt-2 text-sm text-neutral-600">{progress.totalRequired
+            ? `${progress.receivedRequired} of ${progress.totalRequired} required items satisfied`
+            : "No required items on this checklist."}</p>
+          {outstanding.length > 0 && <ul className="mt-2 divide-y divide-neutral-100">
+            {outstanding.slice(0, 4).map((item) => <li key={item.id}>
+              <a href={`#requirement-${item.id}`} className="flex flex-wrap justify-between gap-2 py-2 text-sm font-medium text-cyan-800 hover:underline">
+                {item.expectedLabel}<span className="text-xs text-neutral-600">{labelForRequirementStatus(item.status)}</span>
+              </a>
+            </li>)}
+          </ul>}
+        </section>}
+      </RecordPanel>
+      <RecordPanel name="details">
       <CustomFieldsGate enabled={(await customizationState()).templates}><ApplyTemplate company={companyId} deal={dealId}/></CustomFieldsGate>
       <CustomFieldsGate enabled={await readCustomFieldsState()}><CustomFieldsRecord object="deals" recordId={dealId} /></CustomFieldsGate>
-      <section id="deal-overview" className="grid grid-cols-[1.3fr_0.7fr] gap-3.5 scroll-mt-16">
+      <section id="deal-overview" className="grid lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)] gap-3.5 scroll-mt-16">
         {isArchived ? (
           <div className="vq-card-static rounded-[14px] bg-white p-5">
             <h2 className="mb-3.5 text-[14.5px] font-semibold text-ink">Deal Overview</h2>
@@ -723,37 +766,11 @@ export default async function DealDetailPage({
             </dl>
           </div>
 
-          <div className="vq-card-static rounded-[14px] bg-white p-5">
-            <h2 className="mb-3 text-[14.5px] font-semibold text-ink">Stage history</h2>
-            {(history ?? []).length === 0 ? (
-              <EmptyState>No stage changes recorded for this deal yet.</EmptyState>
-            ) : (
-              <div className="flex max-h-[320px] flex-col gap-2.5 overflow-y-auto">
-                {(history ?? []).map((row) => (
-                  <div
-                    key={row.id}
-                    className="border-b border-neutral-50 pb-2.5 last:border-0 last:pb-0"
-                  >
-                    <div className="mb-0.5 text-[10px] uppercase tracking-wide text-neutral-400">
-                      {row.changed_by ?? "system"} / <RelativeTime date={row.changed_at} />
-                    </div>
-                    <div className="text-[12.5px] font-medium text-ink">
-                      {row.field_name === "stage" ? "Stage" : row.field_name}
-                      {row.old_value_text ? ` from ${row.old_value_text}` : ""} to{" "}
-                      {row.new_value_text ?? row.stage?.name ?? "Unknown"}
-                    </div>
-                    {row.note && (
-                      <div className="mt-0.5 text-[12px] text-neutral-500">{row.note}</div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       </section>
 
-      {canDocuments && (isArchived ? (
+      </RecordPanel>
+      {canDocuments && <RecordPanel name="diligence">{isArchived ? (
         <section id="due-diligence" className="vq-card-static rounded-[14px] bg-white p-5 scroll-mt-16">
           <h2 className="text-[14.5px] font-semibold text-ink">Due Diligence</h2>
           <p className="mb-3 mt-0.5 text-[12px] text-neutral-500">
@@ -765,6 +782,7 @@ export default async function DealDetailPage({
             {requirementItems.map((requirement) => (
               <div
                 key={requirement.id}
+                id={`requirement-${requirement.id}`}
                 className="flex items-center justify-between gap-3 rounded-xl border border-neutral-100 px-3 py-2.5 text-[12px]"
               >
                 <div className="min-w-0">
@@ -793,8 +811,9 @@ export default async function DealDetailPage({
           documentTypes={(documentTypes ?? []).map((type) => ({ id: type.id, name: type.name }))}
           documents={requirementDocuments}
         />
-      ))}
+      )}</RecordPanel>}
 
+      <RecordPanel name="tasks">
       <section id="tasks" className="vq-card-static rounded-[14px] bg-white scroll-mt-16">
         <div className="flex items-center justify-between gap-3 border-b border-neutral-100 px-5 py-4">
           <div>
@@ -827,6 +846,7 @@ export default async function DealDetailPage({
           tasks.map((task) => (
             <div
               key={task.id}
+              id={`task-${task.id}`}
               className="flex items-center justify-between gap-3 border-b border-neutral-50 px-4 py-3 text-[12.5px] last:border-0"
             >
               <span className={task.status === "done" ? "text-neutral-400 line-through" : "text-ink"}>
@@ -851,7 +871,8 @@ export default async function DealDetailPage({
         )}
       </section>
 
-      {comments && currentUserEmail && (
+      </RecordPanel>
+      {comments && currentUserEmail && <RecordPanel name="comments">
         <section id="comments" className="vq-card-static rounded-[14px] bg-white scroll-mt-16">
           <CommentsSection
             companyId={company.id}
@@ -863,9 +884,9 @@ export default async function DealDetailPage({
             readOnlyReason={isArchived ? "This deal is archived. Restore it to add comments." : null}
           />
         </section>
-      )}
+      </RecordPanel>}
 
-      {canDocuments && <section id="documents" className="grid grid-cols-2 gap-3.5 scroll-mt-16">
+      {canDocuments && <RecordPanel name="documents"><section id="documents" className="grid lg:grid-cols-2 gap-3.5 scroll-mt-16">
         {isArchived ? (
           <div className="vq-card-static rounded-[14px] bg-white p-5">
             <h2 className="mb-3 text-[14.5px] font-semibold text-ink">Deal documents</h2>
@@ -939,9 +960,10 @@ export default async function DealDetailPage({
             ))}
           </div>
         </div>
-      </section>}
+      </section></RecordPanel>}
 
-      <section id="activity" className="grid grid-cols-[1.3fr_0.7fr] gap-3.5 scroll-mt-16">
+      <RecordPanel name="activity">
+      <section id="activity" className="grid lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)] gap-3.5 scroll-mt-16">
         <div className="vq-card-static rounded-[14px] bg-white p-5">
           <h2 className="mb-3 text-[14.5px] font-semibold text-ink">Activity</h2>
           <div className="flex flex-col gap-3">
@@ -971,6 +993,35 @@ export default async function DealDetailPage({
           </div>
         )}
       </section>
+          <div className="vq-card-static rounded-[14px] bg-white p-5">
+            <h2 className="mb-3 text-[14.5px] font-semibold text-ink">Stage history</h2>
+            {(history ?? []).length === 0 ? (
+              <EmptyState>No stage changes recorded for this deal yet.</EmptyState>
+            ) : (
+              <div className="flex max-h-[320px] flex-col gap-2.5 overflow-y-auto">
+                {(history ?? []).map((row) => (
+                  <div
+                    key={row.id}
+                    className="border-b border-neutral-50 pb-2.5 last:border-0 last:pb-0"
+                  >
+                    <div className="mb-0.5 text-[10px] uppercase tracking-wide text-neutral-400">
+                      {row.changed_by ?? "system"} / <RelativeTime date={row.changed_at} />
+                    </div>
+                    <div className="text-[12.5px] font-medium text-ink">
+                      {row.field_name === "stage" ? "Stage" : row.field_name}
+                      {row.old_value_text ? ` from ${row.old_value_text}` : ""} to{" "}
+                      {row.new_value_text ?? row.stage?.name ?? "Unknown"}
+                    </div>
+                    {row.note && (
+                      <div className="mt-0.5 text-[12px] text-neutral-500">{row.note}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+      </RecordPanel>
+      </RecordWorkspace>
     </div>
   );
 }

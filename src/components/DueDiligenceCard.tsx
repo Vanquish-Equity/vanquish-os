@@ -224,7 +224,8 @@ export default function DueDiligenceCard({
               return (
                 <div
                   key={requirement.id}
-                  className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-xl border border-neutral-100 p-3"
+                  id={`requirement-${requirement.id}`}
+                  className="scroll-mt-16 grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-xl border border-neutral-100 p-3"
                 >
                   <div className="min-w-0">
                     <div className="truncate text-[12.5px] font-semibold text-ink">

@@ -1,3 +1,4 @@
+import RecordWorkspace, { RecordPanel } from "@/components/RecordWorkspace";
 import { customizationState } from "@/lib/customization/state";
 import ApplyTemplate from "@/components/customization/ApplyTemplate";
 import { readCustomFieldsState } from "@/lib/custom-fields/state";
@@ -478,13 +479,17 @@ export default async function CompanyDetailPage({
     dealGroups.archived.length ? `${dealGroups.archived.length} archived` : null,
   ].filter(Boolean);
 
+  const overviewPeople = [...(people ?? [])].sort((a, b) =>
+    (relationships.get(b.id)?.lastAt ?? "").localeCompare(relationships.get(a.id)?.lastAt ?? "") || a.name.localeCompare(b.name)
+  ).slice(0, 3);
+
   return (
-    <div className="flex flex-col gap-4 px-7 py-6">
+    <div className="flex flex-col gap-4 px-4 py-6 sm:px-7">
       {company.deleted_at && (
         <TrashBanner companyId={company.id} companyName={company.name} />
       )}
 
-      <header className="flex items-start justify-between gap-4">
+      <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
             <Link href="/companies" className="hover:text-cyan-700">
@@ -495,7 +500,9 @@ export default async function CompanyDetailPage({
           <h1 className="font-[family-name:var(--font-display)] text-[25px] font-semibold tracking-tight text-ink">
             {company.name}
           </h1>
+          {company.website && /^https?:\/\//i.test(company.website) && <a className="text-xs text-cyan-800 underline" href={company.website} target="_blank" rel="noreferrer">Company website</a>}
           <p className="mt-1 text-[13px] text-neutral-500">
+            {company.industry?.name ? `${company.industry.name} / ` : ""}
             {summaryParts.join(" / ")}
             {lastUpdateAt ? " / last update " : ""}
             {lastUpdateAt && <RelativeTime date={lastUpdateAt} />}
@@ -520,25 +527,45 @@ export default async function CompanyDetailPage({
         </div>
       </header>
 
-      <nav className="sticky top-0 z-20 flex flex-wrap gap-2 border-b border-neutral-100 bg-white/95 py-2 backdrop-blur">
-        {[
-          ["attention", "Needs attention"],
-          ["deals", "Deals"],
-          ["timeline", "Timeline"],
-          ["people", "People"],
-          ...(comments ? [["comments", "Comments"]] : []),
-          ...(canDocuments ? [["documents", "Documents"]] : []),
-          ...(canPortfolio ? [["investments", "Investments"]] : []),
-        ].map(([href, label]) => (
-          <a
-            key={href}
-            href={`#${href}`}
-            className="rounded-full border border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-500 transition hover:border-cyan-300 hover:text-cyan-800"
-          >
-            {label}
-          </a>
-        ))}
-      </nav>
+      <RecordWorkspace tabs={[
+        { key: "overview", label: "Overview", anchors: ["attention"] },
+        { key: "deals", label: "Deals", anchors: ["deals"] },
+        { key: "people", label: "People", anchors: ["people"] },
+        { key: "activity", label: "Activity", anchors: ["timeline", "log-update"] },
+        ...(comments ? [{ key: "comments", label: "Comments", anchors: ["comments"] }] : []),
+        ...(canDocuments ? [{ key: "documents", label: "Documents", anchors: ["documents"] }] : []),
+        ...(canPortfolio ? [{ key: "investments", label: "Investments", anchors: ["investments"] }] : []),
+        { key: "details", label: "Details" },
+      ]}>
+      <RecordPanel name="overview">
+        <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+          <section className="vq-card-static rounded-[14px] bg-white p-5">
+            <h2 className="text-sm font-semibold">Active deals</h2>
+            {dealGroups.open.length ? <ul className="my-2 divide-y divide-neutral-100">
+              {dealGroups.open.slice(0, 4).map((deal) => <li key={deal.id}>
+                <Link href={dealHref(company.id, deal.id)} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm font-semibold text-cyan-800 hover:underline">
+                  {dealLabelFor(deal)}
+                  <span className="rounded-full bg-cyan-50 px-2 py-1 text-xs">{deal.stage?.name ?? "No stage"}</span>
+                </Link>
+              </li>)}
+            </ul> : <p className="my-2 text-sm text-neutral-600">No active deals. Past deals are in the Deals tab.</p>}
+            <a href="#deals" className="text-xs font-semibold text-cyan-800 hover:underline">View all deals</a>
+          </section>
+          <section className="vq-card-static rounded-[14px] bg-white p-5">
+            <h2 className="text-sm font-semibold">People and relationships</h2>
+            {overviewPeople.length ? <ul className="my-2 divide-y divide-neutral-100">
+              {overviewPeople.map((person) => {
+                const relationship = relationships.get(person.id);
+                return <li key={person.id} className="py-2.5 text-sm">
+                  <Link href={`/people/${person.id}`} className="font-semibold text-cyan-800 hover:underline">{person.name}</Link>
+                  {person.title && <p className="text-xs text-neutral-600">{person.title}</p>}
+                  {relationship && <p className="text-xs text-neutral-600">Last shared contact: <RelativeTime date={relationship.lastAt} /> · {memberName(relationship.lastMember)}</p>}
+                </li>;
+              })}
+            </ul> : <p className="my-2 text-sm text-neutral-600">No contacts linked yet.</p>}
+            <a href="#people" className="text-xs font-semibold text-cyan-800 hover:underline">View people</a>
+          </section>
+        </div>
 
       <section id="attention" className="vq-card-static rounded-[14px] bg-white p-5 scroll-mt-16">
         <h2 className="mb-3 text-[14.5px] font-semibold text-ink">
@@ -551,7 +578,7 @@ export default async function CompanyDetailPage({
             No overdue tasks, open review items or missing diligence items.
           </p>
         ) : (
-          <div className={`grid gap-3 ${canDocuments ? "grid-cols-3" : "grid-cols-2"}`}>
+          <div className={`grid gap-3 ${canDocuments ? "md:grid-cols-3" : "sm:grid-cols-2"}`}>
             <div className="rounded-xl bg-[#f7f9fa] p-3">
               <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-wide text-neutral-400">
                 Overdue tasks ({overdueTasks.length})
@@ -565,7 +592,7 @@ export default async function CompanyDetailPage({
                       key={task.id}
                       href={
                         task.deal_id
-                          ? `${dealHref(company.id, task.deal_id)}#tasks`
+                          ? `${dealHref(company.id, task.deal_id)}#task-${task.id}`
                           : OPEN_TASKS_HREF
                       }
                       className="font-medium text-ink hover:text-cyan-700"
@@ -594,7 +621,7 @@ export default async function CompanyDetailPage({
                   {missingDdItems.slice(0, 5).map((item) => (
                     <Link
                       key={item.id}
-                      href={`${dealHref(company.id, item.deal_id)}#due-diligence`}
+                      href={`${dealHref(company.id, item.deal_id)}#requirement-${item.id}`}
                       className="hover:text-cyan-700"
                     >
                       {item.expected_label}
@@ -632,20 +659,9 @@ export default async function CompanyDetailPage({
         )}
       </section>
 
-      <CustomFieldsGate enabled={(await customizationState()).templates}><ApplyTemplate company={id}/></CustomFieldsGate>
-      <CustomFieldsGate enabled={await readCustomFieldsState()}><CustomFieldsRecord object="companies" recordId={id} /></CustomFieldsGate>
-      <section id="deals" className="grid grid-cols-2 gap-3.5 scroll-mt-16">
-        <CompanyOverviewCard
-          company={{
-            id: company.id,
-            name: company.name,
-            website: company.website,
-            description: company.description,
-            industryId: company.industry_id,
-            industryName: company.industry?.name ?? null,
-          }}
-          industries={industries ?? []}
-        />
+      </RecordPanel>
+      <RecordPanel name="deals">
+      <section id="deals" className="scroll-mt-16">
         <div className="vq-card-static rounded-[14px] bg-white p-5">
           <h2 className="text-[14.5px] font-semibold text-ink">Deals</h2>
           <p className="mb-3 mt-0.5 text-[12px] text-neutral-500">
@@ -730,7 +746,9 @@ export default async function CompanyDetailPage({
         </div>
       </section>
 
-      <section id="timeline" className="grid grid-cols-[1.3fr_0.7fr] gap-3.5 scroll-mt-16">
+      </RecordPanel>
+      <RecordPanel name="activity">
+      <section id="timeline" className="grid lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)] gap-3.5 scroll-mt-16">
         <div className="vq-card-static rounded-[14px] bg-white p-5">
           <h2 className="mb-1 text-[14.5px] font-semibold text-ink">Timeline</h2>
           {!mailbox.connected && contactEmails.length > 0 && (
@@ -776,13 +794,15 @@ export default async function CompanyDetailPage({
         </div>
       </section>
 
+      </RecordPanel>
+      <RecordPanel name="people">
       {intelligence.enabled && intelligence.allowed && <RelationshipIntelligenceSection people={(people??[]).map(p=>({id:p.id,name:p.name})).slice(0,50)} allowed={intelligence.allowed} partial={(people?.length??0)>50} />}
 
       <section id="people" className="vq-card-static rounded-[14px] bg-white p-5 scroll-mt-16">
         <h2 className="mb-3 text-[14.5px] font-semibold text-ink">People</h2>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           {(people ?? []).length === 0 && (
-            <p className="col-span-2 rounded-xl border border-dashed border-neutral-200 px-3 py-4 text-center text-[12px] text-neutral-400">
+            <p className="sm:col-span-2 rounded-xl border border-dashed border-neutral-200 px-3 py-4 text-center text-[12px] text-neutral-400">
               People captures founders, operators and relationship owners tied to this company.
             </p>
           )}
@@ -796,7 +816,7 @@ export default async function CompanyDetailPage({
                   .join("")}
               </div>
               <div className="min-w-0">
-                <div className="text-[12.5px] font-semibold">{p.name}</div>
+                <Link href={`/people/${p.id}`} className="text-[12.5px] font-semibold text-cyan-800 hover:underline">{p.name}</Link>
                 <div className="text-[11px] text-neutral-500">{p.title ?? "-"}</div>
                 {(() => {
                   const relationship = relationships.get(p.id);
@@ -816,7 +836,8 @@ export default async function CompanyDetailPage({
         </div>
       </section>
 
-      {comments && (
+      </RecordPanel>
+      {comments && <RecordPanel name="comments">
         <section id="comments" className="vq-card-static rounded-[14px] bg-white scroll-mt-16">
           <CommentsSection
             companyId={company.id}
@@ -828,9 +849,9 @@ export default async function CompanyDetailPage({
             readOnlyReason={company.deleted_at ? "This company is in Trash. Restore it to add comments." : null}
           />
         </section>
-      )}
+      </RecordPanel>}
 
-      {canDocuments && <section id="documents" className="scroll-mt-16">
+      {canDocuments && <RecordPanel name="documents"><section id="documents" className="scroll-mt-16">
         <DocumentsCard
           companyId={company.id}
           companyName={company.name}
@@ -843,9 +864,9 @@ export default async function CompanyDetailPage({
             categoryId: type.category_id,
           }))}
         />
-      </section>}
+      </section></RecordPanel>}
 
-      {canPortfolio && <section id="investments" className="vq-card-static rounded-[14px] bg-white p-5 scroll-mt-16">
+      {canPortfolio && <RecordPanel name="investments"><section id="investments" className="vq-card-static rounded-[14px] bg-white p-5 scroll-mt-16">
         <h2 className="mb-3 text-[14.5px] font-semibold text-ink">Investments</h2>
         {(investments ?? []).length === 0 ? (
           <p className="rounded-xl border border-dashed border-neutral-200 px-3 py-4 text-center text-[12px] text-neutral-400">
@@ -886,7 +907,23 @@ export default async function CompanyDetailPage({
             })}
           </div>
         )}
-      </section>}
+      </section></RecordPanel>}
+      <RecordPanel name="details">
+      <CustomFieldsGate enabled={(await customizationState()).templates}><ApplyTemplate company={id}/></CustomFieldsGate>
+      <CustomFieldsGate enabled={await readCustomFieldsState()}><CustomFieldsRecord object="companies" recordId={id} /></CustomFieldsGate>
+        <CompanyOverviewCard
+          company={{
+            id: company.id,
+            name: company.name,
+            website: company.website,
+            description: company.description,
+            industryId: company.industry_id,
+            industryName: company.industry?.name ?? null,
+          }}
+          industries={industries ?? []}
+        />
+      </RecordPanel>
+      </RecordWorkspace>
     </div>
   );
 }
