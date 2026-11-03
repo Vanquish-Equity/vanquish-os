@@ -1,5 +1,7 @@
 "use client";
 
+import DirectoryTableScroll from "@/components/DirectoryTableScroll";
+import { archiveSelectedCompanies, changeCompanyGroup, createCompanyGroup } from "@/lib/companies/actions";
 import ColumnResizeHandle from "@/components/ColumnResizeHandle";
 import Popover from "@/components/customization/Popover";
 import PeopleFieldCell from "@/components/people/PeopleFieldCell";
@@ -155,6 +157,8 @@ function InvestedBadge({ count }: { count: number }) {
 
 export default function CompaniesExplorer({
   companies,
+  groups,
+  groupId,
   filterOptions,
   extraFilters,
   fieldDefinitions = [],
@@ -163,6 +167,8 @@ export default function CompaniesExplorer({
   fieldsUnavailable = false,
 }: {
   companies: CompanyListItem[];
+  groups?: { id: string; name: string }[];
+  groupId?: string | null;
   filterOptions: FilterOptions;
   extraFilters?: ReactNode;
   fieldDefinitions?: FieldDefinition[];
@@ -171,6 +177,27 @@ export default function CompaniesExplorer({
   fieldsUnavailable?: boolean;
 }) {
   const router = useRouter();
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [targetGroup, setTargetGroup] = useState("");
+  const [newGroupName, setNewGroupName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  async function run(action: () => Promise<{ ok: boolean; message?: string }>, success: string) {
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = await action();
+      setMessage(result.ok ? success : result.message ?? "Couldn't complete this action.");
+      if (result.ok) setChecked(new Set());
+      router.refresh();
+      return result.ok;
+    } catch {
+      setMessage("Couldn't complete this action. Refresh to check the result.");
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const query = searchParams.get("q") ?? "";
@@ -283,6 +310,22 @@ export default function CompaniesExplorer({
   const matches = filterColumns.map(([key]) => ({ key, selected: readChoices(key) })).filter(({ selected }) => selected.length);
   const rows = sortCompanies(filterCompanies(companies, filters).filter((company) =>
     matches.every(({ key, selected }) => valuesFor(company, key).some((value) => selected.includes(value)))), sort);
+  const selected = rows.filter(({ id }) => checked.has(id)).map(({ id }) => id);
+  const selectable = rows.slice(0, 100);
+  const allChecked = selectable.length > 0 && selectable.every(({ id }) => checked.has(id));
+  function toggleRow(id: string, on: boolean) {
+    setChecked((previous) => {
+      const next = new Set(previous);
+      if (on) next.add(id); else next.delete(id);
+      return next;
+    });
+  }
+  function selectGroup(id: string) {
+    setChecked(new Set());
+    const params = new URLSearchParams(searchParams.toString());
+    if (id) params.set("group", id); else params.delete("group");
+    router.push(params.size ? `${pathname}?${params}` : pathname, { scroll: false });
+  }
   const activeFilter = filterColumns.find(([key]) => key === openColumnFilter);
   const filterKey = activeFilter?.[0] ?? "";
   const selectedChoices = filterKey ? readChoices(filterKey) : [];
@@ -500,6 +543,33 @@ export default function CompaniesExplorer({
         </div>
       </div>
 
+      {groups && <div className="flex flex-wrap items-center gap-2">
+        <SelectMenu ariaLabel="Company group" value={groupId ?? ""} onChange={selectGroup}
+          options={[{ value: "", label: "All companies" }, ...groups.map(({ id, name }) => ({ value: id, label: name }))]} />
+        <Popover label="Create company group" trigger="New group">
+          {() => <form className="flex gap-2" onSubmit={async (event) => {
+            event.preventDefault();
+            if (await run(() => createCompanyGroup(newGroupName), "Group created.")) setNewGroupName("");
+          }}>
+            <input aria-label="Group name" required maxLength={80} value={newGroupName} onChange={(event) => setNewGroupName(event.target.value)} className="min-w-0 rounded-lg border px-2 text-xs" />
+            <button disabled={busy} className="rounded-lg bg-ink px-3 py-1 text-xs text-white">Create</button>
+          </form>}
+        </Popover>
+        {selected.length > 0 && view === "table" && <>
+          <span className="text-xs">{selected.length} selected</span>
+          <button type="button" onClick={() => setChecked(new Set())} className="rounded-lg border px-2 py-1 text-xs">Clear selection</button>
+          <SelectMenu ariaLabel="Add selected to group" value={targetGroup} onChange={setTargetGroup}
+            options={[{ value: "", label: "Choose a group" }, ...groups.map(({ id, name }) => ({ value: id, label: name }))]} />
+          <button type="button" disabled={busy || !targetGroup || selected.length > 100} className="rounded-lg border px-2 py-1 text-xs disabled:opacity-40"
+            onClick={() => void run(() => changeCompanyGroup(targetGroup, selected, false), "Companies added to group.")}>Add to group</button>
+          {groupId && <button type="button" disabled={busy || selected.length > 100} className="rounded-lg border px-2 py-1 text-xs disabled:opacity-40"
+            onClick={() => void run(() => changeCompanyGroup(groupId, selected, true), "Companies removed from group.")}>Remove from group</button>}
+          <button type="button" disabled={busy || selected.length > 100} className="rounded-lg border px-2 py-1 text-xs disabled:opacity-40"
+            onClick={() => { if (window.confirm(`Archive ${selected.length} selected companies? You can restore them from Archived.`)) void run(() => archiveSelectedCompanies(selected), "Companies archived."); }}>Archive selected</button>
+          {selected.length > 100 && <span className="text-xs">Choose up to 100 at a time.</span>}
+        </>}
+      </div>}
+      {message && <p role="status" className="text-xs text-neutral-700">{message}</p>}
       {activeFilter && <section id="company-column-filter" aria-label={`Filter ${activeFilter[1]}`}
         className="vq-card-static space-y-2 rounded-xl bg-white p-3 text-xs"
         onKeyDown={(event) => { if (event.key === "Escape") setOpenColumnFilter(null); }}>
@@ -542,15 +612,18 @@ export default function CompaniesExplorer({
               href="/companies/trash"
               className="text-[11.5px] font-semibold text-neutral-400 hover:text-cyan-700"
             >
-              View trash
+              View archived
             </Link>
           </div>
         </div>
       ) : view === "table" ? (
-        <div className="vq-card-static max-h-[calc(100vh-230px)] overflow-auto rounded-[14px] bg-white">
+        <div className="vq-card-static min-w-0 overflow-hidden rounded-[14px] bg-white">
+          <DirectoryTableScroll label="Companies">
           <table key={JSON.stringify([columns, customFields.map(({ id }) => id)])} className="w-full min-w-[40rem] text-[12.5px] [&_td]:border-r [&_td]:border-neutral-100 [&_th]:border-r [&_th]:border-neutral-200">
             <thead className="sticky top-0 z-10 bg-neutral-50">
               <tr className="border-b border-neutral-100 text-left text-[10.5px] uppercase tracking-wide text-neutral-400">
+                {groups && <th scope="col" className="w-10 px-2"><Checkbox aria-label="Select first 100 visible companies" checked={allChecked}
+                  onChange={() => setChecked(allChecked ? new Set() : new Set(selectable.map(({ id }) => id)))} /></th>}
                 {([["company", "Name"], ...COLUMNS.filter(([key]) => columns.includes(key))] as const).map(([key, label]) => (
                   <th key={key} className="relative py-3 pl-4 pr-7 font-semibold">
                     <div className="flex items-center gap-2">
@@ -584,6 +657,8 @@ export default function CompaniesExplorer({
                   }}
                   className="cursor-pointer border-b border-neutral-50 transition hover:bg-[#f7f9fa]"
                 >
+                  {groups && <td data-company-cell-editor=""><Checkbox aria-label={`Select ${company.name}`} checked={checked.has(company.id)}
+                    onChange={(event) => toggleRow(company.id, event.target.checked)} /></td>}
                   <td className="px-4 py-3.5 font-semibold text-ink">
                     {company.name}
                     {company.website && <div className="mt-0.5 truncate text-[11px] font-normal text-neutral-500">{company.website.replace(/^https?:\/\//i, "").replace(/\/$/, "")}</div>}
@@ -614,6 +689,7 @@ export default function CompaniesExplorer({
               ))}
             </tbody>
           </table>
+          </DirectoryTableScroll>
         </div>
       ) : (
         <div className="vq-card-grid grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">

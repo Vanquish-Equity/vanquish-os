@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useMemo, useSyncExternalStore } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // jsdom history) so these tests catch a component that changes the URL
 // without re-rendering from it, which is the actual risk of not using
 // router.replace.
-const nav = vi.hoisted(() => ({ listeners: new Set<() => void>(), router: { replace: vi.fn(), push: vi.fn() } }));
+const nav = vi.hoisted(() => ({ listeners: new Set<() => void>(), router: { replace: vi.fn(), push: vi.fn(), refresh: vi.fn() } }));
 vi.mock("next/navigation", () => ({
   useRouter: () => nav.router,
   usePathname: () => "/companies",
@@ -29,6 +29,12 @@ vi.mock("next/link", () => ({
   default: ({ children, ...props }: { children: React.ReactNode }) => <a {...props}>{children}</a>,
 }));
 
+const bulk = vi.hoisted(() => ({ archive: vi.fn(async () => ({ ok: true })) }));
+vi.mock("@/lib/companies/actions", () => ({
+  archiveSelectedCompanies: bulk.archive,
+  changeCompanyGroup: vi.fn(),
+  createCompanyGroup: vi.fn(),
+}));
 import CompaniesExplorer from "./CompaniesExplorer";
 
 const make = (id: string, name: string, stage: string, updated: string) => ({
@@ -147,6 +153,24 @@ describe("CompaniesExplorer URL handling", () => {
     expect(screen.getByRole("columnheader", { name: /^Location/ })).toBeTruthy();
     expect(screen.getByRole("columnheader", { name: /^Industry/ })).toBeTruthy();
     expect(nav.router.replace).not.toHaveBeenCalled();
+  });
+
+  it("archives only selected rows after confirmation and does not open their profile", async () => {
+    originalReplace(null, "", "/companies?view=table");
+    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+    try {
+      render(<CompaniesExplorer companies={companies} filterOptions={filterOptions} groups={[]} />);
+      fireEvent.click(screen.getByRole("checkbox", { name: "Select Bravo Co" }));
+      expect(nav.router.push).not.toHaveBeenCalled();
+      const archive = screen.getByRole("button", { name: "Archive selected" });
+      fireEvent.click(archive);
+      expect(bulk.archive).not.toHaveBeenCalled();
+      fireEvent.click(archive);
+      await waitFor(() => expect(bulk.archive).toHaveBeenCalledWith(["c2"]));
+      expect((await screen.findByRole("status")).textContent).toBe("Companies archived.");
+    } finally {
+      confirm.mockRestore();
+    }
   });
 
   it("matches any chosen owner, including an owner on a company with multiple assignees", () => {

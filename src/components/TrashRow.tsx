@@ -3,34 +3,38 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import LocalTime from "@/components/LocalTime";
-import { restoreCompanyAction } from "@/lib/companies/actions";
+import { permanentlyDeleteCompanyAction, restoreCompanyAction } from "@/lib/companies/actions";
 
 export default function TrashRow({
   companyId,
   companyName,
   industryName,
   deletedAt,
+  canDelete,
 }: {
   companyId: string;
   companyName: string;
   industryName: string;
   deletedAt: string;
+  canDelete: boolean;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleRestore() {
+  async function changeCompany(permanent: boolean) {
+    if (permanent && !window.confirm(`Permanently delete ${companyName}? This cannot be undone.`)) return;
     setPending(true);
     setError(null);
-    const result = await restoreCompanyAction({ companyId });
-    setPending(false);
-
-    if (!result.ok) {
-      setError(result.message);
-      return;
+    try {
+      const result = await (permanent ? permanentlyDeleteCompanyAction : restoreCompanyAction)({ companyId });
+      if (!result.ok) setError(result.message);
+      else router.refresh();
+    } catch {
+      setError("Couldn't complete this action. Refresh to check the result.");
+    } finally {
+      setPending(false);
     }
-    router.refresh();
   }
 
   return (
@@ -43,15 +47,16 @@ export default function TrashRow({
       <td className="px-4 py-3">
         <div className="flex items-center justify-end gap-3">
           {error && <span className="text-[11px] text-red-600">{error}</span>}
-          {/* Permanent delete becomes an admin-only action once roles are wired up. */}
           <button
             type="button"
-            onClick={() => void handleRestore()}
+            onClick={() => void changeCompany(false)}
             disabled={pending}
             className="text-[11.5px] font-semibold text-cyan-700 hover:text-cyan-800 disabled:opacity-50"
           >
-            {pending ? "Restoring..." : "Restore"}
+            Restore
           </button>
+          {canDelete && <button type="button" disabled={pending} onClick={() => void changeCompany(true)}
+            className="text-[11.5px] font-semibold text-red-700 disabled:opacity-50">Delete permanently</button>}
         </div>
       </td>
     </tr>

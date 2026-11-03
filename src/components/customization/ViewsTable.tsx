@@ -1,4 +1,5 @@
 "use client";
+import DirectoryTableScroll from "@/components/DirectoryTableScroll";
 import Link from "next/link";
 import PeopleBulkSelection, { PeopleSelectAll, PeopleSelectRow } from "@/components/people/PeopleBulkSelection";
 import ColumnResizeHandle from "@/components/ColumnResizeHandle";
@@ -172,8 +173,9 @@ export default function ViewsTable({
   const name = (k: string) =>
     columnLabel(k, fieldName ?? definition?.name ?? null);
   const bulk = kind === "people" && peopleGroups !== undefined;
+  const Scroll = kind === "people" ? DirectoryTableScroll : PlainScroll;
   const table = (
-      <div className="overflow-x-auto">
+      <Scroll label="People">
         <table key={kind === "people" ? JSON.stringify([bulk, columns]) : undefined} className={kind === "people" ? peopleTableClass : "w-full text-[12.5px]"}>
           <thead className={kind === "people" ? "bg-neutral-50" : undefined}>
             <tr className="border-b border-neutral-100 text-left text-[10.5px] uppercase tracking-wide text-neutral-400">
@@ -240,7 +242,7 @@ export default function ViewsTable({
             )}
           </tbody>
         </table>
-      </div>
+      </Scroll>
   );
   return (
     <div className="flex flex-col gap-2">
@@ -267,4 +269,8 @@ export default function ViewsTable({
       )}
     </div>
   );
+}
+
+function PlainScroll({ children }: { children: React.ReactNode; label: string }) {
+  return <div className="overflow-x-auto">{children}</div>;
 }

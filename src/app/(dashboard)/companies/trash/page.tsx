@@ -1,3 +1,4 @@
+import { hasPermission } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import TrashRow from "@/components/TrashRow";
@@ -8,14 +9,16 @@ type TrashedCompany = {
   id: string;
   name: string;
   deleted_at: string;
+  merged_into_id: string | null;
   industry: { name: string } | null;
 };
 
 export default async function CompaniesTrashPage() {
   const supabase = await createClient();
+  const isAdmin = await hasPermission("admin");
   const { data: companies } = (await supabase
     .from("companies")
-    .select("id,name,deleted_at,industry:industries(name)")
+    .select("id,name,deleted_at,merged_into_id,industry:industries(name)")
     .not("deleted_at", "is", null)
     .order("deleted_at", { ascending: false })) as unknown as {
     data: TrashedCompany[];
@@ -28,13 +31,13 @@ export default async function CompaniesTrashPage() {
           <Link href="/companies" className="hover:text-cyan-700">
             Companies
           </Link>{" "}
-          / Trash
+          / Archived
         </div>
         <h1 className="font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">
-          Trash
+          Archived companies
         </h1>
         <p className="mt-1 text-[13px] text-neutral-500">
-          Deleted companies stay here until restored or removed for good.
+          Restore a company here. Admins can permanently delete archived companies without protected links.
         </p>
       </header>
 
@@ -56,12 +59,13 @@ export default async function CompaniesTrashPage() {
                 companyName={c.name}
                 industryName={c.industry?.name ?? "—"}
                 deletedAt={c.deleted_at}
+                canDelete={isAdmin && !c.merged_into_id}
               />
             ))}
             {(!companies || companies.length === 0) && (
               <tr>
                 <td colSpan={4} className="px-4 py-8 text-center text-neutral-400">
-                  Trash is empty.
+                  No archived companies.
                 </td>
               </tr>
             )}

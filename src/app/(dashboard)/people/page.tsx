@@ -1,3 +1,4 @@
+import DirectoryTableScroll from "@/components/DirectoryTableScroll";
 import ColumnResizeHandle from "@/components/ColumnResizeHandle";
 import { peopleAvatarClass, peopleInitials, peopleTableClass } from "@/components/people/directory-style";
 import Checkbox from "@/components/Checkbox";
@@ -361,7 +362,7 @@ export default async function PeoplePage({
         <PeopleBulkSelection key={closeHref} ids={rows.map((person) => person.id)} groups={menuGroups}>
         <PeopleGroupsProvider groups={menuGroups}>
         <GoogleLookups emails={contactEmails} lastEmail={showLastEmail} nextMeeting={showNextMeeting}>
-        <div className="overflow-x-auto">
+        <DirectoryTableScroll label="People">
         <table key={JSON.stringify([[...shown], fields.map(({ id }) => id)])} className={peopleTableClass}>
           <thead className="bg-neutral-50">
             <tr className="border-b border-neutral-100 text-left text-[10.5px] uppercase tracking-wide text-neutral-400">
@@ -539,7 +540,7 @@ export default async function PeoplePage({
             )}
           </tbody>
         </table>
-        </div>
+        </DirectoryTableScroll>
         </GoogleLookups>
         </PeopleGroupsProvider>
         </PeopleBulkSelection>

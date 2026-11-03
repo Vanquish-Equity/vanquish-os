@@ -60,9 +60,11 @@ function latestDate(values: Array<string | null | undefined>) {
 }
 
 export default async function CompaniesPage({ searchParams }: {
-  searchParams?: Promise<{ columns?: string | string[] }>;
+  searchParams?: Promise<{ columns?: string | string[]; group?: string | string[] }>;
 } = {}) {
-  const rawColumns = (await searchParams)?.columns;
+  const params = await searchParams;
+  const rawColumns = params?.columns;
+  const groupId = isUuid(params?.group) ? params.group : null;
   const requestedFields = (typeof rawColumns === "string" ? rawColumns : rawColumns?.[0] ?? "")
     .split(",").filter((key) => key.startsWith("cf:")).map((key) => key.slice(3)).filter(isUuid).slice(0, 6);
   const supabase = await createClient();
@@ -81,13 +83,18 @@ export default async function CompaniesPage({ searchParams }: {
   // Awaited only after the list query, so mark them as handled now.
   documentsPermission.catch(() => {});
   customFieldsPromise.catch(() => {});
-  const { data: companyRows } = (await supabase
+  const groupsPromise = supabase.from("company_groups").select("id,name").order("name").limit(100);
+  const companyQuery = supabase
     .from("companies")
     .select(
-      "id,name,website,updated_at,last_activity_at,people!people_primary_organization_id_fkey(id,name,archived_at),industry:industries(name),company_aliases(alias),deals(id,name,archived_at,updated_at,last_activity_at,stage:pipeline_stages(name,is_terminal),priority:priorities(name),outcome:deal_outcomes(name),deal_assignees(member_email)),investments(id),tasks(id,status,archived_at)"
+      `id,name,website,updated_at,last_activity_at,people!people_primary_organization_id_fkey(id,name,archived_at),industry:industries(name),company_aliases(alias),deals(id,name,archived_at,updated_at,last_activity_at,stage:pipeline_stages(name,is_terminal),priority:priorities(name),outcome:deal_outcomes(name),deal_assignees(member_email)),investments(id),tasks(id,status,archived_at)${groupId ? ",company_group_members!inner(group_id)" : ""}`
     )
     .is("deleted_at", null)
-    .order("name")) as unknown as { data: CompanyRow[] | null };
+    .order("name");
+  const [{ data: companyRows }, groups] = await Promise.all([
+    (groupId ? companyQuery.eq("company_group_members.group_id", groupId) : companyQuery) as unknown as Promise<{ data: CompanyRow[] | null }>,
+    groupsPromise,
+  ]);
 
   const dealIds = (companyRows ?? []).flatMap((company) =>
     (company.deals ?? []).map((deal) => deal.id)
@@ -199,7 +206,7 @@ export default async function CompaniesPage({ searchParams }: {
   };
 
   return (
-    <div className="flex flex-col gap-4 px-4 py-6 sm:px-7">
+    <div className="flex min-w-0 flex-col gap-4 px-4 py-6 sm:px-7">
       <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">
@@ -213,7 +220,7 @@ export default async function CompaniesPage({ searchParams }: {
           href="/companies/trash"
           className="flex-shrink-0 rounded-full border border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-500 transition hover:border-neutral-300 hover:text-neutral-700"
         >
-          Trash
+          Archived
         </Link>
       </header>
 
@@ -225,7 +232,7 @@ export default async function CompaniesPage({ searchParams }: {
           </div>
         }
       >
-        <CompaniesExplorer companies={companies} filterOptions={filterOptions} extraFilters={customFieldsOn ? <CustomFieldFilter object="companies" /> : undefined}
+        <CompaniesExplorer companies={companies} groups={groups.error ? undefined : (groups.data ?? [])} groupId={groupId} filterOptions={filterOptions} extraFilters={customFieldsOn ? <CustomFieldFilter object="companies" /> : undefined}
           fieldDefinitions={definitions} fieldValues={fieldValues} fieldsUnavailable={customValues.some(({ error }) => Boolean(error))}
           columnEditor={customFieldsOn && isAdmin ? <CustomFieldsAdmin fixedObject="companies" /> : undefined} />
       </Suspense>
