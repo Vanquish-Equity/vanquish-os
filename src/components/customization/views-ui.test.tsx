@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -166,7 +167,9 @@ describe("view menu", () => {
     expect(hidden()).toEqual([true, true, true]);
     expect(screen.getAllByRole("status").map((status) => status.textContent)).toContain("Showing view: Mine");
     fireEvent.click(menu());
-    fireEvent.click(screen.getByRole("menuitemradio", { name: "All people" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("menuitemradio", { name: "All people" }));
+    });
     expect(hidden()).toEqual([false, false, false]);
     expect(screen.getByRole("status").textContent).toBe("Showing all people");
   });

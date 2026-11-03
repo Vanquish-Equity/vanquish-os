@@ -256,7 +256,7 @@ export default function ViewsTable({
           {T.needsSave}
         </p>
       )}
-      <div className="vq-card-static overflow-hidden rounded-[14px] bg-white">
+      <div className="vq-card-static overflow-clip rounded-[14px] bg-white">
         {bulk ? <PeopleBulkSelection ids={rows.map(({ id }) => id)} groups={peopleGroups ?? []} onChanged={onPeopleChanged}>
           {table}
         </PeopleBulkSelection> : table}

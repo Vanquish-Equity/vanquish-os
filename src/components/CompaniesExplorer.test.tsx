@@ -155,11 +155,11 @@ describe("CompaniesExplorer URL handling", () => {
     expect(nav.router.replace).not.toHaveBeenCalled();
   });
 
-  it("archives only selected rows after confirmation and does not open their profile", async () => {
+  it("archives selected rows even without groups, only after confirmation", async () => {
     originalReplace(null, "", "/companies?view=table");
     const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
     try {
-      render(<CompaniesExplorer companies={companies} filterOptions={filterOptions} groups={[]} />);
+      render(<CompaniesExplorer companies={companies} filterOptions={filterOptions} />);
       fireEvent.click(screen.getByRole("checkbox", { name: "Select Bravo Co" }));
       expect(nav.router.push).not.toHaveBeenCalled();
       const archive = screen.getByRole("button", { name: "Archive selected" });

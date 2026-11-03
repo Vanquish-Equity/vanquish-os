@@ -576,5 +576,5 @@ the group selector filters Companies, and Remove from group does not archive
 the company. Bulk actions accept up to 100 companies at a time. The Archived
 page restores companies and lets admins permanently delete unmerged companies
 without linked Deals, documents, or database references that require retention.
-People and Companies tables use compact rows and a horizontal control above
-the table whenever columns overflow.
+People and Companies tables use compact rows and a horizontal scrollbar at
+the bottom of the visible table area whenever columns overflow.

@@ -358,7 +358,7 @@ export default async function PeoplePage({
         </p>
       )}
 
-      <div className="vq-card-static overflow-hidden rounded-[14px] bg-white">
+      <div className="vq-card-static overflow-clip rounded-[14px] bg-white">
         <PeopleBulkSelection key={closeHref} ids={rows.map((person) => person.id)} groups={menuGroups}>
         <PeopleGroupsProvider groups={menuGroups}>
         <GoogleLookups emails={contactEmails} lastEmail={showLastEmail} nextMeeting={showNextMeeting}>
