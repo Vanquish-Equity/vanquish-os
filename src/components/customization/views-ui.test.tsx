@@ -254,7 +254,9 @@ describe("rename and delete", () => {
     page();
     await apply("Mine");
     fireEvent.click(screen.getByRole("button", { name: "View options" }));
-    fireEvent.click(screen.getByRole("button", { name: "Delete this view" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Delete this view" }));
+    });
     expect(
       screen.getByText(
         "Delete “Mine”? Your people and deals are not affected.",
@@ -263,7 +265,9 @@ describe("rename and delete", () => {
     expect(m.deleteViewAction).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Keep it" }));
     expect(m.deleteViewAction).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Delete this view" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Delete this view" }));
+    });
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     await waitFor(() =>
       expect(m.deleteViewAction).toHaveBeenCalledWith(OWN, "people"),
@@ -276,7 +280,9 @@ describe("rename and delete", () => {
     page();
     await apply("Mine");
     fireEvent.click(screen.getByRole("button", { name: "View options" }));
-    fireEvent.click(screen.getByRole("button", { name: "Delete this view" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Delete this view" }));
+    });
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     expect(await screen.findByRole("alert")).toBeTruthy();
     expect(screen.queryByText("View deleted.")).toBeNull();
