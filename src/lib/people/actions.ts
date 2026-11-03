@@ -49,6 +49,7 @@ export type CreatePersonInput = {
   name: string;
   title: string;
   companyId: string | null;
+  organizationName?: string;
   linkedinUrl: string;
   email: string;
   isPotentialLp?: boolean;
@@ -73,6 +74,9 @@ export async function createPersonAction(
 
   const supabase = await createClient();
 
+  const organization = cleanText(input.organizationName);
+  if (organization.length > 160 || (organization && input.companyId)) return { ok: false, message: "Choose a company or enter an organization name (up to 160 characters)." };
+
   // Checked before anything is created, so a bad group leaves no half-made person.
   const groupId = input.groupId ? String(input.groupId) : null;
   if (groupId) {
@@ -93,6 +97,7 @@ export async function createPersonAction(
       name,
       title: cleanText(input.title) || null,
       primary_organization_id: input.companyId || null,
+      ...(organization ? { organization_name: organization } : {}),
       linkedin_url: cleanText(input.linkedinUrl) || null,
       is_potential_lp: Boolean(input.isPotentialLp),
       potential_lp_since: input.isPotentialLp ? new Date().toISOString() : null,
@@ -100,6 +105,9 @@ export async function createPersonAction(
     .select("id")
     .single();
 
+  if (organization && (error?.code === "42703" || error?.code === "PGRST204")) {
+    return { ok: false, message: "Saving an organization name requires the database update." };
+  }
   if (error || !person) return { ok: false, message: "Person could not be created." };
 
   if (email) {
@@ -344,4 +352,32 @@ export async function setPotentialLpAction(input: {
 
   revalidatePeoplePaths(updated.primary_organization_id);
   return { ok: true, personId };
+}
+
+export async function savePersonOrganization(input: {
+  personId: string; companyId: string; organizationName: string;
+}): Promise<PersonActionResult> {
+  const denied = await actionAccessError();
+  if (denied) return { ok: false, message: denied };
+  const companyId = cleanText(input.companyId) || null;
+  const name = cleanText(input.organizationName) || null;
+  if (!UUID.test(input.personId) || (companyId && !UUID.test(companyId)) ||
+      (name && (name.length > 160 || companyId))) {
+    return { ok: false, message: "Choose a company or enter an organization name (up to 160 characters)." };
+  }
+  const db = await createClient();
+  if (companyId) {
+    const { data } = await db.from("companies").select("id").eq("id", companyId).is("deleted_at", null).maybeSingle();
+    if (!data) return { ok: false, message: "That company is no longer available." };
+  }
+  const { data: before } = await db.from("people").select("primary_organization_id").eq("id", input.personId).is("archived_at", null).maybeSingle();
+  if (!before) return { ok: false, message: "Contact is no longer available." };
+  const { count, error } = await db.from("people")
+    .update({ primary_organization_id: companyId, organization_name: name, updated_at: new Date().toISOString() }, { count: "exact" })
+    .eq("id", input.personId).is("archived_at", null);
+  if (error || count !== 1) return { ok: false, message: "Organization could not be saved." };
+  revalidatePeoplePaths(before.primary_organization_id);
+  if (companyId !== before.primary_organization_id) revalidatePeoplePaths(companyId);
+  revalidatePath(`/people/${input.personId}`);
+  return { ok: true };
 }

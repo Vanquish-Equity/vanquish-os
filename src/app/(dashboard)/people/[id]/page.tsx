@@ -1,80 +1,11 @@
-import { customFieldsEnabled } from "@/lib/custom-fields/actions";
-import CustomFieldsRecord from "@/components/custom-fields/CustomFieldsRecord";
-import Link from "next/link";
-import { relationshipsHref } from "@/lib/people-groups/tabs";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { requireMember } from "@/lib/auth/access";
-import { createClient } from "@/lib/supabase/server";
-import { relationshipIntelligenceState } from "@/lib/relationships/intelligence-queries";
-import RelationshipIntelligenceSection from "@/components/RelationshipIntelligenceSection";
-export const dynamic = "force-dynamic";
-export default async function PersonRelationshipPage({
-  params,
-}: {
+
+export default async function PersonProfileLink({ params }: {
   params: Promise<{ id: string }>;
 }) {
   await requireMember();
   const { id } = await params;
-  const [state, fields] = await Promise.all([
-    relationshipIntelligenceState(),
-    customFieldsEnabled(),
-  ]);
-  if ((!state.enabled && !fields) || !/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const { data: person } = await (
-    await createClient()
-  )
-    .from("people")
-    .select("id,name,title,primary_organization_id")
-    .eq("id", id)
-    .is("archived_at", null)
-    .maybeSingle();
-  if (!person) notFound();
-  if (person.primary_organization_id) {
-    const { data: parent } = await (
-      await createClient()
-    )
-      .from("companies")
-      .select("id")
-      .eq("id", person.primary_organization_id)
-      .is("deleted_at", null)
-      .maybeSingle();
-    if (!parent) notFound();
-  }
-  return (
-    <main className="min-w-0 space-y-4 px-4 py-6 sm:px-7">
-      <div className="flex flex-wrap gap-x-5">
-        <Link
-          className="inline-flex min-h-11 items-center text-sm text-cyan-800"
-          href="/people"
-        >
-          Back to People
-        </Link>
-        <Link
-          className="inline-flex min-h-11 items-center text-sm text-cyan-800"
-          href={relationshipsHref()}
-        >
-          Back to Relationships
-        </Link>
-      </div>
-      <header>
-        <h1 className="text-[23px] font-semibold">{person.name}</h1>
-        <p className="text-sm text-neutral-500">{person.title}</p>
-      </header>
-      {person.primary_organization_id && (
-        <Link
-          className="inline-flex min-h-11 items-center text-sm text-cyan-800"
-          href={`/companies/${person.primary_organization_id}`}
-        >
-          Open company
-        </Link>
-      )}
-      {fields && <CustomFieldsRecord object="people" recordId={id} />}
-      {state.enabled && (
-        <RelationshipIntelligenceSection
-          people={[{ id: person.id, name: person.name }]}
-          allowed={state.allowed}
-        />
-      )}
-    </main>
-  );
+  if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) notFound();
+  redirect(`/people?contact=${id}`);
 }

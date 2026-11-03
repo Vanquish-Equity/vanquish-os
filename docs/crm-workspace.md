@@ -526,3 +526,16 @@ remains separate because an applied view replaces the default board.
 LP follow-up lists fill the height left below the board header. The row scrolls
 sideways, and long card lists scroll within their columns. On short screens the
 page can scroll to preserve a usable minimum board height.
+
+### Contact profiles and organizations
+
+Open a name in People to see a side panel with contact details, recent shared
+email/meeting dates, and relationship intelligence when permitted. Custom fields
+sit under Additional fields. The panel keeps the list filters in the URL.
+The old Relationships URL remains available for bookmarks; the directory
+no longer shows it as a separate tab.
+
+An organization can be a link to an existing CRM Company or a contact-only name
+(for example, a family office). Both New Person and Edit organization support
+these choices. The CSV Company column saves a name on newly created contacts; it
+does not create Companies or Deals or overwrite existing affiliations.

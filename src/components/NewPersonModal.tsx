@@ -13,6 +13,7 @@ type FormValues = {
   name: string;
   title: string;
   companyId: string;
+  organizationName: string;
   linkedinUrl: string;
   email: string;
   isPotentialLp: boolean;
@@ -22,6 +23,7 @@ const emptyForm: FormValues = {
   name: "",
   title: "",
   companyId: "",
+  organizationName: "",
   linkedinUrl: "",
   email: "",
   isPotentialLp: false,
@@ -96,6 +98,7 @@ export default function NewPersonModal({
       name: values.name,
       title: values.title,
       companyId: values.companyId || null,
+      ...(values.organizationName.trim() ? { organizationName: values.organizationName.trim() } : {}),
       linkedinUrl: values.linkedinUrl,
       email: values.email,
       isPotentialLp: values.isPotentialLp,
@@ -211,10 +214,14 @@ export default function NewPersonModal({
                   </label>
                   <SelectMenu
                     value={values.companyId}
-                    onChange={(value) => setValues((v) => ({ ...v, companyId: value }))}
+                    onChange={(value) => setValues((v) => ({ ...v, companyId: value, organizationName: "" }))}
                     options={toMenuOptions(companies)}
                     placeholder="None"
                   />
+                  {!values.companyId && <label className="mt-2 block text-xs text-neutral-600">
+                    Or enter an organization name
+                    <input className="mt-1 w-full rounded-xl border border-neutral-200 px-3 py-2" maxLength={160} value={values.organizationName} onChange={(event) => setValues((v) => ({ ...v, organizationName: event.target.value }))} />
+                  </label>}
                 </div>
               </div>
 

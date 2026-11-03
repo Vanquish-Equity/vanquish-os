@@ -1,8 +1,8 @@
 import { customizationState } from "@/lib/customization/state";
 import ViewsPanel from "@/components/customization/ViewsPanel";
 import { readCustomFieldsState } from "@/lib/custom-fields/state";
-import { personProfileState } from "@/lib/people/profile-access";
-import { personProfileHref } from "@/lib/people/profile-link";
+import ContactDrawer from "@/components/people/ContactDrawer";
+import ContactProfile from "@/components/people/ContactProfile";
 import CustomFieldsGate from "@/components/custom-fields/CustomFieldsGate";
 import CustomFieldFilter from "@/components/custom-fields/CustomFieldFilter";
 import { createClient } from "@/lib/supabase/server";
@@ -56,6 +56,7 @@ type PersonRow = {
   title: string | null;
   linkedin_url: string | null;
   primary_organization_id: string | null;
+  organization_name: string | null;
   is_potential_lp: boolean;
   organization: { id: string; name: string } | null;
   person_emails: { email: string; is_primary: boolean }[];
@@ -80,6 +81,7 @@ export default async function PeoplePage({
 }: {
   searchParams: Promise<{
     tab?: string | string[];
+    contact?: string | string[];
     view?: string | string[];
     group?: string | string[];
     q?: string | string[];
@@ -130,12 +132,11 @@ export default async function PeoplePage({
   // already limits every row), so they all start now and are awaited together
   // below instead of one after another.
   const accessPromise = requireMember();
-  const profileStatePromise = personProfileState();
   const viewsStatePromise = customizationState();
   const customFieldsPromise = readCustomFieldsState();
   // The group lookup below awaits before these are collected, so mark them as
   // handled now; accessFirst still rethrows their rejections (and the redirect).
-  for (const early of [accessPromise, profileStatePromise, viewsStatePromise, customFieldsPromise]) early.catch(() => {});
+  for (const early of [accessPromise, viewsStatePromise, customFieldsPromise]) early.catch(() => {});
 
   let groupMemberIds: string[] | null = null;
   if (groupId) {
@@ -146,19 +147,21 @@ export default async function PeoplePage({
     groupMemberIds = (members ?? []).map((m) => m.person_id as string);
   }
 
-  let peopleQuery = supabase
-    .from("people")
-    .select(
-      "id,name,title,linkedin_url,primary_organization_id,is_potential_lp,organization:companies(id,name),person_emails(email,is_primary),person_group_members(group_id)"
-    )
-    .is("archived_at", null);
-  if (showLps) peopleQuery = peopleQuery.eq("is_potential_lp", true);
-  if (search) peopleQuery = peopleQuery.ilike("name", `%${escapeLike(search)}%`);
-  if (groupMemberIds) peopleQuery = peopleQuery.in("id", groupMemberIds.length ? groupMemberIds : [""]);
+  const loadPeople = (withOrganization: boolean) => {
+    let peopleQuery = supabase
+      .from("people")
+      .select(
+        `id,name,title,linkedin_url,primary_organization_id,${withOrganization ? "organization_name," : ""}is_potential_lp,organization:companies(id,name),person_emails(email,is_primary),person_group_members(group_id)`
+      )
+      .is("archived_at", null);
+    if (showLps) peopleQuery = peopleQuery.eq("is_potential_lp", true);
+    if (search) peopleQuery = peopleQuery.ilike("name", `%${escapeLike(search)}%`);
+    if (groupMemberIds) peopleQuery = peopleQuery.in("id", groupMemberIds.length ? groupMemberIds : [""]);
+    return peopleQuery.order("name", { ascending: !(sort?.key === "name" && sort.dir === "desc") });
+  };
 
   const [
     access,
-    profileState,
     viewsState,
     customFieldsOn,
     { data: people },
@@ -171,12 +174,14 @@ export default async function PeoplePage({
     mailbox,
     [{ data: lastInteractions }, { data: memberDirectory }],
   ] = await accessFirst(accessPromise, [
-    profileStatePromise,
     viewsStatePromise,
     customFieldsPromise,
     // Name order is applied in SQL so a name sort picks the right rows
     // even past the API row cap; other sorts reorder the same rows below.
-    peopleQuery.order("name", { ascending: !(sort?.key === "name" && sort.dir === "desc") }) as unknown as Promise<{ data: PersonRow[] | null }>,
+    (async () => {
+      const result = await loadPeople(true);
+      return result.error?.code === "42703" ? await loadPeople(false) : result;
+    })() as unknown as Promise<{ data: PersonRow[] | null }>,
     supabase
       .from("companies")
       .select("id,name")
@@ -214,15 +219,27 @@ export default async function PeoplePage({
   const groups = groupsWithCounts(groupRows, groupCounts);
   const activeKey = activeTabKey(filters.view, groupId, groups);
   const activeGroup = groups.find((g) => g.id === activeKey && g.kind !== "potential_lp") ?? null;
-  const tabs = buildPeopleTabs({ groups, allCount: allCount ?? 0, lpCount: lpCount ?? 0, filters, sort, relationships: { active: false } });
+  const tabs = buildPeopleTabs({ groups, allCount: allCount ?? 0, lpCount: lpCount ?? 0, filters, sort });
   // The Import people button keeps the context it was opened from.
   const importHref = activeGroup ? `/people/import?group=${activeGroup.id}` : activeKey === "lps" ? "/people/import?lp=1" : "/people/import";
 
-  const profileOpen = profileState.open;
+  const selected = firstParam(params.contact);
+  const openContact = selected && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(selected) ? selected : null;
+  const listParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (key === "contact" || key === "tab" || value === undefined) continue;
+    for (const item of Array.isArray(value) ? value : [value]) listParams.append(key, item);
+  }
+  const closeHref = listParams.size ? `/people?${listParams}` : "/people";
+  const contactHref = (id: string) => {
+    const next = new URLSearchParams(listParams);
+    next.set("contact", id);
+    return `/people?${next}`;
+  };
   const rows = sortListRows(
     people ?? [],
     sort,
-    (p, key) => (key === "name" ? p.name : key === "company" ? p.organization?.name : primaryEmail(p.person_emails ?? [])),
+    (p, key) => (key === "name" ? p.name : key === "company" ? (p.organization?.name ?? p.organization_name) : primaryEmail(p.person_emails ?? [])),
     (p) => p.id,
   );
   // Both per-row signals cost a Google round trip, so they only run when
@@ -330,7 +347,7 @@ export default async function PeoplePage({
                 name={p.name}
                 email={primaryEmail(p.person_emails ?? [])}
                 isPotentialLp={p.is_potential_lp}
-                profileHref={personProfileHref(p.id, profileOpen)}
+                profileHref={contactHref(p.id)}
                 memberGroupIds={(p.person_group_members ?? []).map((m) => m.group_id)}
               >
                 <td className="px-4 py-3">
@@ -340,11 +357,7 @@ export default async function PeoplePage({
                     </div>
                     <div>
                       <div className="font-semibold text-ink">
-                        {personProfileHref(p.id, profileOpen) ? (
-                          <Link href={`/people/${p.id}`} className="hover:text-cyan-700 hover:underline">{p.name}</Link>
-                        ) : (
-                          p.name
-                        )}
+                        <Link href={contactHref(p.id)} scroll={false} prefetch={false} className="hover:text-cyan-700 hover:underline">{p.name}</Link>
                       </div>
                       {p.title && (
                         <div className="text-[11px] text-neutral-500">{p.title}</div>
@@ -362,7 +375,7 @@ export default async function PeoplePage({
                       {p.organization.name}
                     </Link>
                   ) : (
-                    "—"
+                    p.organization_name || "—"
                   )}
                 </td>
                 )}
@@ -468,6 +481,9 @@ export default async function PeoplePage({
         </GoogleLookups>
         </PeopleGroupsProvider>
       </div>
+      {openContact && <ContactDrawer key={openContact} closeHref={closeHref}>
+        <ContactProfile id={openContact} companies={companies ?? []} />
+      </ContactDrawer>}
     </div>
   );
 }

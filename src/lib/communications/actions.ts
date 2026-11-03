@@ -55,6 +55,7 @@ export async function importPeopleAction(request: ImportRequest): Promise<Import
     name: String(row.name ?? ""),
     email: String(row.email ?? ""),
     title: row.title ? String(row.title) : undefined,
+    ...(row.organization ? { organization: String(row.organization).trim() } : {}),
     person_id: row.person_id ? String(row.person_id) : undefined,
     restore: row.restore === true ? true : undefined,
   }));
@@ -69,8 +70,13 @@ export async function importPeopleAction(request: ImportRequest): Promise<Import
     }
   }
 
+  if (payloadRows.some((row) => row.organization)) {
+    const { error } = await supabase.from("people").select("organization_name").limit(0);
+    if (error) return { ok: false, message: error.code === "42703" ? IMPORT_NEEDS_UPDATE : IMPORT_FAILED };
+  }
+
   // Restoring an archived person chosen by id is only understood by import_people.
-  const legacy = markPotentialLp && !groupId && !payloadRows.some((row) => row.restore && row.person_id);
+  const legacy = markPotentialLp && !groupId && !payloadRows.some((row) => row.organization || (row.restore && row.person_id));
   const { data, error } = legacy
     ? await supabase.rpc("import_potential_lps", { p_rows: payloadRows })
     : await supabase.rpc("import_people", { p_rows: payloadRows, p_mark_lp: markPotentialLp, p_group: groupId });

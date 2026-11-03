@@ -100,6 +100,8 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/tests/people_duplicates.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261102120000_import_people.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/import_people.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261103150000_people_organization.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/people_organization.sql > /dev/null
           for file in supabase/migrations/20261008*.sql; do
             psql -v ON_ERROR_STOP=1 -f "$file" > /dev/null
           done

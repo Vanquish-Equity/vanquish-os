@@ -36,7 +36,7 @@ export function normalizePersonName(value: string) {
 // Column mapping
 // ---------------------------------------------------------------------
 
-export type ColumnKey = "name" | "firstName" | "lastName" | "email" | "title";
+export type ColumnKey = "name" | "firstName" | "lastName" | "email" | "title" | "organization";
 export type ColumnMapping = Record<ColumnKey, number | null>;
 
 export const COLUMN_LABELS: Record<ColumnKey, string> = {
@@ -45,6 +45,7 @@ export const COLUMN_LABELS: Record<ColumnKey, string> = {
   lastName: "Last name",
   email: "Email",
   title: "Title (optional)",
+  organization: "Organization (optional)",
 };
 
 const HEADER_ALIASES: Record<ColumnKey, string[]> = {
@@ -52,6 +53,7 @@ const HEADER_ALIASES: Record<ColumnKey, string[]> = {
   firstName: ["first name", "firstname", "first", "given name", "nombre", "nombres"],
   lastName: ["last name", "lastname", "last", "surname", "family name", "apellido", "apellidos"],
   email: ["email", "e mail", "email address", "e mail address", "mail", "primary email", "email 1", "e mail 1 value", "correo", "correo electronico", "email personal", "work email"],
+  organization: ["company", "organization", "organisation", "organization name", "company name", "empresa", "organizacion"],
   title: ["title", "job title", "position", "role", "cargo", "puesto"],
 };
 
@@ -60,7 +62,7 @@ function normalizeHeader(value: string) {
 }
 
 export function emptyMapping(): ColumnMapping {
-  return { name: null, firstName: null, lastName: null, email: null, title: null };
+  return { name: null, firstName: null, lastName: null, email: null, title: null, organization: null };
 }
 
 // Guesses which column holds what. hasHeader is false when no header is
@@ -103,6 +105,7 @@ export type ImportRow = {
   name: string;
   email: string;
   title: string;
+  organization?: string;
   excluded: boolean;
   // Explicit choice for rows that need review: "restore", "create",
   // "link:<personId>" or "restore:<personId>" (an archived person with the same name).
@@ -119,6 +122,7 @@ export function rowsFromCsv(cells: string[][], mapping: ColumnMapping, hasHeader
       name: (full || composed).replace(/\s+/g, " "),
       email: normalizeEmail(pick(row, mapping.email)),
       title: pick(row, mapping.title),
+      ...(pick(row, mapping.organization) ? { organization: pick(row, mapping.organization) } : {}),
       excluded: false,
       decision: null,
     };
@@ -219,6 +223,7 @@ function repeatKey(row: ImportRow) {
 function analyzeOne(row: ImportRow, options: ImportOptions, maps: Maps): RowAnalysis {
   const { byEmail, byName, archivedByName, emailRowByName, firstLineByKey } = maps;
   const problems: string[] = [];
+  if ((row.organization?.length ?? 0) > 160) problems.push("Organization must be at most 160 characters");
   if (!row.email) {
     // An email is only required to mark a potential LP (they are picked as
     // email recipients); without that, a name is enough.
@@ -306,6 +311,7 @@ export type ImportPayloadRow = {
   // Empty for a person imported by name only (no potential LP).
   email: string;
   title?: string;
+  organization?: string;
   person_id?: string;
   restore?: boolean;
 };
@@ -316,6 +322,7 @@ export function importPayload(rows: AnalyzedRow[]): ImportPayloadRow[] {
     .map((row) => {
       const payload: ImportPayloadRow = { name: row.name, email: row.email };
       if (row.title) payload.title = row.title;
+      if (row.organization) payload.organization = row.organization;
       if (row.analysis.kind === "archived_match") payload.restore = true;
       if (row.analysis.kind === "name_match" && row.decision?.startsWith("link:")) {
         payload.person_id = row.decision.slice("link:".length);

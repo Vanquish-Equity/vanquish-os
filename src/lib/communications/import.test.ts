@@ -69,6 +69,15 @@ describe("guessMapping", () => {
 });
 
 describe("rowsFromCsv", () => {
+  it("maps a CSV Company to a contact-only organization", () => {
+    const cells = [["Name", "Email", "Company"], ["Synthetic Contact", "contact@synthetic.test", " Synthetic Family Office "]];
+    const { mapping, hasHeader } = guessMapping(cells[0]);
+    const rows = rowsFromCsv(cells, mapping, hasHeader);
+    expect(importPayload(analyzeRows(rows, [], DEFAULT_IMPORT_OPTIONS))).toEqual([
+      { name: "Synthetic Contact", email: "contact@synthetic.test", organization: "Synthetic Family Office" },
+    ]);
+  });
+
   it("combines first and last names and normalizes emails", () => {
     const cells = [
       ["First", "Last", "Email"],

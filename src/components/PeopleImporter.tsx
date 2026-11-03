@@ -219,8 +219,8 @@ export default function PeopleImporter({
               Exports from Excel (“CSV UTF-8”), Outlook, Google Contacts or a CRM work. Columns such as{" "}
               <span className="font-semibold">Name</span> or <span className="font-semibold">First name / Last name</span>,{" "}
               <span className="font-semibold">Email</span> (needed only to mark potential LPs) and optionally{" "}
-              <span className="font-semibold">Title</span> are recognised in English or Spanish; you can change the
-              mapping below. Other columns are ignored.
+              <span className="font-semibold">Title</span> and <span className="font-semibold">Company</span> are recognised in English or Spanish; you can change the
+              mapping below. Company is saved as an organization name on new contacts only. Other columns are ignored.
             </p>
           </div>
           <label className="cursor-pointer rounded-full bg-ink px-3.5 py-2 text-[12px] font-semibold text-white transition hover:bg-neutral-800">
@@ -331,6 +331,7 @@ export default function PeopleImporter({
                   <th className="px-4 py-2.5 font-semibold">Row</th>
                   <th className="px-2 py-2.5 font-semibold">Name</th>
                   <th className="px-2 py-2.5 font-semibold">Email</th>
+                  <th className="px-2 py-2.5 font-semibold">Organization</th>
                   <th className="px-2 py-2.5 font-semibold">Status</th>
                   <th className="px-4 py-2.5 text-right font-semibold">Action</th>
                 </tr>
@@ -347,7 +348,7 @@ export default function PeopleImporter({
                 ))}
                 {visibleRows.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-neutral-400">
+                    <td colSpan={6} className="px-4 py-8 text-center text-neutral-400">
                       No rows in this filter.
                     </td>
                   </tr>
@@ -489,6 +490,10 @@ function ImportRowView({
           className={inputClass}
           disabled={row.excluded}
         />
+      </td>
+      <td className="px-2 py-2">
+        <input aria-label={`Organization, row ${row.line}`} value={row.organization ?? ""} maxLength={160}
+          onChange={(event) => onChange({ organization: event.target.value })} className={inputClass} disabled={row.excluded} />
       </td>
       <td className="px-2 py-2.5">
         <span className={`inline-block rounded-full px-2 py-0.5 text-[10.5px] font-semibold ring-1 ${STATUS_STYLES[row.status]}`}>
