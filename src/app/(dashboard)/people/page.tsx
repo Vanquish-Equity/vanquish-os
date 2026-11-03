@@ -6,7 +6,6 @@ import { readCustomFieldsState } from "@/lib/custom-fields/state";
 import ContactDrawer from "@/components/people/ContactDrawer";
 import ContactProfile from "@/components/people/ContactProfile";
 import CustomFieldsGate from "@/components/custom-fields/CustomFieldsGate";
-import CustomFieldsAdmin from "@/components/custom-fields/CustomFieldsAdmin";
 import PeopleFieldCell from "@/components/people/PeopleFieldCell";
 import { loadFieldSchema } from "@/lib/custom-fields/actions";
 import { isUuid, type FieldValue } from "@/lib/custom-fields/model";
@@ -276,20 +275,6 @@ export default async function PeoplePage({
   const rows = tagFilters.size
     ? baseRows.filter((row) => !valuesFailed && matchesPeopleFieldFilters(values.get(row.id) ?? new Map(), tagFilters))
     : baseRows;
-  const gridHref = (fieldId: string) => {
-    const next = new URLSearchParams(listParams);
-    const selectedFields = fields.map(({ id }) => id);
-    next.delete("field");
-    next.delete("tag");
-    next.set("fields", "1");
-    const fieldIds = selectedFields.includes(fieldId)
-      ? selectedFields.filter((id) => id !== fieldId) : [...selectedFields, fieldId];
-    for (const id of fieldIds) next.append("field", id);
-    for (const [id, options] of tagFilters) for (const tag of options) {
-      if (fieldIds.includes(id)) next.append("tag", `${id}:${tag}`);
-    }
-    return `/people?${next}`;
-  };
   // Both per-row signals cost a Google round trip, so they only run when
   // their column is visible and the list is small enough (see
   // LAST_EMAIL_MAX_ROWS) to be meaningful.
@@ -348,25 +333,12 @@ export default async function PeoplePage({
         groups={groups.map(({ id, name }) => ({ id, name }))}
         filters={filters}
         sort={sort}
+        extraColumns={definitions.map(({ id, name }) => ({ id, name, checked: fields.some((field) => field.id === id) }))}
+        selectedTags={[...tagFilters].flatMap(([id, options]) => [...options].map((option) => `${id}:${option}`))}
         me={access.email ?? ""}
       />
 
-      {customFieldsOn && <details className="vq-card-static rounded-xl px-4 py-3">
-        <summary className="cursor-pointer text-sm font-semibold">Manage custom columns</summary>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {definitions.map((field) => {
-            const visible = fields.some(({ id }) => id === field.id);
-            return visible || fields.length < PEOPLE_FIELD_COLUMN_LIMIT
-              ? <Link key={field.id} href={gridHref(field.id)} scroll={false} className="rounded-full border px-3 py-2 text-xs">{visible ? "Hide" : "Show"} {field.name}</Link>
-              : <span key={field.id} className="px-3 py-2 text-xs text-neutral-500">{field.name} (hide another column first)</span>;
-          })}
-        </div>
-        {access.permissions.has("admin") && <details className="mt-3">
-          <summary className="cursor-pointer text-xs font-semibold text-cyan-800">Create or edit shared fields and labels</summary>
-          <CustomFieldsAdmin />
-        </details>}
-      </details>}
-      {valuesFailed && <p role="status" className="text-sm text-neutral-600">Custom field values are unavailable. Refresh to try again.</p>}
+      {valuesFailed && <p role="status" className="text-sm text-neutral-600">Column values are unavailable. Refresh to try again.</p>}
       {tagFilters.size > 0 && <p className="text-xs text-neutral-600">{rows.length} matches in the loaded directory. Selected labels in each column match any of those labels.</p>}
       {!mailbox.connected && rows.length > 0 && (
         <p className="text-[11.5px] text-neutral-400">

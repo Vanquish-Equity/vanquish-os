@@ -3,6 +3,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { PEOPLE_FIELD_COLUMN_LIMIT } from "@/lib/people/grid-fields";
 import Checkbox from "@/components/Checkbox";
 import { FormSelectMenu } from "@/components/SelectMenu";
 import { deleteViewAction, saveViewAction } from "@/lib/views/actions";
@@ -26,6 +27,8 @@ export default function PeopleViewsBar({
   groups,
   filters,
   sort = null,
+  extraColumns = [],
+  selectedTags = [],
   me,
 }: {
   tabs: ReactNode;
@@ -35,11 +38,14 @@ export default function PeopleViewsBar({
   // Header sort from the URL; applying filters keeps it.
   sort?: ListSort<string>;
   me: string;
+  extraColumns?: { id: string; name: string; checked: boolean }[];
+  selectedTags?: string[];
 }) {
   const router = useRouter();
   const isFiltered = Boolean(filters.groupId || filters.q || filters.cols);
   const shownColumns = visiblePeopleColumns(filters.cols);
   const [filtersOpen, setFiltersOpen] = useState(isFiltered);
+  const [columnError, setColumnError] = useState("");
   const [saveOpen, setSaveOpen] = useState(false);
   const [name, setName] = useState("");
   const [shared, setShared] = useState(false);
@@ -130,7 +136,12 @@ export default function PeopleViewsBar({
 
       {filtersOpen && (
         <div className="flex flex-col gap-2.5 border-t border-neutral-100 pt-2.5">
-          <form method="get" className="flex flex-wrap items-center gap-2">
+          <form method="get" className="flex flex-wrap items-center gap-2" onSubmit={(event) => {
+            if (new FormData(event.currentTarget).getAll("field").length > PEOPLE_FIELD_COLUMN_LIMIT) {
+              event.preventDefault();
+              setColumnError(`Choose up to ${PEOPLE_FIELD_COLUMN_LIMIT} additional columns.`);
+            }
+          }}>
             {filters.view === "lps" && <input type="hidden" name="view" value="lps" />}
             {sort && <input type="hidden" name="sort" value={sort.key} />}
             {sort && <input type="hidden" name="dir" value={sort.dir} />}
@@ -164,7 +175,18 @@ export default function PeopleViewsBar({
                   {column.label}
                 </label>
               ))}
+              {extraColumns.length > 0 && <>
+                <input type="hidden" name="fields" value="1" />
+                {selectedTags.map((tag) => <input key={tag} type="hidden" name="tag" value={tag} />)}
+                {extraColumns.map((column) => (
+                  <label key={`${column.id}:${column.checked}`} className="flex items-center gap-1.5 text-[11.5px] text-neutral-600">
+                    <Checkbox name="field" value={column.id} defaultChecked={column.checked} onChange={() => setColumnError("")} />
+                    {column.name}
+                  </label>
+                ))}
+              </>}
             </fieldset>
+            {columnError && <p role="alert" className="text-xs text-red-700">{columnError}</p>}
             <button
               type="submit"
               className="rounded-full border border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
