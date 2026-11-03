@@ -27,6 +27,14 @@ export const HOME_TABS: readonly HomeTabDef[] = [
 
 export const DEFAULT_HOME_TAB: HomeTabKey = "today";
 
+// DOM ids that tie the tablist to its panel. They live HERE, not in the
+// "use client" HomeTabs component: the server page needs them too, and a
+// server component cannot call a function (or read a constant) that is defined
+// in a client module (it fails at runtime with "Attempted to call ... from the
+// server", which unit tests do not catch).
+export const homeTabId = (key: HomeTabKey) => `home-tab-${key}`;
+export const HOME_PANEL_ID = "home-panel";
+
 export function homeTabHref(key: HomeTabKey) {
   return key === DEFAULT_HOME_TAB ? "/home" : `/home?tab=${key}`;
 }

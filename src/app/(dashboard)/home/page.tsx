@@ -1,10 +1,10 @@
 import DashboardTab from "@/components/home/DashboardTab";
-import HomeTabs, { HOME_PANEL_ID, homeTabId } from "@/components/home/HomeTabs";
+import HomeTabs from "@/components/home/HomeTabs";
 import ReportsTab from "@/components/home/ReportsTab";
 import TodayTab from "@/components/home/TodayTab";
 import { requireMember } from "@/lib/auth/access";
 import { can } from "@/lib/auth/permissions";
-import { homeTabsFor, resolveHomeTab } from "@/lib/home/tabs";
+import { HOME_PANEL_ID, homeTabId, homeTabsFor, resolveHomeTab } from "@/lib/home/tabs";
 
 export const dynamic = "force-dynamic";
 
