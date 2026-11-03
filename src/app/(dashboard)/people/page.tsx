@@ -23,6 +23,7 @@ import { parsePeopleColumns, visiblePeopleColumns } from "@/lib/views/people-col
 import { startDevPageTimer } from "@/lib/performance";
 import { loadSavedViews, viewHref, type PeopleViewFilters } from "@/lib/views/queries";
 import SortableTh from "@/components/SortableTh";
+import { firstParam } from "@/lib/url/first-param";
 import { parseListSort, sortListRows } from "@/lib/list-sort";
 
 // Beyond this many rows, a single combined Gmail search can no longer give
@@ -79,16 +80,22 @@ export default async function PeoplePage({
 }: {
   searchParams: Promise<{
     tab?: string | string[];
-    view?: string;
-    group?: string;
-    q?: string;
+    view?: string | string[];
+    group?: string | string[];
+    q?: string | string[];
     cols?: string;
     col?: string | string[];
     sort?: string | string[];
     dir?: string | string[];
   }>;
 }) {
-  const { tab, view, group, q, cols: colsMarker, col, sort: sortParam, dir: dirParam } = await searchParams;
+  const params = await searchParams;
+  const { tab, cols: colsMarker, col, sort: sortParam, dir: dirParam } = params;
+  // A repeated `?q=a&q=b` arrives as an array: take the first value so string
+  // methods below cannot throw.
+  const view = firstParam(params.view);
+  const group = firstParam(params.group);
+  const q = firstParam(params.q);
   // Relationships (the former Network) is another view of the same people. It
   // is resolved on the server against the member's permissions and runs only
   // when it is the active tab: the list below, with its counts, saved views and

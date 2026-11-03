@@ -481,6 +481,13 @@ describe("access failures", () => {
     return outcome;
   }
 
+  it("/people: repeated query parameters (?q=a&q=b, ?group=x&group=y, ?view=lps&view=all) render instead of throwing", async () => {
+    const outcome = await open("/people", { q: ["a", "b"], group: ["g1", "g2"], view: ["lps", "all"] } as unknown as Record<string, string>);
+    expect(outcome).toHaveProperty("tree");
+    expect(outcome).not.toHaveProperty("error");
+    expect(unhandled).toEqual([]);
+  });
+
   for (const route of pages) {
     it(`${route}: a non-member is redirected, nothing renders, no unhandled rejection`, async () => {
       world.fixtures.tables.app_members = [];
