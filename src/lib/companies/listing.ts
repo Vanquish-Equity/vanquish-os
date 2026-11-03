@@ -2,6 +2,11 @@ import { isRequirementSatisfied } from "../documents/requirements";
 
 export type CompanyListItem = {
   aliases: string[];
+  website?: string | null;
+  connections?: { id: string; name: string }[];
+  owners?: string[];
+  lastContactAt?: string | null;
+  location?: string | null;
   currentPriorityName: string | null;
   currentStageName: string | null;
   ddReceivedCount: number;
@@ -27,6 +32,10 @@ export type CompanyFilters = {
 };
 
 export type CompanySortKey =
+  | "connections"
+  | "owner"
+  | "last_contact"
+  | "location"
   | "company"
   | "deals"
   | "industry"
@@ -59,6 +68,10 @@ export function filterCompanies(
     if (query) {
       const haystack = [
         company.name,
+        company.website,
+        company.location,
+        ...(company.owners ?? []),
+        ...(company.connections ?? []).map(({ name }) => name),
         company.industryName,
         company.currentStageName,
         ...company.aliases,
@@ -110,6 +123,10 @@ export function sortCompanies(companies: CompanyListItem[], sort: CompanySort) {
   return [...companies].sort((a, b) => {
     let result = 0;
 
+    if (activeSort.key === "connections") result = compareNumbers(a.connections?.length ?? 0, b.connections?.length ?? 0);
+    if (activeSort.key === "owner") result = compareText(a.owners?.[0] ?? null, b.owners?.[0] ?? null);
+    if (activeSort.key === "location") result = compareText(a.location ?? null, b.location ?? null);
+    if (activeSort.key === "last_contact") result = compareDates(a.lastContactAt ?? null, b.lastContactAt ?? null);
     if (activeSort.key === "company") result = compareText(a.name, b.name);
     if (activeSort.key === "industry") {
       result = compareText(a.industryName, b.industryName);

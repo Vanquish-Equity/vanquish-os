@@ -1,5 +1,4 @@
 import { readCustomFieldsState } from "@/lib/custom-fields/state";
-import CustomFieldsGate from "@/components/custom-fields/CustomFieldsGate";
 import CustomFieldFilter from "@/components/custom-fields/CustomFieldFilter";
 import { Suspense } from "react";
 import { hasPermission } from "@/lib/auth/access";
@@ -17,6 +16,8 @@ export const dynamic = "force-dynamic";
 type CompanyRow = {
   id: string;
   name: string;
+  website: string | null;
+  people: { id: string; name: string; archived_at: string | null }[];
   updated_at: string;
   last_activity_at: string | null;
   industry: { name: string } | null;
@@ -29,6 +30,7 @@ type CompanyRow = {
     last_activity_at: string | null;
     stage: { name: string; is_terminal: boolean } | null;
     priority: { name: string } | null;
+    deal_assignees: { member_email: string }[];
     outcome: { name: string } | null;
   }[];
   investments: { id: string }[];
@@ -67,7 +69,7 @@ export default async function CompaniesPage() {
   const { data: companyRows } = (await supabase
     .from("companies")
     .select(
-      "id,name,updated_at,last_activity_at,industry:industries(name),company_aliases(alias),deals(id,name,archived_at,updated_at,last_activity_at,stage:pipeline_stages(name,is_terminal),priority:priorities(name),outcome:deal_outcomes(name)),investments(id),tasks(id,status,archived_at)"
+      "id,name,website,updated_at,last_activity_at,people!people_primary_organization_id_fkey(id,name,archived_at),industry:industries(name),company_aliases(alias),deals(id,name,archived_at,updated_at,last_activity_at,stage:pipeline_stages(name,is_terminal),priority:priorities(name),outcome:deal_outcomes(name),deal_assignees(member_email)),investments(id),tasks(id,status,archived_at)"
     )
     .is("deleted_at", null)
     .order("name")) as unknown as { data: CompanyRow[] | null };
@@ -75,19 +77,33 @@ export default async function CompaniesPage() {
   const dealIds = (companyRows ?? []).flatMap((company) =>
     (company.deals ?? []).map((deal) => deal.id)
   );
-  // Diligence progress is Documents data.
-  const canDocuments = await documentsPermission;
-  const { data: requirementRows } = canDocuments && dealIds.length
-    ? ((await supabase
-        .from("document_requirements")
-        .select("deal_id,required,status")
-        .in("deal_id", dealIds)
-        .eq("scope", "deal_dd")
-        .is("archived_at", null)) as unknown as {
-        data: RequirementRow[] | null;
-      })
-    : { data: [] };
-  const customFieldsOn = await customFieldsPromise;
+  const requirementsPromise = documentsPermission.then(async (allowed) => allowed && dealIds.length
+    ? await supabase.from("document_requirements").select("deal_id,required,status")
+        .in("deal_id", dealIds).eq("scope", "deal_dd").is("archived_at", null)
+    : { data: [] });
+  const visiblePeople = (companyRows ?? []).flatMap((company) =>
+    (company.people ?? []).filter((person) => !person.archived_at).map(({ id }) => id));
+  const batches = Array.from({ length: Math.ceil(visiblePeople.length / 150) }, (_, i) => visiblePeople.slice(i * 150, (i + 1) * 150));
+  const [interactions, directory, locationResult, requirementsResult, customFieldsOn] = await Promise.all([
+    Promise.all(batches.map((ids) => supabase.from("person_last_interaction").select("person_id,last_at").in("person_id", ids))),
+    (companyRows ?? []).some((company) => company.deals?.some((deal) => deal.deal_assignees?.length))
+      ? supabase.rpc("deal_assignee_directory") : { data: [] },
+    customFieldsPromise.then(async (enabled) => enabled
+      ? await supabase.from("custom_field_values")
+          .select("company_id,text_value,definition:custom_field_definitions!inner(id)")
+          .eq("definition.object_type", "companies").eq("definition.field_type", "text")
+          .eq("definition.archived", false).ilike("definition.name", "Location")
+          .eq("is_set", true).not("company_id", "is", null).limit(1000)
+      : { data: [] }),
+    requirementsPromise,
+    customFieldsPromise,
+  ]);
+  const locations = locationResult.data;
+  const requirementRows = requirementsResult.data as RequirementRow[] | null;
+  const locationByCompany = new Map((locations ?? []).map(({ company_id, text_value }) => [company_id, text_value]));
+  const names = new Map(((directory.data ?? []) as { email: string; display_name: string | null }[])
+    .map(({ email, display_name }) => [email, display_name || email]));
+  const lastByPerson = new Map(interactions.flatMap(({ data }) => (data ?? []).map(({ person_id, last_at }) => [person_id, last_at] as const)));
   endTimer();
 
   const requirementsByDeal = new Map<string, RequirementRow[]>();
@@ -120,6 +136,12 @@ export default async function CompaniesPage() {
       company.updated_at;
 
     return {
+      website: company.website,
+      connections: (company.people ?? []).filter((person) => !person.archived_at)
+        .map(({ id, name }) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)),
+      owners: uniqueSorted(visibleDeals.flatMap((deal) => (deal.deal_assignees ?? []).map(({ member_email }) => names.get(member_email) ?? member_email))),
+      lastContactAt: latestDate((company.people ?? []).filter((person) => !person.archived_at).map(({ id }) => lastByPerson.get(id))),
+      location: locationByCompany.get(company.id) ?? null,
       aliases: (company.company_aliases ?? []).map((alias) => alias.alias),
       currentPriorityName: latestActiveDeal?.priority?.name ?? null,
       currentStageName: latestActiveDeal?.stage?.name ?? null,
@@ -147,7 +169,7 @@ export default async function CompaniesPage() {
   };
 
   return (
-    <div className="flex flex-col gap-4 px-7 py-6">
+    <div className="flex flex-col gap-4 px-4 py-6 sm:px-7">
       <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">
@@ -165,7 +187,6 @@ export default async function CompaniesPage() {
         </Link>
       </header>
 
-      <CustomFieldsGate enabled={customFieldsOn}><CustomFieldFilter object="companies" /></CustomFieldsGate>
 
       <Suspense
         fallback={
@@ -174,7 +195,7 @@ export default async function CompaniesPage() {
           </div>
         }
       >
-        <CompaniesExplorer companies={companies} filterOptions={filterOptions} />
+        <CompaniesExplorer companies={companies} filterOptions={filterOptions} extraFilters={customFieldsOn ? <CustomFieldFilter object="companies" /> : undefined} />
       </Suspense>
     </div>
   );

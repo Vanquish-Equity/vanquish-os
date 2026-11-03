@@ -112,7 +112,7 @@ describe("CompaniesExplorer URL handling", () => {
     vi.useFakeTimers();
     try {
       open("/companies?view=table");
-      fireEvent.change(screen.getByPlaceholderText(/search name/i), { target: { value: "bravo" } });
+      fireEvent.change(screen.getByRole("textbox", { name: "Find companies" }), { target: { value: "bravo" } });
       act(() => {
         vi.advanceTimersByTime(300);
       });
@@ -128,9 +128,22 @@ describe("CompaniesExplorer URL handling", () => {
     open("/companies?view=table&sort=company&dir=desc");
     const order = () => Array.from(document.querySelectorAll("tbody tr")).map((row) => row.textContent ?? "");
     expect(order()[0]).toContain("Charlie Co");
-    fireEvent.click(screen.getByRole("button", { name: /^Company/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Name/ }));
     expect(window.location.search).toBe("?view=table");
     expect(order()[0]).toContain("Bravo Co");
+    expect(nav.router.replace).not.toHaveBeenCalled();
+  });
+
+  it("shows the CRM columns and lets the user replace one from the toolbar", () => {
+    open("/companies?view=table");
+    for (const name of ["Connections", "Owner", "Last Contact", "Location"]) {
+      expect(screen.getByRole("columnheader", { name })).toBeTruthy();
+    }
+    fireEvent.click(screen.getByText("Columns", { selector: "summary" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Location" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Industry" }));
+    expect(screen.queryByRole("columnheader", { name: "Location" })).toBeNull();
+    expect(screen.getByRole("columnheader", { name: "Industry" })).toBeTruthy();
     expect(nav.router.replace).not.toHaveBeenCalled();
   });
 

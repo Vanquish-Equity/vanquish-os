@@ -1,7 +1,7 @@
 "use client";
 
 import Checkbox from "@/components/Checkbox";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import RelativeTime from "@/components/RelativeTime";
@@ -22,6 +22,13 @@ type FilterOptions = {
   stages: string[];
 };
 
+const COLUMNS = [
+  ["connections", "Connections"], ["owner", "Owner"], ["last_contact", "Last Contact"], ["location", "Location"],
+  ["industry", "Industry"], ["stage", "Stage"], ["priority", "Priority"], ["deals", "Deals"],
+  ["last_update", "Last update"], ["invested", "Invested"],
+] as const;
+const DEFAULT_COLUMNS = COLUMNS.slice(0, 4).map(([key]) => key);
+
 type SearchParamsLike = {
   get: (key: string) => string | null;
   toString: () => string;
@@ -36,6 +43,7 @@ function readList(searchParams: SearchParamsLike, key: string) {
 
 function asSortKey(value: string | null): CompanySortKey | null {
   if (
+    value === "connections" || value === "owner" || value === "last_contact" || value === "location" ||
     value === "company" ||
     value === "deals" ||
     value === "industry" ||
@@ -124,9 +132,11 @@ function InvestedBadge({ count }: { count: number }) {
 export default function CompaniesExplorer({
   companies,
   filterOptions,
+  extraFilters,
 }: {
   companies: CompanyListItem[];
   filterOptions: FilterOptions;
+  extraFilters?: ReactNode;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -140,6 +150,8 @@ export default function CompaniesExplorer({
     draftQueryState.sourceQuery === query ? draftQueryState.value : query;
   const view = readView(searchParams);
   const sort = readSort(searchParams);
+  const selectedColumns = searchParams.get("columns");
+  const columns = selectedColumns === null ? DEFAULT_COLUMNS : readList(searchParams, "columns");
 
   const filters: CompanyFilters = useMemo(
     () => ({
@@ -243,6 +255,7 @@ export default function CompaniesExplorer({
   function clearFilters() {
     const params = new URLSearchParams();
     params.set("view", view);
+    if (selectedColumns !== null) params.set("columns", selectedColumns);
     replaceUrl(`${pathname}?${params.toString()}`);
   }
 
@@ -258,9 +271,13 @@ export default function CompaniesExplorer({
                 value: event.target.value,
               })
             }
-            placeholder="Search name, alias or industry"
-            className="min-w-[260px] flex-1 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[12.5px] font-medium text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
+            aria-label="Find companies"
+            placeholder="Find companies"
+            className="min-w-0 flex-1 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-[12.5px] font-medium text-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
           />
+          <details className="rounded-full border border-neutral-200 px-3 py-1.5 text-xs">
+            <summary className="cursor-pointer font-semibold">Filters</summary>
+            <div className="mt-2 flex flex-wrap gap-2">
           <FilterMenu
             label="Industry"
             options={filterOptions.industries}
@@ -308,6 +325,20 @@ export default function CompaniesExplorer({
           >
             Clear filters
           </button>
+            </div>
+            {extraFilters && <div className="mt-2">{extraFilters}</div>}
+          </details>
+          {view === "table" && <details className="rounded-full border border-neutral-200 px-3 py-1.5 text-xs">
+            <summary className="cursor-pointer font-semibold">Columns</summary>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {COLUMNS.map(([key, label]) => <label key={key} className="flex items-center gap-2">
+                <Checkbox checked={columns.includes(key)} onChange={(event) => {
+                  const next = event.target.checked ? [...columns, key] : columns.filter((item) => item !== key);
+                  updateQuery({ columns: next.join(",") || "none" });
+                }} />{label}
+              </label>)}
+            </div>
+          </details>}
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <div className="text-[12px] font-medium text-neutral-500">
@@ -395,18 +426,10 @@ export default function CompaniesExplorer({
         </div>
       ) : view === "table" ? (
         <div className="vq-card-static max-h-[calc(100vh-230px)] overflow-auto rounded-[14px] bg-white">
-          <table className="w-full text-[12.5px]">
-            <thead className="sticky top-0 z-10 bg-white">
+          <table className="w-full min-w-[40rem] text-[12.5px] [&_td]:border-r [&_td]:border-neutral-100 [&_th]:border-r [&_th]:border-neutral-200">
+            <thead className="sticky top-0 z-10 bg-neutral-50">
               <tr className="border-b border-neutral-100 text-left text-[10.5px] uppercase tracking-wide text-neutral-400">
-                {[
-                  ["company", "Company"],
-                  ["industry", "Industry"],
-                  ["stage", "Stage"],
-                  ["priority", "Priority"],
-                  ["deals", "Deals"],
-                  ["last_update", "Last update"],
-                  ["invested", "Invested"],
-                ].map(([key, label]) => (
+                {([["company", "Name"], ...COLUMNS.filter(([key]) => columns.includes(key))] as const).map(([key, label]) => (
                   <th key={key} className="px-4 py-3 font-semibold">
                     <button
                       type="button"
@@ -436,25 +459,24 @@ export default function CompaniesExplorer({
                 >
                   <td className="px-4 py-3.5 font-semibold text-ink">
                     {company.name}
+                    {company.website && <div className="mt-0.5 truncate text-[11px] font-normal text-neutral-500">{company.website.replace(/^https?:\/\//i, "").replace(/\/$/, "")}</div>}
                   </td>
-                  <td className="px-4 py-3.5 text-neutral-600">
-                    {company.industryName ?? "-"}
-                  </td>
-                  <td className="px-4 py-3.5 text-neutral-600">
-                    {company.currentStageName ?? "-"}
-                  </td>
-                  <td className="px-4 py-3.5 text-neutral-600">
-                    {company.currentPriorityName ?? "-"}
-                  </td>
-                  <td className="px-4 py-3.5 text-neutral-600">
-                    {company.dealCount}
-                  </td>
-                  <td className="px-4 py-3.5 text-neutral-600">
-                    <RelativeTime date={company.lastUpdateAt} />
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <InvestedBadge count={company.investmentCount} />
-                  </td>
+                  {COLUMNS.filter(([key]) => columns.includes(key)).map(([key]) => {
+                    const connections = company.connections ?? [];
+                    const owners = company.owners ?? [];
+                    const content = key === "connections" ? (connections.length
+                      ? <span className="font-medium text-cyan-800">{connections[0].name}{connections.length > 1 && ` + ${connections.length - 1} more`}</span> : "—")
+                      : key === "owner" ? (owners.length ? <span className="rounded-md bg-cyan-50 px-2 py-1 text-cyan-900" title={owners.join(", ")}>{owners[0]}{owners.length > 1 && ` + ${owners.length - 1}`}</span> : "—")
+                      : key === "last_contact" ? (company.lastContactAt ? <RelativeTime date={company.lastContactAt} /> : "—")
+                      : key === "location" ? company.location || "—"
+                      : key === "industry" ? company.industryName || "—"
+                      : key === "stage" ? company.currentStageName || "—"
+                      : key === "priority" ? company.currentPriorityName || "—"
+                      : key === "deals" ? company.dealCount
+                      : key === "last_update" ? <RelativeTime date={company.lastUpdateAt} />
+                      : <InvestedBadge count={company.investmentCount} />;
+                    return <td key={key} className="whitespace-nowrap px-4 py-3 text-neutral-600">{content}</td>;
+                  })}
                 </tr>
               ))}
             </tbody>
