@@ -323,6 +323,7 @@ export default function ConversationView({
               const showDay =
                 mounted && (index === 0 || localDay(messages[index - 1].createdAt) !== localDay(message.createdAt));
               const mentionsMe = message.mentions.includes(me);
+              const commentMention = message.body.match(/^Comment mention: (\/[a-z0-9/-]+#comment-[0-9a-f-]{36})$/i)?.[1];
               return (
                 <li key={message.id} className="flex flex-col" data-message={message.id} data-author={message.authorEmail}>
                   {showDay && (
@@ -344,7 +345,10 @@ export default function ConversationView({
                         <LocalTime date={message.createdAt} mode="smart" />
                       </div>
                       <p className="whitespace-pre-wrap break-words">
-                        {message.body.match(/^Workspace comment: (\/[a-z0-9/-]+#comment-[0-9a-f-]{36})$/i) ? <Link className="font-semibold text-cyan-800 underline" href={message.body.slice("Workspace comment: ".length)}>Open workspace discussion</Link> : mentionSegments(message.body, message.mentions, dir).map((segment, index) =>
+                        {commentMention ? <>
+                          {mine ? `You mentioned ${participants.find((p) => p.email !== me)?.name ?? "this person"} in a comment.` : `${name(message.authorEmail)} mentioned you in a comment.`}{" "}
+                          <Link className={`font-semibold underline ${mine ? "text-cyan-200" : "text-cyan-800"}`} href={commentMention}>Open comment</Link>
+                        </> : message.body.match(/^Workspace comment: (\/[a-z0-9/-]+#comment-[0-9a-f-]{36})$/i) ? <Link className="font-semibold text-cyan-800 underline" href={message.body.slice("Workspace comment: ".length)}>Open workspace discussion</Link> : mentionSegments(message.body, message.mentions, dir).map((segment, index) =>
                           segment.mention ? (
                             <span
                               key={index}
