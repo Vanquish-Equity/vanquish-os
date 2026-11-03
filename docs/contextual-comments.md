@@ -49,3 +49,14 @@ data, so test comments written there will be real records.
 ## Operating workflow update
 
 Documents and the Action center (now the Activity tab of Tasks) now support semantic source anchors. Their source permissions are checked on reads and definer mutations. Private Gmail pages remain excluded. Selected recipients, snapshots and deliberate chat link sharing are described in [Operating workflows](operating-workflows.md).
+
+
+## Mentions in direct chat
+
+A new explicit @mention adds a link to the comment in the direct chat between
+its author and the mentioned member, starting the conversation if needed.
+Only members with source access receive it. Both see the same entry from their
+own perspective. The chat does not copy comment text, record names, or field
+values, and the entry is hidden if source access is lost or the comment is
+deleted. The existing bell notice remains; the chat entry adds no second bell
+notice. Existing mentions are not backfilled.
