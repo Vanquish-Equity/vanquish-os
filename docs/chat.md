@@ -12,8 +12,8 @@ external contacts. Comments on Company and Deal pages are a later stage.
 | Sidebar → **Chat** (`/chat`) | Conversation list: title (the other member for a direct message, the group name otherwise), group participants, last message (“You:” or its author), time and unread count. Badge on the icon = unread messages. |
 | `/chat/new` | *Direct message* (one other active member; reopening returns the same conversation) or *Group* (a name and at least two other active members). |
 | `/chat/<id>` | Messages with author and local time, day separators, `@` mentions highlighted. Enter sends, Shift+Enter adds a line. Groups have a *Members* panel to add members or leave. |
-| Sidebar → **Notifications** (`/notifications`) | *Unread* and *All*. Badge on the icon = unread notifications. *Mark all as read*. |
-| Home | *Notices for you* shows the latest notifications (same inbox, no duplicates); a chat link with its count in the header; *New message* quick action. |
+| Top bar bell → **All notifications** (`/notifications`) | *Unread* and *All*. The bell carries the unread badge; the sidebar has no Notifications entry. On Chat, where the top bar is hidden, the conversation list has a *Notifications* link with the same count. *Mark all as read*. |
+| Home → Today | *Notices for you* shows the latest notifications (same inbox, no duplicates); a chat link with its count in the header. New message is in the top bar's "+ New". |
 | Top bar (every page except Chat and Notifications) | The bell with the unread count; it opens a floating panel with recent notifications and *All notifications* (see [`comments.md`](comments.md#notification-bell)). |
 
 On phones the chat shows one pane at a time (list at `/chat`, the

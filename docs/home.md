@@ -65,7 +65,7 @@ How the tabs work (`src/lib/home/tabs.ts`, `src/components/home/HomeTabs.tsx`):
 | --- | --- | --- |
 | Greeting | `Good morning / afternoon / evening` from the viewer's local time, then `app_members.display_name` (managed in Supabase). If a member has none, the first word of the Google profile name; otherwise no name. The email is never turned into a name. | — |
 | My tasks | Open tasks whose `assignee_email` is the signed-in member (migration `0017`), grouped by local date: Overdue, Today, Next 7 days. | The task row in Tasks (`/tasks?view=mine#task-<id>`) and its deal or company. |
-| Needs attention | **One list** (see below). | Each draft, deal (`#due-diligence`), `/portfolio?filter=critical_missing`, `/review`, deal page, `/pipeline?filter=stale`. |
+| Needs attention | **One list** (see below). | Each draft, deal (`#due-diligence`), `/portfolio?filter=critical_missing`, `/review`, deal page, `/pipeline`. |
 | Notices for you | With migration `0018`: the latest entries of the notification inbox (direct messages, @mentions, group messages, tasks and email drafts someone else assigned to you; draft notices start when `0018` is applied, older ones are not reconstructed), with *All notifications* linking to `/notifications`. The header has a chat link with the live unread count. Without `0018`: events derived from the last 14 days (`tasks.assigned_by`, `email_drafts.created_by` ≠ you). Only one of the two is shown, so an event never appears twice. Gmail/Outlook are not used. See [`chat.md`](chat.md). | The conversation, task or draft (opening it marks the notice read). |
 | Shortcuts | Pipeline, Companies, Potential LPs, Review queue, and Portfolio (only with the Portfolio permission). | Existing screens. |
 
@@ -75,7 +75,7 @@ How the tabs work (`src/lib/home/tabs.ts`, `src/components/home/HomeTabs.tsx`):
 email drafts with a recipient to review · due-diligence checklists with
 critical items outstanding (**Documents** only) · critical missing portfolio
 documents (**Portfolio + Documents** only) · open Review queue items · **every**
-stale deal (7 shown, then *View all N*) with *Log update* and *Snooze 30d* ·
+stale deal (7 shown, then a link to Pipeline) with *Log update* and *Snooze 30d* ·
 the deals imported from the tracker with no activity yet (collapsible). A deal
 that is stale (or imported) and also has due-diligence gaps is one row with both
 reasons, not two rows. Home used to show only the three stalest deals and link
@@ -89,7 +89,11 @@ quick action is gone: the Dashboard tab replaces it.
 
 ### Dashboard
 
-The former Overview, unchanged except as follows: the *CRM reporting* card now
+Loads the active deals with one query (`loadActiveDeals`), not the full
+attention computation (interactions, tasks, stage history, documents and
+checklists stay on Today), and reads the portfolio checklist only for members
+with Portfolio + Documents, who are the only ones who see that card. Otherwise
+it is the former Overview, unchanged except as follows: the *CRM reporting* card now
 reads *Open Reports* and switches to the Reports tab; *Needs Attention* moved
 to Today (the Dashboard no longer shows the stale or imported lists); *Recent
 activity* now takes the full width. Stat tiles, Pipeline by stage, Time in

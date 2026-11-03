@@ -30,3 +30,25 @@ describe("contextual comments routing", () => {
     expect(contextHref({ page: "boards", companyId: null, dealId: null }, "abc", null)).toBe("/boards#comment-abc");
   });
 });
+
+describe("Home comment links", () => {
+  const link = (page: string, target?: string | null) => contextHref({ page, companyId: null, dealId: null }, "abc", target);
+
+  it("opens the Dashboard for legacy overview comments without relying on the redirect", () => {
+    expect(link("overview", "stat:3")).toBe("/home?tab=dashboard#comment-abc");
+    expect(link("overview", "pipeline-trends")).toBe("/home?tab=dashboard#comment-abc");
+    expect(link("overview", "page")).toBe("/home?tab=dashboard#comment-abc");
+    expect(link("overview", null)).toBe("/home?tab=dashboard#comment-abc");
+    // The Needs attention card moved to Today.
+    expect(link("overview", "needs-attention")).toBe("/home#comment-abc");
+  });
+
+  it("opens the tab that holds the anchor for a home comment", () => {
+    for (const key of ["stat:0", "stat:5", "pipeline-by-stage", "pipeline-analytics", "pipeline-trends", "recent-activity"]) {
+      expect(link("home", key), key).toBe("/home?tab=dashboard#comment-abc");
+    }
+    for (const key of ["home-tasks", "home-attention", "home-notices", "page", null]) {
+      expect(link("home", key), String(key)).toBe("/home#comment-abc");
+    }
+  });
+});

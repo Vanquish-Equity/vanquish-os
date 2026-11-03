@@ -55,6 +55,30 @@ checks that each mention is an active member.
   - Creating a task later from an existing comment is a separate action and
     notifies the assignee as a normal task.
 
+## Home tabs and legacy Overview comments
+
+Home has three tabs but one comment scope, `home` (`contextScope`). Comments
+made on the former Overview page were stored with page key `overview`; that key
+stays valid in the database and nothing was migrated:
+
+- On `/home` comments are read with `page_key in ('home','overview')`
+  (`HOME_PAGE_KEYS`, `loadContextCommentsAction`). A pin is drawn only where its
+  anchor exists on the page, so legacy `stat:N`, `pipeline-by-stage`,
+  `pipeline-analytics`, `pipeline-trends` and `recent-activity` pins show on the
+  Dashboard tab only. Comments on the generic `page` anchor show on every tab.
+  The old `needs-attention` anchor no longer exists (the card moved to Today as
+  `home-attention`), so those pins have no place to draw; the comment is still
+  reachable from its notification link, which opens Today with the panel.
+- Resolve, edit and delete call RPCs by comment id, which check access with the
+  comment's own page key, so they work on legacy comments. Replying must send
+  the root's page key (the database compares it), so `postContextCommentAction`
+  looks it up and uses `overview` for a reply to a legacy comment.
+- `contextHref` links to `/home?tab=dashboard#comment-<id>` for legacy
+  `overview` comments and for `home` comments on Dashboard anchors, so the link
+  does not depend on a redirect keeping the hash. Other Home comments open
+  Today. Reports has no anchors of its own: a comment there uses the generic
+  `page` anchor and its link opens Today (the panel opens, no scroll target).
+
 ## Notifications
 
 | Kind | Who | Opens |

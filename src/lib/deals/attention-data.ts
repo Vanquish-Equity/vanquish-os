@@ -22,7 +22,27 @@ export type AttentionSourceDeal = {
   relationship_state: { name: string } | null;
 };
 
-// Active deals plus the "needs attention" lists shown on Home (Today and Dashboard).
+// The active (unarchived, company not deleted) deals with the labels Home needs.
+// Shared by the full attention lists and by the Dashboard, which only counts
+// deals and so must not pay for the activity signals below.
+function activeDealsQuery(supabase: SupabaseClient) {
+  return supabase
+    .from("deals")
+    .select(
+      "id,name,round,created_at,updated_at,first_seen_at,last_activity_at,attention_snoozed_until,archived_at,source_system,company:companies!inner(id,name,deleted_at),stage:pipeline_stages(name,is_terminal),priority:priorities(name),outcome:deal_outcomes(name),relationship_state:relationship_states(name)"
+    )
+    .is("company.deleted_at", null)
+    .is("archived_at", null) as unknown as Promise<{ data: AttentionSourceDeal[] | null }>;
+}
+
+// Dashboard: the active deals only, one query. No interactions, tasks, stage
+// history, documents or checklist rows.
+export async function loadActiveDeals(supabase: SupabaseClient) {
+  const { data } = await activeDealsQuery(supabase);
+  return data ?? [];
+}
+
+// Active deals plus the "needs attention" lists shown on Home > Today.
 // Document signals are only read for members with Documents; for others the
 // query is not run at all (RLS would return nothing anyway).
 export async function loadAttentionDeals(supabase: SupabaseClient, { canDocuments }: { canDocuments: boolean }) {
@@ -35,13 +55,7 @@ export async function loadAttentionDeals(supabase: SupabaseClient, { canDocument
     { data: documentSignals },
     { data: requirementSignals },
   ] = await Promise.all([
-    supabase
-      .from("deals")
-      .select(
-        "id,name,round,created_at,updated_at,first_seen_at,last_activity_at,attention_snoozed_until,archived_at,source_system,company:companies!inner(id,name,deleted_at),stage:pipeline_stages(name,is_terminal),priority:priorities(name),outcome:deal_outcomes(name),relationship_state:relationship_states(name)"
-      )
-      .is("company.deleted_at", null)
-      .is("archived_at", null) as unknown as Promise<{ data: AttentionSourceDeal[] | null }>,
+    activeDealsQuery(supabase),
     supabase
       .from("interactions")
       .select("deal_id,occurred_at")

@@ -287,6 +287,33 @@ describe("home tabs fetch only their own data", () => {
     }
   });
 
+  it("Dashboard loads deals without the attention signals, and stage history once", async () => {
+    world.fixtures.tables.member_permissions = [];
+    const labels = await tables("/home?tab=dashboard");
+    // No Portfolio + Documents here, so its checklist queries are skipped too.
+    for (const signal of ["interactions", "document_requirements", "documents", "investments"]) {
+      expect(has(labels, signal), signal).toBe(false);
+    }
+    expect(labels.filter((label) => label === "deal_status_history")).toHaveLength(1);
+    expect(labels.filter((label) => label === "deals").length).toBe(2); // active deals + the trend deals
+  });
+
+  it("Dashboard reads the portfolio checklist only for a member with Portfolio and Documents", async () => {
+    world.fixtures.tables.member_permissions = [{ permission: "documents" }, { permission: "portfolio" }];
+    const labels = await tables("/home?tab=dashboard");
+    expect(has(labels, "document_requirements")).toBe(true);
+    expect(has(labels, "investments")).toBe(true);
+    // Still no activity signals: those belong to Today.
+    expect(has(labels, "interactions")).toBe(false);
+  });
+
+  it("Today keeps the attention signals it needs", async () => {
+    const labels = await tables("/home");
+    for (const signal of ["interactions", "deal_status_history", "review_items", "email_drafts"]) {
+      expect(has(labels, signal), signal).toBe(true);
+    }
+  });
+
   it("Reports does not run Today or Dashboard queries", async () => {
     const labels = await tables("/home?tab=reports");
     expect(has(labels, "weekly_report_subscriptions")).toBe(true);

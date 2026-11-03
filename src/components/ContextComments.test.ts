@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { it,expect,vi } from "vitest";
 const state=vi.hoisted(()=>({pathname:"/inbox"}));
-vi.mock("next/navigation",()=>({usePathname:()=>state.pathname,useRouter:()=>({refresh:vi.fn()})}));
+vi.mock("next/navigation",()=>({usePathname:()=>state.pathname,useRouter:()=>({refresh:vi.fn()}),useSearchParams:()=>new URLSearchParams()}));
 vi.mock("@/components/UnreadCounts",()=>({useUnreadCounts:()=>({refresh:vi.fn()})}));
 vi.mock("@/lib/realtime/useLiveSignal",()=>({useLiveSignal:vi.fn()}));
 vi.mock("@/lib/comments/context-actions",()=>({loadContextCommentsAction:vi.fn(),deleteContextCommentAction:vi.fn(),editContextCommentAction:vi.fn(),postContextCommentAction:vi.fn(),setContextResolvedAction:vi.fn(),shareContextCommentAction:vi.fn()}));

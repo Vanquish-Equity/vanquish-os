@@ -185,10 +185,10 @@ export default function NeedsAttentionPanel({
                 ))}
                 {staleDeals.length > 7 && (
                   <Link
-                    href="/pipeline?filter=stale"
+                    href="/pipeline"
                     className="text-[11.5px] font-semibold text-cyan-700 hover:text-cyan-800"
                   >
-                    View all {staleDeals.length}
+                    {staleDeals.length - 7} more stale deals, open Pipeline
                   </Link>
                 )}
               </div>

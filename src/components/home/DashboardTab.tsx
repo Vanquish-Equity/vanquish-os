@@ -1,7 +1,7 @@
 import ReportingOverview from "@/components/ReportingOverview";
 import Link from "next/link";
 import RelativeTime from "@/components/RelativeTime";
-import { loadAttentionDeals } from "@/lib/deals/attention-data";
+import { loadActiveDeals } from "@/lib/deals/attention-data";
 import { pipelineAnalytics, type StageChange } from "@/lib/deals/pipeline-analytics";
 import { dealsByMember, potentialByStage, weeklyMovement, type TrendDeal } from "@/lib/deals/pipeline-trends";
 import { getPipelineStages } from "@/lib/taxonomies";
@@ -118,7 +118,7 @@ export default async function DashboardTab({
   const weekAgo = new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const [
-    { deals },
+    deals,
     { data: openTasks },
     { data: activity },
     { data: requirements },
@@ -131,7 +131,7 @@ export default async function DashboardTab({
     { data: dealAssignees },
     { data: memberDirectory },
   ] = await Promise.all([
-    loadAttentionDeals(supabase, { canDocuments }),
+    loadActiveDeals(supabase),
     supabase
       .from("tasks")
       .select("id")
@@ -145,17 +145,23 @@ export default async function DashboardTab({
       .select("id,event_type,target_type,target_id,occurred_at,payload")
       .order("occurred_at", { ascending: false })
       .limit(8) as unknown as Promise<{ data: ActivityRow[] | null }>,
-    supabase
-      .from("document_requirements")
-      .select("id,investment_id,status,criticality")
-      .in("scope", ["spv", "investor_spv", "spv_company"])
-      .is("archived_at", null) as unknown as Promise<{
+    // The Portfolio Document Health card is the only user of these two; without
+    // Portfolio + Documents it is not shown, so they are not queried at all.
+    (showPortfolioHealth
+      ? supabase
+          .from("document_requirements")
+          .select("id,investment_id,status,criticality")
+          .in("scope", ["spv", "investor_spv", "spv_company"])
+          .is("archived_at", null)
+      : Promise.resolve({ data: [] })) as unknown as Promise<{
       data: RequirementHealthRow[] | null;
     }>,
-    supabase
-      .from("investments")
-      .select("id,external_ref,round_label,company:companies(name),investment_vehicles(vehicle:legal_entities(id,name))")
-      .is("archived_at", null) as unknown as Promise<{
+    (showPortfolioHealth
+      ? supabase
+          .from("investments")
+          .select("id,external_ref,round_label,company:companies(name),investment_vehicles(vehicle:legal_entities(id,name))")
+          .is("archived_at", null)
+      : Promise.resolve({ data: [] })) as unknown as Promise<{
       data: InvestmentLookupRow[] | null;
     }>,
     getPipelineStages(),

@@ -1,7 +1,7 @@
 "use client";
 
 import LocalTime from "@/components/LocalTime";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import SelectMenu from "@/components/SelectMenu";
@@ -46,6 +46,8 @@ const subscribeToHydration = () => () => {};
 export default function ContextComments() {
   const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
   const pathname = usePathname();
+  // Home tabs share one pathname; the tab decides which anchors exist.
+  const tab = useSearchParams().get("tab");
   const router = useRouter();
   const scope = useMemo(() => contextScope(pathname), [pathname]);
   const unread = useUnreadCounts();
@@ -178,7 +180,7 @@ export default function ContextComments() {
     window.addEventListener("scroll", position, true);
     window.addEventListener("resize", position);
     return () => { cancelAnimationFrame(frame); window.removeEventListener("scroll", position, true); window.removeEventListener("resize", position); };
-  }, [scope, available, comments, roots]);
+  }, [scope, available, comments, roots, tab]);
 
   useEffect(() => {
     const id = hash.match(/^#comment-([0-9a-f-]{36})$/i)?.[1];

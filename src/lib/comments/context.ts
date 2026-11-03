@@ -17,6 +17,26 @@ export function contextScope(pathname: string): ContextScope | null {
   return null;
 }
 
+// Home has three tabs but one comment scope, `home`. Comments pinned on the
+// former Overview page were stored with the page key `overview`; they are read
+// together with `home` (see HOME_PAGE_KEYS) and shown on the Dashboard tab,
+// where their anchors live.
+export const HOME_PAGE_KEYS = ["home", "overview"] as const;
+
+// Anchors that only exist on the Dashboard tab (the former Overview page).
+const DASHBOARD_ANCHOR = /^(stat:\d+|pipeline-by-stage|pipeline-analytics|pipeline-trends|recent-activity)$/;
+
+// Tab hint for a Home comment link, so the link opens the tab that holds the
+// anchor. Anything else (Today anchors, the generic "page" anchor, the
+// Reports tab, which has no anchors of its own) opens Today.
+function homeTabHint(page: string, targetKey?: string | null) {
+  if (targetKey && DASHBOARD_ANCHOR.test(targetKey)) return "?tab=dashboard";
+  // Any other legacy Overview comment opens the Dashboard, except the old
+  // Needs attention card, which moved to Today.
+  if (page === "overview" && targetKey !== "needs-attention") return "?tab=dashboard";
+  return "";
+}
+
 export function contextHref(scope: ContextScope, id: string, targetKey?: string | null) {
   if (scope.page === "boards") {
     // "boards" has no per-board scope column (see contextScope above), so
@@ -24,6 +44,9 @@ export function contextHref(scope: ContextScope, id: string, targetKey?: string 
     // encoded there as `board:<id>:...` when the comment was posted.
     const boardId = targetKey?.match(/^board:([0-9a-f-]{36}):/i)?.[1];
     return `${boardId ? `/boards/${boardId}` : "/boards"}#comment-${id}`;
+  }
+  if (scope.page === "home" || scope.page === "overview") {
+    return `/home${homeTabHint(scope.page, targetKey)}#comment-${id}`;
   }
   const base = scope.page ? `/${scope.page}` : scope.dealId
     ? `/companies/${scope.companyId}/deals/${scope.dealId}`
