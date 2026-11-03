@@ -4,7 +4,7 @@
 
 import type { AreaPermission } from "@/lib/auth/permissions";
 import { withListSort, type ListSort } from "@/lib/list-sort";
-import { viewHref, type PeopleViewFilters } from "@/lib/views/queries";
+import { viewHref, type PeopleViewFilters } from "@/lib/views/href";
 
 // People has one extra view next to the list tabs: Relationships (the former
 // Network page, /people?tab=relationships). It is a different view of the same

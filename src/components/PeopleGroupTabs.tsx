@@ -14,7 +14,7 @@ const tabClass = (active: boolean) =>
 export default function PeopleGroupTabs({ tabs }: { tabs: PeopleTab[] }) {
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-      <nav aria-label="People groups" className="min-w-0">
+      <nav aria-label="People views" className="min-w-0">
         <ul className="flex flex-wrap items-center gap-2">
           {tabs.map((tab) => (
             <li key={tab.key} className="min-w-0">

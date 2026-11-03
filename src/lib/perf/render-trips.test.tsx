@@ -260,7 +260,7 @@ describe("round trips per route", () => {
       const result = await measure(route);
       all.push(result);
       expect(result.total).toBeGreaterThan(0);
-expect(result.depthSupabase).toBeLessThanOrEqual(MAX_SEQUENTIAL_SUPABASE_TRIPS[route]);
+      expect(result.depthSupabase).toBeLessThanOrEqual(MAX_SEQUENTIAL_SUPABASE_TRIPS[route]);
       // Every request checks the session twice at most: proxy + membership.
       expect(result.auth).toBeLessThanOrEqual(2);
       if (route === "/people") {

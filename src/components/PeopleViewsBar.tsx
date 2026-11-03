@@ -8,11 +8,8 @@ import { FormSelectMenu } from "@/components/SelectMenu";
 import { deleteViewAction, saveViewAction } from "@/lib/views/actions";
 import { PEOPLE_COLUMNS, visiblePeopleColumns } from "@/lib/views/people-columns";
 import type { ListSort } from "@/lib/list-sort";
-import {
-  viewHref,
-  type PeopleViewFilters,
-  type SavedView,
-} from "@/lib/views/queries";
+import { viewHref, type PeopleViewFilters } from "@/lib/views/href";
+import type { SavedView } from "@/lib/views/queries";
 
 function sameFilters(a: PeopleViewFilters, b: PeopleViewFilters) {
   return (

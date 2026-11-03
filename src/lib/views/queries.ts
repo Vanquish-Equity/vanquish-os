@@ -1,5 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
-import { parsePeopleColumns, type PeopleColumn } from "./people-columns";
+import { parsePeopleColumns } from "./people-columns";
+import type { PeopleViewFilters } from "./href";
+
+// Pure helpers live in ./href (no server imports); re-exported for callers.
+export { viewHref } from "./href";
+export type { PeopleViewFilters } from "./href";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -41,14 +46,6 @@ export async function loadSavedViewRows(
   }));
 }
 
-export type PeopleViewFilters = {
-  view: "all" | "lps";
-  groupId: string | null;
-  q: string | null;
-  // Visible optional columns; null means the default (all of them).
-  cols: PeopleColumn[] | null;
-};
-
 export type SavedView = {
   id: string;
   name: string;
@@ -74,17 +71,4 @@ export async function loadSavedViews(
       cols: parsePeopleColumns(row.filters.cols),
     },
   }));
-}
-
-export function viewHref(basePath: string, filters: PeopleViewFilters) {
-  const params = new URLSearchParams();
-  if (filters.view === "lps") params.set("view", "lps");
-  if (filters.groupId) params.set("group", filters.groupId);
-  if (filters.q) params.set("q", filters.q);
-  if (filters.cols) {
-    params.set("cols", "1");
-    filters.cols.forEach((col) => params.append("col", col));
-  }
-  const query = params.toString();
-  return query ? `${basePath}?${query}` : basePath;
 }
