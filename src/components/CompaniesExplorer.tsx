@@ -1,7 +1,7 @@
 "use client";
 
 import DirectoryTableScroll from "@/components/DirectoryTableScroll";
-import { archiveSelectedCompanies, changeCompanyGroup, createCompanyGroup } from "@/lib/companies/actions";
+import { archiveSelectedCompanies, changeCompanyGroup, createCompanyGroup, setCompanyLpFollowUp, updateCompanyFieldAction } from "@/lib/companies/actions";
 import ColumnResizeHandle from "@/components/ColumnResizeHandle";
 import Popover from "@/components/customization/Popover";
 import PeopleFieldCell from "@/components/people/PeopleFieldCell";
@@ -30,10 +30,10 @@ type FilterOptions = {
 
 const COLUMNS = [
   ["connections", "Connections"], ["owner", "Owner"], ["last_contact", "Last Contact"], ["location", "Location"],
-  ["industry", "Industry"], ["stage", "Stage"], ["priority", "Priority"], ["deals", "Deals"],
+  ["industry", "Industry"], ["stage", "Stage"], ["priority", "Priority"], ["lp_follow_up", "LP Follow-up"], ["deals", "Deals"],
   ["last_update", "Last update"], ["invested", "Invested"],
 ] as const;
-const DEFAULT_COLUMNS = COLUMNS.slice(0, 7).map(([key]) => key);
+const DEFAULT_COLUMNS = COLUMNS.slice(0, 8).map(([key]) => key);
 
 
 const TAG_COLORS = [
@@ -158,6 +158,8 @@ function InvestedBadge({ count }: { count: number }) {
 export default function CompaniesExplorer({
   companies,
   groups,
+  industryOptions,
+  followUpAvailable = false,
   groupId,
   filterOptions,
   extraFilters,
@@ -168,6 +170,8 @@ export default function CompaniesExplorer({
 }: {
   companies: CompanyListItem[];
   groups?: { id: string; name: string }[];
+  industryOptions?: { id: string; name: string }[];
+  followUpAvailable?: boolean;
   groupId?: string | null;
   filterOptions: FilterOptions;
   extraFilters?: ReactNode;
@@ -181,6 +185,24 @@ export default function CompaniesExplorer({
   const [targetGroup, setTargetGroup] = useState("");
   const [newGroupName, setNewGroupName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
+  async function saveCell(key: string, action: () => Promise<{ ok: boolean }>, revert: () => void) {
+    setEditing(key);
+    setMessage("");
+    try {
+      if (!(await action()).ok) {
+        revert();
+        setMessage("Couldn't save this change.");
+      } else router.refresh();
+    } catch {
+      revert();
+      setMessage("Couldn't save this change. Refresh to check the result.");
+    } finally {
+      setEditing(null);
+    }
+  }
+  const [industryEdits, setIndustryEdits] = useState<Record<string, string>>({});
+  const [followUpEdits, setFollowUpEdits] = useState<Record<string, boolean>>({});
   const [message, setMessage] = useState("");
   async function run(action: () => Promise<{ ok: boolean; message?: string }>, success: string) {
     setBusy(true);
@@ -212,7 +234,8 @@ export default function CompaniesExplorer({
   const view = readView(searchParams);
   const sort = readSort(searchParams);
   const selectedColumns = searchParams.get("columns");
-  const columns = selectedColumns === null ? DEFAULT_COLUMNS : readList(searchParams, "columns");
+  const columns = (selectedColumns === null ? DEFAULT_COLUMNS : readList(searchParams, "columns"))
+    .filter((key) => key !== "lp_follow_up" || followUpAvailable);
 
   const customFields = fieldDefinitions.filter(({ id, name, field_type }) =>
     columns.includes(`cf:${id}`) && !(name.trim().toLowerCase() === "location" && field_type === "text")).slice(0, 6);
@@ -466,7 +489,7 @@ export default function CompaniesExplorer({
           {view === "table" && <Popover label="Company columns" trigger="Columns" panelClassName="sm:left-auto sm:!right-0 sm:w-80">
             {() => <>
               <div className="grid grid-cols-2 gap-x-2 gap-y-1">
-                {COLUMNS.map(([key, label]) => <label key={key} className="flex min-h-9 items-center gap-2 text-xs">
+                {COLUMNS.filter(([key]) => key !== "lp_follow_up" || followUpAvailable).map(([key, label]) => <label key={key} className="flex min-h-9 items-center gap-2 text-xs">
                   <Checkbox checked={columns.includes(key)} onChange={(event) => toggleColumn(key, event.target.checked)} />{label}
                 </label>)}
                 {fieldDefinitions.filter(({ id }) => id !== locationField?.id).map(({ id, name }) => <label key={id} className="flex min-h-9 items-center gap-2 text-xs">
@@ -631,14 +654,14 @@ export default function CompaniesExplorer({
                 {([["company", "Name"], ...COLUMNS.filter(([key]) => columns.includes(key))] as const).map(([key, label]) => (
                   <th key={key} className="relative py-3 pl-4 pr-7 font-semibold">
                     <div className="flex items-center gap-2">
-                    <button
+                    {key === "lp_follow_up" ? <span>{label}</span> : <button
                       type="button"
                       onClick={() => toggleSort(key as CompanySortKey)}
                       className="flex items-center gap-1 hover:text-cyan-800"
                     >
                       {label}
                       <span>{sortIndicator(key as CompanySortKey)}</span>
-                    </button>
+                    </button>}
                     {filterButton(key, label)}
                     </div>
                     <ColumnResizeHandle label={label} />
@@ -668,6 +691,38 @@ export default function CompaniesExplorer({
                     {company.website && <div className="mt-0.5 truncate text-[11px] font-normal text-neutral-500">{company.website.replace(/^https?:\/\//i, "").replace(/\/$/, "")}</div>}
                   </td>
                   {COLUMNS.filter(([key]) => columns.includes(key)).map(([key]) => {
+                    if (key === "industry" && industryOptions) {
+                      const id = industryEdits[company.id] ?? company.industryId ?? "";
+                      const name = industryOptions.find((option) => option.id === id)?.name ?? (id ? company.industryName : null);
+                      return <td key={key} data-company-cell-editor="" className="px-4 py-3">
+                        <label className="relative inline-block min-w-12 rounded focus-within:outline focus-within:outline-2 focus-within:outline-cyan-700">
+                          <CompanyTag kind="industry" value={name} />
+                          <select aria-label={`Industry for ${company.name}`} value={id} disabled={editing !== null}
+                            className="absolute inset-0 w-full cursor-pointer opacity-0 disabled:cursor-wait"
+                            onChange={(event) => {
+                              const next = event.target.value;
+                              setIndustryEdits((prev) => ({ ...prev, [company.id]: next }));
+                              void saveCell(company.id, () => updateCompanyFieldAction({ companyId: company.id, field: "industry_id", value: next || null }),
+                                () => setIndustryEdits((prev) => ({ ...prev, [company.id]: id })));
+                            }}>
+                            <option value="">No industry</option>
+                            {industryOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+                          </select>
+                        </label>
+                      </td>;
+                    }
+                    if (key === "lp_follow_up") {
+                      const checked = followUpEdits[company.id] ?? company.lpFollowUp ?? false;
+                      return <td key={key} data-company-cell-editor="" className="px-4 py-3">
+                        <Checkbox aria-label={`LP Follow-up for ${company.name}`} checked={checked} disabled={editing !== null}
+                          onChange={(event) => {
+                            const next = event.target.checked;
+                            setFollowUpEdits((prev) => ({ ...prev, [company.id]: next }));
+                            void saveCell(company.id, () => setCompanyLpFollowUp(company.id, next),
+                              () => setFollowUpEdits((prev) => ({ ...prev, [company.id]: checked })));
+                          }} />
+                      </td>;
+                    }
                     const connections = company.connections ?? [];
                     const owners = company.owners ?? [];
                     const content = key === "connections" ? (connections.length

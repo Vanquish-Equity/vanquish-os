@@ -29,11 +29,13 @@ vi.mock("next/link", () => ({
   default: ({ children, ...props }: { children: React.ReactNode }) => <a {...props}>{children}</a>,
 }));
 
-const bulk = vi.hoisted(() => ({ archive: vi.fn(async () => ({ ok: true })) }));
+const bulk = vi.hoisted(() => ({ archive: vi.fn(async () => ({ ok: true })), industry: vi.fn(async () => ({ ok: true })), followUp: vi.fn(async () => ({ ok: true })) }));
 vi.mock("@/lib/companies/actions", () => ({
   archiveSelectedCompanies: bulk.archive,
   changeCompanyGroup: vi.fn(),
   createCompanyGroup: vi.fn(),
+  setCompanyLpFollowUp: bulk.followUp,
+  updateCompanyFieldAction: bulk.industry,
 }));
 import CompaniesExplorer from "./CompaniesExplorer";
 
@@ -171,6 +173,19 @@ describe("CompaniesExplorer URL handling", () => {
     } finally {
       confirm.mockRestore();
     }
+  });
+
+  it("edits Industry and LP Follow-up without opening the company", async () => {
+    originalReplace(null, "", "/companies?view=table");
+    render(<CompaniesExplorer companies={companies} filterOptions={filterOptions}
+      industryOptions={[{ id: "industry-1", name: "Synthetic industry" }]} followUpAvailable />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Industry for Alpha Co" }), { target: { value: "industry-1" } });
+    await waitFor(() => expect(bulk.industry).toHaveBeenCalledWith({ companyId: "c1", field: "industry_id", value: "industry-1" }));
+    const checkbox = screen.getByRole<HTMLInputElement>("checkbox", { name: "LP Follow-up for Alpha Co" });
+    await waitFor(() => expect(checkbox.disabled).toBe(false));
+    fireEvent.click(checkbox);
+    await waitFor(() => expect(bulk.followUp).toHaveBeenCalledWith("c1", true));
+    expect(nav.router.push).not.toHaveBeenCalled();
   });
 
   it("matches any chosen owner, including an owner on a company with multiple assignees", () => {
