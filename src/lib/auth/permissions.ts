@@ -79,7 +79,6 @@ export const WORKSPACE_NAV: NavItem[] = [
   { href: "/pipeline", label: "Pipeline", icon: "pipeline" },
   { href: "/companies", label: "Companies", icon: "companies" },
   { href: "/people", label: "People", icon: "people" },
-  { href: "/network", label: "Network", icon: "network" },
   { href: "/lp-board", label: "LP follow-up", icon: "lp" },
   { href: "/boards", label: "CRM boards", icon: "boards" },
   { href: "/tasks", label: "Tasks", icon: "tasks" },

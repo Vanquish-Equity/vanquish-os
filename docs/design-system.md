@@ -58,6 +58,17 @@ positioning only when `absolute`, `fixed` or `sticky` is absent. Unlayered CSS
 must not override those utility positions: SelectMenu popovers stay absolute
 and the offline Vanquish AI panel stays fixed without moving the sidebar.
 
+## People tabs
+
+The People tab bar (`PeopleGroupTabs`: links with optional counts, wrapping
+pills, no arrows) also holds **Relationships**, a link to
+`/people?tab=relationships`. It is not prefetched with the list's data: the
+Relationships queries run only when that tab is open (see
+[CRM workspace](crm-workspace.md#people-relationships-tab-the-former-network)).
+The tab's helpers live in `src/lib/people-groups/tabs.ts`, a plain module,
+because a server page must not import non-component values from a `"use client"`
+file (`src/lib/ui/client-boundary.test.ts`).
+
 ## Motion and perceived speed
 
 - **Route changes:** `NavigationProgress` (dashboard layout) shows a thin cyan
@@ -65,7 +76,7 @@ and the offline Vanquish AI panel stays fixed without moving the sidebar.
   longer than ~120 ms, finishes when the new route commits, and ignores links
   to the same page, new tabs, downloads and modified clicks. The Sidebar already
   highlights the target immediately. Routes without a bespoke skeleton use the
-  group `loading.tsx`; Boards, My LPs, Network and Documents have
+  group `loading.tsx`; Boards, My LPs and Documents have
   their own.
 - **Entrances:** `main.vq-page > *` fades and rises 6 px in 260 ms when a route
   (or its skeleton replaced by the page) mounts. Menus, selectors and popovers
@@ -103,7 +114,7 @@ and the offline Vanquish AI panel stays fixed without moving the sidebar.
   transition wins), and scrollbars are thin and quiet.
 - **Router cache:** `experimental.staleTimes` is `{ dynamic: 0, static: 30 }`.
   Nothing is cached by default. Hovering (or focusing/touching) a sidebar link to
-  Pipeline, Companies, Network or Portfolio preloads the whole page
+  Pipeline, Companies or Portfolio preloads the whole page
   (`prefetch={true}`), so the click is instant, and that copy lives 30 s. Own
   edits still show at once because those screens refresh with
   `router.refresh()`/`revalidatePath`, which clears the cache. Mail, Calendar,

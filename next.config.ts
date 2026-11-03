@@ -20,6 +20,9 @@ const nextConfig: NextConfig = {
       // query and #fragment preserved). Neither old route had sub-routes.
       { source: "/inbox", destination: "/tasks?tab=activity", permanent: false },
       { source: "/review", destination: "/tasks?tab=review", permanent: false },
+      // Network became the Relationships tab of People (same rules; the request's
+      // ?q= is passed through and added to the destination's ?tab=).
+      { source: "/network", destination: "/people?tab=relationships", permanent: false },
     ];
   },
   experimental: {

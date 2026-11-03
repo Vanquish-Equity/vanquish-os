@@ -15,7 +15,7 @@ export type NavSection = {
 // Ordered by how often the work happens: pipeline and companies/people first,
 // administration last.
 export const NAV_SECTIONS: NavSection[] = [
-  { key: "crm", label: "CRM", defaultOpen: true, hrefs: ["/pipeline", "/companies", "/people", "/network", "/lp-board"] },
+  { key: "crm", label: "CRM", defaultOpen: true, hrefs: ["/pipeline", "/companies", "/people", "/lp-board"] },
   { key: "work", label: "Work", defaultOpen: true, hrefs: ["/tasks", "/communications", "/calendar", "/documents"] },
   { key: "boards", label: "Boards", defaultOpen: true, hrefs: ["/boards"] },
   { key: "fund", label: "Fund", defaultOpen: false, hrefs: ["/portfolio", "/portfolio/fundraising"] },

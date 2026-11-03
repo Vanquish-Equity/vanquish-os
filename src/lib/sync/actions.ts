@@ -35,6 +35,6 @@ export async function disconnectAndWithdrawSync(email?:string) {
   if(access.status!=="member" || email && email!==access.email && !access.permissions.has("admin"))return {ok:false,message:"Access denied."};
   const db=await createClient();
   const {error}=await db.rpc("disconnect_and_withdraw_sync",{p_email:email??null});
-  if(!error){revalidatePath("/integrations");revalidatePath("/settings");revalidatePath("/companies","layout");revalidatePath("/documents");revalidatePath("/network");revalidatePath("/tasks");}
+  if(!error){revalidatePath("/integrations");revalidatePath("/settings");revalidatePath("/companies","layout");revalidatePath("/documents");revalidatePath("/people");revalidatePath("/tasks");}
   return {ok:!error,message:error?"Could not withdraw publications. Nothing was removed.":"Selected Google account disconnected and its published activity and Drive links removed. Original Drive files remain."};
 }

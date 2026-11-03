@@ -1,6 +1,7 @@
 import { customFieldsEnabled } from "@/lib/custom-fields/actions";
 import CustomFieldsRecord from "@/components/custom-fields/CustomFieldsRecord";
 import Link from "next/link";
+import { relationshipsHref } from "@/lib/people-groups/tabs";
 import { notFound } from "next/navigation";
 import { requireMember } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/server";
@@ -50,9 +51,9 @@ export default async function PersonRelationshipPage({
         </Link>
         <Link
           className="inline-flex min-h-11 items-center text-sm text-cyan-800"
-          href="/network"
+          href={relationshipsHref()}
         >
-          Back to Network
+          Back to Relationships
         </Link>
       </div>
       <header>

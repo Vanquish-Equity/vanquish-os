@@ -105,6 +105,15 @@ migrated:
   anchors open All, `review:`/`proposal:` To review, `interaction:`/`document:`
   Activity, anything else Mine (the default).
 
+## People tabs and the former Network page
+
+`/network` never had a comment scope: `network` is not in the `page_key`
+allowlist of `record_comments` (migrations `0021`, `20260929000200`,
+`20261005180000`), so no pin or comment can exist for it and there is nothing
+legacy to read. People > Relationships (`/people?tab=relationships`) uses the
+`people` scope like the rest of People, because `contextScope` sees only the
+pathname, `/people`. No code or SQL changed for comments.
+
 ## Notifications
 
 | Kind | Who | Opens |

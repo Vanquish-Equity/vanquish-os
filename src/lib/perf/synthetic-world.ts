@@ -78,6 +78,7 @@ export function buildWorld(): Fixtures {
       deal_rounds: [{ id: "r1", name: "Seed" }],
       saved_views: [],
       person_last_interaction: [],
+      relationship_interactions: rows(10, (i) => ({ person_id: `p${i}`, member_email: "member@synthetic.test", kind: "email", last_at: NOW })),
       notifications: [],
     },
     rpc: {

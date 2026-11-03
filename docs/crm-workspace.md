@@ -99,7 +99,8 @@ and drawn by `src/components/PeopleGroupTabs.tsx`:
 
 - **Order:** **All people (n)**, then **Potential LPs (n)** (the starter group,
   `kind = 'potential_lp'`, still at `/people?view=lps` because saved views and
-  bookmarks use it), then every custom group alphabetically
+  bookmarks use it), then **Relationships** (see below; same pill style, no
+  count), then every custom group alphabetically
   (`/people?group=<id>`). A tab keeps the search, the column choice and the
   sort that are in the URL; it replaces the previous tab and group.
 - **Counts:** All people and Potential LPs count active people by the
@@ -130,6 +131,50 @@ and drawn by `src/components/PeopleGroupTabs.tsx`:
   **Add potential LP**.
 - **Import people (CSV)** opens the importer with the Potential LP checkbox
   checked from the Potential LPs tab, and the group preselected from a group tab.
+
+### People: Relationships tab (the former Network)
+
+**Relationships** is a view of People, `/people?tab=relationships`, not a
+filter of the list. It answers one question, "which teammate has already
+emailed or met this contact?": teammate to contact introduction candidates
+ranked by shared activity days and recency, only from the opt-in relationship
+history members share in Settings (an activity indicator, not a claim of a
+personal relationship). The page text that says so is unchanged: *Showing up to
+200 contacts and 10,000 recent activity records. Only activity shared through
+Settings is included.* The body is `src/components/people/RelationshipsView.tsx`
+(cards, the relationship-intelligence section when its flag and permission are
+on, the error status); the tab id, link, text and the server-side choice are in
+`src/lib/people-groups/tabs.ts` (`RELATIONSHIPS_TAB`, `relationshipsHref`,
+`resolvePeopleView`), a plain module that the server page, the palette and the
+tests share.
+
+| Address | Shows |
+| --- | --- |
+| `/people`, `?view=lps`, `?group=<id>`, saved views, `?q=`, sort and column params | The People list, exactly as before. An unknown `?tab=` value is ignored. |
+| `/people?tab=relationships` (`&q=<name>` to search contacts) | Relationships. `view`, `group`, `sort`, `dir`, `cols` and `col` are ignored there; only `q` is kept, and switching tabs keeps `q`. |
+| `/network`, `/network?q=ana` | Temporary (307) redirect in `next.config.ts` to `/people?tab=relationships` (`&q=ana`). The old page file is gone. |
+
+| Tab | Who sees it | Where enforced |
+| --- | --- | --- |
+| All people, Potential LPs, group tabs | Every active member | `requireMember` in the dashboard layout and page; RLS on the data |
+| Relationships | Every active member, as Network was: it needed `requireMember` only, no area permission and no feature flag. The sidebar item had no `requires`. | The server page: `resolvePeopleView(tab, access.permissions)` after `requireMember()`. A tab the member may not see, or an unknown one, is never listed and a direct link shows the list. The tab definition has a `requires` slot (none today), tested with a stub permission, so a future restriction is one line. Postgres RLS on `people` and `relationship_interactions` is unchanged. |
+| Relationship-intelligence section inside Relationships | Members with the owner flag on and the `relationship_intelligence` permission | `personProfileState().intelligence` (`enabled && allowed`), unchanged |
+
+Performance: only the active view runs its queries. Relationships reads up to
+200 people (name search with `q`), the member directory, the person-profile
+gate and the group names (for the tab bar) together, then the interactions of
+exactly those people (`in('person_id', ids)`, newest first, capped at 10,000).
+The list's counts, saved views, companies, Gmail/Calendar support and
+last-interaction reads do not run for it, and the list never reads
+`relationship_interactions` (both asserted in `src/lib/perf/render-trips.test.tsx`).
+Tabs on the Relationships view show no person counts (they are not loaded). The
+header keeps Manage groups, Duplicates and Import people; **New Person** is on
+the list views only (it needs the company list). Every card links to the profile
+`/people/<id>` when it opens (`personProfileHref`), otherwise to the People list
+filtered by name, as Network did. The profile page has **Back to People** and
+**Back to Relationships**. Sidebar, mobile drawer, collapsed rail and hover
+warm-up no longer list Network; ⌘K finds **People: Relationships**, also by
+"network".
 
 ### People: import (CSV)
 
@@ -450,7 +495,7 @@ Decide who can create shared versus personal boards; whether another Deal board 
 
 ## Operating workflow update
 
-[Operating workflows](operating-workflows.md) adds the Action center (now the Activity tab of Tasks, `/tasks?tab=activity`; `/inbox` redirects there), human-reviewed changes, restricted Deal governance, company consolidation, ranked text/document search, Network introduction candidates and Portfolio monitoring. CRM delivery has its own consent and durable worker. People relationship-history sharing keeps separate consent and now uses the same durable worker queue. See [Sync activation runbook](runbook-sync-activation.md).
+[Operating workflows](operating-workflows.md) adds the Action center (now the Activity tab of Tasks, `/tasks?tab=activity`; `/inbox` redirects there), human-reviewed changes, restricted Deal governance, company consolidation, ranked text/document search, introduction candidates (People > Relationships, formerly Network) and Portfolio monitoring. CRM delivery has its own consent and durable worker. People relationship-history sharing keeps separate consent and now uses the same durable worker queue. See [Sync activation runbook](runbook-sync-activation.md).
 
 ## Phase 2 LP discovery and fundraising
 

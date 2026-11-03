@@ -74,10 +74,10 @@ await build({
     },
   ],
 });
-// Use the active Network manifest, never stale CSS left by an earlier build.
+// Use the active People manifest, never stale CSS left by an earlier build.
 const manifest = fs.readFileSync(
   repo +
-    "/.next/server/app/(dashboard)/network/page_client-reference-manifest.js",
+    "/.next/server/app/(dashboard)/people/page_client-reference-manifest.js",
   "utf8",
 );
 const cssPaths = [
@@ -87,7 +87,7 @@ const cssPaths = [
     ),
   ),
 ];
-assert.ok(cssPaths.length, "Active Network CSS missing; rebuild first.");
+assert.ok(cssPaths.length, "Active People CSS missing; rebuild first.");
 const css = cssPaths
   .map((p) => fs.readFileSync(repo + "/.next/" + p, "utf8"))
   .join("\n");
