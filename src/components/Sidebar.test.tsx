@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("next/link", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- drop the prefetch prop so it is not rendered on <a>
   default: ({ href, children, prefetch: _prefetch, ...props }: { href: string; children: React.ReactNode; prefetch?: boolean }) => (
     <a href={href} {...props}>{children}</a>
   ),
@@ -20,7 +21,7 @@ vi.mock("@/components/UnreadCounts", () => ({
 import Sidebar, { type SidebarNavItem } from "./Sidebar";
 import { toPermissionSet, visibleNav, WORKSPACE_NAV } from "@/lib/auth/permissions";
 
-const render = (permissions: string[], boards = 0, sections: Record<string, boolean> = {}) => {
+const render = (permissions: string[], boards = 0, sections: Record<string, boolean> = {}, collapsed = false) => {
   const items: SidebarNavItem[] = visibleNav(WORKSPACE_NAV, toPermissionSet(permissions)).flatMap(({ href, label, icon, badge }) => [
     { href, label, icon, badge },
     ...(href === "/boards"
@@ -28,7 +29,7 @@ const render = (permissions: string[], boards = 0, sections: Record<string, bool
       : []),
   ]);
   return renderToStaticMarkup(
-    <Sidebar userEmail="synthetic@example.test" displayName={null} avatarUrl={null} navItems={items} initialCollapsed={false} preferenceCookie="vq_test" initialSections={sections} />,
+    <Sidebar userEmail="synthetic@example.test" displayName={null} avatarUrl={null} navItems={items} initialCollapsed={collapsed} preferenceCookie="vq_test" initialSections={sections} />,
   );
 };
 
@@ -66,6 +67,24 @@ describe("Sidebar", () => {
     const html = render(["portfolio"], 0, { fund: true, crm: false });
     expect(html).toMatch(/aria-controls="vq-nav-fund"[^>]*aria-expanded="true"|aria-expanded="true"[^>]*aria-controls="vq-nav-fund"/);
     expect(html).toMatch(/aria-expanded="false"[^>]*aria-controls="vq-nav-crm"|aria-controls="vq-nav-crm"[^>]*aria-expanded="false"/);
+  });
+
+  it("renders the collapsed rail on the server with one icon per section and no flyout", () => {
+    const html = render(["admin", "portfolio", "documents"], 3, {}, true);
+    for (const section of ["CRM", "Work", "Boards", "Fund", "System"]) {
+      expect(html).toMatch(new RegExp(`<button[^>]*aria-expanded="false"[^>]*>(?:(?!</button>).)*>${section}</span>`));
+    }
+    expect(html).toContain('data-rail-entry="/home"');
+    // Pages inside a section are not drawn until the flyout opens.
+    expect(html).not.toContain("/pipeline");
+    expect(html).not.toContain("Workspace governance");
+    expect(html).not.toContain("data-rail-flyout");
+  });
+
+  it("hides a section without permission from the collapsed rail", () => {
+    const html = render([], 0, {}, true);
+    expect(html).not.toContain(">Fund<");
+    expect(html).not.toContain("Workspace governance");
   });
 
   it("has one Home entry: no Overview, CRM reporting or Notifications", () => {

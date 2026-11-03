@@ -1,7 +1,11 @@
 import type { NavIcon as NavIconName } from "@/lib/auth/permissions";
 
 // Line icons for the sidebar (24px grid, drawn with currentColor).
-const PATHS: Record<NavIconName | "collapse" | "expand" | "signout" | "sound-on" | "sound-off" | "menu" | "replay" | "comment" | "close", React.ReactNode> = {
+const PATHS: Record<NavIconName | "collapse" | "expand" | "signout" | "sound-on" | "sound-off" | "menu" | "replay" | "comment" | "close" | "section_crm" | "section_work" | "section_fund" | "section_system", React.ReactNode> = {
+  section_crm: <><circle cx="9" cy="8" r="3" /><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5M16 6.5a2.5 2.5 0 0 1 0 5M17.5 14.5c2 .5 3 2 3 4.5" /></>,
+  section_work: <><rect x="3.5" y="7.5" width="17" height="12" rx="2" /><path d="M9 7.5V6a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 6v1.5M3.5 12.5h17" /></>,
+  section_fund: <><circle cx="12" cy="12" r="8.5" /><path d="M12 3.5V12h8.5" /></>,
+  section_system: <><path d="M4 7h10M18 7h2M4 17h2M10 17h10" /><circle cx="16" cy="7" r="2" /><circle cx="8" cy="17" r="2" /></>,
   documents: <><path d="M6 3h8l4 4v14H6zM14 3v5h4M9 12h6M9 16h6" /></>,
   integrations: <><path d="M8 3v5M16 3v5M6 8h12v3a6 6 0 0 1-6 6v4M9 12h6" /></>,
   inbox: <><path d="M4 11v9h16v-9M4 15h4l2 3h4l2-3h4M8 7h8M9.5 10.5h5" /></>,
