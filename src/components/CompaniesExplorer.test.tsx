@@ -179,7 +179,8 @@ describe("CompaniesExplorer URL handling", () => {
     originalReplace(null, "", "/companies?view=table");
     render(<CompaniesExplorer companies={companies} filterOptions={filterOptions}
       industryOptions={[{ id: "industry-1", name: "Synthetic industry" }]} followUpAvailable />);
-    fireEvent.change(screen.getByRole("combobox", { name: "Industry for Alpha Co" }), { target: { value: "industry-1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Industry for Alpha Co" }));
+    fireEvent.click(screen.getByRole("option", { name: "Synthetic industry" }));
     await waitFor(() => expect(bulk.industry).toHaveBeenCalledWith({ companyId: "c1", field: "industry_id", value: "industry-1" }));
     const checkbox = screen.getByRole<HTMLInputElement>("checkbox", { name: "LP Follow-up for Alpha Co" });
     await waitFor(() => expect(checkbox.disabled).toBe(false));

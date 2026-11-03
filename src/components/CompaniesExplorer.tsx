@@ -7,7 +7,8 @@ import Popover from "@/components/customization/Popover";
 import PeopleFieldCell from "@/components/people/PeopleFieldCell";
 import type { FieldDefinition, FieldValue } from "@/lib/custom-fields/model";
 import Checkbox from "@/components/Checkbox";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, useId, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import RelativeTime from "@/components/RelativeTime";
@@ -53,6 +54,82 @@ function CompanyTag({ kind, value }: { kind: "industry" | "stage" | "priority"; 
     : kind === "priority" && normalized === "low" ? "bg-slate-100 text-slate-800"
     : TAG_COLORS[hash % TAG_COLORS.length];
   return <span className={`inline-block max-w-full rounded-full px-2 py-0.5 text-[11px] font-medium [overflow-wrap:anywhere] ${color}`}>{value}</span>;
+}
+
+function IndustryPicker({ company, value, label, options, disabled, onChange }: {
+  company: string;
+  value: string;
+  label: string | null;
+  options: { id: string; name: string }[];
+  disabled: boolean;
+  onChange: (id: string) => void;
+}) {
+  const id = useId();
+  const trigger = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<{ left: number; edge: number; above: boolean } | null>(null);
+  useEffect(() => {
+    if (!position) return;
+    (panel.current?.querySelector<HTMLElement>('[aria-selected="true"]') ??
+      panel.current?.querySelector<HTMLElement>('[role="option"]'))?.focus();
+    function outside(event: PointerEvent) {
+      const target = event.target as Node;
+      if (!panel.current?.contains(target) && !trigger.current?.contains(target)) setPosition(null);
+    }
+    function scroll(event: Event) {
+      if (!(event.target instanceof Node) || !panel.current?.contains(event.target)) setPosition(null);
+    }
+    function resize() { setPosition(null); }
+    document.addEventListener("pointerdown", outside);
+    window.addEventListener("scroll", scroll, true);
+    window.addEventListener("resize", resize);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      window.removeEventListener("scroll", scroll, true);
+      window.removeEventListener("resize", resize);
+    };
+  }, [position]);
+
+  const choices = [{ id: "", name: "No industry" }, ...options];
+  return <>
+    <button ref={trigger} type="button" aria-label={`Industry for ${company}`} aria-haspopup="listbox"
+      aria-expanded={!!position} aria-controls={position ? id : undefined} disabled={disabled}
+      className="inline-flex min-h-7 min-w-12 items-center gap-1.5 rounded-md px-1 text-left hover:bg-neutral-100 focus-visible:outline-2 focus-visible:outline-cyan-700 disabled:opacity-60"
+      onClick={(event) => {
+        if (position) { setPosition(null); return; }
+        const rect = event.currentTarget.getBoundingClientRect();
+        const above = window.innerHeight - rect.bottom < 270 && rect.top > window.innerHeight - rect.bottom;
+        setPosition({ left: Math.max(8, Math.min(rect.left, window.innerWidth - 248)),
+          edge: above ? window.innerHeight - rect.top + 4 : rect.bottom + 4, above });
+      }}>
+      <CompanyTag kind="industry" value={label} />
+      <span aria-hidden="true" className="text-[9px] text-neutral-500">▾</span>
+    </button>
+    {position && createPortal(
+      <div ref={panel} id={id} role="listbox" aria-label={`Industry for ${company}`}
+        className="vq-card-static fixed z-[80] max-h-[min(16rem,50dvh)] w-60 max-w-[calc(100vw-16px)] overflow-auto rounded-xl border border-neutral-200 bg-white p-1.5 shadow-lg"
+        style={{ position: "fixed", left: position.left, [position.above ? "bottom" : "top"]: position.edge }}
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="option"]'));
+          const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
+          if (event.key === "Escape") { event.preventDefault(); setPosition(null); trigger.current?.focus(); return; }
+          if (event.key === "Tab") { setPosition(null); trigger.current?.focus(); return; }
+          const next = event.key === "ArrowDown" ? (current + 1) % buttons.length
+            : event.key === "ArrowUp" ? (current - 1 + buttons.length) % buttons.length
+            : event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : null;
+          if (next !== null) { event.preventDefault(); buttons[next]?.focus(); }
+        }}>
+        {choices.map((option) => (
+          <button key={option.id} type="button" role="option" aria-selected={option.id === value} tabIndex={-1}
+            className="flex min-h-9 w-full items-center justify-between gap-2 rounded-lg px-2 text-left text-xs text-neutral-600 hover:bg-neutral-100 focus:bg-cyan-50 focus:outline-none"
+            onClick={() => { setPosition(null); trigger.current?.focus(); if (option.id !== value) onChange(option.id); }}>
+            {option.id ? <CompanyTag kind="industry" value={option.name} /> : option.name}
+            {option.id === value && <span aria-hidden="true" className="text-cyan-800">✓</span>}
+          </button>
+        ))}
+      </div>, document.body)}
+  </>;
 }
 
 type SearchParamsLike = {
@@ -695,20 +772,12 @@ export default function CompaniesExplorer({
                       const id = industryEdits[company.id] ?? company.industryId ?? "";
                       const name = industryOptions.find((option) => option.id === id)?.name ?? (id ? company.industryName : null);
                       return <td key={key} data-company-cell-editor="" className="px-4 py-3">
-                        <label className="relative inline-block min-w-12 rounded focus-within:outline focus-within:outline-2 focus-within:outline-cyan-700">
-                          <CompanyTag kind="industry" value={name} />
-                          <select aria-label={`Industry for ${company.name}`} value={id} disabled={editing !== null}
-                            className="absolute inset-0 w-full cursor-pointer opacity-0 disabled:cursor-wait"
-                            onChange={(event) => {
-                              const next = event.target.value;
-                              setIndustryEdits((prev) => ({ ...prev, [company.id]: next }));
-                              void saveCell(company.id, () => updateCompanyFieldAction({ companyId: company.id, field: "industry_id", value: next || null }),
-                                () => setIndustryEdits((prev) => ({ ...prev, [company.id]: id })));
-                            }}>
-                            <option value="">No industry</option>
-                            {industryOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
-                          </select>
-                        </label>
+                        <IndustryPicker company={company.name} value={id} label={name}
+                          options={industryOptions} disabled={editing !== null} onChange={(next) => {
+                            setIndustryEdits((prev) => ({ ...prev, [company.id]: next }));
+                            void saveCell(company.id, () => updateCompanyFieldAction({ companyId: company.id, field: "industry_id", value: next || null }),
+                              () => setIndustryEdits((prev) => ({ ...prev, [company.id]: id })));
+                          }} />
                       </td>;
                     }
                     if (key === "lp_follow_up") {
