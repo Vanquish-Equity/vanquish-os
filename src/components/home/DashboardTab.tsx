@@ -8,6 +8,7 @@ import { getPipelineStages } from "@/lib/taxonomies";
 import { introCard } from "@/lib/ui/entrance";
 import { startDevPageTimer } from "@/lib/performance";
 import { createClient } from "@/lib/supabase/server";
+import { OPEN_TASKS_HREF } from "@/lib/tasks/tabs";
 
 type TaskRow = {
   id: string;
@@ -275,7 +276,7 @@ export default async function DashboardTab({
           label="Open Tasks"
           index={3}
           value={(openTasks ?? []).length}
-          href="/tasks?status=open"
+          href={OPEN_TASKS_HREF}
         />
         <StatTile
           label="Potential LPs"

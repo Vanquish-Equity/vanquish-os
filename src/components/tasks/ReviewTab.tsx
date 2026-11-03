@@ -2,11 +2,8 @@ import LocalTime from "@/components/LocalTime";
 import ChangeProposals, { type ChangeProposal, type ChangeTarget } from "@/components/ChangeProposals";
 import ReviewItemActions from "@/components/ReviewItemActions";
 import ScoutingReview, { type ContactRequest, type Suggestion } from "@/components/ScoutingReview";
-import { requireMember } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/server";
 import { startDevPageTimer } from "@/lib/performance";
-
-export const dynamic = "force-dynamic";
 
 type ReviewItem = {
   id: string;
@@ -29,19 +26,27 @@ type ReviewItem = {
   resolution: { action?: string; archived_deal_id?: string | null };
 };
 
-export default async function ReviewPage() {
-  const access = await requireMember();
+// Tasks > To review (the former /review page). Runs only when this tab is the
+// active one. Every query starts together: the old page waited for the import
+// items, then for the scouting rows, then for the change targets. Email
+// scouting rows are restricted by RLS to the signed-in member's own.
+export default async function ReviewTab({ email }: { email: string }) {
   const supabase = await createClient();
   const endTimer = startDevPageTimer("page:data:review");
-  const { data: items } = (await supabase
-    .from("review_items")
-    .select("id,review_type,payload,created_at,status,resolved_at,resolution")
-    .order("created_at", { ascending: false })
-    .limit(100)) as unknown as {
-    data: ReviewItem[] | null;
-  };
-  // Email scouting: RLS returns only the signed-in member's own rows.
-  const [{ data: suggestions, error: suggestionsError }, { data: requests }, { data: scouting }] = await Promise.all([
+  const [
+    { data: items },
+    { data: suggestions, error: suggestionsError },
+    { data: requests },
+    { data: scouting },
+    changes,
+    companyTargets,
+    dealTargets,
+  ] = await Promise.all([
+    supabase
+      .from("review_items")
+      .select("id,review_type,payload,created_at,status,resolved_at,resolution")
+      .order("created_at", { ascending: false })
+      .limit(100) as unknown as Promise<{ data: ReviewItem[] | null }>,
     supabase
       .from("company_suggestions")
       .select("id,domain,suggested_name,thread_count,two_way,last_seen_at,contacts")
@@ -58,16 +63,14 @@ export default async function ReviewPage() {
     supabase
       .from("member_permissions")
       .select("permission")
-      .eq("email", access.email)
+      .eq("email", email)
       .eq("permission", "email_scouting")
       .maybeSingle(),
-  ]);
-  const showScouting = !suggestionsError && (Boolean(scouting) || (suggestions ?? []).length > 0 || (requests ?? []).length > 0);
-  const [changes, companyTargets, dealTargets] = await Promise.all([
     supabase.from("change_proposals").select("*").order("created_at", { ascending: false }).limit(100),
     supabase.from("companies").select("id,name").is("deleted_at", null).order("name").limit(500),
     supabase.from("deals").select("id,company_id,name").is("archived_at", null).order("name").limit(500),
   ]);
+  const showScouting = !suggestionsError && (Boolean(scouting) || (suggestions ?? []).length > 0 || (requests ?? []).length > 0);
   const changeTargets: ChangeTarget[] = [
     ...(companyTargets.data ?? []).map(row => ({ companyId: row.id, dealId: null, label: row.name })),
     ...(dealTargets.data ?? []).map(row => ({ companyId: row.company_id, dealId: row.id, label: `Deal: ${row.name}` })),
@@ -77,15 +80,10 @@ export default async function ReviewPage() {
   const closedItems = (items ?? []).filter((item) => item.status !== "open");
 
   return (
-    <div className="flex flex-col gap-4 px-7 py-6">
-      <header>
-        <h1 className="font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">
-          Review
-        </h1>
-        <p className="mt-1 text-[13px] text-neutral-500">
-          Companies suggested from your email, contacts waiting for approval, and ambiguous import items.
-        </p>
-      </header>
+    <div className="flex min-w-0 flex-col gap-4">
+      <p className="text-[12.5px] text-neutral-500">
+        Companies suggested from your email, contacts waiting for approval, change proposals and ambiguous import items.
+      </p>
 
       <ChangeProposals available={!changes.error} proposals={(changes.data ?? []) as ChangeProposal[]} targets={changeTargets} />
 
@@ -101,6 +99,7 @@ export default async function ReviewPage() {
         {openItems.map((item) => (
           <div
             key={item.id}
+            id={`review-${item.id}`}
             data-comment-anchor={`review:${item.id}`}
             data-comment-label={item.payload.company_name ?? "Review item"}
             className="vq-card-static rounded-[14px] bg-white p-5"
@@ -119,7 +118,7 @@ export default async function ReviewPage() {
               </div>
             </div>
 
-            <div className="mb-4 grid grid-cols-2 gap-3">
+            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {(item.payload.deals ?? []).map((deal, index) => (
                 <div
                   key={`${deal.deal_id ?? index}`}

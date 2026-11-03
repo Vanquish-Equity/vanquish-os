@@ -64,10 +64,10 @@ How the tabs work (`src/lib/home/tabs.ts`, `src/components/home/HomeTabs.tsx`):
 | Section | Source | Links to |
 | --- | --- | --- |
 | Greeting | `Good morning / afternoon / evening` from the viewer's local time, then `app_members.display_name` (managed in Supabase). If a member has none, the first word of the Google profile name; otherwise no name. The email is never turned into a name. | — |
-| My tasks | Open tasks whose `assignee_email` is the signed-in member (migration `0017`), grouped by local date: Overdue, Today, Next 7 days. | The task row in Tasks (`/tasks?view=mine#task-<id>`) and its deal or company. |
-| Needs attention | **One list** (see below). | Each draft, deal (`#due-diligence`), `/portfolio?filter=critical_missing`, `/review`, deal page, `/pipeline`. |
+| My tasks | Open tasks whose `assignee_email` is the signed-in member (migration `0017`), grouped by local date: Overdue, Today, Next 7 days. | The task row in Tasks > Mine (`/tasks?tab=mine#task-<id>`) and its deal or company. |
+| Needs attention | **One list** (see below). | Each draft, deal (`#due-diligence`), `/portfolio?filter=critical_missing`, Tasks > To review (`/tasks?tab=review`), deal page, `/pipeline`. |
 | Notices for you | With migration `0018`: the latest entries of the notification inbox (direct messages, @mentions, group messages, tasks and email drafts someone else assigned to you; draft notices start when `0018` is applied, older ones are not reconstructed), with *All notifications* linking to `/notifications`. The header has a chat link with the live unread count. Without `0018`: events derived from the last 14 days (`tasks.assigned_by`, `email_drafts.created_by` ≠ you). Only one of the two is shown, so an event never appears twice. Gmail/Outlook are not used. See [`chat.md`](chat.md). | The conversation, task or draft (opening it marks the notice read). |
-| Shortcuts | Pipeline, Companies, Potential LPs, Review queue, and Portfolio (only with the Portfolio permission). | Existing screens. |
+| Shortcuts | Pipeline, Companies, Potential LPs, Review queue (Tasks > To review), and Portfolio (only with the Portfolio permission). | Existing screens. |
 
 **Needs attention** merges what Home and the old Overview each listed
 (`mergeNeedsAttention`, `src/lib/home/attention-merge.ts`; the same
@@ -110,6 +110,71 @@ member has those permissions, so nothing from those areas (rows, names,
 counts or links) reaches members without them. RLS enforces the same rules
 underneath.
 
+## Tasks (`/tasks`)
+
+One sidebar entry, **Tasks**, answers "what do I need to attend to": the former
+Tasks, Review and Action center pages are its tabs. The page title, menu name
+and `<h1>` are all "Tasks", with one sentence under the title.
+
+| Tab | URL | Answers | Was |
+| --- | --- | --- | --- |
+| **Mine** (default) | `/tasks` or `/tasks?tab=mine` | What is assigned to me? | `/tasks?view=mine` |
+| **All** | `/tasks?tab=all` (`&filter=unassigned`) | Every task; the *Unassigned* chip narrows it | `/tasks`, `/tasks?view=unassigned` |
+| **To review** | `/tasks?tab=review` | Suggested changes, scouting suggestions and contact requests, import review items and recent decisions | `/review` |
+| **Activity** | `/tasks?tab=activity` | Email and meeting activity, documents, notifications, open tasks and decisions in lanes | `/inbox` (Action center) |
+
+Old addresses keep working through **temporary (307) redirects** in
+`next.config.ts`; the query string and `#fragment` are kept:
+
+| Old URL | New URL |
+| --- | --- |
+| `/inbox` | `/tasks?tab=activity` |
+| `/review` | `/tasks?tab=review` |
+| `/review#suggested-changes` | `/tasks?tab=review#suggested-changes` |
+| `/tasks?view=mine` | Mine (resolved on the server, no redirect) |
+| `/tasks?view=unassigned` | All with the Unassigned filter |
+| `/tasks?view=all`, `/tasks?status=open` | `?view=all` opens All; `?status=` keeps narrowing the list on Mine and All. A plain `/tasks` now opens Mine, not the full list. |
+
+Decisions: **Mine is the default** because the page answers "what do I need to
+attend to", Home's *My tasks* already links to the personal list, and All is
+one click away. `?view=unassigned` is a visible **filter chip inside All**
+(Everyone / Unassigned) instead of a fifth tab, because it narrows the same
+list; `?tab=` wins over `?view=` when both are present. Without migration
+`0017` Mine lists every task under the existing "isn't available yet" notice.
+
+How it works (`src/lib/tasks/tabs.ts`, `src/components/PageTabs.tsx`,
+`src/components/tasks/*`): the same pattern as Home. The page resolves `?tab=`
+on the server (`resolveTasksView`) and calls one tab body (`TaskListTab`,
+`ReviewTab` or `ActivityTab`), so **only the active tab's data is fetched**
+(`render-trips.test.tsx` asserts that each tab touches none of the other tabs'
+tables and that no tab goes over the round-trip depth of the page it replaced:
+Mine/All 4, To review 4 (was 6), Activity 5). Tab links are plain links with
+`prefetch={false}`, and `/tasks` is not in `WARM_ON_HOVER`. The tablist is the
+shared `PageTabs` (also used by Home): roving tabindex, arrows move focus
+without opening, Enter or Space opens. Ids, hrefs and text live in the plain
+module `src/lib/tasks/tabs.ts`, never in the `"use client"` component.
+
+| Tab | Who sees it | Where it is enforced |
+| --- | --- | --- |
+| Mine, All | Every member | `requireMember()` in `tasks/page.tsx`; RLS on `tasks` (a task on a restricted Deal is not returned) |
+| To review | Every member (the old `/review` required membership only) | `requireMember()`; RLS on `review_items`, `change_proposals`, `company_suggestions` and `contact_requests` (scouting rows are the member's own; the scouting block shows when the member has `email_scouting` or has rows) |
+| Activity | Every member; the *Documents to review* lane only with the **Documents** permission | `requireMember()`; `can(access, "documents")` decides whether the lane's query runs at all; RLS underneath |
+
+A tab definition may carry `requires` (an area permission). `tasksTabsFor`
+then drops its label and `resolveTasksView` shows the default tab for a direct
+`?tab=` or an unknown value, on the server, never only in the UI. No tab has one
+today because none of the old pages did.
+
+Activity links (`src/lib/tasks/activity-links.ts`): an open task opens its row
+in Tasks > All (`/tasks?tab=all#task-<id>`, which scrolls to and highlights the
+row); an email or meeting event opens its company or deal page (the
+integration health screen only when it is not matched to a company); a document
+opens `/documents#document-<id>`; a notification opens its own link; a
+decision opens its card in To review (`#proposal-<id>`, `#review-<id>`,
+`#suggestion-<id>`, `#contact-request-<id>`). Lane headers open the matching
+tab or screen. Comment pins made on the old pages are described in
+[`comments.md`](comments.md).
+
 ## Tasks: who a task belongs to
 
 `tasks.owner` is free text and cannot identify a person reliably, so it is
@@ -120,8 +185,8 @@ never used to attribute tasks. Migration `0017` adds:
   signed-in email whenever the assignee changes; the client cannot set them.
 
 New tasks default to the person creating them (visible selector, can be set
-to another member or Unassigned). Tasks has views *All*, *Assigned to me* and
-*Unassigned*. Existing tasks start unassigned; nothing is inferred from
+to another member or Unassigned). Tasks has the tabs *Mine* (assigned to
+you) and *All*, which has an *Unassigned* filter chip. Existing tasks start unassigned; nothing is inferred from
 `owner`, which is kept and shown as “Note”.
 
 Until `0017` is applied, Tasks and deal pages work as before (no assignee)
@@ -143,12 +208,12 @@ and Home says My tasks needs the migration.
 - Items sit under explicit sections, each drawn as one block so an item can
   never appear under the wrong heading, in order of daily use: **CRM**
   (Pipeline, Companies, People, Network, LP follow-up),
-  **Work** (Tasks, Action center, Communications, Calendar, Review, and
+  **Work** (Tasks, Communications, Calendar, and
   Document intake with the Documents permission), **Boards** (CRM boards,
   then each board indented on a guide line), **Fund** (Portfolio and LP
   fundraising, only with the Portfolio permission) and **System**
   (Integration health, and Workspace governance for admins). There is no
-  "More". Sidebar names equal the page's h1 (Action center, Document intake,
+  "More". Sidebar names equal the page's h1 (Tasks, Document intake,
   Workspace governance, CRM boards).
   `NAV_SECTIONS` in `src/lib/auth/nav-sections.ts` is the single place that
   assigns pages to sections (a page not listed there is drawn at the end of
@@ -169,7 +234,8 @@ and Home says My tasks needs the migration.
   with the sidebar expanded they fall back to the normal vertical icon list
   with tooltips. `QUICK_LINK_HREFS` in `src/lib/auth/nav-sections.ts` controls which
   items get this treatment.
-- **Overview, CRM reporting and Notifications have no sidebar entry.**
+- **Action center, Review, Overview, CRM reporting and Notifications have no
+  sidebar entry.** Action center and Review are tabs of Tasks (above).
   Overview and Reporting are Home tabs. Notifications is opened from the bell
   in the top bar (unread badge on the bell; its panel ends with *All
   notifications*, a link to the full `/notifications` page, which is kept).
@@ -231,7 +297,9 @@ visible page has no icon, so no label leaks.
 
 - **⌘K / Ctrl+K** lists "Go to <page>" first, for the pages in the member's
   own sidebar plus the pages without a sidebar entry (Home: Dashboard, Home:
-  Reports, Notifications; "overview" and "reporting" still find the tabs) (`navCommands` in `src/lib/search/palette.ts`, built on the
+  Reports, Tasks: All, Tasks: To review, Tasks: Activity, Notifications;
+"overview" and "reporting" still find the Home tabs, and "action center",
+"inbox" and "review" find the Tasks tabs) (`navCommands` in `src/lib/search/palette.ts`, built on the
   server with the sidebar's permission filter; areas without permission are
   never sent to the browser), then the record results (People, Companies,
   Deals, notes, documents, tasks). An empty query lists every page.

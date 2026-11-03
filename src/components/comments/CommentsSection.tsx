@@ -20,6 +20,7 @@ import { buildThreads, taskTitleFromComment, visibleCommentCount, type CommentIt
 import { markCommentNotificationsReadAction } from "@/lib/notifications/actions";
 import { useLiveSignal } from "@/lib/realtime/useLiveSignal";
 import { createClient } from "@/lib/supabase/client";
+import { taskHref } from "@/lib/tasks/tabs";
 
 type Props = {
   companyId: string;
@@ -292,7 +293,7 @@ function Comment({
               {comment.tasks.map((task) => (
                 <li key={task.id} className="max-w-full">
                   <Link
-                    href={`/tasks#task-${task.id}`}
+                    href={taskHref(task.id)}
                     data-comment-task={task.id}
                     className="inline-flex max-w-full items-baseline gap-1.5 rounded-lg border border-neutral-200 bg-white px-2.5 py-1 text-[11px] text-neutral-600 transition hover:border-cyan-300 hover:text-cyan-800"
                   >

@@ -83,12 +83,12 @@ a new company's contacts.
   subjects, bodies or attachments. RLS: only the owner reads or updates their
   rows, and only members with the permission can add them. Dismissed and
   accepted suggestions are never reopened by later scans.
-- **Review → Suggested companies**: edit the name, then **Create company**
+- **Tasks → To review → Suggested companies**: edit the name, then **Create company**
   (`accept_company_suggestion`, one transaction: creates the company with
   `https://<domain>` as website and logs `COMPANY_CREATED`) or **Dismiss**.
 - **Contacts** follow the member's Settings choice (`scouting_settings.
   contact_mode`): **Ask me first** (default) puts each new contact in
-  **Review → Contact requests** (`contact_requests`, private) to Accept
+  **Tasks → To review → Contact requests** (`contact_requests`, private) to Accept
   (adds the Person under the company) or Decline; **Add automatically** adds
   them to People right away; **Don't add** skips them. Emails already in
   People are never duplicated.

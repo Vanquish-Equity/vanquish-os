@@ -8,8 +8,8 @@ embedding service, or automatic AI decision. Company remains separate from Deal.
 
 | Surface | Behavior |
 | --- | --- |
-| Review → Suggest changes | Propose Company name/legal name/website/description or Deal name/notes/round/source. Review old and proposed values; accept or reject. A later edit marks the proposal as a conflict. Decisions are recorded and repeated decisions are idempotent. |
-| Action center (`/inbox`) | Shared CRM email/meeting activity, pending document analysis (with Documents permission), notifications, open tasks and decisions. It never copies a Gmail body. Lists are bounded and link to the source workspace. |
+| Tasks → To review → Suggest changes (was Review) | Propose Company name/legal name/website/description or Deal name/notes/round/source. Review old and proposed values; accept or reject. A later edit marks the proposal as a conflict. Decisions are recorded and repeated decisions are idempotent. |
+| Tasks → Activity (was the Action center, `/inbox`) | Shared CRM email/meeting activity, pending document analysis (with Documents permission), notifications, open tasks and decisions. It never copies a Gmail body. Lists are bounded and link to the source workspace. |
 | Integration health | Separate opt-in for publishing CRM activity; subject/title sharing is a second choice, off by default. Queue runs, inspect outcomes and resolve ambiguous associations. Remember an explicit participant correction for future matching. |
 | Documents | Import a Drive file or Gmail attachment, monitor a chosen Drive folder, extract PDF/text locally and review suggested type/date. Apply canonical CRM metadata only after approval. A changed metadata revision prevents stale approval. Rename/move the actual Drive file only through an explicit, confirmed action with the extra OAuth scope. |
 | Network | Teammate → contact introduction candidates ranked by shared activity days and recency. Only existing opt-in relationship history contributes. This is an activity indicator, not a claim of a personal relationship or a multi-hop social graph. |

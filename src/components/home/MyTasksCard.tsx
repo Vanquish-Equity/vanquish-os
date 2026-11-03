@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSyncExternalStore } from "react";
 import type { HomeTask } from "@/lib/home/data";
 import { bucketTasks, localToday } from "@/lib/home/buckets";
+import { myTaskHref, tasksTabHref } from "@/lib/tasks/tabs";
 
 function formatDue(isoDate: string) {
   const [y, m, d] = isoDate.split("-").map(Number);
@@ -14,7 +15,7 @@ function TaskLine({ task, tone }: { task: HomeTask; tone: "overdue" | "today" | 
   return (
     <li className="flex items-start justify-between gap-3 py-2">
       <div className="min-w-0">
-        <Link href={`/tasks?view=mine#task-${task.id}`} className="block truncate text-[12.5px] font-medium text-ink hover:text-cyan-700">
+        <Link href={myTaskHref(task.id)} className="block truncate text-[12.5px] font-medium text-ink hover:text-cyan-700">
           {task.title}
         </Link>
         {task.context &&
@@ -69,7 +70,7 @@ function Group({
           ))}
           {tasks.length > 5 && (
             <li className="py-2 text-[11.5px]">
-              <Link href="/tasks?view=mine" className="font-semibold text-cyan-700 hover:underline">
+              <Link href={tasksTabHref("mine")} className="font-semibold text-cyan-700 hover:underline">
                 +{tasks.length - 5} more
               </Link>
             </li>
@@ -97,7 +98,7 @@ export default function MyTasksCard({
     return (
       <p className="text-[12.5px] text-neutral-500">
         My tasks appear here once tasks can be assigned to team members. Until then, see{" "}
-        <Link href="/tasks" className="font-semibold text-cyan-700 hover:underline">
+        <Link href={tasksTabHref("all")} className="font-semibold text-cyan-700 hover:underline">
           Tasks
         </Link>
         .
@@ -114,7 +115,7 @@ export default function MyTasksCard({
           {unassignedOpen > 0 && (
             <>
               {" "}
-              <Link href="/tasks?view=unassigned" className="font-semibold text-cyan-700 hover:underline">
+              <Link href={tasksTabHref("all", "unassigned")} className="font-semibold text-cyan-700 hover:underline">
                 {unassignedOpen} open task{unassignedOpen === 1 ? " has" : "s have"} no assignee
               </Link>
               .
@@ -136,7 +137,7 @@ export default function MyTasksCard({
       <Group label="Today" tasks={groups.today} tone="today" empty="Nothing due today." />
       <Group label="Next 7 days" tasks={groups.upcoming} tone="upcoming" empty="Nothing due this week." />
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-neutral-100 pt-3 text-[11.5px]">
-        <Link href="/tasks?view=mine" className="font-semibold text-cyan-700 hover:underline">
+        <Link href={tasksTabHref("mine")} className="font-semibold text-cyan-700 hover:underline">
           All my tasks ({tasks.length})
         </Link>
         {groups.later.length > 0 && (

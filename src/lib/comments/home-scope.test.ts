@@ -44,8 +44,8 @@ describe("Home comment scope", () => {
   });
 
   it("still reads a single page key for every other page", async () => {
-    await loadContextCommentsAction("/tasks", { page: "tasks", companyId: null, dealId: null });
-    expect(calls.filters).toContainEqual(["eq", "page_key", "tasks"]);
+    await loadContextCommentsAction("/people", { page: "people", companyId: null, dealId: null });
+    expect(calls.filters).toContainEqual(["eq", "page_key", "people"]);
   });
 
   it("posts a new comment as home", async () => {

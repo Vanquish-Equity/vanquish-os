@@ -9,7 +9,7 @@ policy and edit/delete functions remain active.
 ## Scope
 
 Right click in the content area on Home, Overview, Companies, Pipeline, Tasks,
-People, Review, and individual Company and Deal pages. A menu offers Leave a
+People, and individual Company and Deal pages. A menu offers Leave a
 comment, Back, New task, and Copy link. Inputs and editable fields keep the
 browser's editing menu. Chat, Notifications, Communications, Portfolio,
 Documents, and their child routes do not show the custom menu. The Documents
@@ -48,4 +48,4 @@ data, so test comments written there will be real records.
 
 ## Operating workflow update
 
-Documents and the Action center now support semantic source anchors. Their source permissions are checked on reads and definer mutations. Private Gmail pages remain excluded. Selected recipients, snapshots and deliberate chat link sharing are described in [Operating workflows](operating-workflows.md).
+Documents and the Action center (now the Activity tab of Tasks) now support semantic source anchors. Their source permissions are checked on reads and definer mutations. Private Gmail pages remain excluded. Selected recipients, snapshots and deliberate chat link sharing are described in [Operating workflows](operating-workflows.md).

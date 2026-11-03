@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { AnimatePresence, domMax, LayoutGroup, LazyMotion, MotionConfig, useIsPresent, useReducedMotion } from "motion/react";
 import * as m from "motion/react-m";
 import SelectMenu from "@/components/SelectMenu";
+import { SUGGESTED_CHANGES_HREF } from "@/lib/tasks/tabs";
 
 const spring = { type: "spring" as const, stiffness: 380, damping: 34, mass: .85 };
 const shadow = "0 8px 30px rgb(15 23 42 / .12), 0 0 0 1px rgb(0 194 209 / .25)";
@@ -86,7 +87,7 @@ function AssistantPanel({ close, reduced }: { close: () => void; reduced: boolea
       <p className="mt-3 break-all text-[11px] text-neutral-400">Context: {pathname}</p>
       <textarea aria-label="Prompt" disabled placeholder="Available when AI is connected" className="mt-3 w-full resize-none rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-[13px]" />
       <button disabled className="mt-2 rounded-full bg-ink px-4 py-2 text-[12px] font-semibold text-white opacity-40">Send</button>
-      <Link href="/review#suggested-changes" onClick={close} className="ml-3 text-[12px] font-semibold text-cyan-800">Suggest a change manually</Link>
+      <Link href={SUGGESTED_CHANGES_HREF} onClick={close} className="ml-3 text-[12px] font-semibold text-cyan-800">Suggest a change manually</Link>
     </m.div>
   </m.aside>;
 }

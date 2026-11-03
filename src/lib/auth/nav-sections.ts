@@ -16,7 +16,7 @@ export type NavSection = {
 // administration last.
 export const NAV_SECTIONS: NavSection[] = [
   { key: "crm", label: "CRM", defaultOpen: true, hrefs: ["/pipeline", "/companies", "/people", "/network", "/lp-board"] },
-  { key: "work", label: "Work", defaultOpen: true, hrefs: ["/tasks", "/inbox", "/communications", "/calendar", "/review", "/documents"] },
+  { key: "work", label: "Work", defaultOpen: true, hrefs: ["/tasks", "/communications", "/calendar", "/documents"] },
   { key: "boards", label: "Boards", defaultOpen: true, hrefs: ["/boards"] },
   { key: "fund", label: "Fund", defaultOpen: false, hrefs: ["/portfolio", "/portfolio/fundraising"] },
   { key: "system", label: "System", defaultOpen: false, hrefs: ["/integrations", "/governance"] },

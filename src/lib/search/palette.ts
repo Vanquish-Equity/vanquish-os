@@ -1,5 +1,14 @@
 import { visibleNav, WORKSPACE_NAV, type AreaPermission, type NavIcon } from "@/lib/auth/permissions";
 import { DEFAULT_HOME_TAB, homeTabHref, homeTabsFor } from "@/lib/home/tabs";
+import { DEFAULT_TASKS_TAB, tasksTabHref, tasksTabsFor, type TasksTabKey } from "@/lib/tasks/tabs";
+
+// Words that still find a Tasks tab by the name of the page it replaced.
+const TASKS_TAB_KEYWORDS: Record<TasksTabKey, string> = {
+  mine: "mine my tasks assigned",
+  all: "everyone unassigned team",
+  review: "review queue suggested changes scouting import approve",
+  activity: "action center inbox email meeting",
+};
 
 // Index behind the "Go to ..." rows of the search palette (⌘K) and the actions
 // of the "+ New" menu. Both are plain data over routes that already exist.
@@ -14,7 +23,8 @@ export type PaletteCommand = {
 
 // Destinations the member can see in the sidebar, in sidebar order, plus the
 // pages that no longer have a sidebar entry: the tabs of Home (Dashboard and
-// Reports, only if the member may see that tab) and Notifications, which the
+// Reports) and of Tasks (All, To review and Activity), only if the member may
+// see that tab, and Notifications, which the
 // top bar's bell opens. It is built on the server with the same permission
 // filter the sidebar uses and only the result reaches the browser, so an area
 // without permission is never listed, not even by name. `chatAvailable`
@@ -28,6 +38,21 @@ export function navCommands(
     .filter((item) => chatAvailable || !item.badge)
     .flatMap(({ href, label, icon }): PaletteCommand[] => {
       const command: PaletteCommand = { href, label, icon };
+      if (href === "/tasks") {
+        // Tasks keeps its old names as search words: Mine is the default tab
+        // (the "Tasks" row); the others are listed by name when visible.
+        return [
+          { ...command, keywords: TASKS_TAB_KEYWORDS.mine },
+          ...tasksTabsFor(permissions)
+            .filter((tab) => tab.key !== DEFAULT_TASKS_TAB)
+            .map((tab): PaletteCommand => ({
+              href: tasksTabHref(tab.key),
+              label: `Tasks: ${tab.label}`,
+              icon: tab.key === "review" ? "review" : tab.key === "activity" ? "inbox" : "tasks",
+              keywords: TASKS_TAB_KEYWORDS[tab.key],
+            })),
+        ];
+      }
       if (href !== "/home") return [command];
       const tabs = homeTabsFor(permissions)
         .filter((tab) => tab.key !== DEFAULT_HOME_TAB)
@@ -45,7 +70,8 @@ export function navCommands(
 const normalize = (value: string) => value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
 // Every word typed must appear in the label or in the route's words
-// ("inbox" finds Action center, which lives at /inbox). An empty query lists
+// ("inbox" or "action center" finds Tasks: Activity, "review" finds Tasks:
+// To review). An empty query lists
 // every destination.
 export function matchCommands(commands: PaletteCommand[], query: string): PaletteCommand[] {
   const words = normalize(query).split(/\s+/).filter(Boolean);

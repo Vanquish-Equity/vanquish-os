@@ -19,7 +19,7 @@ async function session() {
 const refresh = () => {
   revalidatePath("/lp-scouting");
   revalidatePath("/settings");
-  revalidatePath("/review");
+  revalidatePath("/tasks");
   revalidatePath("/people");
   revalidatePath("/lp-board");
 };

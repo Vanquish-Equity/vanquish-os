@@ -98,6 +98,21 @@ describe("Sidebar", () => {
     }
   });
 
+  it("lists Tasks once and no longer lists Action center or Review", () => {
+    for (const permissions of [[], ["admin", "portfolio", "documents"]]) {
+      for (const collapsed of [false, true]) {
+        const html = render(permissions, 0, {}, collapsed);
+        expect(html).not.toContain("Action center");
+        expect(html).not.toContain('href="/inbox"');
+        expect(html).not.toContain('href="/review"');
+        expect(html).not.toMatch(/>Review</);
+      }
+      const expanded = render(permissions);
+      expect(expanded).toContain('href="/tasks"');
+      expect(expanded.match(/href="\/tasks[^"]*"/g)).toHaveLength(1);
+    }
+  });
+
   it("keeps the sidebar within eight top-level entries by default", () => {
     // Home, Chat, and the section headings (CRM, Work, Boards, Fund, System).
     const html = render(["admin", "portfolio", "documents"]);

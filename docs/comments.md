@@ -45,7 +45,7 @@ checks that each mention is an active member.
 - **From an existing comment:** use *Create task*.
 - The task belongs to the same Company, or to the same Company and Deal. It
   records the comment (`tasks.source_comment_id`) and appears as a link on
-  the comment, which opens it in Tasks (`/tasks#task-<id>`).
+  the comment, which opens it in Tasks (`/tasks?tab=all#task-<id>`, the All tab, which lists every task).
 - **Notifications:**
   - Mention and assignment of the same person in the same action produce
     **one** notice: “X mentioned you and assigned you a task on …”, which
@@ -78,6 +78,32 @@ stays valid in the database and nothing was migrated:
   does not depend on a redirect keeping the hash. Other Home comments open
   Today. Reports has no anchors of its own: a comment there uses the generic
   `page` anchor and its link opens Today (the panel opens, no scroll target).
+
+## Tasks tabs and legacy Review / Action center comments
+
+Tasks has four tabs (Mine, All, To review, Activity) but one comment scope,
+`tasks`. Comments pinned on the former Review page were stored with page key
+`review`, and those on the former Action center with `inbox`; both keys stay
+valid in the database (migrations `0021` and `20261008164920`) and nothing was
+migrated:
+
+- On `/tasks` comments are read with `page_key in ('tasks','review','inbox')`
+  (`TASKS_PAGE_KEYS`, `pageKeysFor`, `loadContextCommentsAction`). A pin is
+  drawn only where its anchor exists on the open tab, so legacy `review:<id>`
+  and `proposal:<id>` pins show on To review, and `interaction:<id>` and
+  `document:<id>` pins on Activity. Comments on the generic `page` anchor show
+  on every tab. `contextScope` no longer matches `/review` and `/inbox`; they
+  redirect before anything renders.
+- A reply must carry its root's page key (the database compares it), so
+  `postContextCommentAction` looks the parent up and `replyPageKey` uses
+  `review` or `inbox` for a reply to a legacy comment. New comments are stored
+  as `tasks`.
+- `contextHref` links legacy `review` comments to
+  `/tasks?tab=review#comment-<id>` and `inbox` comments to
+  `/tasks?tab=activity#comment-<id>`, so the link does not depend on a redirect
+  keeping the hash. `tasks` comments open the tab holding their anchor: `task:`
+  anchors open All, `review:`/`proposal:` To review, `interaction:`/`document:`
+  Activity, anything else Mine (the default).
 
 ## Notifications
 

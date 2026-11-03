@@ -156,7 +156,7 @@ async function runScan(session: Session): Promise<Result> {
   await session.supabase
     .from("scouting_settings")
     .upsert({ member_email: session.email, last_scanned_at: startedAt.toISOString(), updated_at: startedAt.toISOString() }, { onConflict: "member_email" });
-  revalidatePath("/review");
+  revalidatePath("/tasks");
   return {
     ok: true,
     message: `${added} new suggestion${added === 1 ? "" : "s"}${scan.capped ? ` (read the newest ${MESSAGE_CAP} emails of the last ${WINDOW_DAYS} days)` : ""}.`,
@@ -203,7 +203,7 @@ export async function acceptSuggestion(id: string, name: string): Promise<Result
   if (!session) return { ok: false, message: "Sign in to continue." };
   const { error } = await session.supabase.rpc("accept_company_suggestion", { p_id: id, p_name: name });
   if (error) return { ok: false, message: error.message.startsWith("Enter") || error.message.startsWith("This") ? error.message : "Could not create the company." };
-  revalidatePath("/review");
+  revalidatePath("/tasks");
   revalidatePath("/companies");
   revalidatePath("/people");
   return { ok: true, message: "Company created." };
@@ -218,7 +218,7 @@ export async function dismissSuggestion(id: string): Promise<Result> {
     .eq("id", id)
     .select("id");
   if (error || !data?.length) return { ok: false, message: "Could not dismiss the suggestion." };
-  revalidatePath("/review");
+  revalidatePath("/tasks");
   return { ok: true };
 }
 
@@ -236,7 +236,7 @@ export async function decideContactRequest(id: string, accept: boolean): Promise
       .select("id");
     if (error || !data?.length) return { ok: false, message: "Could not decline this contact." };
   }
-  revalidatePath("/review");
+  revalidatePath("/tasks");
   revalidatePath("/people");
   return { ok: true };
 }

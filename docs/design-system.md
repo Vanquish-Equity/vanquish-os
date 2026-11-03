@@ -41,8 +41,9 @@ The native selectors in SettingsPanel, TaskRow and CommentsSection now reuse Sel
 
 ### Operating navigation density
 
-Work holds the daily-action entries (Tasks, Action center, Communications,
-Calendar, Review) plus Document intake (Documents permission). Integration
+Work holds the daily-action entries (Tasks, Communications, Calendar) plus
+Document intake (Documents permission). Action center and Review are tabs of
+Tasks (Mine, All, To review, Activity), so Tasks is one entry. Integration
 health and Workspace governance (admin) sit in System, the last section;
 there is no "More". Sidebar labels equal the page's h1. Overview, CRM reporting
 and Notifications have no entry (Home tabs and the top-bar bell; see
@@ -64,7 +65,7 @@ and the offline Vanquish AI panel stays fixed without moving the sidebar.
   longer than ~120 ms, finishes when the new route commits, and ignores links
   to the same page, new tabs, downloads and modified clicks. The Sidebar already
   highlights the target immediately. Routes without a bespoke skeleton use the
-  group `loading.tsx`; Boards, My LPs, Action center, Network and Documents have
+  group `loading.tsx`; Boards, My LPs, Network and Documents have
   their own.
 - **Entrances:** `main.vq-page > *` fades and rises 6 px in 260 ms when a route
   (or its skeleton replaced by the page) mounts. Menus, selectors and popovers
@@ -106,7 +107,7 @@ and the offline Vanquish AI panel stays fixed without moving the sidebar.
   (`prefetch={true}`), so the click is instant, and that copy lives 30 s. Own
   edits still show at once because those screens refresh with
   `router.refresh()`/`revalidatePath`, which clears the cache. Mail, Calendar,
-  Chat, Home, Action center, the boards and People are excluded on purpose: they
+  Chat, Home, Tasks, the boards and People are excluded on purpose: they
   read Google live, change under a teammate's hand, or (People) would spend
   Gmail/Calendar calls on a hover. A page added to `WARM_ON_HOVER` in
   `Sidebar.tsx` must render without side effects and refresh after its edits.
@@ -248,9 +249,9 @@ what they do in words or with a non-directional mark:
   touches one place. `src/components/user-copy.test.ts` fails if the obvious
   jargon, a UUID or a locale-less date comes back in the listed screens.
 
-## Home tabs
+## Page tabs (Home, Tasks)
 
-`HomeTabs` (`src/components/home/HomeTabs.tsx`) is a `role="tablist"` of links
+`PageTabs` (`src/components/PageTabs.tsx`) is a `role="tablist"` of links
 using the same pill as `PeopleGroupTabs` (`bg-ink text-white` active,
 bordered otherwise) with a visible `focus-visible` outline and no glyphs. It is
 the one pattern for page-level tabs that are real navigations: roving tab stop,
@@ -258,3 +259,12 @@ arrow keys move focus only, Enter/Space opens, links are not prefetched. Known
 exception: `PeopleGroupTabs` and the Notifications Unread/All links still use
 `nav` + `aria-current` rather than tab roles, because they filter one list
 instead of switching between sections.
+
+`PageTabs` takes only data (hrefs, ids, labels, panel id), so a server page can
+use it; `HomeTabs` and `TasksTabs` (`src/components/tasks/TasksTabs.tsx`) are
+thin wrappers that feed it Home's and Tasks' tabs. The tab definitions, ids and
+hrefs live in plain modules (`src/lib/home/tabs.ts`, `src/lib/tasks/tabs.ts`),
+never in the `"use client"` files, because a server component cannot call
+helpers exported from a client module. Inside Tasks, the *Everyone* /
+*Unassigned* chips of the All tab are filters of one list (`nav` +
+`aria-current`, the same known exception as `PeopleGroupTabs`), not tabs.

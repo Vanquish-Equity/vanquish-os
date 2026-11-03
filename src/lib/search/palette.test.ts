@@ -31,6 +31,23 @@ describe("palette index (Go to ...)", () => {
     expect(commands.find((command) => command.href === "/home")?.label).toBe("Home");
   });
 
+  it("finds Tasks and its tabs by name, and the old names of Action center and Review", () => {
+    const commands = navCommands(toPermissionSet([]));
+    const find = (query: string) => matchCommands(commands, query).map((command) => `${command.label}|${command.href}`);
+    expect(find("tasks")).toEqual(["Tasks|/tasks", "Tasks: All|/tasks?tab=all", "Tasks: To review|/tasks?tab=review", "Tasks: Activity|/tasks?tab=activity"]);
+    expect(find("to review")).toEqual(["Tasks: To review|/tasks?tab=review"]);
+    expect(find("review")).toEqual(["Tasks: To review|/tasks?tab=review"]);
+    expect(find("tasks: activity")).toEqual(["Tasks: Activity|/tasks?tab=activity"]);
+    expect(find("action center")).toEqual(["Tasks: Activity|/tasks?tab=activity"]);
+    expect(find("inbox")).toEqual(["Tasks: Activity|/tasks?tab=activity"]);
+    // There is no separate Action center or Review destination any more.
+    const labels = commands.map((command) => command.label);
+    expect(labels).not.toContain("Action center");
+    expect(labels).not.toContain("Review");
+    expect(commands.map((command) => command.href)).not.toContain("/inbox");
+    expect(commands.map((command) => command.href)).not.toContain("/review");
+  });
+
   it("every Home tab and Notifications command points to a page that exists", () => {
     for (const command of navCommands(toPermissionSet(["admin", "portfolio", "documents"]))) {
       expect(existsSync(pageFor(command.href.split("?")[0])), command.href).toBe(true);
@@ -72,7 +89,7 @@ describe("palette index (Go to ...)", () => {
   it("matches by label or route words, accent- and case-insensitive", () => {
     const commands = navCommands(toPermissionSet(["documents"]));
     expect(matchCommands(commands, "PIPE").map((c) => c.href)).toEqual(["/pipeline"]);
-    expect(matchCommands(commands, "inbox").map((c) => c.label)).toEqual(["Action center"]);
+    expect(matchCommands(commands, "inbox").map((c) => c.label)).toEqual(["Tasks: Activity"]);
     expect(matchCommands(commands, "document").map((c) => c.href)).toEqual(["/documents"]);
     expect(matchCommands(commands, "zzz")).toEqual([]);
     expect(matchCommands(commands, "  ")).toEqual(commands);

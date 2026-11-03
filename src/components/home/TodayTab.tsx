@@ -14,6 +14,7 @@ import { loadNotifications } from "@/lib/notifications/queries";
 import { startDevPageTimer } from "@/lib/performance";
 import { createClient } from "@/lib/supabase/server";
 import { greetingName, introCard } from "@/lib/ui/entrance";
+import { REVIEW_HREF } from "@/lib/tasks/tabs";
 
 type Member = Extract<AccessState, { status: "member" }>;
 
@@ -41,7 +42,7 @@ export default async function TodayTab({ access }: { access: Member }) {
     { href: "/pipeline", label: "Pipeline", detail: "Deals by stage", icon: "pipeline" },
     { href: "/companies", label: "Companies", detail: "Search and open companies", icon: "companies" },
     { href: "/people?view=lps", label: "Potential LPs", detail: "Contacts and CSV import", icon: "people" },
-    { href: "/review", label: "Review queue", detail: "Decide open review items", icon: "review" },
+    { href: REVIEW_HREF, label: "Review queue", detail: "Decide open review items", icon: "review" },
     ...(canPortfolio
       ? [{ href: "/portfolio", label: "Portfolio", detail: "Vehicles and positions", icon: "portfolio" as IconName }]
       : []),
