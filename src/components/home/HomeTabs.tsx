@@ -2,10 +2,8 @@
 
 import Link from "next/link";
 import { useRef, type KeyboardEvent } from "react";
-import { homeTabHref, type HomeTabDef, type HomeTabKey } from "@/lib/home/tabs";
+import { HOME_PANEL_ID, homeTabHref, homeTabId, type HomeTabDef, type HomeTabKey } from "@/lib/home/tabs";
 
-export const homeTabId = (key: HomeTabKey) => `home-tab-${key}`;
-export const HOME_PANEL_ID = "home-panel";
 
 // Same pill style as the People tabs.
 const tabClass = (active: boolean) =>
