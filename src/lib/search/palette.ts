@@ -102,9 +102,9 @@ export type NewAction = { id: string; label: string; href: string; needsChat?: b
 // Creation flows that already work from a route. `?new=1` opens the existing
 // modal of that page (Tasks already did; Pipeline and People gained it).
 // None is gated by an area permission today, as their pages are open to every
-// member. Not included: New company (it only exists inside the New deal
-// dialog) and Gmail compose (a dialog with no URL entry).
+// member. Gmail compose is a dialog with no URL entry.
 export const NEW_ACTIONS: NewAction[] = [
+  { id: "company", label: "New company", href: "/companies/new" },
   { id: "deal", label: "New deal", href: "/pipeline?new=1" },
   { id: "person", label: "New person", href: "/people?new=1" },
   { id: "task", label: "New task", href: "/tasks?new=1" },
