@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getAccess } from "@/lib/auth/access";
 import { loadDirectory } from "@/lib/chat/queries";
-import { contextScope, safeTargetKey, type ContextScope } from "@/lib/comments/context";
+import { contextScope, HOME_PAGE_KEYS, safeTargetKey, type ContextScope } from "@/lib/comments/context";
 import { createClient } from "@/lib/supabase/server";
 
 export type ContextComment = {
@@ -33,7 +33,9 @@ export async function loadContextCommentsAction(pathname: string, scope: Context
   const supabase = await createClient();
   let query = supabase.from("record_comments")
     .select("id,parent_id,target_key,target_label,author_email,body,created_at,edited_at,deleted_at,resolved_at,visible_to,value_snapshot,mentions:record_comment_mentions(member_email)");
-  query = scope.page ? query.eq("page_key", scope.page) : query.eq("company_id", scope.companyId!);
+  query = scope.page
+    ? scope.page === "home" ? query.in("page_key", [...HOME_PAGE_KEYS]) : query.eq("page_key", scope.page)
+    : query.eq("company_id", scope.companyId!);
   query = scope.dealId ? query.eq("deal_id", scope.dealId) : query.is("deal_id", null);
   const [{ data, error }, directory] = await Promise.all([
     query.order("created_at", { ascending: true }).limit(500), loadDirectory(supabase),
@@ -57,8 +59,15 @@ export async function postContextCommentAction(input: {
   if (!safeTargetKey(input.target) || !input.label.trim() || input.label.length > 140 || !input.body.trim() || input.body.length > 4000)
     return { ok: false, message: "Check the comment and its location." };
   const supabase = await createClient();
+  // A reply must carry its root's page key (the database compares them). On
+  // Home that can be the legacy `overview` key of a former Overview comment.
+  let page = input.scope.page;
+  if (page === "home" && input.parentId) {
+    const { data: parent } = await supabase.from("record_comments").select("page_key").eq("id", input.parentId).maybeSingle();
+    if (parent?.page_key === "overview") page = "overview";
+  }
   const { data, error } = await supabase.rpc("comment_post_visible", {
-    p_page: input.scope.page, p_company: input.scope.companyId, p_deal: input.scope.dealId,
+    p_page: page, p_company: input.scope.companyId, p_deal: input.scope.dealId,
     p_parent: input.parentId ?? null, p_target: input.target, p_label: input.label,
     p_snapshot: input.snapshot?.slice(0,500) ?? null, p_body: input.body, p_mentions: input.mentions, p_recipients: input.recipients ?? null,
   });

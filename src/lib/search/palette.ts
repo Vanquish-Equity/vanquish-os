@@ -1,22 +1,45 @@
 import { visibleNav, WORKSPACE_NAV, type AreaPermission, type NavIcon } from "@/lib/auth/permissions";
+import { DEFAULT_HOME_TAB, homeTabHref, homeTabsFor } from "@/lib/home/tabs";
 
 // Index behind the "Go to ..." rows of the search palette (⌘K) and the actions
 // of the "+ New" menu. Both are plain data over routes that already exist.
 
-export type PaletteCommand = { href: string; label: string; icon: NavIcon };
+export type PaletteCommand = {
+  href: string;
+  label: string;
+  icon: NavIcon;
+  // Extra words that find the page (old names of a page that moved).
+  keywords?: string;
+};
 
-// Destinations the member can see in the sidebar, in sidebar order. It is built
-// on the server with the same permission filter the sidebar uses and only the
-// result reaches the browser, so an area without permission is never listed,
-// not even by name. `chatAvailable` mirrors the sidebar, which hides the
-// unread-badge items (Notifications, Chat) until their migration exists.
+// Destinations the member can see in the sidebar, in sidebar order, plus the
+// pages that no longer have a sidebar entry: the tabs of Home (Dashboard and
+// Reports, only if the member may see that tab) and Notifications, which the
+// top bar's bell opens. It is built on the server with the same permission
+// filter the sidebar uses and only the result reaches the browser, so an area
+// without permission is never listed, not even by name. `chatAvailable`
+// mirrors the sidebar, which hides the unread-badge item (Chat) until its
+// migration exists; Notifications needs the same migration.
 export function navCommands(
   permissions: ReadonlySet<AreaPermission>,
   { chatAvailable = true }: { chatAvailable?: boolean } = {},
 ): PaletteCommand[] {
   return visibleNav(WORKSPACE_NAV, permissions)
     .filter((item) => chatAvailable || !item.badge)
-    .map(({ href, label, icon }) => ({ href, label, icon }));
+    .flatMap(({ href, label, icon }): PaletteCommand[] => {
+      const command: PaletteCommand = { href, label, icon };
+      if (href !== "/home") return [command];
+      const tabs = homeTabsFor(permissions)
+        .filter((tab) => tab.key !== DEFAULT_HOME_TAB)
+        .map((tab): PaletteCommand => ({
+          href: homeTabHref(tab.key),
+          label: `Home: ${tab.label}`,
+          icon: tab.key === "reports" ? "reporting" : "overview",
+          keywords: tab.key === "reports" ? "reporting crm export csv" : "overview",
+        }));
+      const notifications: PaletteCommand[] = chatAvailable ? [{ href: "/notifications", label: "Notifications", icon: "bell" }] : [];
+      return [command, ...tabs, ...notifications];
+    });
 }
 
 const normalize = (value: string) => value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -28,7 +51,7 @@ export function matchCommands(commands: PaletteCommand[], query: string): Palett
   const words = normalize(query).split(/\s+/).filter(Boolean);
   if (words.length === 0) return commands;
   return commands.filter((command) => {
-    const haystack = normalize(`${command.label} ${command.href.replace(/[/-]/g, " ")}`);
+    const haystack = normalize(`${command.label} ${command.keywords ?? ""} ${command.href.replace(/[/?=&-]/g, " ")}`);
     return words.every((word) => haystack.includes(word));
   });
 }

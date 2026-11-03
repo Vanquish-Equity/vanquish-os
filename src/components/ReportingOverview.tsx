@@ -16,9 +16,9 @@ export default async function ReportingOverview() {
     <section className="vq-card-static rounded-xl bg-white p-4">
       <Link
         className="inline-flex min-h-11 items-center font-semibold underline"
-        href="/reporting"
+        href="/home?tab=reports"
       >
-        CRM reporting
+        Open Reports
       </Link>
       <p className="text-sm text-neutral-600">
         Deals you can see that were created in the last 30 days:{" "}

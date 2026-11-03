@@ -57,7 +57,7 @@ export default function ArchiveDealButton({
         Archive {companyName} · {dealName}?
       </p>
       <p className="mt-1 text-amber-900/80">
-        It will no longer appear as active in Pipeline or Overview, and you can find it
+        It will no longer appear as active in Pipeline or the Home Dashboard, and you can find it
         under Pipeline, in Archived. {companyName}
         {otherActiveDealCount > 0
           ? ` and its ${otherActiveDealCount} other active ${

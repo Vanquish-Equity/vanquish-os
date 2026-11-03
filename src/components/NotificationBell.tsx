@@ -212,7 +212,7 @@ export default function NotificationBell() {
                 className="text-[12px] font-semibold text-cyan-700 hover:underline"
                 data-bell-view-all
               >
-                View all
+                All notifications
               </Link>
             </div>
           </div>,

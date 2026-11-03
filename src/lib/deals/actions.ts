@@ -103,7 +103,7 @@ function parseOptionalInvestment(value: string | null | undefined) {
 }
 
 function revalidateDealPaths(companyId?: string | null, dealId?: string | null) {
-  revalidatePath("/overview");
+  revalidatePath("/home");
   revalidatePath("/pipeline");
   revalidatePath("/companies");
   revalidatePath("/tasks");
@@ -711,7 +711,7 @@ export async function snoozeDealAttentionAction(input: {
 
 // Archives one opportunity only. The company, its other deals and the
 // records linked to this deal stay untouched; archived deals drop out of
-// Pipeline, Overview and the active lists because they filter archived_at.
+// Pipeline, the Home Dashboard and the active lists because they filter archived_at.
 export async function archiveDealAction(
   input: ArchiveDealInput
 ): Promise<DealActionResult> {

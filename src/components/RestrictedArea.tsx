@@ -16,10 +16,10 @@ export default function RestrictedArea({ area }: { area: string }) {
           {area} is only available to members who have been given that permission explicitly.
         </p>
         <Link
-          href="/overview"
+          href="/home"
           className="mt-4 inline-block rounded-full bg-ink px-3.5 py-2 text-[11.5px] font-semibold text-white transition hover:bg-neutral-800"
         >
-          Back to Overview
+          Back to Home
         </Link>
       </div>
     </div>
