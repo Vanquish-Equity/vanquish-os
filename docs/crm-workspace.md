@@ -578,3 +578,19 @@ page restores companies and lets admins permanently delete unmerged companies
 without linked Deals, documents, or database references that require retention.
 People and Companies tables use compact rows and a horizontal scrollbar at
 the bottom of the visible table area whenever columns overflow.
+
+The People contact panel shows contact details, list memberships, linked
+active deals visible to the viewer, and up to 120 shared email or meeting
+activity days by teammate and type over the last 90 days. The timeline can
+be narrowed to 30 days or filtered by activity type. The connection ranking
+counts distinct days, not emails or meetings, and does not use private
+subjects, message bodies, or calendar titles.
+
+The contact workspace also supports team notes (only the author can remove
+a note), dated follow-up reminders assigned to the creator in Tasks, and
+manual attachments up to 3 MB in the private contact-files bucket. The Files
+tab, downloads, uploads, and removal require Documents access. Downloads
+are signed for one minute. Archived contacts no longer expose notes or files;
+archiving is not a storage purge. Reminders are CRM tasks, not calendar
+events or scheduled emails. Apply `20261103230000_contact_workspace.sql`
+before using these sections. In Supabase Storage, create a private bucket named\n`contact-files` with a 3 MiB file-size limit. The migration configures object\npolicies without requiring SQL write access to the managed bucket catalog.
