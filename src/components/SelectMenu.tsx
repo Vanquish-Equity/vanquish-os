@@ -11,6 +11,7 @@ export type SelectMenuOption = {
 
 export default function SelectMenu({
   id,
+  ariaLabel,
   value,
   options,
   placeholder = "Select",
@@ -21,6 +22,7 @@ export default function SelectMenu({
   rootClassName = "",
 }: {
   id?: string;
+  ariaLabel?: string;
   value: string;
   options: SelectMenuOption[];
   placeholder?: string;
@@ -74,6 +76,7 @@ export default function SelectMenu({
         id={triggerId}
         type="button"
         autoFocus={autoFocus}
+        aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listboxId}

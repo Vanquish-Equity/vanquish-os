@@ -566,3 +566,15 @@ right edge to resize it. With the handle focused, use Left and Right to adjust
 the width. Widths apply to the current table layout and aren’t saved with the
 view. Companies shows Industry, Stage, and Priority by default; they can be
 hidden from Columns. The text on each colored label remains visible.
+
+
+### Company groups and archive
+
+In Companies table view, use the row checkboxes to select companies and add
+them to a private group or archive them. New group creates a personal list;
+the group selector filters Companies, and Remove from group does not archive
+the company. Bulk actions accept up to 100 companies at a time. The Archived
+page restores companies and lets admins permanently delete unmerged companies
+without linked Deals, documents, or database references that require retention.
+People and Companies tables use compact rows and a horizontal control above
+the table whenever columns overflow.

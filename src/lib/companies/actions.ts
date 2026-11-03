@@ -1,5 +1,6 @@
 "use server";
 
+import { isUuid } from "@/lib/custom-fields/model";
 import { revalidatePath } from "next/cache";
 import { logActivity } from "@/lib/activity/log";
 import { createClient } from "@/lib/supabase/server";
@@ -148,49 +149,54 @@ export async function restoreCompanyAction(input: {
   return setDeletedAt(supabase, companyId, null);
 }
 
-export async function permanentlyDeleteCompanyAction(input: {
-  companyId: string;
-}): Promise<CompanyActionResult> {
-  const companyId = cleanText(input.companyId);
-  if (!companyId) return { ok: false, message: "Missing company." };
-
+export async function permanentlyDeleteCompanyAction(input: { companyId: string }): Promise<CompanyActionResult> {
+  if (!isUuid(input.companyId)) return { ok: false, message: "Invalid company." };
   const supabase = await createClient();
+  const { count, error } = await supabase.from("companies").delete({ count: "exact" })
+    .eq("id", input.companyId).not("deleted_at", "is", null).is("merged_into_id", null);
+  if (error?.code === "23503") return { ok: false, message: "This company has linked records and must stay archived." };
+  if (error || count !== 1) return { ok: false, message: "Only admins can permanently delete an archived company." };
+  revalidateCompanyPaths(input.companyId);
+  revalidatePath("/people");
+  return { ok: true };
+}
 
-  // Best-effort: clean up any uploaded documents in Storage first (the
-  // `documents` row itself cascades on company delete, but the actual
-  // files in Storage do not).
-  const { data: docs } = (await supabase
-    .from("documents")
-    .select("storage_path")
-    .eq("company_id", companyId)) as unknown as {
-    data: { storage_path: string }[] | null;
-  };
-
-  if (docs && docs.length > 0) {
-    await supabase.storage
-      .from("documents")
-      .remove(docs.map((d) => d.storage_path));
-  }
-
-  const { count, error } = (await supabase
-    .from("companies")
-    .delete({ count: "exact" })
-    .eq("id", companyId)) as unknown as {
-    count: number | null;
-    error: { message: string } | null;
-  };
-
-  if (error) return { ok: false, message: error.message };
-  if (count === 0) {
-    return {
-      ok: false,
-      message:
-        "Delete was blocked by database write policy. Apply the latest migration and try again.",
-    };
-  }
-
+export async function createCompanyGroup(name: string): Promise<CompanyActionResult> {
+  if (typeof name !== "string" || !name.trim() || name.trim().length > 80) return { ok: false, message: "Enter a group name (up to 80 characters)." };
+  const supabase = await createClient();
+  const { error } = await supabase.from("company_groups").insert({ name: name.trim() });
+  if (error) return { ok: false, message: error.code === "23505" ? "A group already has that name." : "Couldn't create the group." };
   revalidatePath("/companies");
-  revalidatePath("/pipeline");
-  revalidatePath("/companies/trash");
+  return { ok: true };
+}
+
+export async function changeCompanyGroup(groupId: string, ids: string[], remove: boolean): Promise<CompanyActionResult> {
+  if (!isUuid(groupId) || !validCompanyIds(ids)) return { ok: false, message: "Select up to 100 companies and a group." };
+  const supabase = await createClient();
+  const { error } = remove
+    ? await supabase.from("company_group_members").delete().eq("group_id", groupId).in("company_id", ids)
+    : await supabase.from("company_group_members").upsert(ids.map((company_id) => ({ group_id: groupId, company_id })), { ignoreDuplicates: true });
+  if (error) return { ok: false, message: "Couldn't update the group." };
+  revalidatePath("/companies");
+  return { ok: true };
+}
+
+function validCompanyIds(ids: string[]) {
+  return Array.isArray(ids) && ids.length > 0 && ids.length <= 100 && ids.every(isUuid);
+}
+
+export async function archiveSelectedCompanies(ids: string[]): Promise<CompanyActionResult> {
+  if (!validCompanyIds(ids)) return { ok: false, message: "Select up to 100 companies." };
+  const supabase = await createClient();
+  const archivedAt = new Date().toISOString();
+  const { data, error } = await supabase.from("companies").update({ deleted_at: archivedAt })
+    .in("id", ids).is("deleted_at", null).select("id");
+  if (error) return { ok: false, message: "Couldn't archive the selected companies." };
+  for (const { id } of data ?? []) {
+    await logActivity({ eventType: "COMPANY_ARCHIVED", targetType: "company", targetId: id,
+      payload: { archivedAt }, actor: "anonymous" }, supabase);
+    revalidateCompanyPaths(id);
+  }
+  if (data?.length !== new Set(ids).size) return { ok: false, message: "Some selected companies were already archived or unavailable." };
   return { ok: true };
 }
