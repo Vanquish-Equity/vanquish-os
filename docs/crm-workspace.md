@@ -557,3 +557,12 @@ Admins manage shared fields and labels in Settings. Click a cell to edit a value
 heading to select labels. The directory matches any selected label within each
 column, and all filtered columns together. This filters the loaded directory
 (up to 1,000 contacts after the base group/name filter), not the entire database.
+
+
+### Directory column widths
+
+In People (including saved table views) and Companies, drag a column header’s
+right edge to resize it. With the handle focused, use Left and Right to adjust
+the width. Widths apply to the current table layout and aren’t saved with the
+view. Companies shows Industry, Stage, and Priority by default; they can be
+hidden from Columns. The text on each colored label remains visible.

@@ -137,13 +137,14 @@ describe("CompaniesExplorer URL handling", () => {
 
   it("shows the CRM columns and lets the user replace one from the toolbar", () => {
     open("/companies?view=table");
-    for (const name of ["Connections", "Owner", "Last Contact", "Location"]) {
+    for (const name of ["Connections", "Owner", "Last Contact", "Location", "Industry", "Stage", "Priority"]) {
       expect(screen.getByRole("columnheader", { name: new RegExp(`^${name}`) })).toBeTruthy();
     }
     fireEvent.click(screen.getByRole("button", { name: "Columns" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Location" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Industry" }));
-    expect(screen.queryByRole("columnheader", { name: "Location" })).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: /^Location/ })).toBeNull();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Location" }));
+    expect(screen.getByRole("columnheader", { name: /^Location/ })).toBeTruthy();
     expect(screen.getByRole("columnheader", { name: /^Industry/ })).toBeTruthy();
     expect(nav.router.replace).not.toHaveBeenCalled();
   });

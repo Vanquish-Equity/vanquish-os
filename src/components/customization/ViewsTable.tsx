@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import PeopleBulkSelection, { PeopleSelectAll, PeopleSelectRow } from "@/components/people/PeopleBulkSelection";
+import ColumnResizeHandle from "@/components/ColumnResizeHandle";
 import { peopleAvatarClass, peopleInitials, peopleTableClass } from "@/components/people/directory-style";
 import type {
   Definition,
@@ -173,7 +174,7 @@ export default function ViewsTable({
   const bulk = kind === "people" && peopleGroups !== undefined;
   const table = (
       <div className="overflow-x-auto">
-        <table className={kind === "people" ? peopleTableClass : "w-full text-[12.5px]"}>
+        <table key={kind === "people" ? JSON.stringify([bulk, columns]) : undefined} className={kind === "people" ? peopleTableClass : "w-full text-[12.5px]"}>
           <thead className={kind === "people" ? "bg-neutral-50" : undefined}>
             <tr className="border-b border-neutral-100 text-left text-[10.5px] uppercase tracking-wide text-neutral-400">
               {bulk && <th scope="col" className="w-11"><PeopleSelectAll /></th>}
@@ -182,7 +183,7 @@ export default function ViewsTable({
                   key={k}
                   scope="col"
                   aria-sort={ariaSort(sort, k)}
-                  className="px-4 font-semibold"
+                  className={kind === "people" ? "relative pl-4 pr-7 font-semibold" : "px-4 font-semibold"}
                 >
                   <button
                     type="button"
@@ -198,6 +199,7 @@ export default function ViewsTable({
                       {sortTag(k, definition, sort.key === k && sort.direction === "desc" ? "desc" : "asc")}
                     </span>
                   </button>
+                  {kind === "people" && <ColumnResizeHandle label={name(k)} />}
                 </th>
               ))}
             </tr>

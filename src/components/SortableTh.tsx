@@ -1,3 +1,4 @@
+import ColumnResizeHandle from "@/components/ColumnResizeHandle";
 import Link from "next/link";
 import { listAriaSort, nextListSort, withListSort, type ListSort } from "@/lib/list-sort";
 
@@ -31,7 +32,7 @@ export default function SortableTh<K extends string>({
   const active = sort?.key === sortKey;
   const text = sortLabel(sort, sortKey, label);
   return (
-    <th scope="col" aria-sort={listAriaSort(sort, sortKey)} className="px-4 font-semibold">
+    <th scope="col" aria-sort={listAriaSort(sort, sortKey)} className="relative py-0 pl-4 pr-7 font-semibold">
       <Link
         href={withListSort(baseHref, nextListSort(sort, sortKey))}
         title={text}
@@ -46,6 +47,7 @@ export default function SortableTh<K extends string>({
           {active && sort?.dir === "desc" ? "Z–A" : "A–Z"}
         </span>
       </Link>
+      <ColumnResizeHandle label={label} />
     </th>
   );
 }

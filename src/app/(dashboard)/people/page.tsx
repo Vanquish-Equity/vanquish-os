@@ -1,3 +1,4 @@
+import ColumnResizeHandle from "@/components/ColumnResizeHandle";
 import { peopleAvatarClass, peopleInitials, peopleTableClass } from "@/components/people/directory-style";
 import Checkbox from "@/components/Checkbox";
 import PeopleBulkSelection, { PeopleSelectAll, PeopleSelectRow } from "@/components/people/PeopleBulkSelection";
@@ -361,18 +362,18 @@ export default async function PeoplePage({
         <PeopleGroupsProvider groups={menuGroups}>
         <GoogleLookups emails={contactEmails} lastEmail={showLastEmail} nextMeeting={showNextMeeting}>
         <div className="overflow-x-auto">
-        <table className={peopleTableClass}>
+        <table key={JSON.stringify([[...shown], fields.map(({ id }) => id)])} className={peopleTableClass}>
           <thead className="bg-neutral-50">
             <tr className="border-b border-neutral-100 text-left text-[10.5px] uppercase tracking-wide text-neutral-400">
               <th scope="col" className="w-11"><PeopleSelectAll /></th>
               <SortableTh label="Name" sortKey="name" sort={sort} baseHref={sortBaseHref} />
               {shown.has("company") && <SortableTh label="Company" sortKey="company" sort={sort} baseHref={sortBaseHref} />}
               {shown.has("email") && <SortableTh label="Email" sortKey="email" sort={sort} baseHref={sortBaseHref} />}
-              {shown.has("linkedin") && <th className="px-4 py-3 font-semibold">LinkedIn</th>}
-              {shown.has("last_email") && <th className="px-4 py-3 font-semibold">Last email</th>}
-              {shown.has("next_meeting") && <th className="px-4 py-3 font-semibold">Next meeting</th>}
-              {shown.has("last_interaction") && <th className="px-4 py-3 font-semibold">Last interaction</th>}
-              {fields.map((field) => <th key={field.id} scope="col" className="min-w-36 px-2 py-2 align-top">
+              {shown.has("linkedin") && <th className="relative py-3 pl-4 pr-7 font-semibold">LinkedIn<ColumnResizeHandle label="LinkedIn" /></th>}
+              {shown.has("last_email") && <th className="relative py-3 pl-4 pr-7 font-semibold">Last email<ColumnResizeHandle label="Last email" /></th>}
+              {shown.has("next_meeting") && <th className="relative py-3 pl-4 pr-7 font-semibold">Next meeting<ColumnResizeHandle label="Next meeting" /></th>}
+              {shown.has("last_interaction") && <th className="relative py-3 pl-4 pr-7 font-semibold">Last interaction<ColumnResizeHandle label="Last interaction" /></th>}
+              {fields.map((field) => <th key={field.id} scope="col" className="relative py-2 pl-2 pr-7 align-top">
                 {field.filterable && field.options.length ? <details>
                   <summary className="cursor-pointer normal-case text-neutral-800">{field.name}{tagFilters.has(field.id) ? ` · ${tagFilters.get(field.id)?.size} selected` : ""}</summary>
                   <form action="/people" className="mt-1 max-h-48 space-y-1 overflow-auto rounded-lg border bg-white p-2 normal-case">
@@ -388,8 +389,9 @@ export default async function PeoplePage({
                     <button className="min-h-9 rounded-full bg-ink px-3 text-white">Apply</button>
                   </form>
                 </details> : field.name}
+                <ColumnResizeHandle label={field.name} />
               </th>)}
-              <th className="px-4 py-3 text-right font-semibold">Contact</th>
+              <th className="relative py-3 pl-4 pr-7 text-right font-semibold">Contact<ColumnResizeHandle label="Contact" /></th>
             </tr>
           </thead>
           <tbody>

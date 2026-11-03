@@ -1,5 +1,6 @@
 "use client";
 
+import ColumnResizeHandle from "@/components/ColumnResizeHandle";
 import Popover from "@/components/customization/Popover";
 import PeopleFieldCell from "@/components/people/PeopleFieldCell";
 import type { FieldDefinition, FieldValue } from "@/lib/custom-fields/model";
@@ -30,7 +31,27 @@ const COLUMNS = [
   ["industry", "Industry"], ["stage", "Stage"], ["priority", "Priority"], ["deals", "Deals"],
   ["last_update", "Last update"], ["invested", "Invested"],
 ] as const;
-const DEFAULT_COLUMNS = COLUMNS.slice(0, 4).map(([key]) => key);
+const DEFAULT_COLUMNS = COLUMNS.slice(0, 7).map(([key]) => key);
+
+
+const TAG_COLORS = [
+  "bg-sky-100 text-sky-900", "bg-violet-100 text-violet-900",
+  "bg-emerald-100 text-emerald-900", "bg-amber-100 text-amber-950",
+  "bg-rose-100 text-rose-900", "bg-teal-100 text-teal-900",
+  "bg-indigo-100 text-indigo-900", "bg-orange-100 text-orange-950",
+];
+
+function CompanyTag({ kind, value }: { kind: "industry" | "stage" | "priority"; value: string | null }) {
+  if (!value) return "—";
+  const normalized = value.trim().toLowerCase();
+  let hash = 0;
+  for (const char of `${kind}:${normalized}`) hash = (Math.imul(hash, 31) + char.codePointAt(0)!) >>> 0;
+  const color = kind === "priority" && normalized === "high" ? "bg-rose-100 text-rose-900"
+    : kind === "priority" && normalized === "medium" ? "bg-amber-100 text-amber-950"
+    : kind === "priority" && normalized === "low" ? "bg-slate-100 text-slate-800"
+    : TAG_COLORS[hash % TAG_COLORS.length];
+  return <span className={`inline-block max-w-full rounded-full px-2 py-0.5 text-[11px] font-medium [overflow-wrap:anywhere] ${color}`}>{value}</span>;
+}
 
 type SearchParamsLike = {
   get: (key: string) => string | null;
@@ -527,11 +548,11 @@ export default function CompaniesExplorer({
         </div>
       ) : view === "table" ? (
         <div className="vq-card-static max-h-[calc(100vh-230px)] overflow-auto rounded-[14px] bg-white">
-          <table className="w-full min-w-[40rem] text-[12.5px] [&_td]:border-r [&_td]:border-neutral-100 [&_th]:border-r [&_th]:border-neutral-200">
+          <table key={JSON.stringify([columns, customFields.map(({ id }) => id)])} className="w-full min-w-[40rem] text-[12.5px] [&_td]:border-r [&_td]:border-neutral-100 [&_th]:border-r [&_th]:border-neutral-200">
             <thead className="sticky top-0 z-10 bg-neutral-50">
               <tr className="border-b border-neutral-100 text-left text-[10.5px] uppercase tracking-wide text-neutral-400">
                 {([["company", "Name"], ...COLUMNS.filter(([key]) => columns.includes(key))] as const).map(([key, label]) => (
-                  <th key={key} className="px-4 py-3 font-semibold">
+                  <th key={key} className="relative py-3 pl-4 pr-7 font-semibold">
                     <div className="flex items-center gap-2">
                     <button
                       type="button"
@@ -543,9 +564,10 @@ export default function CompaniesExplorer({
                     </button>
                     {filterButton(key, label)}
                     </div>
+                    <ColumnResizeHandle label={label} />
                   </th>
                 ))}
-                {customFields.map((field) => <th key={field.id} scope="col" className="px-4 py-3"><div className="flex items-center gap-2">{field.name}{filterButton(`cf:${field.id}`, field.name)}</div></th>)}
+                {customFields.map((field) => <th key={field.id} scope="col" className="relative py-3 pl-4 pr-7"><div className="flex items-center gap-2">{field.name}{filterButton(`cf:${field.id}`, field.name)}</div><ColumnResizeHandle label={field.name} /></th>)}
               </tr>
             </thead>
             <tbody>
@@ -574,16 +596,16 @@ export default function CompaniesExplorer({
                       : key === "owner" ? (owners.length ? <span className="rounded-md bg-cyan-50 px-2 py-1 text-cyan-900" title={owners.join(", ")}>{owners[0]}{owners.length > 1 && ` + ${owners.length - 1}`}</span> : "—")
                       : key === "last_contact" ? (company.lastContactAt ? <RelativeTime date={company.lastContactAt} /> : "—")
                       : key === "location" ? company.location || "—"
-                      : key === "industry" ? company.industryName || "—"
-                      : key === "stage" ? company.currentStageName || "—"
-                      : key === "priority" ? company.currentPriorityName || "—"
+                      : key === "industry" ? <CompanyTag kind="industry" value={company.industryName} />
+                      : key === "stage" ? <CompanyTag kind="stage" value={company.currentStageName} />
+                      : key === "priority" ? <CompanyTag kind="priority" value={company.currentPriorityName} />
                       : key === "deals" ? company.dealCount
                       : key === "last_update" ? <RelativeTime date={company.lastUpdateAt} />
                       : <InvestedBadge count={company.investmentCount} />;
                     if (key === "location" && locationField) return <td key={key} data-company-cell-editor="">
                       <PeopleFieldCell definition={locationField} person={company.id} stored={byCell.get(`${company.id}:${locationField.id}`)} />
                     </td>;
-                    return <td key={key} className="whitespace-nowrap px-4 py-3 text-neutral-600">{content}</td>;
+                    return <td key={key} className="px-4 py-3 text-neutral-600 [overflow-wrap:anywhere]">{content}</td>;
                   })}
                   {customFields.map((field) => <td key={field.id} data-company-cell-editor="" className="min-w-36">
                     {!fieldsUnavailable && <PeopleFieldCell definition={field} person={company.id} stored={byCell.get(`${company.id}:${field.id}`)} />}
