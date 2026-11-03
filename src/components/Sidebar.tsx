@@ -109,7 +109,7 @@ function Tooltip({ mode, children, anchored = false }: { mode: Mode; children: R
 // staleTimes in next.config.ts). Mail, Calendar, Chat, Home and the boards are
 // left out on purpose: they read Google live (People does too, per row) or change
 // under a teammate's hand.
-const WARM_ON_HOVER = new Set(["/pipeline", "/companies", "/network", "/portfolio"]);
+const WARM_ON_HOVER = new Set(["/pipeline", "/companies", "/portfolio"]);
 
 const FOCUS = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400";
 

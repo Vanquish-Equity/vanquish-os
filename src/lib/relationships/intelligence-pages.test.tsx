@@ -63,7 +63,7 @@ vi.mock("@/components/comments/CommentsSection", () => ({
 vi.mock("@/components/RelativeTime", () => ({
   default: ({ date }: { date: string }) => createElement("time", null, date),
 }));
-import NetworkPage from "@/app/(dashboard)/network/page";
+import RelationshipsView from "@/components/people/RelationshipsView";
 import CompanyPage from "@/app/(dashboard)/companies/[id]/page";
 const person = "f4000000-0000-0000-0000-000000000001",
   company = "f4000000-0000-0000-0000-000000000002";
@@ -135,14 +135,14 @@ beforeEach(() => {
   });
 });
 afterEach(() => vi.useRealTimers());
-const renderNetworkRaw = async () =>
+const renderRelationshipsRaw = async () =>
   renderToStaticMarkup(
-    await NetworkPage({ searchParams: Promise.resolve({ q: "Synthetic" }) }),
+    await RelationshipsView({ q: "Synthetic" }),
   );
 // The contact name links to its profile once the profile page exists (flag
 // on); that is the only intended difference from the flag-off markup.
-const renderNetwork = async () =>
-  (await renderNetworkRaw()).replace(
+const renderRelationships = async () =>
+  (await renderRelationshipsRaw()).replace(
     /href="\/people\/[0-9a-f-]{36}"/,
     'href="/people?q=Synthetic%20contact"',
   );
@@ -152,7 +152,7 @@ const renderCompany = async () =>
   );
 describe("Phase 4 remains additive to existing pages", () => {
   it.each([
-    ["Network", renderNetwork],
+    ["Relationships", renderRelationships],
     ["Company", renderCompany],
   ] as const)(
     "%s with flag on and no permission has exactly the flag-off HTML and legacy queries",
@@ -171,16 +171,16 @@ describe("Phase 4 remains additive to existing pages", () => {
       expect(mocks.section).not.toHaveBeenCalled();
     },
   );
-  it("Network links a contact to its profile only when the profile page opens", async () => {
-    expect(await renderNetworkRaw()).toContain('href="/people?q=Synthetic%20contact"');
+  it("Relationships links a contact to its profile only when the profile page opens", async () => {
+    expect(await renderRelationshipsRaw()).toContain('href="/people?q=Synthetic%20contact"');
     mocks.state.enabled = true;
-    const html = await renderNetworkRaw();
+    const html = await renderRelationshipsRaw();
     expect(html).toMatch(/href="\/people\/[0-9a-f-]{36}"/);
     expect(html).not.toContain('href="/people?q=Synthetic%20contact"');
   });
-  it("Network preserves company links, search, warm paths and all 200-contact/10k-row limits", async () => {
+  it("Relationships preserves company links, search, warm paths and all 200-contact/10k-row limits", async () => {
     mocks.state.enabled = true;
-    const html = await renderNetwork();
+    const html = await renderRelationships();
     expect(html).toContain(`/companies/${company}`);
     expect(html).toContain("recent");
     expect(html).toContain("1 days");
@@ -198,7 +198,7 @@ describe("Phase 4 remains additive to existing pages", () => {
     expect(mocks.directory).toHaveBeenCalled();
   });
   it.each([
-    ["Network", renderNetwork],
+    ["Relationships", renderRelationships],
     ["Company", renderCompany],
   ] as const)(
     "%s adds the panel for a permitted member without replacing legacy content",

@@ -48,6 +48,19 @@ describe("palette index (Go to ...)", () => {
     expect(commands.map((command) => command.href)).not.toContain("/review");
   });
 
+  it("lists People: Relationships right after People, found by name and by the old word network; there is no Network row", () => {
+    const commands = navCommands(toPermissionSet([]));
+    const find = (query: string) => matchCommands(commands, query).map((command) => `${command.label}|${command.href}`);
+    const hrefsList = commands.map((command) => command.href);
+    expect(hrefsList[hrefsList.indexOf("/people") + 1]).toBe("/people?tab=relationships");
+    expect(find("network")).toEqual(["People: Relationships|/people?tab=relationships"]);
+    expect(find("relationships")).toEqual(["People: Relationships|/people?tab=relationships"]);
+    expect(find("people: relationships")).toEqual(["People: Relationships|/people?tab=relationships"]);
+    expect(commands.map((command) => command.label)).not.toContain("Network");
+    expect(hrefsList).not.toContain("/network");
+    expect(WORKSPACE_NAV.map((item) => item.href)).not.toContain("/network");
+  });
+
   it("every Home tab and Notifications command points to a page that exists", () => {
     for (const command of navCommands(toPermissionSet(["admin", "portfolio", "documents"]))) {
       expect(existsSync(pageFor(command.href.split("?")[0])), command.href).toBe(true);

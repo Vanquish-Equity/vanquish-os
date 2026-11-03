@@ -1,5 +1,6 @@
 import { visibleNav, WORKSPACE_NAV, type AreaPermission, type NavIcon } from "@/lib/auth/permissions";
 import { DEFAULT_HOME_TAB, homeTabHref, homeTabsFor } from "@/lib/home/tabs";
+import { RELATIONSHIPS_TAB, relationshipsHref, relationshipsTabVisible } from "@/lib/people-groups/tabs";
 import { DEFAULT_TASKS_TAB, tasksTabHref, tasksTabsFor, type TasksTabKey } from "@/lib/tasks/tabs";
 
 // Words that still find a Tasks tab by the name of the page it replaced.
@@ -23,8 +24,8 @@ export type PaletteCommand = {
 
 // Destinations the member can see in the sidebar, in sidebar order, plus the
 // pages that no longer have a sidebar entry: the tabs of Home (Dashboard and
-// Reports) and of Tasks (All, To review and Activity), only if the member may
-// see that tab, and Notifications, which the
+// Reports), of Tasks (All, To review and Activity) and of People (Relationships,
+// the former Network), only if the member may see that tab, and Notifications, which the
 // top bar's bell opens. It is built on the server with the same permission
 // filter the sidebar uses and only the result reaches the browser, so an area
 // without permission is never listed, not even by name. `chatAvailable`
@@ -52,6 +53,20 @@ export function navCommands(
               keywords: TASKS_TAB_KEYWORDS[tab.key],
             })),
         ];
+      }
+      if (href === "/people") {
+        // Network became People > Relationships; "network" still finds it.
+        return relationshipsTabVisible(permissions)
+          ? [
+              command,
+              {
+                href: relationshipsHref(),
+                label: `People: ${RELATIONSHIPS_TAB.label}`,
+                icon: "network",
+                keywords: "network introductions teammate emailed met contact warm path",
+              },
+            ]
+          : [command];
       }
       if (href !== "/home") return [command];
       const tabs = homeTabsFor(permissions)

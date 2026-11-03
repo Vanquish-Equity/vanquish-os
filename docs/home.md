@@ -207,7 +207,8 @@ and Home says My tasks needs the migration.
   Settings, Replay intro and Sign out are in its menu.
 - Items sit under explicit sections, each drawn as one block so an item can
   never appear under the wrong heading, in order of daily use: **CRM**
-  (Pipeline, Companies, People, Network, LP follow-up),
+  (Pipeline, Companies, People, LP follow-up; Network is now the
+  Relationships tab of People),
   **Work** (Tasks, Communications, Calendar, and
   Document intake with the Documents permission), **Boards** (CRM boards,
   then each board indented on a guide line), **Fund** (Portfolio and LP
@@ -297,9 +298,10 @@ visible page has no icon, so no label leaks.
 
 - **⌘K / Ctrl+K** lists "Go to <page>" first, for the pages in the member's
   own sidebar plus the pages without a sidebar entry (Home: Dashboard, Home:
-  Reports, Tasks: All, Tasks: To review, Tasks: Activity, Notifications;
-"overview" and "reporting" still find the Home tabs, and "action center",
-"inbox" and "review" find the Tasks tabs) (`navCommands` in `src/lib/search/palette.ts`, built on the
+  Reports, Tasks: All, Tasks: To review, Tasks: Activity, People: Relationships,
+Notifications; "overview" and "reporting" still find the Home tabs, "action
+center", "inbox" and "review" find the Tasks tabs, and "network" finds People:
+Relationships) (`navCommands` in `src/lib/search/palette.ts`, built on the
   server with the sidebar's permission filter; areas without permission are
   never sent to the browser), then the record results (People, Companies,
   Deals, notes, documents, tasks). An empty query lists every page.

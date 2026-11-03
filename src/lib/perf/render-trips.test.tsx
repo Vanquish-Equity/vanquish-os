@@ -134,6 +134,7 @@ import { buildWorld, PROXY_AUTH_CALLS } from "./synthetic-world";
 
 const routes = {
   "/people": () => import("@/app/(dashboard)/people/page"),
+  "/people?tab=relationships": () => import("@/app/(dashboard)/people/page"),
   "/companies": () => import("@/app/(dashboard)/companies/page"),
   "/pipeline": () => import("@/app/(dashboard)/pipeline/page"),
   "/home": () => import("@/app/(dashboard)/home/page"),
@@ -233,6 +234,10 @@ beforeEach(() => {
 const MAX_SEQUENTIAL_SUPABASE_TRIPS: Record<Route, number> = {
   layout: 4,
   "/people": 4,
+  // People > Relationships: membership, contacts, interactions of those contacts, then the
+  // intelligence panel's member list (when the flag and permission are on; 5 without). The
+  // former Network page made the same chain.
+  "/people?tab=relationships": 6,
   "/companies": 4,
   "/pipeline": 4,
   "/home": 5,
@@ -248,14 +253,14 @@ const MAX_SEQUENTIAL_SUPABASE_TRIPS: Record<Route, number> = {
 
 describe("round trips per route", () => {
   const all: Awaited<ReturnType<typeof measure>>[] = [];
-  const order: Route[] = ["layout", "/people", "/companies", "/pipeline", "/home", "/home?tab=dashboard", "/home?tab=reports", "/tasks", "/tasks?tab=all", "/tasks?tab=review", "/tasks?tab=activity"];
+  const order: Route[] = ["layout", "/people", "/people?tab=relationships", "/companies", "/pipeline", "/home", "/home?tab=dashboard", "/home?tab=reports", "/tasks", "/tasks?tab=all", "/tasks?tab=review", "/tasks?tab=activity"];
 
   for (const route of order) {
     it(`measures ${route}`, async () => {
       const result = await measure(route);
       all.push(result);
       expect(result.total).toBeGreaterThan(0);
-      expect(result.depthSupabase).toBeLessThanOrEqual(MAX_SEQUENTIAL_SUPABASE_TRIPS[route]);
+expect(result.depthSupabase).toBeLessThanOrEqual(MAX_SEQUENTIAL_SUPABASE_TRIPS[route]);
       // Every request checks the session twice at most: proxy + membership.
       expect(result.auth).toBeLessThanOrEqual(2);
       if (route === "/people") {
@@ -393,6 +398,64 @@ describe("tasks tabs fetch only their own data", () => {
   });
 });
 
+// People has two kinds of view and only the active one may fetch its data: the
+// list (with its counts, saved views and per-row lookups) and Relationships
+// (the former Network: contacts, shared interaction history, member directory).
+describe("people views fetch only their own data", () => {
+  const tables = async (query: Record<string, string>) => {
+    const result = await measure("/people", query);
+    return result.trips.map((entry) => entry.split(":").slice(1).join(":"));
+  };
+  const has = (labels: string[], name: string) => labels.includes(name);
+  // What only Relationships reads.
+  const RELATIONSHIPS_ONLY = ["relationship_interactions"];
+  // What only the list reads (counts, filter options, saved views, Gmail/Calendar support).
+  const LIST_ONLY = ["companies", "saved_views", "rpc:people_group_counts", "rpc:my_mailbox_connection", "person_last_interaction"];
+
+  it("the list never touches relationship_interactions, and keeps its own reads", async () => {
+    const queries: Record<string, string>[] = [{}, { view: "lps" }, { group: "g1" }, { tab: "nope" }, { tab: "RELATIONSHIPS" }];
+    for (const query of queries) {
+      const labels = await tables(query);
+      expect(has(labels, "relationship_interactions"), JSON.stringify(query)).toBe(false);
+      expect(has(labels, "people"), JSON.stringify(query)).toBe(true);
+    }
+    const labels = await tables({});
+    for (const table of ["companies", "saved_views", "rpc:people_group_counts"]) expect(has(labels, table), table).toBe(true);
+  });
+
+  it("Relationships reads contacts, the interactions of the people shown and the member directory, and none of the list's extras", async () => {
+    const labels = await tables({ tab: "relationships" });
+    for (const table of ["people", ...RELATIONSHIPS_ONLY]) expect(has(labels, table), table).toBe(true);
+    for (const other of LIST_ONLY) expect(has(labels, other), other).toBe(false);
+    // The tab bar needs group names, not counts or per-row Google lookups.
+    expect(has(labels, "person_groups")).toBe(true);
+    expect(labels.filter((label) => label === "relationship_interactions")).toHaveLength(1);
+    const result = await measure("/people", { tab: "relationships" });
+    expect(result.google).toBe(0);
+  });
+
+  it("Relationships without the intelligence panel is one round trip shorter", async () => {
+    world.fixtures.rpc.relationship_intelligence_state = { enabled: false, allowed: false };
+    const result = await measure("/people", { tab: "relationships" });
+    expect(result.depthSupabase).toBeLessThanOrEqual(5);
+    expect(result.trips.some((trip) => trip.includes("relationship_intelligence_members"))).toBe(false);
+  });
+
+  it("Relationships keeps ?q= and ignores the list's view, group, sort and column params", async () => {
+    const labels = await tables({ tab: "relationships", q: "Person", view: "lps", group: "g1", cols: "1", sort: "name" });
+    expect(has(labels, "person_group_members")).toBe(false);
+    expect(has(labels, "relationship_interactions")).toBe(true);
+  });
+
+  it("a tab id that is unknown or in another case shows the list", async () => {
+    for (const tab of ["relationship", "Relationships", "network", ""]) {
+      const labels = await tables({ tab });
+      expect(has(labels, "relationship_interactions"), tab).toBe(false);
+      expect(has(labels, "saved_views"), tab).toBe(true);
+    }
+  });
+});
+
 // Access failures. requireMember redirects by throwing; the queries that were
 // started beside it must neither leave an unhandled rejection behind nor turn
 // the redirect into a generic error.
@@ -436,6 +499,14 @@ describe("access failures", () => {
       expect(unhandled).toEqual([]);
     });
   }
+
+  it("/people?tab=relationships: a non-member is redirected before any Relationships query, and a signed-out visitor goes to login", async () => {
+    world.fixtures.tables.app_members = [];
+    expect(await open("/people", { tab: "relationships" })).toEqual({ error: "redirect:/access-denied" });
+    world.claims = {};
+    expect(await open("/people", { tab: "relationships" })).toEqual({ error: "redirect:/login" });
+    expect(unhandled).toEqual([]);
+  });
 
   it("/people: still renders when the group counts call fails or is missing", async () => {
     world.fixtures.errors = { "rpc:people_group_counts": "function does not exist" };

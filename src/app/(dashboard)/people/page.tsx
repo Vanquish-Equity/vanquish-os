@@ -13,7 +13,8 @@ import PersonContactActions from "@/components/PersonContactActions";
 import PersonRow, { PeopleGroupsProvider } from "@/components/PersonRow";
 import PeopleViewsBar from "@/components/PeopleViewsBar";
 import PeopleGroupTabs from "@/components/PeopleGroupTabs";
-import { activeTabKey, buildPeopleTabs, groupsWithCounts, type GroupCountRow } from "@/lib/people-groups/tabs";
+import RelationshipsView from "@/components/people/RelationshipsView";
+import { activeTabKey, buildPeopleTabs, groupsWithCounts, resolvePeopleView, type GroupCountRow } from "@/lib/people-groups/tabs";
 import RelativeTime from "@/components/RelativeTime";
 import { requireMember } from "@/lib/auth/access";
 import { accessFirst } from "@/lib/auth/access-first";
@@ -77,6 +78,7 @@ export default async function PeoplePage({
   searchParams,
 }: {
   searchParams: Promise<{
+    tab?: string | string[];
     view?: string;
     group?: string;
     q?: string;
@@ -86,7 +88,18 @@ export default async function PeoplePage({
     dir?: string | string[];
   }>;
 }) {
-  const { view, group, q, cols: colsMarker, col, sort: sortParam, dir: dirParam } = await searchParams;
+  const { tab, view, group, q, cols: colsMarker, col, sort: sortParam, dir: dirParam } = await searchParams;
+  // Relationships (the former Network) is another view of the same people. It
+  // is resolved on the server against the member's permissions and runs only
+  // when it is the active tab: the list below, with its counts, saved views and
+  // per-row lookups, is not started for it, and its queries (contacts,
+  // interactions, member directory) are not started for the list. A tab the
+  // member may not see, or an unknown one, falls through to the list. Like the
+  // Tasks tabs, the body is called here rather than rendered as an element.
+  if (tab !== undefined) {
+    const access = await requireMember();
+    if (resolvePeopleView(tab, access.permissions) === "relationships") return await RelationshipsView({ q });
+  }
   const sort = parseListSort(PEOPLE_SORT_KEYS, sortParam, dirParam);
   const groupId = group || null;
   // With both ?view=lps and a group the list is their intersection; the
@@ -194,7 +207,7 @@ export default async function PeoplePage({
   const groups = groupsWithCounts(groupRows, groupCounts);
   const activeKey = activeTabKey(filters.view, groupId, groups);
   const activeGroup = groups.find((g) => g.id === activeKey && g.kind !== "potential_lp") ?? null;
-  const tabs = buildPeopleTabs({ groups, allCount: allCount ?? 0, lpCount: lpCount ?? 0, filters, sort });
+  const tabs = buildPeopleTabs({ groups, allCount: allCount ?? 0, lpCount: lpCount ?? 0, filters, sort, relationships: { active: false } });
   // The Import people button keeps the context it was opened from.
   const importHref = activeGroup ? `/people/import?group=${activeGroup.id}` : activeKey === "lps" ? "/people/import?lp=1" : "/people/import";
 
