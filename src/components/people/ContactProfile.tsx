@@ -1,71 +1,151 @@
+import { getAccess } from "@/lib/auth/access";
+import { can } from "@/lib/auth/permissions";
+import ContactWorkspace from "@/components/people/ContactWorkspace";
 import Link from "next/link";
+import ContactActivity from "@/components/people/ContactActivity";
 import ContactOrganization from "@/components/people/ContactOrganization";
-import CustomFieldsRecord from "@/components/custom-fields/CustomFieldsRecord";
 import RelationshipIntelligenceSection from "@/components/RelationshipIntelligenceSection";
-import { personProfileState } from "@/lib/people/profile-access";
+import { relationshipIntelligenceState } from "@/lib/relationships/intelligence-queries";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function ContactProfile({ id, companies }: {
   id: string; companies: { id: string; name: string }[];
 }) {
-  const db = await createClient();
+  const [db, access] = await Promise.all([createClient(), getAccess()]);
+  if (access.status !== "member") return null;
+  const canReadFiles = can(access, "documents");
   const loadContact = (withOrganization: boolean) => db.from("people")
-    .select(`id,name,title,linkedin_url,primary_organization_id,${withOrganization ? "organization_name," : ""}organization:companies(id,name),person_emails(email,is_primary)`)
+    .select(`id,name,title,linkedin_url,primary_organization_id,${withOrganization ? "organization_name," : ""}is_potential_lp,created_at,organization:companies(id,name),person_emails(email,is_primary)`)
     .eq("id", id).is("archived_at", null).maybeSingle();
   const first = await loadContact(true);
   const pendingMigration = first.error?.code === "42703";
   const person = (pendingMigration ? await loadContact(false) : first).data as unknown as {
-    name: string; title: string | null; linkedin_url: string | null;
+    name: string; title: string | null; linkedin_url: string | null; is_potential_lp: boolean; created_at: string;
     primary_organization_id: string | null; organization_name?: string | null;
     organization: { id: string; name: string } | null;
     person_emails: { email: string; is_primary: boolean }[] | null;
   } | null;
   if (!person) return <p className="p-6 text-sm text-neutral-600">This contact is unavailable.</p>;
 
-  const [state, activity, members] = await Promise.all([
-    personProfileState(),
-    db.from("relationship_interactions").select("member_email,kind,last_at")
-      .eq("person_id", id).order("last_at", { ascending: false }).limit(12),
+  const today = new Date().toISOString().slice(0, 10);
+  const since = new Date(Date.parse(today) - 89 * 86_400_000).toISOString().slice(0, 10);
+  const [intelligence, activity, members, groupResult, dealResult, noteResult, reminderResult, fileResult] = await Promise.all([
+    relationshipIntelligenceState().catch(() => ({ enabled: false, allowed: false })),
+    db.from("relationship_interactions").select("member_email,kind,occurred_on,last_at")
+      .eq("person_id", id).gte("occurred_on", since).lte("occurred_on", today)
+      .order("last_at", { ascending: false }).order("member_email").order("kind").limit(121),
     db.rpc("deal_assignee_directory").limit(500),
+    db.from("person_group_members").select("group:person_groups(id,name)").eq("person_id", id).limit(30),
+    db.from("deal_people").select("role,deal:deals!inner(id,name,company_id,stage:pipeline_stages(name),company:companies!inner(name))")
+      .eq("person_id", id).is("deal.archived_at", null).is("deal.company.deleted_at", null).order("deal_id").limit(20),
+    db.from("contact_notes").select("id,author_email,body,created_at").eq("person_id", id)
+      .order("created_at", { ascending: false }).order("id").limit(30),
+    db.from("tasks").select("id,title,due_at,status").eq("person_id", id).eq("assignee_email", access.email)
+      .is("archived_at", null).order("status", { ascending: false }).order("due_at").order("id").limit(30),
+    canReadFiles ? db.storage.from("contact-files").list(id, { limit: 50, sortBy: { column: "created_at", order: "desc" } }) : undefined,
   ]);
   const names = new Map(((members.data ?? []) as { email: string; display_name: string | null }[]).map((member) => [member.email, member.display_name]));
   const emails = [...(person.person_emails ?? [])].sort((a, b) => Number(b.is_primary) - Number(a.is_primary));
   const organization = person.organization;
   const linkedin = /^https?:\/\//i.test(person.linkedin_url ?? "") ? person.linkedin_url : null;
-  return <div className="space-y-4 p-5">
-    <header>
-      <h1 className="text-2xl font-semibold">{person.name}</h1>
-      {person.title && <p className="mt-1 text-sm text-neutral-600">{person.title}</p>}
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 break-all text-sm">
-        {emails.map(({ email }) => <a key={email} href={`mailto:${email}`} className="text-cyan-800 underline">{email}</a>)}
-        {linkedin && <a href={linkedin} target="_blank" rel="noreferrer" className="text-cyan-800 underline">LinkedIn</a>}
+  const rows = (activity.data ?? []).slice(0, 120);
+  const connections = new Map<string, { days: Set<string>; lastDay: string }>();
+  for (const item of rows) {
+    const existing = connections.get(item.member_email);
+    if (existing) existing.days.add(item.occurred_on);
+    else connections.set(item.member_email, { days: new Set([item.occurred_on]), lastDay: item.occurred_on });
+  }
+  const connectionRows = [...connections].sort((a, b) => b[1].days.size - a[1].days.size || b[1].lastDay.localeCompare(a[1].lastDay));
+  const groups = ((groupResult.data ?? []) as unknown as { group: { id: string; name: string } | null }[]).flatMap(({ group }) => group ? [group] : []);
+  const deals = (dealResult.data ?? []) as unknown as { role: string | null; deal: {
+    id: string; name: string; company_id: string; stage: { name: string } | null; company: { name: string };
+  } }[];
+  const initials = person.name.trim().split(/\s+/).slice(0, 2).map((part) => Array.from(part)[0]).join("").toUpperCase();
+  const pill = "inline-flex min-h-9 items-center rounded-full border border-neutral-200 bg-white px-3 text-xs font-semibold text-cyan-800 hover:border-cyan-400";
+  const stats = [
+    { label: "Last shared contact · 90d", value: rows[0]?.occurred_on ?? "—" },
+    { label: "Active days · 90d", value: activity.error ? "—" : new Set(rows.map((item) => item.occurred_on)).size },
+    { label: "Teammates · 90d", value: activity.error ? "—" : connections.size },
+  ];
+
+  return <div className="space-y-4 bg-neutral-50/70 p-4 sm:p-5">
+    <header className="vq-card-static rounded-[14px] bg-white p-4">
+      <div className="flex items-start gap-3">
+        <span aria-hidden="true" className="grid size-12 shrink-0 place-items-center rounded-2xl bg-cyan-100 text-lg font-semibold text-cyan-900">{initials}</span>
+        <div className="min-w-0">
+          <h1 className="break-words text-2xl font-semibold tracking-tight">{person.name}</h1>
+          {person.title && <p className="mt-0.5 text-sm text-neutral-600">{person.title}</p>}
+          {(organization || person.organization_name) && <p className="mt-1 text-sm">{organization
+            ? <Link href={`/companies/${organization.id}`} className="font-medium text-cyan-800 hover:underline">{organization.name}</Link>
+            : person.organization_name}</p>}
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {emails[0] && <a className={pill} href={`mailto:${emails[0].email}`}>Email contact</a>}
+        {linkedin && <a className={pill} href={linkedin} target="_blank" rel="noreferrer">LinkedIn ↗</a>}
+        {person.is_potential_lp && <span className="self-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-950">Potential LP</span>}
       </div>
     </header>
-    <section className="vq-card-static space-y-3 rounded-[14px] p-4">
-      <h2 className="text-sm font-semibold">Organization</h2>
-      <p className="text-sm text-neutral-600">{organization
-        ? <Link href={`/companies/${organization.id}`} className="text-cyan-800 underline">{organization.name}</Link>
-        : person.organization_name || "No organization added"}</p>
+
+    <dl className="grid grid-cols-3 gap-2">
+      {stats.map(({ label, value }) => <div key={label} className="rounded-xl border border-neutral-200 bg-white px-2.5 py-2.5 sm:px-3">
+        <dt className="text-[11px] text-neutral-600">{label}</dt>
+        <dd className="mt-1 break-words text-sm font-semibold tabular-nums">{value}</dd>
+      </div>)}
+    </dl>
+    {(activity.data?.length ?? 0) > 120 && <p className="text-xs text-neutral-500">Relationship totals reflect the 120 latest entries shown in this profile.</p>}
+
+    <section className="vq-card-static space-y-3 rounded-[14px] bg-white p-4">
+      <h2 className="text-sm font-semibold">Contact details</h2>
+      <dl className="grid gap-3 text-sm sm:grid-cols-2">
+        <div className="min-w-0"><dt className="text-xs text-neutral-500">Email addresses</dt>
+          <dd className="mt-1">{emails.length ? emails.map(({ email, is_primary }) => <div key={email} className="break-all">
+            <a href={`mailto:${email}`} className="text-cyan-800 underline">{email}</a>{is_primary && <span className="ml-1.5 text-[10px] text-neutral-500">Primary</span>}
+          </div>) : "No email added"}</dd></div>
+        <div><dt className="text-xs text-neutral-500">Added to CRM</dt><dd className="mt-1">
+          <time dateTime={person.created_at}>{person.created_at.slice(0, 10)}</time>
+        </dd></div>
+      </dl>
+      {groups.length > 0 && <div className="flex flex-wrap items-center gap-2"><span className="text-xs text-neutral-500">Lists</span>
+        {groups.map((group) => <Link key={group.id} href={`/people?group=${group.id}`} className="rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-medium text-cyan-900 hover:underline">{group.name}</Link>)}
+      </div>}
       {pendingMigration ? <p className="text-xs text-neutral-600">Organization editing is pending a database update.</p> : <details>
         <summary className="cursor-pointer text-sm font-semibold text-cyan-800">Edit organization</summary>
         <div className="mt-3"><ContactOrganization key={id} personId={id} companyId={person.primary_organization_id ?? ""} organizationName={person.organization_name ?? ""} companies={companies} /></div>
       </details>}
     </section>
-    <section className="vq-card-static rounded-[14px] p-4">
-      <h2 className="text-sm font-semibold">Recent relationship activity</h2>
-      {activity.error ? <p className="mt-2 text-sm text-neutral-600">Activity is unavailable.</p>
-        : !activity.data?.length ? <p className="mt-2 text-sm text-neutral-600">No shared emails or meetings recorded.</p>
-        : <ul className="mt-2 divide-y divide-neutral-100 text-sm">{activity.data.map((item, index) => (
-          <li key={index} className="flex flex-wrap justify-between gap-2 py-2">
-            <span>{item.kind === "meeting" ? "Meeting" : "Email"}{names.get(item.member_email) ? ` · ${names.get(item.member_email)}` : ""}</span>
-            <time dateTime={item.last_at} className="text-neutral-600">{item.last_at.slice(0, 10)}</time>
+
+    <ContactWorkspace key={id} personId={id}
+      notes={noteResult.error ? null : (noteResult.data ?? []).map((note) => ({
+        id: note.id, body: note.body, author: names.get(note.author_email) ?? (note.author_email === access.email ? "You" : "Team member"),
+        day: note.created_at.slice(0, 10), mine: note.author_email === access.email,
+      }))}
+      reminders={reminderResult.error ? null : reminderResult.data ?? []}
+      files={fileResult ? fileResult.error ? null : (fileResult.data ?? []).filter((file) => file.id).map(({ name }) => ({ name })) : undefined} />
+
+    <section className="vq-card-static rounded-[14px] bg-white p-4">
+      <h2 className="text-sm font-semibold">Team connections</h2>
+      <p className="mt-1 text-xs text-neutral-500">Teammates with shared activity in the last 90 days, ranked by distinct activity days.</p>
+      {activity.error ? <p className="mt-2 text-sm text-neutral-600">Connections are unavailable right now.</p>
+        : !connectionRows.length ? <p className="mt-2 text-sm text-neutral-600">No shared connections in this period.</p>
+        : <ul className="mt-2 divide-y divide-neutral-100 text-sm">{connectionRows.map(([email, value], index) => (
+          <li key={index} className="flex flex-wrap items-center justify-between gap-2 py-2">
+            <span className="font-medium">{names.get(email) || "Team member"}</span>
+            <span className="text-xs text-neutral-600">{value.days.size} {value.days.size === 1 ? "day" : "days"} · Last {value.lastDay}</span>
           </li>
         ))}</ul>}
     </section>
-    {state.intelligence.enabled && state.intelligence.allowed && <RelationshipIntelligenceSection people={[{ id, name: person.name }]} allowed />}
-    {state.customFields && <details className="vq-card-static rounded-[14px] p-4">
-      <summary className="cursor-pointer text-sm font-semibold">Additional fields</summary>
-      <div className="mt-3"><CustomFieldsRecord object="people" recordId={id} /></div>
-    </details>}
+    <ContactActivity today={today} failed={!!activity.error} limited={(activity.data?.length ?? 0) > 120}
+      items={rows.map((item, index) => ({ key: String(index), member: names.get(item.member_email) ?? null, kind: item.kind, day: item.occurred_on }))} />
+
+    {deals.length > 0 && <section className="vq-card-static rounded-[14px] bg-white p-4">
+      <h2 className="text-sm font-semibold">Linked deals</h2>
+      <ul className="mt-2 divide-y divide-neutral-100 text-sm">{deals.map(({ role, deal }) => <li key={deal.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+        <div><Link href={`/companies/${deal.company_id}/deals/${deal.id}`} className="font-medium text-cyan-800 hover:underline">{deal.name}</Link>
+          <p className="text-xs text-neutral-600">{deal.company.name}{role ? ` · ${role}` : ""}</p></div>
+        {deal.stage && <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs">{deal.stage.name}</span>}
+      </li>)}</ul>
+    </section>}
+    {intelligence.enabled && intelligence.allowed && <RelationshipIntelligenceSection people={[{ id, name: person.name }]} allowed />}
   </div>;
 }

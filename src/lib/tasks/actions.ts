@@ -34,6 +34,7 @@ function revalidateTaskPaths(companyId?: string | null, dealId?: string | null) 
 }
 
 export type CreateTaskInput = {
+  personId?: string;
   title: string;
   companyId: string | null;
   dealId: string | null;
@@ -65,6 +66,7 @@ export async function createTaskAction(
     .from("tasks")
     .insert({
       title,
+      ...(input.personId ? { person_id: input.personId } : {}),
       company_id: input.companyId || null,
       deal_id: input.dealId || null,
       owner: cleanText(input.owner) || null,
