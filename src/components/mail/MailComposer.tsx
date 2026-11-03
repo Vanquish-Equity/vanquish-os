@@ -8,6 +8,7 @@ import {
   startMailUpload,
   uploadMailChunk,
   removeMailUpload,
+  mailOpenTrackingState,
   reviewMailMutation,
   executeMailMutation,
   cancelMailReview,
@@ -60,6 +61,8 @@ export default function MailComposer({
   onSent: () => void;
 }) {
   const [senderEmail, setSenderEmail] = useState("");
+  const [trackOpen, setTrackOpen] = useState(false);
+  const [trackingAvailable, setTrackingAvailable] = useState(false);
   const [completion, setCompletion] = useState(false);
   const [aliases, setAliases] = useState<VerifiedAlias[]>([]);
   const [alias, setAlias] = useState("");
@@ -100,8 +103,9 @@ export default function MailComposer({
       if (!alive) return;
       setCompletion(enabled);
       if (enabled) {
-        const result = await mailCompletionAliases();
+        const [result, tracking] = await Promise.all([mailCompletionAliases(), mailOpenTrackingState()]);
         if (!alive) return;
+        setTrackingAvailable(tracking);
         if (result.ok) {
           setAliases(result.data);
           setAlias(
@@ -147,6 +151,7 @@ export default function MailComposer({
     try {
       const form = new FormData();
       form.set("draftId", draftId);
+      if (operation === "send" && trackingAvailable && trackOpen) form.set("trackOpen", "1");
       form.set("message", JSON.stringify(message));
       form.set("previousMessageId", previousMessageId);
       form.set("keepParts", JSON.stringify(keepParts));
@@ -725,6 +730,11 @@ export default function MailComposer({
             {status}
           </p>
         )}
+        {completion && trackingAvailable && <label className="flex items-center gap-2 text-xs text-neutral-600">
+          <Checkbox checked={trackOpen} disabled={busy || uncertain} onChange={(event) => {
+            clearReview(); setTrackOpen(event.target.checked);
+          }} /> Detect opening signals for this email
+        </label>}
         {review && (
           <MailReviewPanel
             key={review.id}

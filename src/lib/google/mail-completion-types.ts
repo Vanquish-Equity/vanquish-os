@@ -17,6 +17,7 @@ export type MailReview = {
   attachments: { name: string; size: number }[];
   expiresAt: string;
   draftRetained: boolean;
+  trackOpen?: boolean;
 };
 export type MailReviewRow = {
   id: string;

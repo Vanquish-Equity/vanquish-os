@@ -1,7 +1,8 @@
+import { mailTrackingOrigin } from "./mail-open-tracking";
 import sanitizeHtml from "sanitize-html";
 import { createHash } from "node:crypto";
 import type { GoogleClient } from "./transport";
-import { requireScope, resourceId, attachmentResourceId } from "./client";
+import { GoogleError, requireScope, resourceId, attachmentResourceId } from "./client";
 import { formatMessage, mimeMessage, header } from "./mail-format";
 import { parseAddresses, validateCompose } from "./mail-validation";
 import type { ComposeInput, GmailMessage, GmailPart } from "./mail-types";
@@ -266,8 +267,14 @@ export async function buildMailMutation(
     throw Error("Attachment budget exceeded");
   const html = sanitizeForwardHtml(input.html),
     recipients = validateCompose({ ...input, html }, operation === "send");
+  const trackOpen = operation === "send" && form.get("trackOpen") === "1";
+  const trackingOrigin = trackOpen ? mailTrackingOrigin() : null;
+  if (trackOpen && (!trackingOrigin || recipients.to.length !== 1 || recipients.cc.length || recipients.bcc.length)) {
+    throw new GoogleError("permission", "Open tracking requires one saved contact and no CC or BCC.");
+  }
   const canonical = {
     operation,
+    ...(trackingOrigin ? { trackingOrigin } : {}),
     draftId,
     previous: previous?.message.id ?? null,
     sender,
@@ -290,6 +297,8 @@ export async function buildMailMutation(
   const raw = mimeMessage(input, sender, html, files);
   return {
     revision,
+    tracking: trackingOrigin ? { origin: trackingOrigin, recipient: recipients.to[0],
+      rawWithPixel: (pixel: string) => mimeMessage(input, sender, html + pixel, files) } : null,
     draftId: draftId || null,
     summary: {
       sender,
@@ -298,6 +307,7 @@ export async function buildMailMutation(
       html,
       attachments: files.map((f) => ({ name: f.name, size: f.data.length })),
       draftRetained: operation === "send",
+      trackOpen,
     },
     path:
       operation === "send"

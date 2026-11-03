@@ -1,4 +1,5 @@
 "use server";
+import { createOpenPixel, mailTrackingOrigin } from "./mail-open-tracking";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { getAccess } from "@/lib/auth/access";
@@ -54,6 +55,9 @@ function failure(error: unknown): { ok: false; code: string; message: string } {
         ? error.message
         : "Review unavailable: content, attachment, alias, connection or draft revision changed. Reopen and review again.",
   };
+}
+export async function mailOpenTrackingState() {
+  return Boolean(mailTrackingOrigin());
 }
 export async function mailCompletionState() {
   try {
@@ -190,6 +194,15 @@ export async function executeMailMutation(
         ? ["gmail.send", "gmail.modify", "gmail.compose"]
         : ["gmail.modify", "gmail.compose"]),
     );
+    let init = prepared.init;
+    if (prepared.tracking) {
+      const pixel = createOpenPixel(prepared.tracking.origin);
+      const registered = await db.rpc("register_mail_open_tracking", {
+        p_review: id, p_revision: prepared.revision, p_recipient: prepared.tracking.recipient, p_hash: pixel.hash,
+      });
+      if (registered.error) throw new GoogleError("permission", "Couldn't enable tracking. Use one saved contact, or review again without tracking.");
+      init = { ...init, body: JSON.stringify({ ...JSON.parse(init.body!), raw: prepared.tracking.rawWithPixel(pixel.html) }) };
+    }
     const fence = await db.rpc("advance_mail_review", {
       p_id: id,
       p_event: "dispatch",
@@ -204,7 +217,7 @@ export async function executeMailMutation(
         : await boundedMailJson<{ id?: string }>(
             client,
             prepared.path,
-            prepared.init,
+            init,
             64 * 1024,
           );
     if (operation !== "discard" && (!result || typeof result.id !== "string"))
