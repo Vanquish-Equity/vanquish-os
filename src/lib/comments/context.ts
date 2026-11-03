@@ -100,3 +100,24 @@ export function contextHref(scope: ContextScope, id: string, targetKey?: string 
 export function safeTargetKey(value: string) {
   return /^[a-zA-Z0-9:_-]{1,140}$/.test(value);
 }
+
+// A link like /tasks#comment-<id> (built by the database for chat shares, which
+// cannot know about tabs) may open a tab that does not hold the comment's
+// anchor. Given the page's comments, this returns where the comment's anchor
+// lives, or null to stay: the comment is not readable here (not in the list),
+// or its link would not leave the current page and query (which also makes a
+// redirect loop impossible: the target tab is the one that holds the anchor).
+export function hashRedirectHref(
+  scope: ContextScope,
+  comments: { id: string; target_key: string | null }[],
+  commentId: string,
+  current: { pathname: string; search: string },
+): string | null {
+  const comment = comments.find((item) => item.id === commentId);
+  if (!comment?.target_key) return null;
+  const href = contextHref(scope, commentId, comment.target_key);
+  const target = href.split("#")[0];
+  // A link without a tab hint opens the default tab: nothing better to offer.
+  if (!target.includes("?")) return null;
+  return target === `${current.pathname}${current.search}` ? null : href;
+}

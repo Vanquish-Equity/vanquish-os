@@ -721,3 +721,23 @@ dialog[open]::backdrop {
     animation: none;
   }
 }
+
+/* Cards in Tasks > To review reached from Activity (#proposal-<id>,
+   #review-<id>, #suggestion-<id>, #contact-request-<id>) fade a short
+   highlight, like task rows. CSS only. */
+[id^="proposal-"]:target,
+[id^="review-"]:target,
+[id^="suggestion-"]:target,
+[id^="contact-request-"]:target {
+  scroll-margin-top: 24px;
+  animation: vq-task-target 1.6s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  [id^="proposal-"]:target,
+  [id^="review-"]:target,
+  [id^="suggestion-"]:target,
+  [id^="contact-request-"]:target {
+    animation: none;
+    background-color: rgb(0 194 209 / 0.14);
+  }
+}

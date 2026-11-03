@@ -13,7 +13,7 @@ import {
   deleteContextCommentAction, editContextCommentAction, loadContextCommentsAction,
   postContextCommentAction, setContextResolvedAction, shareContextCommentAction, type ContextComment,
 } from "@/lib/comments/context-actions";
-import { contextHref, contextScope, safeTargetKey } from "@/lib/comments/context";
+import { contextHref, contextScope, hashRedirectHref, safeTargetKey } from "@/lib/comments/context";
 import { markCommentNotificationsReadAction } from "@/lib/notifications/actions";
 import { useLiveSignal } from "@/lib/realtime/useLiveSignal";
 
@@ -74,6 +74,7 @@ export default function ContextComments() {
   const panelRef = useRef<HTMLElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const openedHash = useRef("");
+  const redirectedHash = useRef("");
 
   const reload = useCallback(async () => {
     if (!scope) return;
@@ -181,6 +182,25 @@ export default function ContextComments() {
     window.addEventListener("resize", position);
     return () => { cancelAnimationFrame(frame); window.removeEventListener("scroll", position, true); window.removeEventListener("resize", position); };
   }, [scope, available, comments, roots, tab]);
+
+  // A /tasks#comment-<id> or /home#comment-<id> link built without a tab (the
+  // database builds the ones shared to chat) can open a tab that does not hold
+  // the comment's anchor. Then move, once per hash, to the tab that does.
+  useEffect(() => {
+    const id = hash.match(/^#comment-([0-9a-f-]{36})$/i)?.[1];
+    if (!id || !scope || !available || redirectedHash.current === `${pathname}${window.location.search}:${id}`) return;
+    const item = comments.find((c) => c.id === id);
+    if (!item?.target_key) return;
+    const key = `${pathname}${window.location.search}:${id}`;
+    const frame = requestAnimationFrame(() => {
+      if (anchorElement(item.target_key!)) return;
+      const href = hashRedirectHref(scope, comments, id, { pathname, search: window.location.search });
+      if (!href) return;
+      redirectedHash.current = key;
+      router.replace(href);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [comments, pathname, scope, available, hash, router]);
 
   useEffect(() => {
     const id = hash.match(/^#comment-([0-9a-f-]{36})$/i)?.[1];
