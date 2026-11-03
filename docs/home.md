@@ -90,7 +90,7 @@ visible page has no icon, so no label leaks.
 - **Several pages (CRM, Work, Boards, Fund, System):** a button with
   `aria-expanded` and `aria-controls`, named by the section. Hovering it for
   100 ms, clicking it, or pressing Enter, Space or Right opens a small
-  floating window beside the rail: the section title and the same links as the
+  dark floating window beside the rail: the section title and the same links as the
   expanded section (label, unread badge, current page highlighted; Boards
   keeps its limit of 5 boards plus the current one and the "All boards (N)"
   row, and scrolls inside the window). Clicking again closes it; it never

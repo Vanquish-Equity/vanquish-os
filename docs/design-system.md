@@ -158,13 +158,18 @@ fundraising UUIDs survive retries. No new design-system exception is introduced.
   lifts a card to `z-index: 20` while it holds `[aria-haspopup][aria-expanded="true"]`
   (SelectMenu, member/board menus). Disclosure toggles and the Sidebar are excluded; dialogs (z-50+) stay above.
 - **Collapsed-sidebar flyout:** the rail (one icon per section) opens a small
-  `vq-card-static` window (`rounded-xl border-neutral-200 bg-white p-1`,
-  `text-[12.5px]` rows, `hover:bg-neutral-50`, current page `bg-cyan-50`) in a
-  `fixed` portal at `z-40`: above page cards and the rail, below dialogs
-  (z-50+). It is a labelled `<nav>` of links, not `role="menu"`, and carries no
-  arrow or chevron. See "Collapsed rail" in [`home.md`](home.md). Known
-  exception: the window is white while the rail is dark, matching the other
-  floating menus rather than the rail.
+  dark window in a `fixed` portal at `z-40`: above page cards and the rail,
+  below dialogs (z-50+). It uses the same dark surface as the account menu
+  (`bg-[#1b2427]`, a step lighter than the `bg-ink` rail so it reads as a
+  separate layer) with `rounded-xl border border-white/10 shadow-2xl p-1`,
+  `text-[12.5px]` rows in `text-neutral-200`, heading and icons in
+  `text-neutral-400`, `hover:bg-white/10`, and the current page in
+  `bg-cyan-400/15 text-cyan-300`. It does not use `vq-card-static`, whose
+  transparent border and light shadow would override the dark border. Contrast
+  (WCAG AA): row text 12.6:1 (9.2:1 on hover), heading 6.3:1, current page
+  7.9:1, tooltip text 15.8:1, unread badge text 10.7:1, icons 4.6:1 on hover
+  (3:1 needed). It is a labelled `<nav>` of links, not `role="menu"`, and
+  carries no arrow or chevron. See "Collapsed rail" in [`home.md`](home.md).
 - **Pointer-placed menus:** the People row menu (`PersonContextMenu`) opens at
   the pointer, so it is a `fixed` portal at `z-[55]` (above dialogs at z-50,
   below the intro layer) instead of hanging under a trigger; it is clamped to the

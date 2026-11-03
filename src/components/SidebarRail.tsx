@@ -303,9 +303,9 @@ function FlyoutLayer({
     const unreadCount = count(entry.item);
     return (
       <div ref={layerRef} aria-hidden="true" data-rail-flyout="tip" className="vq-flyout pointer-events-none fixed z-40 pl-2">
-        <div className="vq-card-static whitespace-nowrap rounded-xl border border-neutral-200 bg-white px-2.5 py-1.5 text-[12.5px] font-medium text-ink shadow-lg">
+        <div className="whitespace-nowrap rounded-xl border border-white/10 bg-[#1b2427] px-2.5 py-1.5 text-[12.5px] font-medium text-white shadow-2xl">
           {entry.label}
-          {unreadCount > 0 && <span className="font-normal text-neutral-500">{RAIL_TEXT.unreadInline(unreadCount)}</span>}
+          {unreadCount > 0 && <span className="font-normal text-neutral-400">{RAIL_TEXT.unreadInline(unreadCount)}</span>}
         </div>
       </div>
     );
@@ -345,9 +345,9 @@ function FlyoutLayer({
       <nav
         id={id}
         aria-labelledby={headingId}
-        className="vq-card-static max-h-[min(70vh,calc(100vh-16px))] w-56 max-w-[calc(100vw-80px)] overflow-y-auto rounded-xl border border-neutral-200 bg-white p-1 text-left shadow-lg"
+        className="max-h-[min(70vh,calc(100vh-16px))] w-56 max-w-[calc(100vw-80px)] overflow-y-auto rounded-xl border border-white/10 bg-[#1b2427] p-1 text-left shadow-2xl"
       >
-        <h2 id={headingId} className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium text-neutral-500">
+        <h2 id={headingId} className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium text-neutral-400">
           {entry.label}
         </h2>
         <ul className="flex flex-col gap-px">
@@ -362,10 +362,10 @@ function FlyoutLayer({
                   onClick={() => onItem(item.href)}
                   aria-current={active ? "page" : undefined}
                   className={`flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-[12.5px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-cyan-400 ${
-                    active ? "bg-cyan-50 font-medium text-ink" : "text-neutral-700 hover:bg-neutral-50"
+                    active ? "bg-cyan-400/15 font-medium text-cyan-300" : "text-neutral-200 hover:bg-white/10"
                   } ${nested(item) ? "pl-7" : ""}`}
                 >
-                  {!nested(item) && <NavIcon name={item.icon} className="h-4 w-4 flex-shrink-0 text-neutral-500" />}
+                  {!nested(item) && <NavIcon name={item.icon} className="h-4 w-4 flex-shrink-0 text-neutral-400" />}
                   <span className="min-w-0 truncate">{item.label}</span>
                   {unreadCount > 0 && (
                     <>
