@@ -450,7 +450,7 @@ Decide who can create shared versus personal boards; whether another Deal board 
 
 ## Operating workflow update
 
-[Operating workflows](operating-workflows.md) adds the Action center, human-reviewed changes, restricted Deal governance, company consolidation, ranked text/document search, Network introduction candidates and Portfolio monitoring. CRM delivery has its own consent and durable worker. People relationship-history sharing keeps separate consent and now uses the same durable worker queue. See [Sync activation runbook](runbook-sync-activation.md).
+[Operating workflows](operating-workflows.md) adds the Action center (now the Activity tab of Tasks, `/tasks?tab=activity`; `/inbox` redirects there), human-reviewed changes, restricted Deal governance, company consolidation, ranked text/document search, Network introduction candidates and Portfolio monitoring. CRM delivery has its own consent and durable worker. People relationship-history sharing keeps separate consent and now uses the same durable worker queue. See [Sync activation runbook](runbook-sync-activation.md).
 
 ## Phase 2 LP discovery and fundraising
 
