@@ -617,7 +617,7 @@ The Files tab, downloads, uploads, and removal require Documents access.
 Downloads are signed for one minute. Archived contacts no longer expose notes,
 reminders or files; archiving is not a storage purge. Reminders are not
 calendar events or scheduled emails. Apply `20261103230000_contact_workspace.sql`
-and then `20261104140000_contact_privacy.sql` before using these sections (the
+and then `20261104150000_contact_privacy.sql` before using these sections (the
 profile still loads notes, without visibility labels, until the second is
 applied). In Supabase Storage, create a private bucket named `contact-files`
 with a 3 MiB file-size limit. The migrations configure object policies without
@@ -670,3 +670,11 @@ offers a task-only retry. After an unconfirmed response, check the record before
 resubmitting. Contact discovery also lets a reviewer link an existing company
 or append the suggested email to a visible person without changing their
 primary email.
+
+**Company location.** Location is a built-in company field, editable in the
+Companies table and Company Details. The menu starts with searchable US cities;
+expand Other countries and select one to search or enter a city there. Users
+can enter a city that is not in the suggestions. The migration copies existing
+active text Location custom values once (including any demo labels), leaving
+the original custom values intact. Apply the migration before enabling the
+native editor; it does not assign synthetic locations.

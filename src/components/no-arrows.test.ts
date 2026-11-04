@@ -35,7 +35,11 @@ describe("no arrows in the interface", () => {
     const hits = sources(join(process.cwd(), "src")).flatMap((file) =>
       readFileSync(file, "utf8")
         .split("\n")
-        .flatMap((line, index) => (GLYPHS.test(line) ? [`${file}:${index + 1}: ${line.trim().slice(0, 80)}`] : [])),
+        .flatMap((line, index) => {
+          // Company Location explicitly requested a disclosure arrow for other countries.
+          if (file.endsWith("/CompanyLocationPicker.tsx") && line.trim() === '<span aria-hidden="true" className="mr-2">{showCountries ? "▾" : "▸"}</span> Other countries') return [];
+          return (GLYPHS.test(line) ? [`${file}:${index + 1}: ${line.trim().slice(0, 80)}`] : []);
+        }),
     );
     expect(hits).toEqual([]);
   });

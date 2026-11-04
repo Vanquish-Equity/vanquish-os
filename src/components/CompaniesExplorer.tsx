@@ -6,6 +6,7 @@ import ColumnResizeHandle from "@/components/ColumnResizeHandle";
 import Popover from "@/components/customization/Popover";
 import PeopleFieldCell from "@/components/people/PeopleFieldCell";
 import type { FieldDefinition, FieldValue } from "@/lib/custom-fields/model";
+import CompanyLocationPicker from "@/components/CompanyLocationPicker";
 import Checkbox from "@/components/Checkbox";
 import { useCallback, useEffect, useMemo, useState, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -236,6 +237,7 @@ export default function CompaniesExplorer({
   groups,
   industryOptions,
   followUpAvailable = false,
+  locationAvailable = true,
   groupId,
   filterOptions,
   extraFilters,
@@ -248,6 +250,7 @@ export default function CompaniesExplorer({
   groups?: { id: string; name: string }[];
   industryOptions?: { id: string; name: string }[];
   followUpAvailable?: boolean;
+  locationAvailable?: boolean;
   groupId?: string | null;
   filterOptions: FilterOptions;
   extraFilters?: ReactNode;
@@ -277,6 +280,7 @@ export default function CompaniesExplorer({
       setEditing(null);
     }
   }
+  const [locationEdits, setLocationEdits] = useState<Record<string, string | null>>({});
   const [industryEdits, setIndustryEdits] = useState<Record<string, string>>({});
   const [followUpEdits, setFollowUpEdits] = useState<Record<string, boolean>>({});
   const [message, setMessage] = useState("");
@@ -777,6 +781,16 @@ export default function CompaniesExplorer({
                             void saveCell(company.id, () => updateCompanyFieldAction({ companyId: company.id, field: "industry_id", value: next || null }),
                               () => setIndustryEdits((prev) => ({ ...prev, [company.id]: id })));
                           }} />
+                      </td>;
+                    }
+                    if (key === "location" && locationAvailable) {
+                      const current = Object.hasOwn(locationEdits, company.id) ? locationEdits[company.id] : company.location ?? null;
+                      return <td key={key} data-company-cell-editor="" className="px-4 py-3">
+                        <CompanyLocationPicker company={company.name} value={current} disabled={editing !== null} onChange={(next) => {
+                          setLocationEdits((prev) => ({ ...prev, [company.id]: next }));
+                          void saveCell(company.id, () => updateCompanyFieldAction({ companyId: company.id, field: "location", value: next }),
+                            () => setLocationEdits((prev) => ({ ...prev, [company.id]: current })));
+                        }} />
                       </td>;
                     }
                     if (key === "lp_follow_up") {

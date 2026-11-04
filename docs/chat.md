@@ -46,7 +46,7 @@ The database re-checks that every mention is an active participant.
   concept it existed for (a draft's only owner is now its creator). The
   `draft_assigned` notification kind and any historical rows of that kind
   stay in the schema (nothing new is ever created).
-- Contact notes and reminders (`20261104140000_contact_privacy.sql`): an
+- Contact notes and reminders (`20261104150000_contact_privacy.sql`): an
   AFTER INSERT trigger on `contact_reminder_recipients` /
   `contact_note_recipients` creates `contact_reminder` / `contact_note_tag`
   notifications for each included member other than the author (never for

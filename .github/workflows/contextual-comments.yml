@@ -255,5 +255,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/tests/custom_field_definition_delete.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261104130000_mail_open_signal.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/mail_open_signal.sql > /dev/null
-          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261104140000_contact_privacy.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261104140000_company_location.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/company_location.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261104150000_contact_privacy.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/contact_privacy.sql > /dev/null
