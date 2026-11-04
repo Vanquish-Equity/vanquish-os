@@ -368,13 +368,11 @@ greeting rises in before the map and its arcs. If the OS intro plays, the
 sequence starts when the intro finishes or is skipped. Reduced motion shows
 the final view directly. The map reads at most 1,000 nonempty locations from
 active Companies visible to the member under the existing access policies.
-The map stays in a fixed viewport. Drag to pan the camera over the map, or
-right-drag, Shift-drag, or toggle **Orbit** and drag to rotate and tilt. On
-touch, pinch to zoom and twist two fingers to rotate; **Orbit** also works
-with one finger. The angle presets preserve the current center and zoom.
-Borders, markers and labels retain their visual weight as the camera moves.
-A focused map accepts arrows to pan, Shift+arrows to rotate or tilt, +/− or
-the mouse wheel to zoom, and Home to reset. Select a city for its count and
+The map stays in a fixed viewport. Drag horizontally to rotate and vertically
+to tilt. On touch, pinch to zoom or twist two fingers to rotate. Borders,
+markers and labels retain their visual weight as the camera moves. A focused
+map accepts arrows to rotate or tilt, +/− or the mouse wheel to zoom, and
+Home to reset. Select a city for its count and
 filtered Companies link, or use **Explore cities**. Returning to
 Home reads the current locations. While Home is visible, its map also refreshes
 on focus and every 30 seconds, preserving the current view. State borders
