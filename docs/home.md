@@ -361,3 +361,17 @@ Elements can override the automatic choice with
 Browsers only allow audio after an interaction: after the Google redirect
 nothing plays until the first click or key press, and a blocked or missing
 audio device never causes errors or delays.
+
+### Company footprint
+
+Today opens with a larger greeting and a perspective map of the contiguous
+United States, drawn directly on the page with no card or background. The
+entrance draws the arcs once and respects reduced-motion settings. It reads
+at most 1,000 nonempty locations from active Companies visible to the member
+under the existing access policies. Expand **Explore cities** for links to the
+corresponding Companies filters. State borders highlight states with at least
+one plotted company. Locations outside the supported city list are not
+geocoded or plotted. Arcs illustrate geographic coverage, not actual relationships.
+The locally bundled state outlines are derived from [US Atlas](https://github.com/topojson/us-atlas)
+(US Census), with its license in `public/licenses/us-atlas.txt`; the app
+does not send locations to a map service.
