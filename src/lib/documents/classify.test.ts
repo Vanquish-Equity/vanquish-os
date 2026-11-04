@@ -50,3 +50,17 @@ it("does not invent a financial type if the seeded type is not available", () =>
     typeId: null, categoryId: null, confidence: "review",
   });
 });
+
+it.each([
+  { id: "npa", name: "Note Purchase Agreement", code: "note_purchase_agreement" },
+  { id: "safe", name: "Simple Agreement for Future Equity", code: "safe" },
+])("keeps $id when its body mentions financial statements far from the title", (contract) => {
+  const body = `${contract.name.toUpperCase()}. ${"Whereas the parties agree. ".repeat(120)} The company's financial statements and balance sheet fairly present its position.`;
+  expect(classifyDocument(`${contract.name}.pdf`, body, [{ ...contract, category_id: "legal" }, ...financialTypes]))
+    .toMatchObject({ typeId: contract.id, confidence: "rule" });
+});
+
+it("still recognizes a report whose title is at the top of its text", () => {
+  expect(classifyDocument("scan_0042.pdf", "Q3 Financial Report\nRevenue and costs.", financialTypes))
+    .toMatchObject({ typeId: "history", confidence: "rule" });
+});

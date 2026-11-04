@@ -46,12 +46,13 @@ is left untouched and gets a visible intake error. Reassigning a folder stops
 its existing leases before starting a fresh scan. Monitoring is separate from
 Gmail/Calendar CRM consent and is paused per folder.
 
-Document intake recognizes report titles and statements in the filename or
-extracted text, including Financial Report, Financial Statements, P&L, Profit
+Document intake recognizes these report aliases in the filename or the
+first 1,500 characters of extracted text, including Financial Report, Financial Statements, P&L, Profit
 and Loss, Balance Sheet, Income Statement, Quarterly Report, Informe
 Financiero, and Estados Financieros. These are aliases for the existing
-**Historical Financials** type (`historical_financials`). If more than one
-active document type matches, intake leaves the type unset for review.
+**Historical Financials** type (`historical_financials`). Later mentions of
+these phrases do not change a contract’s type. If more than one active
+document type matches, intake leaves the type unset for review.
 
 ## Permissions and privacy
 

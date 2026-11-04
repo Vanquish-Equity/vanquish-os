@@ -8,9 +8,12 @@ export function classifyDocument(name:string,text:string,types:{id:string;catego
   const normalize=(value:string)=>value.toLowerCase().replace(/[_-]+/g," ").replace(/\s+/g," ");
   const content=normalize(`${name}\n${text.slice(0,50000)}`);
   const aliases:Record<string,string[]>={pitch_deck:["pitch deck","investor presentation"],nda:["non disclosure agreement","nondisclosure agreement"],safe:["simple agreement for future equity"],cap_table:["capitalization table","cap table"]};
+  // Contracts can mention these generic phrases deep in their text. Only
+  // treat them as a report signal in the file name or title area.
+  const title=normalize(`${name}\n${text.slice(0,1500)}`);
   const found=types.filter(type=>{
     const code=type.code.toLowerCase();
-    return (code==="historical_financials"&&historicalFinancials.test(content))
+    return (code==="historical_financials"&&historicalFinancials.test(title))
       || [normalize(type.name),normalize(type.code),...(aliases[code]??[])].some(term=>term.length>=4&&content.includes(term));
   });
   const dates=[...(`${name}\n${text.slice(0,10000)}`).matchAll(/(?<!\d)(20\d{2})[-/](0[1-9]|1[0-2])[-/](0[1-9]|[12]\d|3[01])(?!\d)/g)].map(match=>`${match[1]}-${match[2]}-${match[3]}`);
