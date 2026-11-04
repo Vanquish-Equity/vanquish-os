@@ -2,6 +2,7 @@ import { getAccess } from "@/lib/auth/access";
 import { can } from "@/lib/auth/permissions";
 import ContactWorkspace from "@/components/people/ContactWorkspace";
 import Link from "next/link";
+import { composeHref } from "@/lib/communications/compose-link";
 import ContactActivity from "@/components/people/ContactActivity";
 import ContactOrganization from "@/components/people/ContactOrganization";
 import RelationshipIntelligenceSection from "@/components/RelationshipIntelligenceSection";
@@ -94,7 +95,7 @@ export default async function ContactProfile({ id, companies, full = false }: {
         </div>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
-        {emails[0] && <a className={pill} href={`mailto:${emails[0].email}`}>Email contact</a>}
+        {emails[0] && <a className={pill} href={composeHref(emails[0].email)}>Email contact</a>}
         {linkedin && <a className={pill} href={linkedin} target="_blank" rel="noreferrer">LinkedIn</a>}
         {person.is_potential_lp && <span className="self-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-950">Potential LP</span>}
       </div>
@@ -115,7 +116,7 @@ export default async function ContactProfile({ id, companies, full = false }: {
       <dl className="grid gap-3 text-sm sm:grid-cols-2">
         <div className="min-w-0"><dt className="text-xs text-neutral-500">Email addresses</dt>
           <dd className="mt-1">{emails.length ? emails.map(({ email, is_primary }) => <div key={email} className="break-all">
-            <a href={`mailto:${email}`} className="text-cyan-800 underline">{email}</a>{is_primary && <span className="ml-1.5 text-[10px] text-neutral-500">Primary</span>}
+            <a href={composeHref(email)} className="text-cyan-800 underline">{email}</a>{is_primary && <span className="ml-1.5 text-[10px] text-neutral-500">Primary</span>}
           </div>) : "No email added"}</dd></div>
         <div><dt className="text-xs text-neutral-500">Added to CRM</dt><dd className="mt-1">
           <time dateTime={person.created_at}>{person.created_at.slice(0, 10)}</time>

@@ -170,3 +170,13 @@ Incremental CRM activity delivery is now available separately from the private m
 ## Phase 5A optional completion
 
 With the owner flag and explicit mail_completion permission, the composer adds verified aliases, strict full forwarding, transient bounded chunks and per-operation reviewed mutations. The prior UI remains without both gates. Scheduled send and push remain disabled; no body store or sender worker is added. See [Mail completion](mail-completion.md) for exact scopes, source-draft retention, uncertain outcomes, activation and protected rollback, and [open decisions](mail-calendar-open-decisions.md).
+
+## Email a contact from the CRM
+
+"Email contact" and the email addresses in a contact's profile open the
+Communications composer with the address already filled in
+(`/communications?compose=<address>`), not the desktop mail app. The page
+accepts exactly one plain address (`src/lib/communications/compose-link.ts`);
+anything else is ignored. If the user's mailbox is not connected, the usual
+connect screen shows instead of the composer. Plain `mailto:` links in the
+People table keep their native behavior.
