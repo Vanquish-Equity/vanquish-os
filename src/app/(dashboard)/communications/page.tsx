@@ -1,4 +1,6 @@
 import MailWorkspace from "@/components/mail/MailWorkspace";
+import { composeAddress } from "@/lib/communications/compose-link";
+import { firstParam } from "@/lib/url/first-param";
 import { MAIL_FOLDERS, type MailFolder } from "@/lib/google/mail-types";
 import {
   loadLpContacts,
@@ -48,9 +50,12 @@ const VIEW_LABELS: Record<DraftListView, string> = {
 export default async function CommunicationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; folder?: string }>;
+  searchParams: Promise<{ view?: string | string[]; folder?: string | string[]; compose?: string | string[] }>;
 }) {
-  const { view: viewParam, folder: folderParam } = await searchParams;
+  const params = await searchParams;
+  const viewParam = firstParam(params.view);
+  const folderParam = firstParam(params.folder);
+  const composeTo = composeAddress(firstParam(params.compose));
   const folder =
     folderParam === "drafts"
       ? "drafts"
@@ -78,7 +83,8 @@ export default async function CommunicationsPage({
           </p>
         </header>
         <MailWorkspace
-          key={folder}
+          key={`${folder}:${composeTo ?? ""}`}
+          initialComposeTo={composeTo}
           initialFolder={folder}
           connected={mailbox.connected}
           contacts={contacts}

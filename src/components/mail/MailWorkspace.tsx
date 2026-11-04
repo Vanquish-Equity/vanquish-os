@@ -41,6 +41,7 @@ export default function MailWorkspace({
   groups,
   knownRecipients,
   initialFolder = "inbox",
+  initialComposeTo,
   me,
 }: {
   connected: boolean;
@@ -48,6 +49,7 @@ export default function MailWorkspace({
   groups: ContactGroup[];
   knownRecipients?: RecipientContact[];
   initialFolder?: MailFolder;
+  initialComposeTo?: string;
   me: string;
 }) {
   const [mailboxEmail, setMailboxEmail] = useState(me);
@@ -104,7 +106,7 @@ export default function MailWorkspace({
   const [threadId, setThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MailMessage[] | null>(null);
   const [threadError, setThreadError] = useState("");
-  const [composer, setComposer] = useState<ComposeSeed | null>(null);
+  const [composer, setComposer] = useState<ComposeSeed | null>(initialComposeTo ? { ...empty, to: initialComposeTo } : null);
   const [mutating, setMutating] = useState(false);
   const mutatingRef = useRef(false);
   const searchRef = useRef<HTMLInputElement>(null);
