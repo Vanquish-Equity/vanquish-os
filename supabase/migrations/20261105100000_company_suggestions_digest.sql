@@ -47,7 +47,8 @@ begin
     insert into public.notifications as n (recipient_email, kind, dedupe_key, company_suggestions_count)
     values (v_owner, 'company_suggestions_digest', 'company_suggestions_digest:' || to_char(v_day, 'YYYY-MM-DD'), 1)
     on conflict (recipient_email, dedupe_key) do update
-      set company_suggestions_count = n.company_suggestions_count + 1
+      set company_suggestions_count = n.company_suggestions_count + 1,
+          read_at = null
       where n.kind = 'company_suggestions_digest';
   end if;
   return null;

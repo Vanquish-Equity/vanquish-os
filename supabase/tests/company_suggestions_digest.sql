@@ -72,6 +72,13 @@ select pg_temp.expect(pg_temp.state($q$insert into public.notifications(recipien
 select pg_temp.expect(pg_temp.state($q$update public.notifications set company_suggestions_count=99 where kind='company_suggestions_digest'$q$)='42501','members cannot change counts');
 update public.notifications set read_at=now() where kind='company_suggestions_digest';
 select pg_temp.expect((select count(*)=2 from public.notifications where kind='company_suggestions_digest' and read_at is not null),'owner can still mark digest read');
+insert into public.company_suggestions(member_email,domain,suggested_name,first_seen_at,last_seen_at)
+values ('p3.scout@synthetic.test','gamma.synthetic.test','Sample Gamma',now(),now());
+select pg_temp.expect((select count(*)=2 and sum(company_suggestions_count)=7
+  and count(*) filter (where read_at is null and company_suggestions_count=3)=1
+  and count(*) filter (where read_at is not null and company_suggestions_count=4)=1
+  from public.notifications where kind='company_suggestions_digest'),
+  'new suggestion increments and reopens only the current UTC digest');
 select pg_temp.expect(pg_temp.state($q$insert into public.company_suggestions(member_email,domain,suggested_name,first_seen_at,last_seen_at) values ('p3.other@synthetic.test','forged.synthetic.test','Forged',now(),now())$q$)='42501','cannot insert another member’s suggestion');
 select pg_temp.who('p3.other@synthetic.test');
 select pg_temp.expect((select count(*)=0 from public.notifications where kind='company_suggestions_digest'),'other member cannot see digest');

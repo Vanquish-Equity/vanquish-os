@@ -200,7 +200,9 @@ export async function setContactMode(mode: ContactMode): Promise<Result> {
 
 type SuggestionDecision = "create" | "dismiss";
 type SuggestionSelection = { id: string; name?: string };
-type SuggestionOutcome = { id: string; ok: boolean; message: string };
+type SuggestionOutcome =
+  | { id: string; ok: true; message: string }
+  | { id: string; ok: false; message: string; reason?: "unavailable" };
 type SuggestionBatchResult = { ok: true; rows: SuggestionOutcome[] } | { ok: false; message: string };
 
 const MAX_SUGGESTION_BATCH = 60;
@@ -212,7 +214,8 @@ export async function decideCompanySuggestions(
 ): Promise<SuggestionBatchResult> {
   const session = await scoutingSession();
   if (!session) return { ok: false, message: "Sign in to continue." };
-  if (!session.allowed) return { ok: false, message: "Email scouting isn’t enabled for your account." };
+  // Scanning permission is separate from reviewing existing suggestions.
+  // The RPC and table policies check the active member and row ownership.
   if (
     (decision !== "create" && decision !== "dismiss") ||
     !Array.isArray(selections) ||
@@ -231,6 +234,9 @@ export async function decideCompanySuggestions(
   for (const selection of selections) {
     const id = selection.id;
     const failed = decision === "create" ? "Could not create the company." : "Could not dismiss the suggestion.";
+    const unavailable = {
+      id, ok: false, reason: "unavailable", message: "This suggestion is no longer open or available.",
+    } as const;
     try {
       if (decision === "create") {
         const name = typeof selection.name === "string" ? selection.name.trim() : "";
@@ -239,11 +245,9 @@ export async function decideCompanySuggestions(
           continue;
         }
         const { error } = await session.supabase.rpc("accept_company_suggestion", { p_id: id, p_name: name });
-        rows.push(error ? {
-          id,
-          ok: false,
-          message: error.code === "22023" ? "This suggestion is no longer open or available." : failed,
-        } : { id, ok: true, message: "Company created." });
+        rows.push(error
+          ? (error.code === "22023" ? unavailable : { id, ok: false, message: failed })
+          : { id, ok: true, message: "Company created." });
       } else {
         const { data, error } = await session.supabase
           .from("company_suggestions")
@@ -254,7 +258,7 @@ export async function decideCompanySuggestions(
           .select("id");
         rows.push(error ? { id, ok: false, message: failed }
           : data?.length ? { id, ok: true, message: "Dismissed." }
-            : { id, ok: false, message: "This suggestion is no longer open or available." });
+            : unavailable);
       }
     } catch {
       rows.push({ id, ok: false, message: failed });

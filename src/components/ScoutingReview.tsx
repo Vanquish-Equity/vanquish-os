@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Checkbox from "@/components/Checkbox";
 import RelativeTime from "@/components/RelativeTime";
 import { decideCompanySuggestions, decideContactRequest } from "@/lib/scouting/actions";
@@ -70,6 +70,7 @@ function SuggestionCard({ suggestion, name, selected, pending, error, onSelect, 
       <button
         type="button"
         disabled={pending}
+        aria-label={`Dismiss ${name.trim() || suggestion.suggested_name}`}
         onClick={onDismiss}
         className="min-h-9 self-start rounded-lg border border-neutral-200 px-3 text-[12px] font-semibold text-ink hover:border-cyan-300 disabled:opacity-40"
       >
@@ -87,6 +88,8 @@ function CompanySuggestions({ suggestions, refresh }: { suggestions: Suggestion[
   const [outcomes, setOutcomes] = useState<BatchReceipt[]>([]);
   const [batchError, setBatchError] = useState<string>();
   const [pending, startTransition] = useTransition();
+  const inFlight = useRef(false);
+  const status = useRef<HTMLDivElement>(null);
   // Hide successful rows immediately while server revalidation catches up.
   const [processed, setProcessed] = useState<Set<string>>(() => new Set());
   const remaining = suggestions.filter(({ id }) => !processed.has(id));
@@ -94,35 +97,42 @@ function CompanySuggestions({ suggestions, refresh }: { suggestions: Suggestion[
   const allSelected = remaining.length > 0 && selected.length === remaining.length;
   const rowErrors = new Map(outcomes.filter(({ ok }) => !ok).map(({ id, message }) => [id, message]));
 
+  useEffect(() => {
+    if (!pending && (outcomes.length > 0 || batchError)) status.current?.focus();
+  }, [batchError, outcomes, pending]);
+
   function run(decision: "create" | "dismiss", items: Suggestion[]) {
-    if (pending || !items.length) return;
+    if (inFlight.current || pending || !items.length) return;
+    inFlight.current = true;
     const submitted = items.map(({ id, domain, suggested_name }) => ({
       id, name: names[id] ?? suggested_name, domain,
     }));
     startTransition(async () => {
       setBatchError(undefined);
       setOutcomes([]);
-      let result: Awaited<ReturnType<typeof decideCompanySuggestions>>;
       try {
-        result = await decideCompanySuggestions(decision, submitted.map(({ id, name }) => ({ id, name })));
+        const result = await decideCompanySuggestions(decision, submitted.map(({ id, name }) => ({ id, name })));
+        if (!result.ok) {
+          setBatchError(result.message);
+          return;
+        }
+        const byId = new Map(submitted.map((row) => [row.id, row]));
+        setOutcomes(result.rows.map((row) => {
+          const input = byId.get(row.id);
+          return { ...row, label: input ? `${input.name.trim() || input.domain} (${input.domain})` : row.id };
+        }));
+        const successes = new Set(result.rows.filter(({ ok }) => ok).map(({ id }) => id));
+        if (successes.size) {
+          setProcessed((current) => new Set([...current, ...successes]));
+          setSelection((current) => new Set([...current].filter((id) => !successes.has(id))));
+        }
+        if (successes.size || result.rows.some((row) => !row.ok && row.reason === "unavailable")) refresh();
       } catch {
-        setBatchError("Couldn't confirm the results. Refresh To review before trying again.");
-        return;
+        setBatchError("Couldn't confirm the results. Refreshing To review before you try again.");
+        refresh();
+      } finally {
+        inFlight.current = false;
       }
-      if (!result.ok) {
-        setBatchError(result.message);
-        return;
-      }
-      const byId = new Map(submitted.map((row) => [row.id, row]));
-      setOutcomes(result.rows.map((row) => {
-        const input = byId.get(row.id);
-        return { ...row, label: input ? `${input.name.trim() || input.domain} (${input.domain})` : row.id };
-      }));
-      const successes = result.rows.filter(({ ok }) => ok).map(({ id }) => id);
-      if (!successes.length) return;
-      setProcessed((current) => new Set([...current, ...successes]));
-      setSelection((current) => new Set([...current].filter((id) => !successes.includes(id))));
-      refresh();
     });
   }
 
@@ -140,7 +150,7 @@ function CompanySuggestions({ suggestions, refresh }: { suggestions: Suggestion[
         <>
           <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-neutral-100 bg-white p-2.5">
             <label className="inline-flex min-h-9 cursor-pointer items-center gap-2 px-1.5 text-[12px] font-semibold text-ink">
-              <Checkbox checked={allSelected} aria-checked={selected.length > 0 && !allSelected ? "mixed" : allSelected}
+              <Checkbox checked={allSelected} indeterminate={selected.length > 0 && !allSelected}
                 disabled={pending} onChange={(event) => setSelection(event.target.checked ? new Set(remaining.map(({ id }) => id)) : new Set())} />
               Select all
             </label>
@@ -149,9 +159,14 @@ function CompanySuggestions({ suggestions, refresh }: { suggestions: Suggestion[
               className="min-h-9 rounded-lg bg-ink px-3 text-[12px] font-semibold text-white disabled:opacity-40">
               Create selected
             </button>
-            <button type="button" disabled={pending || !selected.length} onClick={() => run("dismiss", selected)}
+            <button type="button" disabled={pending || !selected.length}
+              onClick={() => {
+                if (!inFlight.current && window.confirm(
+                  `Dismiss ${selected.length} selected suggestion${selected.length === 1 ? "" : "s"}? This cannot be undone.`,
+                )) run("dismiss", selected);
+              }}
               className="min-h-9 rounded-lg border border-neutral-200 px-3 text-[12px] font-semibold text-ink hover:border-cyan-300 disabled:opacity-40">
-              Dismiss selected
+              {selected.length ? `Dismiss ${selected.length} selected` : "Dismiss selected"}
             </button>
           </div>
           <ul className="grid gap-3 md:grid-cols-2">
@@ -169,7 +184,7 @@ function CompanySuggestions({ suggestions, refresh }: { suggestions: Suggestion[
           </ul>
         </>
       )}
-      <div role="status" aria-atomic="true">
+      <div ref={status} role="status" tabIndex={-1} aria-atomic="true">
         {pending && <p className="mt-3 text-[12px] text-neutral-600">Saving decisions…</p>}
         {batchError && <p className="mt-3 text-[12px] text-red-700">{batchError}</p>}
         {outcomes.length > 0 && (
