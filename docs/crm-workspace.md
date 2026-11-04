@@ -642,3 +642,11 @@ offers a task-only retry. After an unconfirmed response, check the record before
 resubmitting. Contact discovery also lets a reviewer link an existing company
 or append the suggested email to a visible person without changing their
 primary email.
+
+**Company location.** Location is a built-in company field, editable in the
+Companies table and Company Details. The menu starts with searchable US cities;
+expand Other countries and select one to search or enter a city there. Users
+can enter a city that is not in the suggestions. The migration copies existing
+active text Location custom values once (including any demo labels), leaving
+the original custom values intact. Apply the migration before enabling the
+native editor; it does not assign synthetic locations.

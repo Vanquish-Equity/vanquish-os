@@ -26,6 +26,7 @@ type CompanyRow = {
   industry: { name: string } | null;
   industry_id: string | null;
   lp_follow_up?: boolean;
+  location?: string | null;
   company_aliases: { alias: string }[];
   deals: {
     id: string;
@@ -87,21 +88,27 @@ export default async function CompaniesPage({ searchParams }: {
   documentsPermission.catch(() => {});
   customFieldsPromise.catch(() => {});
   const groupsPromise = supabase.from("company_groups").select("id,name").order("name").limit(100);
-  const loadCompanies = (withFollowUp: boolean) => {
-    const companyQuery = supabase
-    .from("companies")
-    .select(
-      `id,name,website,industry_id,${withFollowUp ? "lp_follow_up," : ""}updated_at,last_activity_at,people!people_primary_organization_id_fkey(id,name,archived_at),industry:industries(name),company_aliases(alias),deals(id,name,archived_at,updated_at,last_activity_at,stage:pipeline_stages(name,is_terminal),priority:priorities(name),outcome:deal_outcomes(name),deal_assignees(member_email)),investments(id),tasks(id,status,archived_at)${groupId ? ",company_group_members!inner(group_id)" : ""}`
-    )
+  const loadCompanies = (withFollowUp: boolean, withLocation: boolean) => {
+    const columns: string = `id,name,website,industry_id,${withFollowUp ? "lp_follow_up," : ""}${withLocation ? "location," : ""}updated_at,last_activity_at,people!people_primary_organization_id_fkey(id,name,archived_at),industry:industries(name),company_aliases(alias),deals(id,name,archived_at,updated_at,last_activity_at,stage:pipeline_stages(name,is_terminal),priority:priorities(name),outcome:deal_outcomes(name),deal_assignees(member_email)),investments(id),tasks(id,status,archived_at)${groupId ? ",company_group_members!inner(group_id)" : ""}`;
+    const companyQuery = supabase.from("companies").select(columns)
     .is("deleted_at", null)
     .order("name");
-    return (groupId ? companyQuery.eq("company_group_members.group_id", groupId) : companyQuery) as unknown as PromiseLike<{ data: CompanyRow[] | null; error: { code: string } | null }>;
+    return (groupId ? companyQuery.eq("company_group_members.group_id", groupId) : companyQuery) as unknown as PromiseLike<{ data: CompanyRow[] | null; error: { code: string; message?: string } | null }>;
   };
   const [initialCompanies, groups, industryOptions] = await Promise.all([
-    loadCompanies(true), groupsPromise, getIndustryOptions().catch(() => undefined),
+    loadCompanies(true, true), groupsPromise, getIndustryOptions().catch(() => undefined),
   ]);
-  const followUpAvailable = initialCompanies.error?.code !== "42703";
-  const { data: companyRows } = followUpAvailable ? initialCompanies : await loadCompanies(false);
+  let companiesResult = initialCompanies;
+  let locationAvailable = true;
+  let followUpAvailable = true;
+  for (let retry = 0; retry < 2 && companiesResult.error?.code === "42703"; retry++) {
+    const message = companiesResult.error.message ?? "";
+    if (locationAvailable && /\blocation\b/.test(message)) locationAvailable = false;
+    else if (followUpAvailable && /\blp_follow_up\b/.test(message)) followUpAvailable = false;
+    else break;
+    companiesResult = await loadCompanies(followUpAvailable, locationAvailable);
+  }
+  const { data: companyRows } = companiesResult;
 
   const dealIds = (companyRows ?? []).flatMap((company) =>
     (company.deals ?? []).map((deal) => deal.id)
@@ -117,7 +124,7 @@ export default async function CompaniesPage({ searchParams }: {
     Promise.all(batches.map((ids) => supabase.from("person_last_interaction").select("person_id,last_at").in("person_id", ids))),
     (companyRows ?? []).some((company) => company.deals?.some((deal) => deal.deal_assignees?.length))
       ? supabase.rpc("deal_assignee_directory") : { data: [] },
-    customFieldsPromise.then(async (enabled) => enabled
+    customFieldsPromise.then(async (enabled) => enabled && !locationAvailable
       ? await supabase.from("custom_field_values")
           .select("id,company_id,record_id,definition_id,is_set,text_value,number_value,date_value,boolean_value,option_value,multi_value,token,definition:custom_field_definitions!inner(id)")
           .eq("definition.object_type", "companies").eq("definition.field_type", "text")
@@ -185,7 +192,7 @@ export default async function CompaniesPage({ searchParams }: {
         .map(({ id, name }) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)),
       owners: uniqueSorted(visibleDeals.flatMap((deal) => (deal.deal_assignees ?? []).map(({ member_email }) => names.get(member_email) ?? member_email))),
       lastContactAt: latestDate((company.people ?? []).filter((person) => !person.archived_at).map(({ id }) => lastByPerson.get(id))),
-      location: locationByCompany.get(company.id) ?? null,
+      location: locationAvailable ? company.location ?? null : locationByCompany.get(company.id) ?? null,
       aliases: (company.company_aliases ?? []).map((alias) => alias.alias),
       currentPriorityName: latestActiveDeal?.priority?.name ?? null,
       currentStageName: latestActiveDeal?.stage?.name ?? null,
@@ -241,7 +248,7 @@ export default async function CompaniesPage({ searchParams }: {
           </div>
         }
       >
-        <CompaniesExplorer companies={companies} industryOptions={industryOptions} followUpAvailable={followUpAvailable} groups={groups.error ? undefined : (groups.data ?? [])} groupId={groupId} filterOptions={filterOptions} extraFilters={customFieldsOn ? <CustomFieldFilter object="companies" /> : undefined}
+        <CompaniesExplorer companies={companies} industryOptions={industryOptions} followUpAvailable={followUpAvailable} locationAvailable={locationAvailable} groups={groups.error ? undefined : (groups.data ?? [])} groupId={groupId} filterOptions={filterOptions} extraFilters={customFieldsOn ? <CustomFieldFilter object="companies" /> : undefined}
           fieldDefinitions={definitions} fieldValues={fieldValues} fieldsUnavailable={customValues.some(({ error }) => Boolean(error))}
           columnEditor={customFieldsOn && isAdmin ? <CustomFieldsAdmin fixedObject="companies" /> : undefined} />
       </Suspense>

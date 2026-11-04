@@ -40,7 +40,7 @@ async function requireRow(
 
 export type UpdateCompanyFieldInput = {
   companyId: string;
-  field: "name" | "website" | "description" | "industry_id";
+  field: "name" | "website" | "description" | "industry_id" | "location";
   value: string | null;
 };
 
@@ -49,6 +49,13 @@ export async function updateCompanyFieldAction(
 ): Promise<CompanyActionResult> {
   const companyId = cleanText(input.companyId);
   if (!companyId) return { ok: false, message: "Missing company." };
+
+  if (!["name", "website", "description", "industry_id", "location"].includes(input.field)) {
+    return { ok: false, message: "Unsupported company field." };
+  }
+  if (input.field === "location" && Array.from(cleanText(input.value)).length > 200) {
+    return { ok: false, message: "Location must be 200 characters or fewer." };
+  }
 
   if (input.field === "name" && !cleanText(input.value)) {
     return { ok: false, message: "Name is required." };
@@ -70,7 +77,7 @@ export async function updateCompanyFieldAction(
     supabase
       .from("companies")
       .update(update, { count: "exact" })
-      .eq("id", companyId) as unknown as PromiseLike<{
+      .eq("id", companyId).is("deleted_at", null) as unknown as PromiseLike<{
       count: number | null;
       error: { message: string } | null;
     }>

@@ -279,3 +279,8 @@ never in the `"use client"` files, because a server component cannot call
 helpers exported from a client module. Inside Tasks, the *Everyone* /
 *Unassigned* chips of the All tab are filters of one list (`nav` +
 `aria-current`, the same known exception as `PeopleGroupTabs`), not tabs.
+
+Company Location uses one disclosure arrow for **Other countries**, as requested
+for this picker. The label and expanded state stay accessible without the icon.
+The country selector uses the native control for the full country list and
+mobile keyboard support.

@@ -137,9 +137,11 @@ function EditValue({
 export default function CustomFieldsRecord({
   object,
   recordId,
+  hideLegacyLocation = false,
 }: {
   object: FieldObject;
   recordId: string;
+  hideLegacyLocation?: boolean;
 }) {
   const [data, setData] = useState<RecordFields | null>(null);
   useEffect(() => {
@@ -157,6 +159,9 @@ export default function CustomFieldsRecord({
     setData(result.ok ? result.data : null);
   }
   if (!data) return null;
+  const definitions = hideLegacyLocation
+    ? data.definitions.filter((field) => !(field.field_type === "text" && field.name.trim().toLowerCase() === "location"))
+    : data.definitions;
   return (
     <section
       aria-label="Custom fields"
@@ -179,12 +184,12 @@ export default function CustomFieldsRecord({
           Read only — parent record editing is not permitted.
         </p>
       )}
-      {data.definitions.length === 0 && (
+      {definitions.length === 0 && (
         <p className="mt-3 text-sm text-neutral-500">
           No active custom fields for this object.
         </p>
       )}
-      {data.definitions.map((d) => {
+      {definitions.map((d) => {
         const v = data.values.find((v) => v.definition_id === d.id);
         return (
           <EditValue
