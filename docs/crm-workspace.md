@@ -594,3 +594,51 @@ are signed for one minute. Archived contacts no longer expose notes or files;
 archiving is not a storage purge. Reminders are CRM tasks, not calendar
 events or scheduled emails. Apply `20261103230000_contact_workspace.sql`
 before using these sections. In Supabase Storage, create a private bucket named\n`contact-files` with a 3 MiB file-size limit. The migration configures object\npolicies without requiring SQL write access to the managed bucket catalog.
+
+### Pipeline follow-up and record activity
+
+Open **Follow-up** from Pipeline to find visible, active deals without an open
+task, with an overdue open task, or without a directly logged email, call, or
+meeting in the past 30 days. The contact check excludes archived interactions;
+a company-wide interaction or a private Gmail thread is not evidence on a deal.
+The queue checks up to 150 deals in the current filters and labels incomplete
+source results as partial. An incomplete read never implies absence.
+
+Deal Overview shows the latest contact from its recent logged activity. Company
+activity distinguishes the signed-in member's Gmail from team CRM records.
+The People activity timeline includes CRM notes alongside existing shared
+contact dates. Notes remain editable from their existing panel. No new provider
+access, synchronization job or storage is introduced.
+
+### Contact discovery
+
+In **People → Discover contacts**, the signed-in member can request a scan of
+their own Google account. Gmail uses the existing `gmail.readonly` or
+`gmail.modify` scope and reads only To headers from up to 12 sent messages
+within 30 days. Calendar uses the existing `calendar.readonly`,
+`calendar.events.readonly`, `calendar.events` or `calendar` scope and samples
+up to 40 events on the primary calendar. Only ended, confirmed, non-private
+meetings with accepted participation contribute candidates. Calendar acceptance
+is not proof of attendance. There are no new OAuth scopes.
+
+Suggestions are transient and private to the requesting view. Known emails,
+the member's own domain, and common automated addresses are suppressed. A
+partial scan is labeled; a failed deduplication check returns no suggestions.
+Approval uses the normal People creation action, which checks for duplicates
+again. The member enters the contact name and may enter an external organization
+label. No companies, deals, group memberships, or merges are created
+automatically. The scan does not store evidence or request mail bodies,
+subjects, meeting titles, descriptions, or attachments.
+
+Relationship evidence and introduction paths appear in Person and Company
+summaries and in Deal Overview for explicitly linked people. Calculations
+continue to use the existing permission, flag and live sharing consent checks.
+In a partial result the highest displayed score need not be the team's highest.
+
+Deal Overview links to a single form for logging the contact or agreement and
+optionally creating its next task with a responsible member and due date. These
+are two writes: a definite task failure leaves the logged update in place and
+offers a task-only retry. After an unconfirmed response, check the record before
+resubmitting. Contact discovery also lets a reviewer link an existing company
+or append the suggested email to a visible person without changing their
+primary email.

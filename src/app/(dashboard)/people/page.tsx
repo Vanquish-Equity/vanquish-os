@@ -1,3 +1,4 @@
+import ContactDiscovery from "@/components/people/ContactDiscovery";
 import DirectoryTableScroll from "@/components/DirectoryTableScroll";
 import ColumnResizeHandle from "@/components/ColumnResizeHandle";
 import { peopleAvatarClass, peopleInitials, peopleTableClass } from "@/components/people/directory-style";
@@ -319,6 +320,7 @@ export default async function PeoplePage({
         </div>
       </header>
 
+      {!openContact && <ContactDiscovery companies={companies ?? []} people={(people ?? []).map(({ id, name }) => ({ id, name }))} />}
       {openContact && <ContactDrawer key={openContact} closeHref={closeHref} profileHref={`/people/${openContact}`}>
         <ContactProfile id={openContact} companies={companies ?? []} />
       </ContactDrawer>}

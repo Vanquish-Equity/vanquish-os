@@ -397,7 +397,7 @@ export default async function CompanyDetailPage({
       ? emailThreads.data.map((thread) => ({
           id: `email-${thread.id}`,
           at: thread.date || new Date(0).toISOString(),
-          eyebrow: "Email",
+          eyebrow: "Email / Your Gmail",
           label: thread.subject,
           detail: thread.snippet || null,
         }))
@@ -428,7 +428,7 @@ export default async function CompanyDetailPage({
         ? `${interaction.type} / ${dealNames.get(interaction.deal_id) ?? "Deal"}`
         : interaction.type,
       label: interaction.subject ?? "Interaction logged",
-      detail: interaction.summary,
+      detail: [interaction.created_by ? memberName(interaction.created_by) : null, interaction.summary].filter(Boolean).join(" · ") || null,
     })),
     ...(activity ?? [])
       .filter((event) =>
@@ -659,6 +659,7 @@ export default async function CompanyDetailPage({
         )}
       </section>
 
+      {intelligence.enabled && intelligence.allowed && <RelationshipIntelligenceSection people={(people??[]).map(p=>({id:p.id,name:p.name})).slice(0,50)} allowed={intelligence.allowed} partial={(people?.length??0)>50} />}
       </RecordPanel>
       <RecordPanel name="deals">
       <section id="deals" className="scroll-mt-16">
@@ -796,7 +797,6 @@ export default async function CompanyDetailPage({
 
       </RecordPanel>
       <RecordPanel name="people">
-      {intelligence.enabled && intelligence.allowed && <RelationshipIntelligenceSection people={(people??[]).map(p=>({id:p.id,name:p.name})).slice(0,50)} allowed={intelligence.allowed} partial={(people?.length??0)>50} />}
 
       <section id="people" className="vq-card-static rounded-[14px] bg-white p-5 scroll-mt-16">
         <h2 className="mb-3 text-[14.5px] font-semibold text-ink">People</h2>
