@@ -1,6 +1,5 @@
 "use client";
 import { startTransition, useEffect, useRef, useState } from "react";
-import MailReviewHistory from "./MailReviewHistory";
 import MailReviewPanel from "./MailReviewPanel";
 import {
   mailCompletionState,
@@ -61,11 +60,13 @@ export default function MailComposer({
   onSent: () => void;
 }) {
   const [senderEmail, setSenderEmail] = useState("");
+  const [profileProblem, setProfileProblem] = useState("");
   const [openSignal, setOpenSignal] = useState(false);
   const [openSignalAvailable, setOpenSignalAvailable] = useState(false);
   const [completion, setCompletion] = useState(false);
   const [aliases, setAliases] = useState<VerifiedAlias[]>([]);
   const [alias, setAlias] = useState("");
+  const [sendersChecked, setSendersChecked] = useState(false);
   const [review, setReview] = useState<MailReview | null>(null);
   const [reviewForm, setReviewForm] = useState<FormData | null>(null);
   const uploadRef = useRef("");
@@ -106,6 +107,7 @@ export default function MailComposer({
       if (enabled) {
         const result = await mailCompletionAliases();
         if (!alive) return;
+        setSendersChecked(true);
         if (result.ok) {
           setAliases(result.data);
           setAlias(
@@ -283,14 +285,25 @@ export default function MailComposer({
     wantsSignature ? null : seed.html,
   );
   useEffect(() => {
-    dialog.current?.showModal();
+    const el = dialog.current;
+    el?.showModal();
+    // Put the cursor where typing starts; otherwise the dialog focuses its
+    // draggable header and shows a focus ring around the title.
+    const target = el?.querySelector<HTMLElement>(
+      seed.to ? (seed.subject ? "#mail-compose-body, .ProseMirror, [contenteditable=true]" : "#mail-subject") : "#mail-to",
+    );
+    target?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
     let canceled = false;
     mailboxProfile().then((result) => {
       if (canceled) return;
       if (result.ok) setSenderEmail(result.data.email);
-      else setStatus(result.message);
+      else {
+        setProfileProblem(result.message);
+        setStatus(result.message);
+      }
     });
     return () => {
       canceled = true;
@@ -483,21 +496,19 @@ export default function MailComposer({
         </div>
       </div>
       <div className="space-y-3 overflow-y-auto p-5">
-        <p className="rounded-xl bg-neutral-50 px-3 py-2 text-[12px] text-neutral-500">
-          From:{" "}
-          <span className="font-medium text-ink">
-            {(completion ? alias : senderEmail) ||
-              "Checking your Google connection…"}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-neutral-50 px-3 py-2 text-[12px] text-neutral-500">
+          <span>
+            From:{" "}
+            <span className="font-medium text-ink">
+              {completion
+                ? alias || (sendersChecked ? "No sender available. Reconnect Google in Settings." : "Checking your Google connection…")
+                : senderEmail || profileProblem || "Checking your Google connection…"}
+            </span>
           </span>
-        </p>
-        {completion && (
-          <div className="space-y-2">
-            <label htmlFor="mail-send-as" className="block text-xs">
-              Verified Google send-as
-            </label>
+          {completion && aliases.length > 1 && (
             <SelectMenu
               id="mail-send-as"
-              buttonClassName="min-h-11"
+              ariaLabel="Send as"
               value={alias}
               options={aliases.map((a) => ({ value: a.email, label: a.email }))}
               disabled={busy || uncertain}
@@ -507,31 +518,17 @@ export default function MailComposer({
                 setDirty(true);
               }}
             />
-            <p className="text-xs text-neutral-500">
-              Each save, send or deletion needs its own review. Save and reopen
-              a changed draft before sending.
-            </p>
-            <button
-              type="button"
-              disabled
-              className="min-h-11 rounded-full border px-4 text-xs opacity-50"
-            >
-              Schedule send (not available yet)
-            </button>
-            <p className="text-xs text-neutral-500">
-              Scheduled sending isn&apos;t turned on yet, so messages can only be
-              sent right away. Live updates of your mailbox are off too.
-            </p>
-            {openSignalAvailable && <label className="flex items-start gap-2 text-xs">
+          )}
+          {completion && openSignalAvailable && (
+            <label className="ml-auto flex items-center gap-2" title="Adds a tiny image to learn if the email was opened. A mail app can load it without anyone reading, so it is only a hint.">
               <Checkbox checked={openSignal} disabled={busy || uncertain} onChange={(event) => {
                 clearReview();
                 setOpenSignal(event.target.checked);
               }} />
-              <span>Track image load for this email<span className="mt-0.5 block text-neutral-500">A signal can come from an email proxy and does not confirm that someone read the message.</span></span>
-            </label>}
-            <MailReviewHistory />
-          </div>
-        )}
+              Track opens
+            </label>
+          )}
+        </div>
         {(["to", "cc", "bcc"] as const).map((key) => (
           <div key={key} className="flex items-center gap-3">
             <label

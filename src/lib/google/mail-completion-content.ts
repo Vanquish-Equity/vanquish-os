@@ -90,7 +90,9 @@ export async function verifiedMailAliases(
   if (!Array.isArray(data.sendAs) || data.sendAs.length > 50)
     throw Error("Alias response exceeds limit");
   return data.sendAs
-    .filter((a) => a.verificationStatus === "accepted")
+    // Gmail leaves verificationStatus out for the primary address (only
+    // other send-as addresses go through verification), so primary counts.
+    .filter((a) => a.isPrimary === true || a.verificationStatus === "accepted")
     .map((a) => {
       const emails = parseAddresses(a.sendAsEmail);
       if (emails.length !== 1 || emails[0] !== a.sendAsEmail)

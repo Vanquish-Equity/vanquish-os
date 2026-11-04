@@ -12,6 +12,7 @@ import MailThreadReader from "./MailThreadReader";
 import MailFolderNav from "./MailFolderNav";
 import MailThreadRows from "./MailThreadRows";
 import { button, empty } from "./mail-ui";
+import MailReviewHistory from "./MailReviewHistory";
 import MailComposer, { type ComposeSeed } from "./MailComposer";
 import {
   listMail,
@@ -364,6 +365,7 @@ export default function MailWorkspace({
       <p className="border-b border-neutral-100 px-5 py-2 text-[11px] text-neutral-400">
         Google mailbox · {mailboxEmail}
       </p>
+      {folder === "sent" && <SentOpenSignals />}
       <div className="flex flex-wrap items-center gap-3 border-b border-neutral-100 p-4">
         <button
           type="button"
@@ -671,6 +673,25 @@ export default function MailWorkspace({
           }}
         />
       )}
+    </div>
+  );
+}
+
+// Open signals of sent messages live with the Sent folder, not in the composer.
+// Only shown to members who have mail completion turned on.
+function SentOpenSignals() {
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    mailCompletionState().then((value) => alive && setEnabled(value)).catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+  if (!enabled) return null;
+  return (
+    <div className="border-b border-neutral-100 px-4 py-3">
+      <MailReviewHistory />
     </div>
   );
 }
