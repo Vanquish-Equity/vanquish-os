@@ -42,7 +42,7 @@ export default async function ContactProfile({ id, companies, full = false }: {
     db.from("contact_notes").select("id,author_email,body,created_at,visibility,recipients:contact_note_recipients(member_email)").eq("person_id", id)
       .order("created_at", { ascending: false }).order("id").limit(30),
     db.from("contact_reminders").select("id,title,due_on,visibility,created_by,completed_at,completed_by,recipients:contact_reminder_recipients(member_email)")
-      .eq("person_id", id).order("due_on").order("id").limit(60),
+      .eq("person_id", id).order("completed_at", { ascending: true, nullsFirst: true }).order("due_on").order("id").limit(60),
     canReadFiles ? db.storage.from("contact-files").list(id, { limit: 50, sortBy: { column: "created_at", order: "desc" } }) : undefined,
   ]);
   // Before the privacy migration is applied, notes load without visibility.

@@ -244,8 +244,8 @@ alter table public.notifications
   add column contact_reminder_id uuid references public.contact_reminders(id) on delete cascade;
 create index notifications_person_idx on public.notifications(person_id) where person_id is not null;
 create index notifications_contact_reminder_idx on public.notifications(contact_reminder_id) where contact_reminder_id is not null;
-alter table public.notifications drop constraint notifications_kind_check;
-alter table public.notifications drop constraint notifications_target_check;
+alter table public.notifications drop constraint if exists notifications_kind_check;
+alter table public.notifications drop constraint if exists notifications_target_check;
 alter table public.notifications add constraint notifications_kind_check check (
   kind in ('chat_direct','chat_mention','chat_group','task_assigned','draft_assigned',
            'comment_mention','comment_reply','contact_reminder','contact_note_tag'));
