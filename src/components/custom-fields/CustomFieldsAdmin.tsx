@@ -3,6 +3,7 @@ import { useEffect, useState, startTransition, useTransition } from "react";
 import SelectMenu from "@/components/SelectMenu";
 import Checkbox from "@/components/Checkbox";
 import {
+  deleteFieldDefinition,
   loadFieldSchema,
   saveFieldDefinition,
   saveFieldOption,
@@ -226,6 +227,9 @@ export default function CustomFieldsAdmin({ fixedObject }: { fixedObject?: Field
   const [object, setObject] = useState<FieldObject>(fixedObject ?? "people"),
     [defs, setDefs] = useState<FieldDefinition[] | null>(null),
     [selected, setSelected] = useState("");
+  const [confirmation, setConfirmation] = useState<string | null>(null);
+  const [deleteMessage, setDeleteMessage] = useState("");
+  const [deleting, startDelete] = useTransition();
   useEffect(() => {
     let live = true;
     startTransition(async () => {
@@ -283,8 +287,29 @@ export default function CustomFieldsAdmin({ fixedObject }: { fixedObject?: Field
             label: d.name + (d.archived ? " · archived" : ""),
           })),
         ]}
-        onChange={setSelected}
+        onChange={(id) => { setSelected(id); setConfirmation(null); setDeleteMessage(""); }}
       />
+      {def?.archived && <div className="my-3 space-y-2">
+        {confirmation === def.id ? <>
+          <p className="text-sm">Permanently delete “{def.name}” and its options? Definitions with stored values stay archived.</p>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" disabled={deleting} className="rounded-full border border-red-300 px-3 py-2 text-xs font-semibold text-red-800"
+              onClick={() => startDelete(async () => {
+                try {
+                  const result = await deleteFieldDefinition(def.id, def.version);
+                  if (!result.ok) { setDeleteMessage(result.message); return; }
+                  setConfirmation(null);
+                  setSelected("");
+                  setDefs((current) => current?.filter(({ id }) => id !== def.id) ?? null);
+                  setDeleteMessage("Definition deleted.");
+                } catch { setDeleteMessage("Deletion could not be confirmed. Reload before retrying."); }
+              })}>{deleting ? "Deleting…" : "Delete permanently"}</button>
+            <button type="button" disabled={deleting} onClick={() => setConfirmation(null)} className="px-3 py-2 text-xs">Cancel</button>
+          </div>
+        </> : <button type="button" onClick={() => setConfirmation(def.id)}
+          className="rounded-full border border-red-200 px-3 py-2 text-xs font-semibold text-red-800">Delete definition</button>}
+      </div>}
+      <p role="status" className="text-xs text-neutral-600">{deleteMessage}</p>
       <DefinitionForm
         key={
           object + ":" + selected + ":" + defs.map((d) => d.version).join(",")

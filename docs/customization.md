@@ -402,3 +402,10 @@ by the page's `cols`/`col` parameters (all by default) that a view can hold
 (Company, Email, LinkedIn); on Pipeline, Name, Company and Stage. The popover
 says "Your view will include: ..." and, if the list shows columns a view cannot
 hold (Last email, Next meeting, Last interaction), "Not included: ...".
+
+An admin can permanently delete an unused custom field in **Custom field
+definitions**: archive and save it, then choose **Delete definition** and
+confirm. Its options are removed. A field with stored value rows (including
+cleared values or values on restricted records) can stay archived but cannot be
+deleted. Existing audit metadata is preserved. The action requires the
+`20261104120000_custom_field_definition_delete.sql` migration.

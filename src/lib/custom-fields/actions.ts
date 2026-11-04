@@ -267,3 +267,20 @@ export async function searchFieldRecords(input: {
     return unavailable;
   }
 }
+
+export async function deleteFieldDefinition(id: string, version: number) {
+  if (!isUuid(id) || !Number.isInteger(version) || version < 1 || version > 2147483647) return unavailable;
+  const access = await getAccess();
+  if (access.status !== "member" || !access.permissions.has("admin")) return unavailable;
+  const { error } = await (await createClient()).rpc("custom_field_delete_definition", {
+    p_id: id, p_version: version,
+  });
+  if (error?.code === "23503") {
+    return { ok: false as const, message: "This field has stored values and cannot be deleted. Leave it archived to hide it." };
+  }
+  if (error?.code === "40001") return schemaChanged;
+  if (error?.code === "PGRST202") return { ok: false as const, message: "Deleting definitions requires the database update." };
+  if (error) return unavailable;
+  for (const path of ["/settings", "/people", "/companies", "/pipeline"]) revalidatePath(path);
+  return { ok: true as const };
+}
