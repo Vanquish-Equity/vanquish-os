@@ -16,6 +16,8 @@ const ICONS: Record<NotificationKind, IconName> = {
   draft_assigned: "communications",
   comment_mention: "comment",
   comment_reply: "comment",
+  contact_reminder: "tasks",
+  contact_note_tag: "people",
 };
 
 // Opening a notification marks it read and goes to its destination (the

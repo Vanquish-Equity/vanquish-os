@@ -13,7 +13,9 @@ export type NotificationKind =
   | "task_assigned"
   | "draft_assigned"
   | "comment_mention"
-  | "comment_reply";
+  | "comment_reply"
+  | "contact_reminder"
+  | "contact_note_tag";
 
 export type NotificationRow = {
   id: string;
@@ -25,6 +27,9 @@ export type NotificationRow = {
   draft_id: string | null;
   // Migration 0019; absent before it.
   comment_id?: string | null;
+  // Migration 20261104140000; absent before it.
+  person_id?: string | null;
+  contact_reminder_id?: string | null;
   created_at: string;
   read_at: string | null;
 };
@@ -37,7 +42,14 @@ export type NotificationContext = {
   draftSubjects: Map<string, string>;
   // Comment id -> where it lives and its text (from 0019, under RLS).
   comments?: Map<string, { record: string; href: string; snippet: string }>;
+  // Contact name by person id, and reminder title by reminder id (read under
+  // RLS: a reminder the recipient can no longer see has no title).
+  personNames?: Map<string, string>;
+  reminderTitles?: Map<string, string>;
 };
+
+export const contactHref = (personId: string | null | undefined) =>
+  personId && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(personId) ? `/people?contact=${personId}` : "/people";
 
 export type NotificationView = {
   id: string;
@@ -91,6 +103,25 @@ export function describeNotification(row: NotificationRow, context: Notification
               : `${actor} mentioned you on ${record}`,
         snippet: comment?.snippet ?? null,
         href: comment?.href ?? "/notifications",
+      };
+    }
+    case "contact_reminder": {
+      const person = row.person_id ? context.personNames?.get(row.person_id) : undefined;
+      const title = row.contact_reminder_id ? context.reminderTitles?.get(row.contact_reminder_id) : undefined;
+      return {
+        ...base,
+        title: `${actor} included you in a reminder${person ? ` on ${person}` : ""}`,
+        snippet: title ?? null,
+        href: contactHref(row.person_id),
+      };
+    }
+    case "contact_note_tag": {
+      const person = row.person_id ? context.personNames?.get(row.person_id) : undefined;
+      return {
+        ...base,
+        title: `${actor} tagged you in a note on ${person ?? "a contact"}`,
+        snippet: null,
+        href: contactHref(row.person_id),
       };
     }
     case "draft_assigned": {

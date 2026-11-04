@@ -586,14 +586,42 @@ be narrowed to 30 days or filtered by activity type. The connection ranking
 counts distinct days, not emails or meetings, and does not use private
 subjects, message bodies, or calendar titles.
 
-The contact workspace also supports team notes (only the author can remove
-a note), dated follow-up reminders assigned to the creator in Tasks, and
-manual attachments up to 3 MB in the private contact-files bucket. The Files
-tab, downloads, uploads, and removal require Documents access. Downloads
-are signed for one minute. Archived contacts no longer expose notes or files;
-archiving is not a storage purge. Reminders are CRM tasks, not calendar
-events or scheduled emails. Apply `20261103230000_contact_workspace.sql`
-before using these sections. In Supabase Storage, create a private bucket named\n`contact-files` with a 3 MiB file-size limit. The migration configures object\npolicies without requiring SQL write access to the managed bucket catalog.
+The contact workspace also supports notes, dated reminders, and manual
+attachments up to 3 MB in the private contact-files bucket. People and their
+notes stay shared by active members, but each note and reminder has a **Who
+can see this** choice when it is created: **Team** (every active member, the
+default and the value of every earlier note), **Private** (only the author) or
+**Specific people** (the author and the members picked, up to 10, active
+members only). Team items can also *include* members. Included members get a
+bell notification (reminders follow the Assigned tasks preference, note tags
+follow Mentions and replies) that opens the contact drawer
+(`/people?contact=<id>`); Team items notify nobody unless someone is included.
+Notifications hold references only: the note body is never copied. Admins get
+no special access; a Private or Specific-people item is invisible to everyone
+else in every query and join. Only the author can remove a note.
+
+A reminder is **one shared row** in `contact_reminders` (title, due date,
+visibility, creator) with its included members in
+`contact_reminder_recipients`. The creator or any included member of a
+non-private reminder can mark it done through `complete_contact_reminder`;
+it is then done for everyone, with who finished it and when. A Team viewer who
+is not included cannot complete it, and a second completion is refused. Only
+the creator edits or deletes the reminder and changes who is included.
+Reminders no longer create Tasks (old reminder tasks and `tasks.person_id` are
+left as they were). The Reminders tab shows who each is for, the due date
+(overdue in red) and its visibility; Home Today lists the member's own open
+reminders (created or included, soonest first, at most 10) from one query that
+runs in the existing parallel load (`my_contact_reminders`). Notes and
+reminders vanish on the next load from a member who is no longer included.
+The Files tab, downloads, uploads, and removal require Documents access.
+Downloads are signed for one minute. Archived contacts no longer expose notes,
+reminders or files; archiving is not a storage purge. Reminders are not
+calendar events or scheduled emails. Apply `20261103230000_contact_workspace.sql`
+and then `20261104140000_contact_privacy.sql` before using these sections (the
+profile still loads notes, without visibility labels, until the second is
+applied). In Supabase Storage, create a private bucket named `contact-files`
+with a 3 MiB file-size limit. The migrations configure object policies without
+requiring SQL write access to the managed bucket catalog.
 
 ### Pipeline follow-up and record activity
 
