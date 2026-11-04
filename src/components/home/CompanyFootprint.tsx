@@ -57,8 +57,8 @@ export default function CompanyFootprint({ initial }: { initial: CompanyFootprin
 
   return (
     <section aria-labelledby="company-footprint" className="min-w-0">
-      <div className="grid min-w-0 items-start gap-2 sm:grid-cols-[minmax(10.5rem,1fr)_minmax(0,3fr)] sm:gap-6">
-        <div className="min-w-0 sm:pt-[clamp(1.25rem,5vw,4rem)]">
+      <div className="grid min-w-0 items-start gap-2 sm:grid-cols-[minmax(10rem,1fr)_minmax(0,3.6fr)] sm:gap-6">
+        <div className="min-w-0 sm:pt-[clamp(1.5rem,5vw,4.5rem)]">
           <h2 id="company-footprint" className="text-xs font-semibold uppercase tracking-[.13em] text-cyan-800">Company footprint</h2>
           {count > 0 ? <p className="mt-1.5 text-sm text-neutral-600">
             {count} {count === 1 ? "company" : "companies"} across {cities.length} {cities.length === 1 ? "US city" : "US cities"}

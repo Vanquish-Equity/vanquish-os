@@ -368,10 +368,11 @@ greeting rises in before the map and its arcs. If the OS intro plays, the
 sequence starts when the intro finishes or is skipped. Reduced motion shows
 the final view directly. The map reads at most 1,000 nonempty locations from
 active Companies visible to the member under the existing access policies.
-Drag to pan, pinch or use the zoom buttons,
-and choose Perspective, Overhead, or Opposite angle. A focused map also accepts
-arrow keys, +/−, Home, and the mouse wheel. Select a city for its count and a
-link to the filtered Companies list, or use **Explore cities**. Returning to
+Drag to pan, pinch or use the zoom buttons, and choose Perspective, Overhead,
+or Opposite angle. Borders, city markers, and labels keep their visual weight
+as you zoom; more city labels appear where there is room. A focused map
+accepts arrow keys, +/−, Home, and the mouse wheel. Select a city to open its
+count and filtered Companies link next to its marker, or use **Explore cities**. Returning to
 Home reads the current locations. While Home is visible, its map also refreshes
 on focus and every 30 seconds, preserving the current view. State borders
 highlight states with at least one plotted company. Locations outside the supported city list are not
