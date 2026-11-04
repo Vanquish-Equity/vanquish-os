@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
-import { cityArcs, groupCompanyCities, projectFootprintPoint, type MapPerspective } from "./company-map";
+import { cityArcs, groupCompanyCities } from "./company-map";
+import { DEFAULT_MAP_CAMERA, MAP_ANGLES, mapLens, renderMapArc } from "./map-camera";
 import { US_CITY_POINTS } from "./us-map-data";
 import { US_CITIES } from "@/lib/companies/locations";
 
@@ -26,12 +27,13 @@ it("plots every suggested US location and limits arcs to a sparse connected netw
 
 it("keeps arcs connected to the same cities in every perspective", () => {
   const cities = groupCompanyCities([{ location: "Seattle, WA" }, { location: "Miami, FL" }]);
-  const perspectives: MapPerspective[] = ["angled", "overhead", "reverse"];
-  const paths = perspectives.map((perspective) => {
-    const [{ key, path }] = cityArcs(cities, perspective);
-    const [from, to] = key.split("/").map((label) => cities.find((city) => city.label === label)!);
-    expect(path.startsWith(`M${projectFootprintPoint(...from.point, perspective).join(",")} C`)).toBe(true);
-    expect(path.endsWith(` ${projectFootprintPoint(...to.point, perspective).join(",")}`)).toBe(true);
+  const [{ from, to }] = cityArcs(cities);
+  const paths = Object.values(MAP_ANGLES).map((angles) => {
+    const { project } = mapLens({ ...DEFAULT_MAP_CAMERA, ...angles });
+    const format = (point: readonly number[]) => point.map((n) => n.toFixed(1)).join(",");
+    const path = renderMapArc(from, to, project);
+    expect(path.startsWith(`M${format(project(from))}L`)).toBe(true);
+    expect(path.endsWith(`L${format(project(to))}`)).toBe(true);
     return path;
   });
   expect(new Set(paths).size).toBe(3);
