@@ -139,8 +139,13 @@ export default async function ContactProfile({ id, companies, full = false }: {
     </section>
     </div>
     <div className="min-w-0 space-y-4">
+    {intelligence.enabled && intelligence.allowed && <RelationshipIntelligenceSection people={[{ id, name: person.name }]} allowed />}
     <ContactActivity today={today} failed={!!activity.error} limited={(activity.data?.length ?? 0) > 120}
-      items={rows.map((item, index) => ({ key: String(index), member: names.get(item.member_email) ?? null, kind: item.kind, day: item.occurred_on }))} />
+      items={[
+        ...rows.map((item, index) => ({ key: `shared-${index}`, member: names.get(item.member_email) ?? null, kind: item.kind, day: item.occurred_on })),
+        ...(noteResult.data ?? []).map((note) => ({ key: `note-${note.id}`, member: names.get(note.author_email) ?? "Team member",
+          kind: "note", day: note.created_at.slice(0, 10), detail: note.body })),
+      ].sort((a, b) => b.day.localeCompare(a.day) || a.key.localeCompare(b.key))} />
 
     {deals.length > 0 && <section className="vq-card-static rounded-[14px] bg-white p-4">
       <h2 className="text-sm font-semibold">Linked deals</h2>
@@ -152,6 +157,5 @@ export default async function ContactProfile({ id, companies, full = false }: {
     </section>}
     </div>
     </div>
-    {intelligence.enabled && intelligence.allowed && <RelationshipIntelligenceSection people={[{ id, name: person.name }]} allowed />}
   </div>;
 }

@@ -381,3 +381,34 @@ export async function savePersonOrganization(input: {
   revalidatePath(`/people/${input.personId}`);
   return { ok: true };
 }
+
+export async function addSecondaryContactEmail(input: { personId: string; email: string }): Promise<PersonActionResult> {
+  const accessError = await actionAccessError();
+  if (accessError) return { ok: false, message: accessError };
+  const email = normalizeEmail(input.email);
+  if (!UUID.test(input.personId) || !isValidEmail(email)) return { ok: false, message: EMAIL_INVALID };
+  const db = await createClient();
+  const { data: person, error: lookupError } = await db.from("people").select("id,primary_organization_id")
+    .eq("id", input.personId).is("archived_at", null).maybeSingle();
+  if (lookupError || !person) return { ok: false, message: "That person is unavailable." };
+  const owner = await emailOwner(db, email);
+  if (owner?.person_id === person.id) return { ok: true, personId: person.id };
+  if (owner) return { ok: false, message: EMAIL_IN_USE };
+  const { error } = await db.from("person_emails").insert({ person_id: person.id, email, is_primary: false });
+  if (error) return { ok: false, message: error.code === "23505" ? EMAIL_IN_USE : "Could not add the email." };
+  revalidatePeoplePaths(person.primary_organization_id);
+  revalidatePath(`/people/${person.id}`);
+  return { ok: true, personId: person.id };
+}
+
+export async function createDiscoveredPerson(input: CreatePersonInput): Promise<PersonActionResult> {
+  if (input.companyId) {
+    const accessError = await actionAccessError();
+    if (accessError) return { ok: false, message: accessError };
+    if (!UUID.test(input.companyId)) return { ok: false, message: "Choose an existing company." };
+    const db = await createClient();
+    const { data } = await db.from("companies").select("id").eq("id", input.companyId).is("deleted_at", null).maybeSingle();
+    if (!data) return { ok: false, message: "That company is unavailable." };
+  }
+  return createPersonAction(input);
+}

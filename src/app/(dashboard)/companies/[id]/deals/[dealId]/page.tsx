@@ -1,3 +1,6 @@
+import RelationshipIntelligenceSection from "@/components/RelationshipIntelligenceSection";
+import { relationshipIntelligenceState } from "@/lib/relationships/intelligence-queries";
+import { CONTACT_TYPES } from "@/lib/deals/follow-up";
 import RecordWorkspace, { RecordPanel } from "@/components/RecordWorkspace";
 import { isRequirementSatisfied } from "@/lib/documents/requirements";
 import { customizationState } from "@/lib/customization/state";
@@ -110,6 +113,7 @@ type InteractionRow = {
   occurred_at: string;
   subject: string | null;
   summary: string | null;
+  created_by: string | null;
 };
 
 type TaskRowData = {
@@ -268,7 +272,7 @@ export default async function DealDetailPage({
     }>,
     supabase
       .from("interactions")
-      .select("id,type,occurred_at,subject,summary")
+      .select("id,type,occurred_at,subject,summary,created_by")
       .eq("deal_id", dealId)
       .is("archived_at", null)
       .order("occurred_at", { ascending: false })
@@ -340,6 +344,14 @@ export default async function DealDetailPage({
   if (!deal || !deal.company) notFound();
   const { members: assignmentMembers, byDeal: assignmentsByDeal } = await loadDealAssignees(supabase, [deal.id]);
   const company = deal.company;
+  const intelligence = await relationshipIntelligenceState().catch(() => ({ enabled: false, allowed: false }));
+  const linkedContacts = intelligence.enabled && intelligence.allowed
+    ? await supabase.from("deal_people").select("person:people!inner(id,name)").eq("deal_id", deal.id)
+        .is("person.archived_at", null).order("person_id").limit(51)
+    : null;
+  const connectionPeople = (linkedContacts?.data ?? []).flatMap(({ person }) =>
+    (person ? [person] : []) as unknown as { id: string; name: string }[]);
+
   const [comments, commentDirectory] = await commentsPromise;
   const taskRows = taskResult.data;
 
@@ -440,6 +452,10 @@ export default async function DealDetailPage({
 
   // Stage changes are listed in Stage history, so the matching trigger
   // events are left out of the activity feed.
+  const lastContact = (interactions ?? []).find((item) => CONTACT_TYPES.includes(item.type) && Date.parse(item.occurred_at) <= new Date().getTime());
+  const contactActor = lastContact?.created_by
+    ? assignmentMembers.find((member) => member.email === lastContact.created_by)?.name ?? "Team member"
+    : null;
   const timeline: TimelineItem[] = [
     ...(interactions ?? []).map((interaction) => ({
       id: `interaction-${interaction.id}`,
@@ -632,6 +648,7 @@ export default async function DealDetailPage({
               {!isArchived && <NewTaskModal companies={[]} deals={[]} priorities={priorities ?? []}
                 link={{ companyId: company.id, companyName: company.name, dealId: deal.id, dealName: label }}
                 members={taskMembers} currentUserEmail={currentUserEmail} buttonLabel="Add Task" />}
+              {!isArchived && <a href="#log-update" className="text-xs font-semibold text-cyan-800 hover:underline">Log contact and next action</a>}
               <a href="#tasks" className="text-xs font-semibold text-cyan-800 hover:underline">View tasks ({openTasks.length} open)</a>
             </div>
           </section>
@@ -640,6 +657,9 @@ export default async function DealDetailPage({
             <dl className="my-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-sm">
               <dt className="text-neutral-600">Stage</dt><dd className="font-semibold">{deal.stage?.name ?? "No stage"}</dd>
               <dt className="text-neutral-600">Priority</dt><dd>{deal.priority?.name ?? "Not set"}</dd>
+              <dt className="text-neutral-600">Last logged contact</dt><dd>{lastContact
+                ? <a href="#activity" className="text-cyan-800 hover:underline">{formatExactDate(lastContact.occurred_at)} · {lastContact.type}{contactActor ? ` · ${contactActor}` : ""}</a>
+                : interactions ? "None in recent deal activity" : "Unavailable"}</dd>
               <dt className="text-neutral-600">Responsible</dt><dd>{(assignmentsByDeal.get(deal.id) ?? []).map((member) => member.name).join(", ") || deal.owner || "Unassigned"}</dd>
             </dl>
             {!isArchived && <a href="#deal-overview" className="text-xs font-semibold text-cyan-800 hover:underline">Edit stage and deal details</a>}
@@ -661,6 +681,11 @@ export default async function DealDetailPage({
             </li>)}
           </ul>}
         </section>}
+        {intelligence.enabled && intelligence.allowed && <div id="deal-connections">
+          {linkedContacts?.error || !connectionPeople.length
+            ? <p className="vq-card-static rounded-[14px] bg-white p-4 text-sm text-neutral-600">{linkedContacts?.error ? "Connections are unavailable right now." : "No active contacts are linked to this deal."}</p>
+            : <RelationshipIntelligenceSection people={connectionPeople} allowed partial={connectionPeople.length > 50} />}
+        </div>}
       </RecordPanel>
       <RecordPanel name="details">
       <CustomFieldsGate enabled={(await customizationState()).templates}><ApplyTemplate company={companyId} deal={dealId}/></CustomFieldsGate>
@@ -989,6 +1014,7 @@ export default async function DealDetailPage({
               initialDealId={deal.id}
               lockDeal
               title="Log update"
+              followUpMembers={taskMembers}
             />
           </div>
         )}

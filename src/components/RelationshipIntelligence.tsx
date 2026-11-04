@@ -163,15 +163,15 @@ export default function RelationshipIntelligence({
                 </p>
               )}
               <h3 className="font-semibold">
-                Strength for the selected person, as of {formatDay(graph.asOf)}
+                Who knows this person · as of {formatDay(graph.asOf)}
               </h3>
-              {strengths.map((e) => (
+              {strengths.map((e, index) => (
                 <article
                   key={e.member}
                   className="rounded-xl border border-neutral-100 p-3"
                 >
                   <p>
-                    {e.memberName}:{" "}
+                    {index === 0 && (result?.partial ? "Highest score found: " : "Strongest shared connection: ")}{e.memberName}:{" "}
                     <strong>{relationshipScore(e, graph.asOf!)}/100</strong> 
                     {result?.partial ? " (at least)" : ""}
                   </p>

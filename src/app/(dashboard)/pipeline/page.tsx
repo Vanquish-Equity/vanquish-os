@@ -1,3 +1,4 @@
+import { CONTACT_TYPES, followUpReasons } from "@/lib/deals/follow-up";
 import { customizationState } from "@/lib/customization/state";
 import ViewsPanel from "@/components/customization/ViewsPanel";
 import { readCustomFieldsState } from "@/lib/custom-fields/state";
@@ -87,6 +88,7 @@ export default async function PipelinePage({
 }) {
   const { filter, hideTerminal, priority, stage, view, member: memberParam } = await searchParams;
   const showArchived = view === "archived";
+  const showFollowUp = view === "follow-up";
   // Membership and the feature gates do not depend on the deal queries (RLS
   // limits every row), so they start now and are awaited with them below.
   const memberPromise = requireMember();
@@ -149,7 +151,7 @@ export default async function PipelinePage({
       .select("id,name,company_aliases(alias)")
       .is("deleted_at", null)
       .order("name") as unknown as Promise<{ data: CompanyRow[] | null }>,
-    supabase.from("tasks").select("deal_id,title,due_at").eq("status", "open").is("archived_at", null)
+    showFollowUp ? Promise.resolve({ data: [] }) : supabase.from("tasks").select("deal_id,title,due_at").eq("status", "open").is("archived_at", null)
       .not("deal_id", "is", null).order("due_at", { ascending: true, nullsFirst: false }) as unknown as Promise<{
       data: { deal_id: string; title: string; due_at: string | null }[] | null;
     }>,
@@ -207,6 +209,44 @@ export default async function PipelinePage({
       nextAction: nextActionByDeal.get(deal.id) ?? null,
       assignees: assigneesByDeal.get(deal.id) ?? [],
     }));
+  const followUpDeals = showFollowUp
+    ? visibleDeals.filter((deal) => deal.company && !deal.outcome && !deal.stage?.is_terminal &&
+        (!memberParam || deal.assignees.some((assignee) => assignee.email === memberParam)))
+    : [];
+  const followUpSample = followUpDeals.slice(0, 150);
+  const now = new Date().getTime();
+  const dealIds = followUpSample.map(({ id }) => id);
+  const [recent, followUpTasks] = dealIds.length
+    ? await Promise.all([
+        supabase.from("interactions").select("deal_id", { count: "exact" })
+          .in("deal_id", dealIds).in("type", CONTACT_TYPES).is("archived_at", null)
+          .gte("occurred_at", new Date(now - 30 * 86400000).toISOString())
+          .lte("occurred_at", new Date(now).toISOString()).limit(500),
+        supabase.from("tasks").select("deal_id,title,due_at", { count: "exact" })
+          .in("deal_id", dealIds).eq("status", "open").is("archived_at", null)
+          .order("due_at", { ascending: true, nullsFirst: false }).order("id").limit(500),
+      ])
+    : [null, null];
+  const recentIds = new Set(recent?.data?.map(({ deal_id }) => deal_id));
+  const contactComplete = recent?.count != null && recent.count === recent.data?.length && !recent.error;
+  const tasksComplete = followUpTasks?.count != null && followUpTasks.count === followUpTasks.data?.length && !followUpTasks.error;
+  const queueTasks = new Map<string, { title: string; due_at: string | null }>();
+  for (const task of followUpTasks?.data ?? []) {
+    if (task.deal_id && !queueTasks.has(task.deal_id)) queueTasks.set(task.deal_id, task);
+  }
+  const queue = followUpSample.flatMap((deal) => {
+    const task = queueTasks.get(deal.id);
+    const reasons = followUpReasons({ task: task ?? (tasksComplete ? null : undefined),
+      contact: recentIds.has(deal.id) ? true : contactComplete ? false : undefined, now });
+    return reasons.length ? [{ deal, reasons, task }] : [];
+  });
+  const viewHref = (next?: string) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries({ filter, hideTerminal, priority, stage, member: memberParam, view: next })) {
+      if (value) params.set(key, value);
+    }
+    return params.size ? `/pipeline?${params}` : "/pipeline";
+  };
   const totalDeals = visibleDeals.length;
   // Only what changes a card's column membership belongs here. Assignees
   // (and anything else PipelineBoard already re-renders from fresh props)
@@ -250,7 +290,7 @@ export default async function PipelinePage({
 
   return (
     <div className={`flex min-w-0 flex-col gap-3 px-4 py-4 sm:px-7 sm:py-6 ${showArchived || !stages.length ? "" : "h-full"}`}>
-      <header className="flex items-start justify-between gap-4">
+      <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">
             Pipeline
@@ -271,11 +311,15 @@ export default async function PipelinePage({
           rounds={rounds}
           openOnNewParam
         />
+        {!showArchived && <Link href={viewHref(showFollowUp ? undefined : "follow-up")}
+          className="shrink-0 rounded-full border border-neutral-200 px-3 py-2 text-xs font-semibold text-cyan-800">
+          {showFollowUp ? "Back to board" : "Follow-up"}
+        </Link>}
       </header>
 
       <CustomFieldsGate enabled={viewsState.views}><ViewsPanel kind="pipeline" kanban={viewsState.kanban}/></CustomFieldsGate>
       {showArchived && toolbarTabs}
-      {!showArchived && !stages.length && toolbar}
+      {!showArchived && (!stages.length || showFollowUp) && toolbar}
 
       {showArchived ? (
         <div className="vq-card-static rounded-[14px] bg-white">
@@ -339,6 +383,23 @@ export default async function PipelinePage({
             })
           )}
         </div>
+      ) : showFollowUp ? (
+        <section className="vq-card-static min-h-0 overflow-auto rounded-[14px] bg-white p-4">
+          <h2 className="text-sm font-semibold">Deals that need follow-up</h2>
+          <p className="mt-1 text-xs text-neutral-600">Active deals in the current view. Contact checks use calls, meetings and emails logged directly on the deal.</p>
+          {(followUpDeals.length > 150 || (followUpSample.length > 0 && (!contactComplete || !tasksComplete))) &&
+            <p className="mt-2 text-xs text-neutral-600">Partial results. Some deals, tasks or contact records could not be checked.</p>}
+          {queue.length === 0 && <p className="mt-3 text-sm text-neutral-600">No follow-up flags found in the records checked.</p>}
+          <ul className="mt-2 divide-y divide-neutral-100">{queue.map(({ deal, reasons, task }) => (
+            <li key={deal.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
+              <div className="min-w-0">
+                <Link href={dealHref(deal.company!.id, deal.id)} className="font-semibold text-cyan-800 hover:underline">{deal.label}</Link>
+                <p className="text-xs text-neutral-600">{deal.assignees.map(({ name }) => name).join(", ") || deal.owner || "Unassigned"}{task ? ` · ${task.title}${task.due_at ? ` · Due ${formatExactDate(task.due_at)}` : ""}` : ""}</p>
+              </div>
+              <span className="text-xs text-neutral-600">{reasons.join(" · ")}</span>
+            </li>
+          ))}</ul>
+        </section>
       ) : !stages.length ? (
         <div className="vq-card-static rounded-[14px] bg-white p-6 text-sm text-neutral-500">
           No pipeline stages are set up yet. Ask an admin to set them up.

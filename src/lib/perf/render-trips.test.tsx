@@ -45,6 +45,7 @@ vi.mock("next/headers", () => ({
   cookies: async () => ({ get: () => undefined, getAll: () => [], set: () => {} }),
 }));
 vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: () => {} }),
   redirect: (to: string) => {
     throw new Error(`redirect:${to}`);
   },
