@@ -4,7 +4,6 @@
   }
 
   .arc {
-    stroke-dasharray: 1;
     animation: trace-in 780ms cubic-bezier(.32, .05, .25, 1) 290ms backwards;
   }
 
@@ -42,8 +41,8 @@
 }
 
 @keyframes trace-in {
-  from { stroke-dashoffset: 1; opacity: 0; }
-  to { stroke-dashoffset: 0; }
+  from { stroke-dasharray: 1; stroke-dashoffset: 1; opacity: 0; }
+  to { stroke-dasharray: 1; stroke-dashoffset: 0; }
 }
 
 @keyframes markers-in {
@@ -51,15 +50,90 @@
   to { opacity: 1; }
 }
 
-.city {
-  cursor: pointer;
-  outline: none;
+.geography[data-exploring="true"] {
+  mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent),
+    linear-gradient(to bottom, transparent, black 7%, black 93%, transparent);
+  mask-composite: intersect;
 }
 
-.city:hover .cityHalo,
-.city:focus-visible .cityHalo,
-.city[aria-pressed="true"] .cityHalo {
-  opacity: 1;
-  stroke: #007e96;
-  stroke-width: 1.25;
+.city {
+  position: absolute;
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  transform: translate(-50%, -50%);
+  place-items: center;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.cityDot {
+  width: .5rem;
+  height: .5rem;
+  border: 1px solid white;
+  border-radius: 50%;
+  background: #007e96;
+  box-shadow: 0 0 0 3px rgb(130 224 235 / .5);
+}
+
+.city:hover .cityDot,
+.city:focus-visible .cityDot,
+.city[aria-expanded="true"] .cityDot {
+  box-shadow: 0 0 0 4px rgb(130 224 235 / .7), 0 0 0 5px #007e96;
+}
+
+.city:focus-visible {
+  outline: 2px solid #0e7490;
+  border-radius: 50%;
+}
+
+.cityLabel {
+  position: absolute;
+  top: calc(50% + .48rem);
+  left: 50%;
+  transform: translateX(-50%);
+  color: #3b616b;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
+  text-shadow: 0 0 3px white, 1px 1px white, -1px -1px white;
+  pointer-events: none;
+}
+
+.cityLabel[data-align="start"] { transform: translateX(0); }
+.cityLabel[data-align="end"] { transform: translateX(-100%); }
+
+.cityPopup {
+  position: absolute;
+  z-index: 15;
+  left: clamp(5.625rem, var(--marker-x), calc(100% - 5.625rem));
+  top: var(--marker-y);
+  width: min(11.25rem, 100%);
+  padding: .65rem .75rem;
+  transform: translate(-50%, .9rem);
+  border: 1px solid #cce7eb;
+  border-radius: .85rem;
+  background: white;
+  box-shadow: var(--shadow-rest);
+  cursor: default;
+  user-select: text;
+}
+
+.cityPopup[data-side="above"] {
+  transform: translate(-50%, calc(-100% - .9rem));
+}
+
+@media (max-width: 1023px) {
+  .cityPopup,
+  .cityPopup[data-side="above"] {
+    --city-popup-shift: 6rem;
+    left: clamp(5.625rem, calc(var(--marker-x) + var(--city-popup-shift)), calc(100% - 5.625rem));
+    top: clamp(0px, calc(var(--marker-y) - 2.75rem), max(0px, calc(100% - 5.75rem)));
+    transform: translateX(-50%);
+  }
+
+  .cityPopup[data-edge="right"] {
+    --city-popup-shift: -6rem;
+  }
 }
