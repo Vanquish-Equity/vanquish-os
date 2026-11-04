@@ -26,10 +26,17 @@ export default async function TodayTab({ access }: { access: Member }) {
   const canPortfolio = can(access, "portfolio");
   const supabase = await createClient();
   const endTimer = startDevPageTimer("page:data:home");
-  const [data, directory] = await Promise.all([
+  const [data, directory, reminderResult] = await Promise.all([
     loadHomeData(supabase, { email: access.email, canDocuments, canPortfolio }),
     loadDirectory(supabase),
+    // Open reminders I created or am included in (RLS decides; at most 10).
+    // Runs with the other loads: no extra round trip. An error hides the card.
+    supabase.rpc("my_contact_reminders"),
   ]);
+  const reminders = reminderResult.error ? [] : ((reminderResult.data ?? []) as {
+    id: string; title: string; due_on: string; person_id: string; person_name: string;
+  }[]);
+  const today = new Date().toISOString().slice(0, 10);
   // With migration 0018 the notices come from the notifications inbox; the
   // notices derived from tasks and drafts are only the fallback without it,
   // so an event never shows twice.
@@ -128,6 +135,29 @@ export default async function TodayTab({ access }: { access: Member }) {
             </ul>
           )}
         </section>
+
+        {reminders.length > 0 && (
+          <section aria-labelledby="home-reminders" data-comment-anchor="home-reminders" data-comment-label="My reminders" className={card} style={introCard(2)}>
+            <h2 id="home-reminders" className="mb-3 text-[14.5px] font-semibold text-ink">
+              My reminders
+            </h2>
+            <ul className="divide-y divide-neutral-50">
+              {reminders.map((reminder) => (
+                <li key={reminder.id} className="flex items-start justify-between gap-3 py-2">
+                  <div className="min-w-0">
+                    <Link href={`/people?contact=${reminder.person_id}`} className="block truncate text-[12.5px] font-medium text-ink hover:text-cyan-700">
+                      {reminder.title}
+                    </Link>
+                    <span className="block truncate text-[11.5px] text-neutral-500">{reminder.person_name}</span>
+                  </div>
+                  <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${reminder.due_on < today ? "bg-red-50 text-red-700" : "bg-neutral-100 text-neutral-600"}`}>
+                    {reminder.due_on < today ? `Overdue ${reminder.due_on}` : reminder.due_on}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <section aria-labelledby="home-actions" data-comment-anchor="home-actions" data-comment-label="Shortcuts" className={card} style={introCard(3)}>
           <h2 id="home-actions" className="mb-3 text-[14.5px] font-semibold text-ink">

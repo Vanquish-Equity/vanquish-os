@@ -28,7 +28,9 @@ type CommentRow = {
 
 const BASE_COLUMNS = "id,kind,actor_email,conversation_id,message_id,task_id,draft_id,created_at,read_at";
 // comment_id exists from migration 0019 on.
-const COLUMNS = `${BASE_COLUMNS},comment_id`;
+const COMMENT_COLUMNS = `${BASE_COLUMNS},comment_id`;
+// person_id and contact_reminder_id exist from migration 20261104140000 on.
+const COLUMNS = `${COMMENT_COLUMNS},person_id,contact_reminder_id`;
 
 // The recipient's notifications, described with data they can read now.
 // RLS hides chat notifications of conversations they no longer take part
@@ -50,6 +52,7 @@ export async function loadNotifications(
     };
   };
   let { data, error } = await select(COLUMNS);
+  if (error?.code === "42703") ({ data, error } = await select(COMMENT_COLUMNS));
   if (error?.code === "42703") ({ data, error } = await select(BASE_COLUMNS));
   if (error) return null;
   const rows = data ?? [];
@@ -60,9 +63,11 @@ export async function loadNotifications(
   const taskIds = ids("task_id");
   const draftIds = ids("draft_id");
   const commentIds = ids("comment_id");
+  const personIds = ids("person_id");
+  const reminderIds = ids("contact_reminder_id");
   const none = Promise.resolve({ data: [] });
 
-  const [conversations, messages, tasks, drafts, commentsResult] = await Promise.all([
+  const [conversations, messages, tasks, drafts, commentsResult, people, reminders] = await Promise.all([
     conversationIds.length
       ? supabase
           .from("chat_conversations")
@@ -78,12 +83,16 @@ export async function loadNotifications(
           .select("id,company_id,deal_id,page_key,target_key,target_label,body,company:companies(name),deal:deals(name,round,first_seen_at,created_at)")
           .in("id", commentIds)
       : none,
+    personIds.length ? supabase.from("people").select("id,name").in("id", personIds) : none,
+    reminderIds.length ? supabase.from("contact_reminders").select("id,title").in("id", reminderIds) : none,
   ]) as unknown as [
     { data: { id: string; kind: "direct" | "group"; title: string | null; participants: { member_email: string; left_at: string | null }[] }[] | null },
     { data: { id: string; body: string }[] | null },
     { data: { id: string; title: string }[] | null },
     { data: { id: string; subject: string }[] | null },
     { data: CommentRow[] | null; error?: { code?: string } | null },
+    { data: { id: string; name: string }[] | null },
+    { data: { id: string; title: string }[] | null },
   ];
 
   // During a rolling deploy the application can run before migration 0021.
@@ -108,6 +117,8 @@ export async function loadNotifications(
     messageSnippets: new Map((messages.data ?? []).map((m) => [m.id, snippet(m.body)])),
     taskTitles: new Map((tasks.data ?? []).map((t) => [t.id, t.title])),
     draftSubjects: new Map((drafts.data ?? []).map((d) => [d.id, d.subject])),
+    personNames: new Map((people.data ?? []).map((p) => [p.id, p.name])),
+    reminderTitles: new Map((reminders.data ?? []).map((r) => [r.id, r.title])),
     comments: new Map(
       (comments.data ?? []).map((c) => [
         c.id,

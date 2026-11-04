@@ -7,6 +7,7 @@ import ContactOrganization from "@/components/people/ContactOrganization";
 import RelationshipIntelligenceSection from "@/components/RelationshipIntelligenceSection";
 import { relationshipIntelligenceState } from "@/lib/relationships/intelligence-queries";
 import { createClient } from "@/lib/supabase/server";
+import { isOverdue, reminderForLabel, visibilityLabel, type Visibility } from "@/lib/people/contact-privacy";
 
 export default async function ContactProfile({ id, companies, full = false }: {
   id: string; full?: boolean; companies: { id: string; name: string }[];
@@ -29,7 +30,7 @@ export default async function ContactProfile({ id, companies, full = false }: {
 
   const today = new Date().toISOString().slice(0, 10);
   const since = new Date(Date.parse(today) - 89 * 86_400_000).toISOString().slice(0, 10);
-  const [intelligence, activity, members, groupResult, dealResult, noteResult, reminderResult, fileResult] = await Promise.all([
+  const [intelligence, activity, members, groupResult, dealResult, noteAttempt, reminderResult, fileResult] = await Promise.all([
     relationshipIntelligenceState().catch(() => ({ enabled: false, allowed: false })),
     db.from("relationship_interactions").select("member_email,kind,occurred_on,last_at")
       .eq("person_id", id).gte("occurred_on", since).lte("occurred_on", today)
@@ -38,13 +39,25 @@ export default async function ContactProfile({ id, companies, full = false }: {
     db.from("person_group_members").select("group:person_groups(id,name)").eq("person_id", id).limit(30),
     db.from("deal_people").select("role,deal:deals!inner(id,name,company_id,stage:pipeline_stages(name),company:companies!inner(name))")
       .eq("person_id", id).is("deal.archived_at", null).is("deal.company.deleted_at", null).order("deal_id").limit(20),
-    db.from("contact_notes").select("id,author_email,body,created_at").eq("person_id", id)
+    db.from("contact_notes").select("id,author_email,body,created_at,visibility,recipients:contact_note_recipients(member_email)").eq("person_id", id)
       .order("created_at", { ascending: false }).order("id").limit(30),
-    db.from("tasks").select("id,title,due_at,status").eq("person_id", id).eq("assignee_email", access.email)
-      .is("archived_at", null).order("status", { ascending: false }).order("due_at").order("id").limit(30),
+    db.from("contact_reminders").select("id,title,due_on,visibility,created_by,completed_at,completed_by,recipients:contact_reminder_recipients(member_email)")
+      .eq("person_id", id).order("completed_at", { ascending: true, nullsFirst: true }).order("due_on").order("id").limit(60),
     canReadFiles ? db.storage.from("contact-files").list(id, { limit: 50, sortBy: { column: "created_at", order: "desc" } }) : undefined,
   ]);
+  // Before the privacy migration is applied, notes load without visibility.
+  type NoteRow = { id: string; author_email: string; body: string; created_at: string; visibility?: Visibility;
+    recipients?: { member_email: string }[] | null };
+  const noteResult = (noteAttempt.error && ["42703", "PGRST200", "PGRST204"].includes(noteAttempt.error.code ?? "")
+    ? await db.from("contact_notes").select("id,author_email,body,created_at").eq("person_id", id)
+        .order("created_at", { ascending: false }).order("id").limit(30)
+    : noteAttempt) as unknown as { data: NoteRow[] | null; error: { code?: string } | null };
   const names = new Map(((members.data ?? []) as { email: string; display_name: string | null }[]).map((member) => [member.email, member.display_name]));
+  const displayName = (email: string) => email === access.email ? "You" : names.get(email) || email;
+  const memberOptions = ((members.data ?? []) as { email: string; display_name: string | null }[])
+    .filter((member) => member.email !== access.email).map((member) => ({ email: member.email, name: member.display_name?.trim() || member.email }));
+  type ReminderRow = { id: string; title: string; due_on: string; visibility: Visibility; created_by: string;
+    completed_at: string | null; completed_by: string | null; recipients: { member_email: string }[] | null };
   const emails = [...(person.person_emails ?? [])].sort((a, b) => Number(b.is_primary) - Number(a.is_primary));
   const organization = person.organization;
   const linkedin = /^https?:\/\//i.test(person.linkedin_url ?? "") ? person.linkedin_url : null;
@@ -118,11 +131,30 @@ export default async function ContactProfile({ id, companies, full = false }: {
     </section>
 
     <ContactWorkspace key={id} personId={id}
-      notes={noteResult.error ? null : (noteResult.data ?? []).map((note) => ({
-        id: note.id, body: note.body, author: names.get(note.author_email) ?? (note.author_email === access.email ? "You" : "Team member"),
-        day: note.created_at.slice(0, 10), mine: note.author_email === access.email,
-      }))}
-      reminders={reminderResult.error ? null : reminderResult.data ?? []}
+      members={memberOptions}
+      notes={noteResult.error ? null : (noteResult.data ?? []).map((note) => {
+        const included = (note.recipients ?? []).map((row) => row.member_email);
+        const visibility = note.visibility ?? "team";
+        return {
+          id: note.id, body: note.body, author: names.get(note.author_email) ?? (note.author_email === access.email ? "You" : "Team member"),
+          day: note.created_at.slice(0, 10), mine: note.author_email === access.email,
+          label: visibilityLabel(visibility, included, displayName),
+          tagged: visibility === "team" && included.length ? `Tagged: ${included.map(displayName).join(", ")}` : null,
+        };
+      })}
+      reminders={reminderResult.error ? null : ((reminderResult.data ?? []) as unknown as ReminderRow[]).map((row) => {
+        const included = (row.recipients ?? []).map((item) => item.member_email);
+        const mine = row.created_by === access.email;
+        const done = row.completed_at !== null;
+        return {
+          id: row.id, title: row.title, dueOn: row.due_on, visibility: row.visibility, mine, included,
+          label: visibilityLabel(row.visibility, included, displayName),
+          forLabel: reminderForLabel(included.map(displayName), displayName(row.created_by)),
+          done, overdue: isOverdue(row.due_on, today, done),
+          canComplete: !done && (mine || included.includes(access.email)),
+          doneBy: done ? `Done by ${row.completed_by ? displayName(row.completed_by) : "a former member"}, ${row.completed_at!.slice(0, 10)}` : null,
+        };
+      }).sort((a, b) => Number(a.done) - Number(b.done) || a.dueOn.localeCompare(b.dueOn))}
       files={fileResult ? fileResult.error ? null : (fileResult.data ?? []).filter((file) => file.id).map(({ name }) => ({ name })) : undefined} />
 
     <section className="vq-card-static rounded-[14px] bg-white p-4">

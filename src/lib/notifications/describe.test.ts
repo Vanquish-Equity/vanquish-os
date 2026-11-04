@@ -56,3 +56,23 @@ describe("describeNotification", () => {
     expect(snippet("x".repeat(200), 10)).toHaveLength(10);
   });
 });
+
+describe("contact notifications", () => {
+  const person = "11111111-1111-1111-1111-111111111111";
+  const withContacts = { ...context, personNames: new Map([[person, "Ana Lopez"]]), reminderTitles: new Map([["r1", "Send deck"]]) };
+
+  it("opens the contact drawer and shows only what the recipient can read", () => {
+    expect(describeNotification(row({ kind: "contact_reminder", person_id: person, contact_reminder_id: "r1" }), withContacts)).toMatchObject({
+      title: "Alpha included you in a reminder on Ana Lopez", snippet: "Send deck", href: `/people?contact=${person}`,
+    });
+    expect(describeNotification(row({ kind: "contact_note_tag", person_id: person }), withContacts)).toMatchObject({
+      title: "Alpha tagged you in a note on Ana Lopez", snippet: null, href: `/people?contact=${person}`,
+    });
+  });
+
+  it("never copies a note body and falls back safely", () => {
+    const view = describeNotification(row({ kind: "contact_reminder", person_id: "bad id", contact_reminder_id: "gone" }), withContacts);
+    expect(view).toMatchObject({ snippet: null, href: "/people" });
+    expect(describeNotification(row({ kind: "contact_note_tag", person_id: null }), context).title).toBe("Alpha tagged you in a note on a contact");
+  });
+});

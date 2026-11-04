@@ -30,7 +30,7 @@ chime and interface sounds have independent switches; volume applies to both.
 
 ## Notifications
 
-Members can show or hide assigned tasks, mentions and comment replies, chat
+Members can show or hide assigned tasks (also contact reminders they are included in), mentions and comment replies (also contact notes that tag them), chat
 messages and assigned email drafts independently. The preference is a
 member-specific browser cookie, applied to the inbox, Home, floating panel
 and unread counter. Hidden notifications remain stored; re-enabling a category

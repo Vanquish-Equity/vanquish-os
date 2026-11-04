@@ -210,8 +210,8 @@ export default function SettingsPanel({ email, displayName, avatarUrl, profileAv
         <h2 id="settings-notices" className="text-[15px] font-semibold text-ink">Notifications</h2>
         <p className="mt-1 text-[12px] text-neutral-500">Choose what appears in your inbox, Home and unread counter. Hidden notices are kept and return if you enable their category again. Saved in this browser.</p>
         <div className="mt-3 divide-y divide-neutral-100">
-          <Toggle label="Assigned tasks" description="Tasks assigned to you." enabled={Boolean(noticeMask & NOTICE_FLAGS.tasks)} onChange={() => toggleNotice("tasks")} />
-          <Toggle label="Mentions and replies" description="@mentions in chat or comments, and replies to your comments." enabled={Boolean(noticeMask & NOTICE_FLAGS.mentions)} onChange={() => toggleNotice("mentions")} />
+          <Toggle label="Assigned tasks" description="Tasks assigned to you and contact reminders you are included in." enabled={Boolean(noticeMask & NOTICE_FLAGS.tasks)} onChange={() => toggleNotice("tasks")} />
+          <Toggle label="Mentions and replies" description="@mentions in chat or comments, replies to your comments, and contact notes that tag you." enabled={Boolean(noticeMask & NOTICE_FLAGS.mentions)} onChange={() => toggleNotice("mentions")} />
           <Toggle label="Chat messages" description="Direct and group messages. Chat @mentions follow the Mentions choice." enabled={Boolean(noticeMask & NOTICE_FLAGS.chat)} onChange={() => toggleNotice("chat")} />
           <Toggle label="Assigned email drafts" description="Historical only — drafts no longer have a responsible to assign." enabled={Boolean(noticeMask & NOTICE_FLAGS.drafts)} onChange={() => toggleNotice("drafts")} />
         </div>
