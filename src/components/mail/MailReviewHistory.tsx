@@ -37,6 +37,7 @@ export default function MailReviewHistory() {
             {mailOperationLabel(r.operation)} · {mailStateLabel(r.state)} ·{" "}
             <LocalTime date={r.created_at} mode="stamp" />
           </p>
+          {r.open_signal !== undefined && <p>{r.open_signal ? <>First image load signal: <LocalTime date={r.open_signal} mode="stamp" />. This does not confirm a read.</> : "No image load signal detected."}</p>}
           {r.state === "uncertain" && (
             <p>
               We could not tell whether this went through. Check Gmail before

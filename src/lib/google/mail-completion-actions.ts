@@ -1,5 +1,6 @@
 "use server";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
+import { mailOpenDigest, mailOpenOrigin } from "./mail-open-signal";
 import { createClient } from "@/lib/supabase/server";
 import { getAccess } from "@/lib/auth/access";
 import {
@@ -65,6 +66,13 @@ export async function mailCompletionState() {
     return false;
   }
 }
+export async function mailOpenSignalAvailable() {
+  if (!mailOpenOrigin()) return false;
+  try {
+    const { error } = await (await createClient()).rpc("my_mail_open_signals");
+    return !error;
+  } catch { return false; }
+}
 export async function mailCompletionAliases() {
   try {
     await context();
@@ -127,6 +135,8 @@ export async function reviewMailMutation(
       throw Error("Invalid operation");
     const ctx = await context(),
       client = await googleClient();
+    if (operation === "send" && form.get("openSignal") === "1" && !(await mailOpenSignalAvailable()))
+      throw new GoogleError("unavailable", "Open tracking is unavailable. Uncheck it and review again.");
     const prepared = await buildMailMutation(client, ctx, operation, form),
       id = randomUUID();
     const { error } = await (
@@ -168,12 +178,17 @@ export async function executeMailMutation(
       !["save", "send", "discard"].includes(operation)
     )
       throw Error("Explicit confirmation required");
+    const wantsPixel = operation === "send" && form.get("openSignal") === "1";
+    const origin = wantsPixel ? mailOpenOrigin() : null;
+    if (wantsPixel && !origin) throw new GoogleError("unavailable", "Open tracking is unavailable. Uncheck it and review again.");
+    const pixel = origin ? { origin, token: randomBytes(32).toString("hex") } : undefined;
     const ctx = await context(),
       prepared = await buildMailMutation(
         await googleClient(),
         ctx,
         operation,
         form,
+        pixel,
       );
     const claim = await db.rpc("advance_mail_review", {
       p_id: id,
@@ -190,6 +205,10 @@ export async function executeMailMutation(
         ? ["gmail.send", "gmail.modify", "gmail.compose"]
         : ["gmail.modify", "gmail.compose"]),
     );
+    if (pixel) {
+      const registered = await db.rpc("register_mail_open_signal", { p_review: id, p_revision: prepared.revision, p_digest: mailOpenDigest(pixel.token) });
+      if (registered.error) throw Error("Tracking registration failed");
+    }
     const fence = await db.rpc("advance_mail_review", {
       p_id: id,
       p_event: "dispatch",
@@ -258,8 +277,14 @@ export async function cancelMailReview(id: string) {
 export async function listMailReviews(): Promise<
   GoogleResult<MailReviewRow[]>
 > {
-  const { data, error } = await (await createClient()).rpc("list_mail_reviews");
-  return error ? failure(null) : { ok: true, data: (data ?? []).slice(0, 25) };
+  const db = await createClient();
+  const { data, error } = await db.rpc("list_mail_reviews");
+  if (error) return failure(null);
+  const { data: signals } = mailOpenOrigin() ? await db.rpc("my_mail_open_signals") : { data: null };
+  const byReview = new Map<string, string | null>((signals ?? []).map((s: { review_id: string; first_seen: string | null }) => [s.review_id, s.first_seen]));
+  return { ok: true, data: ((data ?? []) as MailReviewRow[]).slice(0, 25).map((row) => ({
+    ...row, ...(byReview.has(row.id) ? { open_signal: byReview.get(row.id) } : {}),
+  })) };
 }
 export async function prepareCompleteForward(messageId: string) {
   try {

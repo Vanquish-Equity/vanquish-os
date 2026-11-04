@@ -17,12 +17,14 @@ export type MailReview = {
   attachments: { name: string; size: number }[];
   expiresAt: string;
   draftRetained: boolean;
+  openSignal?: boolean;
 };
 export type MailReviewRow = {
   id: string;
   operation: MailCompletionOperation;
   state: "pending" | "claimed" | "cancelled" | "completed" | "uncertain";
   created_at: string;
+  open_signal?: string | null;
 };
 export const MAIL_ATTACHMENT_LIMIT = 2 * 1024 * 1024;
 export const MAIL_CHUNK_LIMIT = 256 * 1024;

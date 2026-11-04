@@ -1,3 +1,4 @@
+import { appendMailOpenPixel } from "./mail-open-signal";
 import sanitizeHtml from "sanitize-html";
 import { createHash } from "node:crypto";
 import type { GoogleClient } from "./transport";
@@ -167,6 +168,7 @@ export async function buildMailMutation(
   ctx: { owner: string; connectionRevision: string },
   operation: MailCompletionOperation,
   form: FormData,
+  pixel?: { origin: string; token: string },
 ) {
   const draftId = String(form.get("draftId") ?? "");
   if (draftId) resourceId(draftId);
@@ -266,7 +268,9 @@ export async function buildMailMutation(
     throw Error("Attachment budget exceeded");
   const html = sanitizeForwardHtml(input.html),
     recipients = validateCompose({ ...input, html }, operation === "send");
+  const openSignal = operation === "send" && form.get("openSignal") === "1";
   const canonical = {
+    ...(openSignal ? { openSignal: true } : {}),
     operation,
     draftId,
     previous: previous?.message.id ?? null,
@@ -287,7 +291,7 @@ export async function buildMailMutation(
   const revision = createHash("sha256")
     .update(JSON.stringify(canonical))
     .digest("hex");
-  const raw = mimeMessage(input, sender, html, files);
+  const raw = mimeMessage(input, sender, openSignal && pixel ? appendMailOpenPixel(html, pixel.origin, pixel.token) : html, files);
   return {
     revision,
     draftId: draftId || null,
@@ -297,6 +301,7 @@ export async function buildMailMutation(
       subject: input.subject,
       html,
       attachments: files.map((f) => ({ name: f.name, size: f.data.length })),
+      openSignal,
       draftRetained: operation === "send",
     },
     path:

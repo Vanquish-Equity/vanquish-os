@@ -68,3 +68,23 @@ Owner activation, not performed:
 6. Pause with enabled=false and refresh pages; remove the member permission if needed. New dispatch fences fail, in-flight outcomes may still be uncertain. Explicitly review Gmail/Sent and metadata; never press retry automatically or requeue a claimed operation. Review the empty-only rollback separately; protected records mean pause/retain, not delete-and-retry.
 
 5B must wait for 5A green CI at its exact SHA and a new user instruction. No Calendar implementation belongs in this PR.
+
+### Optional image-load signal
+
+Set the production server variable `MAIL_OPEN_SIGNAL_ORIGIN` to the public
+HTTPS app origin, without a trailing slash, and apply
+`20261104130000_mail_open_signal.sql`. The image route must be publicly
+reachable without Vercel deployment protection or application login. Existing
+mail completion flag and permission still apply. Each reviewed send defaults
+to off; selecting the checkbox requires a new confirmation. No new Google
+scope or extra Google write is used. Drafts and untracked sends are unchanged.
+
+Only the digest of an opaque random token, the confirmation ID, an expiry and
+the first image load time are stored. No recipient identity, IP address, user
+agent or message content is stored by this feature. Signals stop accepting
+loads and disappear from the UI after 30 days; expiry is not automatic
+database deletion. Proxies and prefetchers may load the image without a read,
+image blocking may suppress it, and forwarding can generate a signal. The
+private confirmation history shows the first signal only. Removing the
+origin variable and redeploying stops recording through the app endpoint;
+pausing Mail Completion stops recording in the database as well.
