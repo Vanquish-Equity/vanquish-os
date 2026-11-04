@@ -28,6 +28,7 @@ export default function MailReviewPanel({
             ? "Check before sending now"
             : "Check before deleting the draft"}
       </h3>
+      {review.openSignal && <p>Open signal enabled: a remote image is added to this send. A load does not confirm a human read.</p>}
       <dl className="space-y-1 break-words">
         <div>
           <dt className="inline font-semibold">From: </dt>

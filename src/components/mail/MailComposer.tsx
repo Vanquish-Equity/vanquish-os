@@ -4,6 +4,7 @@ import MailReviewHistory from "./MailReviewHistory";
 import MailReviewPanel from "./MailReviewPanel";
 import {
   mailCompletionState,
+  mailOpenSignalAvailable,
   mailCompletionAliases,
   startMailUpload,
   uploadMailChunk,
@@ -60,6 +61,8 @@ export default function MailComposer({
   onSent: () => void;
 }) {
   const [senderEmail, setSenderEmail] = useState("");
+  const [openSignal, setOpenSignal] = useState(false);
+  const [openSignalAvailable, setOpenSignalAvailable] = useState(false);
   const [completion, setCompletion] = useState(false);
   const [aliases, setAliases] = useState<VerifiedAlias[]>([]);
   const [alias, setAlias] = useState("");
@@ -99,6 +102,7 @@ export default function MailComposer({
       const enabled = await mailCompletionState();
       if (!alive) return;
       setCompletion(enabled);
+      if (enabled) void mailOpenSignalAvailable().then(setOpenSignalAvailable).catch(() => {});
       if (enabled) {
         const result = await mailCompletionAliases();
         if (!alive) return;
@@ -147,6 +151,7 @@ export default function MailComposer({
     try {
       const form = new FormData();
       form.set("draftId", draftId);
+      if (operation === "send" && openSignal) form.set("openSignal", "1");
       form.set("message", JSON.stringify(message));
       form.set("previousMessageId", previousMessageId);
       form.set("keepParts", JSON.stringify(keepParts));
@@ -517,6 +522,13 @@ export default function MailComposer({
               Scheduled sending isn&apos;t turned on yet, so messages can only be
               sent right away. Live updates of your mailbox are off too.
             </p>
+            {openSignalAvailable && <label className="flex items-start gap-2 text-xs">
+              <Checkbox checked={openSignal} disabled={busy || uncertain} onChange={(event) => {
+                clearReview();
+                setOpenSignal(event.target.checked);
+              }} />
+              <span>Track image load for this email<span className="mt-0.5 block text-neutral-500">A signal can come from an email proxy and does not confirm that someone read the message.</span></span>
+            </label>}
             <MailReviewHistory />
           </div>
         )}
