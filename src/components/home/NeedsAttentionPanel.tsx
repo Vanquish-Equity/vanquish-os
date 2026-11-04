@@ -138,14 +138,19 @@ export default function NeedsAttentionPanel({
       <div
         data-comment-anchor="home-attention"
         data-comment-label="Needs attention"
-        className={`vq-card-static rounded-[14px] bg-white p-5 ${introIndex === undefined ? "" : "vq-intro-card"}`}
+        className={`vq-card-static rounded-[14px] bg-white p-5 lg:flex lg:h-full lg:flex-col ${introIndex === undefined ? "" : "vq-intro-card"}`}
         style={introIndex === undefined ? undefined : introCard(introIndex)}
       >
-        <h2 id="home-attention" className="mb-3 text-[14.5px] font-semibold text-ink">
+        <h2 id="home-attention" className="mb-3 shrink-0 text-[14.5px] font-semibold text-ink">
           Needs attention
         </h2>
 
-        <div className="vq-card-grid flex flex-col gap-4">
+        <div
+          role="region"
+          aria-labelledby="home-attention"
+          tabIndex={0}
+          className="vq-card-grid flex flex-col gap-4 rounded-sm focus-visible:outline-2 focus-visible:outline-cyan-700 lg:min-h-0 lg:overflow-y-auto lg:overscroll-y-contain lg:pr-2 lg:[&>*]:shrink-0"
+        >
           {items.length > 0 && (
             <ul className="divide-y divide-neutral-50">
               {items.map((item) => (

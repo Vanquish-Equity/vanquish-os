@@ -1,12 +1,15 @@
 import { US_CITY_POINTS } from "./us-map-data";
 
 type Point = readonly [number, number];
-type City = { label: string; point: Point; count: number; demo: number; locations: string[] };
+type MapPoint = { label: string; point: Point };
+type CompanyMapCity = MapPoint & { count: number; demo: number; locations: string[] };
+export type CompanyFootprintCity = MapPoint & { count: number; href: string };
+export type CompanyFootprintData = { cities: CompanyFootprintCity[]; unmapped: number; partial: boolean };
 const known = new Map(Object.keys(US_CITY_POINTS).map((city) => [city.toLowerCase(), city]));
 export const MAP_COMPANY_LIMIT = 1000;
 
 export function groupCompanyCities(rows: { location: string | null }[]) {
-  const cities = new Map<string, City>();
+  const cities = new Map<string, CompanyMapCity>();
   for (const { location } of rows) {
     if (!location) continue;
     const demo = /\s*·\s*demo\s*$/i.test(location);
@@ -24,21 +27,28 @@ export function groupCompanyCities(rows: { location: string | null }[]) {
 
 // A single perspective transform keeps borders and dots on the same plane.
 // The western edge is closer to the viewer; the plane recedes to the right.
-export function projectFootprintPoint(x: number, y: number): Point {
+export type MapPerspective = "angled" | "overhead" | "reverse";
+
+export function projectFootprintPoint(x: number, y: number, perspective: MapPerspective = "angled"): Point {
+  if (perspective === "overhead") return [436 + (x - 500), 235 + .86 * (y - 290)];
+  if (perspective === "reverse") {
+    const [px, py] = projectFootprintPoint(1000 - x, y);
+    return [872 - px, 248 + .72 * (py - 297)];
+  }
   const dx = x - 500, dy = y - 260;
   const depth = 1 + .00069 * dx - .00070 * dy;
   return [480 + (.90 * dx + .43 * dy) / depth, 230 + (-.21 * dx + .59 * dy) / depth];
 }
 
 // The bundled SVG geometry contains only absolute M/L coordinates and Z.
-export function projectFootprintPath(path: string): string {
+export function projectFootprintPath(path: string, perspective: MapPerspective = "angled"): string {
   return path.replace(/(-?[\d.]+),(-?[\d.]+)/g, (_, x, y) =>
-    projectFootprintPoint(Number(x), Number(y)).map((value) => value.toFixed(1)).join(","));
+    projectFootprintPoint(Number(x), Number(y), perspective).map((value) => value.toFixed(1)).join(","));
 }
 
-export function cityArcs(cities: City[]) {
+export function cityArcs(cities: readonly MapPoint[], perspective: MapPerspective = "angled") {
   if (cities.length < 2) return [];
-  const edges: { from: City; to: City; distance: number }[] = [];
+  const edges: { from: MapPoint; to: MapPoint; distance: number }[] = [];
   for (const [i, from] of cities.entries()) for (const to of cities.slice(i + 1)) {
     edges.push({ from, to, distance: Math.hypot(from.point[0] - to.point[0], from.point[1] - to.point[1]) });
   }
@@ -54,11 +64,15 @@ export function cityArcs(cities: City[]) {
   // A few long routes create the visual sweep without drawing a full mesh.
   if (cities.length > 2) for (const edge of edges.slice(-Math.min(3, cities.length - 2))) paths.add(edge);
   return [...paths].map(({ from, to }) => {
-    const [x, y] = projectFootprintPoint(...from.point), [u, v] = projectFootprintPoint(...to.point);
+    const [x, y] = projectFootprintPoint(...from.point, perspective), [u, v] = projectFootprintPoint(...to.point, perspective);
     const lift = Math.min(91, 8 + Math.hypot(u - x, v - y) * .15);
     return {
       key: `${from.label}/${to.label}`,
       path: `M${x},${y} C${x+(u-x)*.24},${Math.min(y,v)-lift} ${x+(u-x)*.76},${Math.min(y,v)-lift} ${u},${v}`,
     };
   });
+}
+
+export function companyCityHref({ locations }: Pick<CompanyMapCity, "locations">) {
+  return `/companies?${new URLSearchParams({ "match-location": JSON.stringify(locations.slice(0, 50)) })}`;
 }

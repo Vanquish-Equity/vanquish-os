@@ -68,7 +68,6 @@ How the tabs work (`src/lib/home/tabs.ts`, `src/components/home/HomeTabs.tsx`):
 | My reminders | Open contact reminders the signed-in member created or is included in, soonest first, at most 10, overdue in red (`my_contact_reminders()`, migration `20261104140000`). One query inside the existing parallel load; the card is hidden when there are none or the migration is missing. | The contact drawer (`/people?contact=<id>`). |
 | Needs attention | **One list** (see below). | Each draft, deal (`#due-diligence`), `/portfolio?filter=critical_missing`, Tasks > To review (`/tasks?tab=review`), deal page, `/pipeline`. |
 | Notices for you | With migration `0018`: the latest entries of the notification inbox (direct messages, @mentions, group messages, tasks and email drafts someone else assigned to you; draft notices start when `0018` is applied, older ones are not reconstructed), with *All notifications* linking to `/notifications`. The header has a chat link with the live unread count. Without `0018`: events derived from the last 14 days (`tasks.assigned_by`, `email_drafts.created_by` ≠ you). Only one of the two is shown, so an event never appears twice. Gmail/Outlook are not used. See [`chat.md`](chat.md). | The conversation, task or draft (opening it marks the notice read). |
-| Shortcuts | Pipeline, Companies, Potential LPs, Review queue (Tasks > To review), and Portfolio (only with the Portfolio permission). | Existing screens. |
 
 **Needs attention** merges what Home and the old Overview each listed
 (`mergeNeedsAttention`, `src/lib/home/attention-merge.ts`; the same
@@ -82,11 +81,10 @@ that is stale (or imported) and also has due-diligence gaps is one row with both
 reasons, not two rows. Home used to show only the three stalest deals and link
 to Overview for the rest; that link is gone because the rest is now in the list.
 
-"+ New" in the top bar already offers New task, New email draft and New message
-with the same links, so those three Home quick actions were removed as fully
-redundant. The remaining shortcuts are navigation, not creation, so they stay
-(renamed *Shortcuts*; Potential LPs has no sidebar entry). The *Overview*
-quick action is gone: the Dashboard tab replaces it.
+Notices sit directly below My tasks. On wide screens, Needs attention ends at
+the bottom of Notices and scrolls independently with its heading visible. On
+narrow screens, the cards stack and scroll with the page. Use the top bar's
+**+ New** for creation and the sidebar for navigation.
 
 ### Dashboard
 
@@ -366,11 +364,17 @@ audio device never causes errors or delays.
 
 Today opens with a larger greeting and a perspective map of the contiguous
 United States, drawn directly on the page with no card or background. The
-entrance draws the arcs once and respects reduced-motion settings. It reads
-at most 1,000 nonempty locations from active Companies visible to the member
-under the existing access policies. Expand **Explore cities** for links to the
-corresponding Companies filters. State borders highlight states with at least
-one plotted company. Locations outside the supported city list are not
+greeting rises in before the map and its arcs. If the OS intro plays, the
+sequence starts when the intro finishes or is skipped. Reduced motion shows
+the final view directly. The map reads at most 1,000 nonempty locations from
+active Companies visible to the member under the existing access policies.
+Drag to pan, pinch or use the zoom buttons,
+and choose Perspective, Overhead, or Opposite angle. A focused map also accepts
+arrow keys, +/−, Home, and the mouse wheel. Select a city for its count and a
+link to the filtered Companies list, or use **Explore cities**. Returning to
+Home reads the current locations. While Home is visible, its map also refreshes
+on focus and every 30 seconds, preserving the current view. State borders
+highlight states with at least one plotted company. Locations outside the supported city list are not
 geocoded or plotted. Arcs illustrate geographic coverage, not actual relationships.
 The locally bundled state outlines are derived from [US Atlas](https://github.com/topojson/us-atlas)
 (US Census), with its license in `public/licenses/us-atlas.txt`; the app

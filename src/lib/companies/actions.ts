@@ -17,6 +17,7 @@ function cleanText(value: string | null | undefined) {
 
 function revalidateCompanyPaths(companyId: string) {
   revalidatePath("/companies");
+  revalidatePath("/home");
   revalidatePath("/pipeline");
   revalidatePath("/companies/trash");
   revalidatePath(`/companies/${companyId}`);

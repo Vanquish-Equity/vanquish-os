@@ -36,5 +36,6 @@ export async function createStandaloneCompany(_previous: string | null, form: Fo
   await logActivity({ eventType: "COMPANY_CREATED", targetType: "company", targetId: company.id,
     payload: { name }, actor: access.email }, supabase);
   revalidatePath("/companies");
+  revalidatePath("/home");
   redirect(`/companies/${company.id}`);
 }
