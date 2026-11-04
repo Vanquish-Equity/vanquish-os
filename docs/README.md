@@ -14,6 +14,7 @@ any change to its contract.
 | CI and preview schema readiness | [CI and schema](ci-and-schema.md) | `.github/workflows`, `scripts/check_schema_drift.py` |
 | Home, tasks and attention | [Home](home.md) | Home and task routes, `src/lib/deals/attention*` |
 | Gmail mailbox, sending, CRM drafts and People groups | [Communications](communications.md) | Communications routes, `src/components/mail`, `src/lib/google/mail-*`, `src/lib/communications` |
+| AI email reader: provider contract, validator and synthetic evaluation (nothing connected) | [AI email reader](ai-email-reader.md) | `src/lib/ai/email-reader`, `scripts/ai-eval.ts` |
 | Google calendars and event editing | [Calendar](calendar.md) | Calendar route, `src/components/calendar`, `src/lib/google/calendar-*` |
 | Chat, notifications and comments | [Chat](chat.md), [Comments](comments.md), [Contextual comments](contextual-comments.md) | Chat/comment actions and RLS migrations |
 | Member profile and admin settings | [Settings](settings.md) | Settings routes and `src/lib/settings` |

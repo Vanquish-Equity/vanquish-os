@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "sync:worker": "node --import tsx scripts/crm-sync-worker.ts"
+    "sync:worker": "node --import tsx scripts/crm-sync-worker.ts",
+    "ai:eval": "node --import tsx scripts/ai-eval.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
