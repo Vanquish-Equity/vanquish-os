@@ -1,5 +1,5 @@
 import { memberName, type Directory } from "../chat/format";
-import { myTaskHref } from "@/lib/tasks/tabs";
+import { myTaskHref, REVIEW_HREF } from "@/lib/tasks/tabs";
 
 // Text and destination for an in-app notification. Everything shown comes
 // from rows the recipient can read under RLS: the message (only while they
@@ -15,7 +15,8 @@ export type NotificationKind =
   | "comment_mention"
   | "comment_reply"
   | "contact_reminder"
-  | "contact_note_tag";
+  | "contact_note_tag"
+  | "company_suggestions_digest";
 
 export type NotificationRow = {
   id: string;
@@ -30,6 +31,7 @@ export type NotificationRow = {
   // Migration 20261104140000; absent before it.
   person_id?: string | null;
   contact_reminder_id?: string | null;
+  company_suggestions_count?: number | null;
   created_at: string;
   read_at: string | null;
 };
@@ -123,6 +125,12 @@ export function describeNotification(row: NotificationRow, context: Notification
         snippet: null,
         href: contactHref(row.person_id),
       };
+    }
+    case "company_suggestions_digest": {
+      const count = row.company_suggestions_count;
+      const title = count === 1 ? "1 new company detected" : count && count > 1
+        ? `${count} new companies detected` : "New companies detected";
+      return { ...base, title, snippet: null, href: `${REVIEW_HREF}#suggested-companies` };
     }
     case "draft_assigned": {
       const subject = row.draft_id ? context.draftSubjects.get(row.draft_id) : undefined;
