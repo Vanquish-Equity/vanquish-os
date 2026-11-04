@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import CompanyLocationPicker from "@/components/CompanyLocationPicker";
 import { useRouter } from "next/navigation";
 import {
   trashCompanyAction,
@@ -14,6 +15,7 @@ type Company = {
   id: string;
   name: string;
   website: string | null;
+  location?: string | null;
   description: string | null;
   industryId: string | null;
   industryName: string | null;
@@ -288,10 +290,12 @@ export default function CompanyOverviewCard({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [locationSaving, setLocationSaving] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const current = { ...company, ...overrides };
 
   async function saveField(
-    field: "name" | "website" | "description" | "industry_id",
+    field: "name" | "website" | "description" | "industry_id" | "location",
     value: string | null
   ) {
     const result = await updateCompanyFieldAction({
@@ -305,6 +309,7 @@ export default function CompanyOverviewCard({
     setOverrides((prev) => {
       if (field === "name") return { ...prev, name: value ?? current.name };
       if (field === "website") return { ...prev, website: value };
+      if (field === "location") return { ...prev, location: value };
       if (field === "description") return { ...prev, description: value };
       const industry = industries.find((i) => i.id === value);
       return {
@@ -371,6 +376,16 @@ export default function CompanyOverviewCard({
           placeholder="https://…"
           onSave={(value) => saveField("website", value)}
         />
+        {current.location !== undefined && <FieldFrame label="Location" error={locationError}>
+          <CompanyLocationPicker company={current.name} value={current.location} disabled={locationSaving}
+            onChange={(value) => {
+              setLocationSaving(true);
+              setLocationError(null);
+              void saveField("location", value).then(setLocationError)
+                .catch(() => setLocationError("Couldn't save location."))
+                .finally(() => setLocationSaving(false));
+            }} />
+        </FieldFrame>}
         <div className="col-span-2">
           <EditableText
             label="Description"

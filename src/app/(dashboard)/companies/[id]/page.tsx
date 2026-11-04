@@ -50,6 +50,7 @@ type Company = {
   description: string | null;
   website: string | null;
   industry_id: string | null;
+  location?: string | null;
   deleted_at: string | null;
   updated_at: string;
   last_activity_at: string | null;
@@ -151,13 +152,13 @@ export default async function CompanyDetailPage({
     priorities,
     rounds,
   ] = await Promise.all([
-    supabase
-      .from("companies")
-      .select(
-        "id,name,description,website,industry_id,deleted_at,updated_at,last_activity_at,industry:industries(name)"
-      )
-      .eq("id", id)
-      .maybeSingle() as unknown as Promise<{ data: Company | null }>,
+    (async () => {
+      const columns = "id,name,description,website,industry_id,deleted_at,updated_at,last_activity_at,industry:industries(name)";
+      const result = await supabase.from("companies").select(`${columns},location`).eq("id", id).maybeSingle();
+      return (result.error?.code === "42703"
+        ? await supabase.from("companies").select(columns).eq("id", id).maybeSingle()
+        : result) as unknown as { data: Company | null };
+    })(),
     supabase
       .from("deals")
       .select(
@@ -910,18 +911,19 @@ export default async function CompanyDetailPage({
       </section></RecordPanel>}
       <RecordPanel name="details">
       <CustomFieldsGate enabled={(await customizationState()).templates}><ApplyTemplate company={id}/></CustomFieldsGate>
-      <CustomFieldsGate enabled={await readCustomFieldsState()}><CustomFieldsRecord object="companies" recordId={id} /></CustomFieldsGate>
         <CompanyOverviewCard
           company={{
             id: company.id,
             name: company.name,
             website: company.website,
+            location: company.location,
             description: company.description,
             industryId: company.industry_id,
             industryName: company.industry?.name ?? null,
           }}
           industries={industries ?? []}
         />
+      <CustomFieldsGate enabled={await readCustomFieldsState()}><CustomFieldsRecord object="companies" recordId={id} hideLegacyLocation={company.location !== undefined} /></CustomFieldsGate>
       </RecordPanel>
       </RecordWorkspace>
     </div>
