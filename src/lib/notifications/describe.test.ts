@@ -76,3 +76,11 @@ describe("contact notifications", () => {
     expect(describeNotification(row({ kind: "contact_note_tag", person_id: null }), context).title).toBe("Alpha tagged you in a note on a contact");
   });
 });
+
+it.each([[1, "1 new company detected"], [4, "4 new companies detected"], [null, "New companies detected"]] as const)(
+  "shows a count-only scouting notification and links to To review",
+  (count, title) => {
+    const view = describeNotification(row({ kind: "company_suggestions_digest", company_suggestions_count: count }), context);
+    expect(view).toMatchObject({ title, snippet: null, href: "/tasks?tab=review#suggested-companies" });
+  },
+);

@@ -30,7 +30,8 @@ const BASE_COLUMNS = "id,kind,actor_email,conversation_id,message_id,task_id,dra
 // comment_id exists from migration 0019 on.
 const COMMENT_COLUMNS = `${BASE_COLUMNS},comment_id`;
 // person_id and contact_reminder_id exist from migration 20261104140000 on.
-const COLUMNS = `${COMMENT_COLUMNS},person_id,contact_reminder_id`;
+const CONTACT_COLUMNS = `${COMMENT_COLUMNS},person_id,contact_reminder_id`;
+const COLUMNS = `${CONTACT_COLUMNS},company_suggestions_count`;
 
 // The recipient's notifications, described with data they can read now.
 // RLS hides chat notifications of conversations they no longer take part
@@ -52,6 +53,7 @@ export async function loadNotifications(
     };
   };
   let { data, error } = await select(COLUMNS);
+  if (error?.code === "42703") ({ data, error } = await select(CONTACT_COLUMNS));
   if (error?.code === "42703") ({ data, error } = await select(COMMENT_COLUMNS));
   if (error?.code === "42703") ({ data, error } = await select(BASE_COLUMNS));
   if (error) return null;

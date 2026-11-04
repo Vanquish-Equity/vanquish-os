@@ -259,3 +259,6 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/tests/company_location.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261104150000_contact_privacy.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/contact_privacy.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261105100000_company_suggestions_digest.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261105100000_company_suggestions_digest.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/company_suggestions_digest.sql > /dev/null

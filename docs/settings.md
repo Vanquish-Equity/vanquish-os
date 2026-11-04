@@ -83,9 +83,17 @@ a new company's contacts.
   subjects, bodies or attachments. RLS: only the owner reads or updates their
   rows, and only members with the permission can add them. Dismissed and
   accepted suggestions are never reopened by later scans.
-- **Tasks → To review → Suggested companies**: edit the name, then **Create company**
-  (`accept_company_suggestion`, one transaction: creates the company with
-  `https://<domain>` as website and logs `COMPANY_CREATED`) or **Dismiss**.
+- **Tasks → To review → Suggested companies**: edit names, then select one or
+  more rows or use **Select all** and choose **Create selected**. Each row runs
+  `accept_company_suggestion` in its own transaction; it creates the company
+  with `https://<domain>` and logs `COMPANY_CREATED`. Dismiss a row on its own
+  or choose **Dismiss selected**. The result lists successes and failures
+  separately; failed rows stay open.
+- **Daily scouting notice** (`20261105100000`): a member receives one private
+  notification per UTC scan day with the number of new suggestions inserted.
+  Refreshing an existing suggestion or retrying an insert does not increase
+  the count. The notice contains only the count and links to To review. It
+  follows the Tasks notification preference.
 - **Contacts** follow the member's Settings choice (`scouting_settings.
   contact_mode`): **Ask me first** (default) puts each new contact in
   **Tasks → To review → Contact requests** (`contact_requests`, private) to Accept

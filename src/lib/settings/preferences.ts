@@ -16,7 +16,7 @@ export function noticeMask(value: string | undefined): number {
 
 export function notificationKinds(mask: number): string[] {
   return [
-    ...(mask & NOTICE_FLAGS.tasks ? ["task_assigned", "contact_reminder"] : []),
+    ...(mask & NOTICE_FLAGS.tasks ? ["task_assigned", "contact_reminder", "company_suggestions_digest"] : []),
     ...(mask & NOTICE_FLAGS.mentions ? ["chat_mention", "comment_mention", "comment_reply", "contact_note_tag"] : []),
     ...(mask & NOTICE_FLAGS.chat ? ["chat_direct", "chat_group"] : []),
     ...(mask & NOTICE_FLAGS.drafts ? ["draft_assigned"] : []),

@@ -18,6 +18,7 @@ const ICONS: Record<NotificationKind, IconName> = {
   comment_reply: "comment",
   contact_reminder: "tasks",
   contact_note_tag: "people",
+  company_suggestions_digest: "companies",
 };
 
 // Opening a notification marks it read and goes to its destination (the
