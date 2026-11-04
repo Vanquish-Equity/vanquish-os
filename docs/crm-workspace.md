@@ -579,6 +579,24 @@ without linked Deals, documents, or database references that require retention.
 People and Companies tables use compact rows and a horizontal scrollbar at
 the bottom of the visible table area whenever columns overflow.
 
+### Company website import
+
+Open **Companies → Import websites** to upload a CSV or paste two columns
+(`company name,website`, optional header). The importer accepts up to 500 rows
+or 128 KB. It matches the names of active Companies, ignoring case and spacing.
+It previews the normalized website and marks missing or ambiguous names,
+invalid entries, existing websites, and duplicate or conflicting rows. A
+conflict leaves every proposal for that company unchanged. The importer keeps
+the hostname and saves it as `https://host`, dropping paths, ports, and
+query strings. It does not fetch the URL.
+
+Active members use the same Company write permissions as the normal editor.
+**Add websites** rechecks the approved matches under the member’s session
+and only fills values that are still blank; it never creates a Company or
+replaces a website. Each successful change uses the existing Company activity
+history. The results distinguish rows that were added, skipped, or failed,
+including an explicit warning if a website saved but its history did not.
+
 The People contact panel shows contact details, list memberships, linked
 active deals visible to the viewer, and up to 120 shared email or meeting
 activity days by teammate and type over the last 90 days. The timeline can
