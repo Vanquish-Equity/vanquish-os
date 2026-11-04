@@ -1,4 +1,6 @@
 import Link from "next/link";
+import CompanyFootprint from "@/components/home/CompanyFootprint";
+import { MAP_COMPANY_LIMIT } from "@/lib/home/company-map";
 import HomeGreeting from "@/components/home/HomeGreeting";
 import HomeInboxLinks from "@/components/home/HomeInboxLinks";
 import MyTasksCard from "@/components/home/MyTasksCard";
@@ -26,12 +28,14 @@ export default async function TodayTab({ access }: { access: Member }) {
   const canPortfolio = can(access, "portfolio");
   const supabase = await createClient();
   const endTimer = startDevPageTimer("page:data:home");
-  const [data, directory, reminderResult] = await Promise.all([
+  const [data, directory, reminderResult, footprint] = await Promise.all([
     loadHomeData(supabase, { email: access.email, canDocuments, canPortfolio }),
     loadDirectory(supabase),
     // Open reminders I created or am included in (RLS decides; at most 10).
     // Runs with the other loads: no extra round trip. An error hides the card.
     supabase.rpc("my_contact_reminders"),
+    supabase.from("companies").select("location", { count: "exact" }).is("deleted_at", null).not("location", "is", null)
+      .order("id").limit(MAP_COMPANY_LIMIT),
   ]);
   const reminders = reminderResult.error ? [] : ((reminderResult.data ?? []) as {
     id: string; title: string; due_on: string; person_id: string; person_name: string;
@@ -59,13 +63,18 @@ export default async function TodayTab({ access }: { access: Member }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-3">
-        <HomeGreeting name={name} />
+      <section aria-label="Welcome" className="flex flex-wrap items-end justify-between gap-4 py-2 sm:py-5">
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[.2em] text-cyan-800">Your workspace</p>
+          <HomeGreeting name={name} />
+        </div>
         <HomeInboxLinks />
-      </div>
+      </section>
+      <CompanyFootprint rows={footprint.data ?? null}
+        partial={(footprint.count ?? 0) > (footprint.data?.length ?? 0)} />
 
       <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2 xl:grid-cols-[1.2fr_1fr]">
-        <section aria-labelledby="home-tasks" data-comment-anchor="home-tasks" data-comment-label="My tasks" className={card} style={introCard(0)}>
+        <section aria-labelledby="home-tasks" data-comment-anchor="home-tasks" data-comment-label="My tasks" className={`${card} self-start`} style={introCard(0)}>
           <div className="mb-3 flex items-center justify-between gap-2">
             <h2 id="home-tasks" className="text-[14.5px] font-semibold text-ink">
               My tasks
