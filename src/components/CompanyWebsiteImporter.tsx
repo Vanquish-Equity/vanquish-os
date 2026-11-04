@@ -43,7 +43,7 @@ export default function CompanyWebsiteImporter() {
 
   useEffect(() => {
     if (preview) previewTitle.current?.focus();
-  }, [preview]);
+  }, [preview, outcomes]);
 
   function changeInput(text: string) {
     setInput(text);
@@ -162,6 +162,11 @@ export default function CompanyWebsiteImporter() {
               </button>
             )}
           </div>
+          {preview.some(({ status }) => status === "not_found") && (
+            <p className="mt-3 text-xs text-neutral-600">
+              For companies not found, use the exact name shown in Companies, including accents and suffixes.
+            </p>
+          )}
           <div tabIndex={0} role="region" aria-label="Website preview rows" className="mt-4 overflow-x-auto rounded-lg border border-neutral-200 focus-visible:outline-2 focus-visible:outline-cyan-700">
             <table className="w-full min-w-[28rem] text-left text-xs">
               <thead className="bg-neutral-50 text-neutral-600">
