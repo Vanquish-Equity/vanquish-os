@@ -223,7 +223,7 @@ export default async function CompaniesPage({ searchParams }: {
 
   return (
     <div className="flex min-w-0 flex-col gap-4 px-4 py-6 sm:px-7">
-      <header className="flex items-start justify-between gap-4">
+      <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-[family-name:var(--font-display)] text-[23px] font-semibold tracking-tight text-ink">
             Companies
@@ -232,12 +232,20 @@ export default async function CompaniesPage({ searchParams }: {
             Search, sort and filter every company from one working list.
           </p>
         </div>
-        <Link
-          href="/companies/trash"
-          className="flex-shrink-0 rounded-full border border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-500 transition hover:border-neutral-300 hover:text-neutral-700"
-        >
-          Archived
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/companies/import-websites"
+            className="rounded-full border border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-ink transition hover:border-cyan-300 hover:text-cyan-800"
+          >
+            Import websites
+          </Link>
+          <Link
+            href="/companies/trash"
+            className="rounded-full border border-neutral-200 px-3 py-1.5 text-[11.5px] font-semibold text-neutral-500 transition hover:border-neutral-300 hover:text-neutral-700"
+          >
+            Archived
+          </Link>
+        </div>
       </header>
 
 
