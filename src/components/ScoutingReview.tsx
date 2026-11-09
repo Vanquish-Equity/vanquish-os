@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import Checkbox from "@/components/Checkbox";
 import RelativeTime from "@/components/RelativeTime";
-import { acceptSuggestion, decideContactRequest, dismissSuggestion } from "@/lib/scouting/actions";
+import { decideCompanySuggestions, decideContactRequest } from "@/lib/scouting/actions";
 
 export type Suggestion = {
   id: string;
@@ -16,19 +17,26 @@ export type Suggestion = {
 };
 export type ContactRequest = { id: string; email: string; name: string; company: { id: string; name: string } | null };
 
-function SuggestionCard({ suggestion, onDone }: { suggestion: Suggestion; onDone: (message: string) => void }) {
-  const [name, setName] = useState(suggestion.suggested_name);
-  const [pending, startTransition] = useTransition();
-  const run = (action: () => Promise<{ ok: boolean; message?: string }>) =>
-    startTransition(async () => {
-      const result = await action();
-      onDone(result.message ?? (result.ok ? "Done." : "Could not save the change."));
-    });
+function SuggestionCard({ suggestion, name, selected, pending, error, onSelect, onName, onDismiss }: {
+  suggestion: Suggestion;
+  name: string;
+  selected: boolean;
+  pending: boolean;
+  error?: string;
+  onSelect: (selected: boolean) => void;
+  onName: (name: string) => void;
+  onDismiss: () => void;
+}) {
   return (
-    <div id={`suggestion-${suggestion.id}`} className="vq-card-static flex flex-col gap-3 rounded-[14px] bg-white p-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="text-[11px] text-neutral-400">{suggestion.domain}</div>
+    <li id={`suggestion-${suggestion.id}`} className="vq-card-static flex flex-col gap-3 rounded-[14px] bg-white p-4">
+      <div className="flex items-start justify-between gap-2">
+        <label className="inline-flex min-h-9 cursor-pointer items-center gap-2 text-[12px] font-semibold text-ink">
+          <Checkbox checked={selected} disabled={pending} onChange={(event) => onSelect(event.target.checked)}
+            aria-label={`Select ${suggestion.suggested_name} (${suggestion.domain})`} />
+          Select
+        </label>
+        <div className="min-w-0 flex-1">
+          <div className="break-all text-[11px] text-neutral-500">{suggestion.domain}</div>
           <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11.5px] text-neutral-500">
             <span>
               {suggestion.thread_count} thread{suggestion.thread_count === 1 ? "" : "s"}
@@ -44,7 +52,10 @@ function SuggestionCard({ suggestion, onDone }: { suggestion: Suggestion; onDone
         Company name
         <input
           value={name}
-          onChange={(event) => setName(event.target.value)}
+          onChange={(event) => onName(event.target.value)}
+          disabled={pending}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `suggestion-error-${suggestion.id}` : undefined}
           maxLength={200}
           className="mt-1 block w-full rounded-lg border border-neutral-200 px-3 py-2 text-[13px] font-normal"
         />
@@ -55,25 +66,141 @@ function SuggestionCard({ suggestion, onDone }: { suggestion: Suggestion; onDone
           {suggestion.contacts.map((contact) => contact.name || contact.email).join(", ")}
         </div>
       )}
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          disabled={pending || !name.trim()}
-          onClick={() => run(() => acceptSuggestion(suggestion.id, name))}
-          className="rounded-lg bg-ink px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-40"
-        >
-          Create company
-        </button>
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() => run(() => dismissSuggestion(suggestion.id))}
-          className="rounded-lg border border-neutral-200 px-3 py-1.5 text-[12px] font-semibold text-ink hover:border-cyan-300 disabled:opacity-40"
-        >
-          Dismiss
-        </button>
+      {error && <p id={`suggestion-error-${suggestion.id}`} className="text-[12px] text-red-700">{error}</p>}
+      <button
+        type="button"
+        disabled={pending}
+        aria-label={`Dismiss ${name.trim() || suggestion.suggested_name}`}
+        onClick={onDismiss}
+        className="min-h-9 self-start rounded-lg border border-neutral-200 px-3 text-[12px] font-semibold text-ink hover:border-cyan-300 disabled:opacity-40"
+      >
+        Dismiss
+      </button>
+    </li>
+  );
+}
+
+type BatchReceipt = { id: string; label: string; ok: boolean; message: string };
+
+function CompanySuggestions({ suggestions, refresh }: { suggestions: Suggestion[]; refresh: () => void }) {
+  const [selection, setSelection] = useState<Set<string>>(() => new Set());
+  const [names, setNames] = useState<Record<string, string>>({});
+  const [outcomes, setOutcomes] = useState<BatchReceipt[]>([]);
+  const [batchError, setBatchError] = useState<string>();
+  const [pending, startTransition] = useTransition();
+  const inFlight = useRef(false);
+  const status = useRef<HTMLDivElement>(null);
+  // Hide successful rows immediately while server revalidation catches up.
+  const [processed, setProcessed] = useState<Set<string>>(() => new Set());
+  const remaining = suggestions.filter(({ id }) => !processed.has(id));
+  const selected = remaining.filter(({ id }) => selection.has(id));
+  const allSelected = remaining.length > 0 && selected.length === remaining.length;
+  const rowErrors = new Map(outcomes.filter(({ ok }) => !ok).map(({ id, message }) => [id, message]));
+
+  useEffect(() => {
+    if (!pending && (outcomes.length > 0 || batchError)) status.current?.focus();
+  }, [batchError, outcomes, pending]);
+
+  function run(decision: "create" | "dismiss", items: Suggestion[]) {
+    if (inFlight.current || pending || !items.length) return;
+    inFlight.current = true;
+    const submitted = items.map(({ id, domain, suggested_name }) => ({
+      id, name: names[id] ?? suggested_name, domain,
+    }));
+    startTransition(async () => {
+      setBatchError(undefined);
+      setOutcomes([]);
+      try {
+        const result = await decideCompanySuggestions(decision, submitted.map(({ id, name }) => ({ id, name })));
+        if (!result.ok) {
+          setBatchError(result.message);
+          return;
+        }
+        const byId = new Map(submitted.map((row) => [row.id, row]));
+        setOutcomes(result.rows.map((row) => {
+          const input = byId.get(row.id);
+          return { ...row, label: input ? `${input.name.trim() || input.domain} (${input.domain})` : row.id };
+        }));
+        const successes = new Set(result.rows.filter(({ ok }) => ok).map(({ id }) => id));
+        if (successes.size) {
+          setProcessed((current) => new Set([...current, ...successes]));
+          setSelection((current) => new Set([...current].filter((id) => !successes.has(id))));
+        }
+        if (successes.size || result.rows.some((row) => !row.ok && row.reason === "unavailable")) refresh();
+      } catch {
+        setBatchError("Couldn't confirm the results. Refreshing To review before you try again.");
+        refresh();
+      } finally {
+        inFlight.current = false;
+      }
+    });
+  }
+
+  return (
+    <section aria-labelledby="suggested-companies">
+      <h2 id="suggested-companies" className="text-[14.5px] font-semibold text-ink">Suggested companies</h2>
+      <p className="mb-3 mt-1 text-[12px] text-neutral-500">
+        From your own mailbox (last 30 days): companies you write with that aren&apos;t in Companies yet. Only you see these.
+      </p>
+      {remaining.length === 0 ? (
+        <div className="vq-card-static rounded-[14px] bg-white p-6 text-center text-[12.5px] text-neutral-400">
+          No suggestions right now.
+        </div>
+      ) : (
+        <>
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-neutral-100 bg-white p-2.5">
+            <label className="inline-flex min-h-9 cursor-pointer items-center gap-2 px-1.5 text-[12px] font-semibold text-ink">
+              <Checkbox checked={allSelected} indeterminate={selected.length > 0 && !allSelected}
+                disabled={pending} onChange={(event) => setSelection(event.target.checked ? new Set(remaining.map(({ id }) => id)) : new Set())} />
+              Select all
+            </label>
+            <span className="px-1 text-[12px] text-neutral-600">{selected.length} selected</span>
+            <button type="button" disabled={pending || !selected.length} onClick={() => run("create", selected)}
+              className="min-h-9 rounded-lg bg-ink px-3 text-[12px] font-semibold text-white disabled:opacity-40">
+              Create selected
+            </button>
+            <button type="button" disabled={pending || !selected.length}
+              onClick={() => {
+                if (!inFlight.current && window.confirm(
+                  `Dismiss ${selected.length} selected suggestion${selected.length === 1 ? "" : "s"}? This cannot be undone.`,
+                )) run("dismiss", selected);
+              }}
+              className="min-h-9 rounded-lg border border-neutral-200 px-3 text-[12px] font-semibold text-ink hover:border-cyan-300 disabled:opacity-40">
+              {selected.length ? `Dismiss ${selected.length} selected` : "Dismiss selected"}
+            </button>
+          </div>
+          <ul className="grid gap-3 md:grid-cols-2">
+            {remaining.map((suggestion) => (
+              <SuggestionCard key={suggestion.id} suggestion={suggestion} name={names[suggestion.id] ?? suggestion.suggested_name}
+                selected={selection.has(suggestion.id)} pending={pending} error={rowErrors.get(suggestion.id)}
+                onName={(name) => setNames((current) => ({ ...current, [suggestion.id]: name }))}
+                onSelect={(checked) => setSelection((current) => {
+                  const next = new Set(current);
+                  if (checked) next.add(suggestion.id); else next.delete(suggestion.id);
+                  return next;
+                })}
+                onDismiss={() => run("dismiss", [suggestion])} />
+            ))}
+          </ul>
+        </>
+      )}
+      <div ref={status} role="status" tabIndex={-1} aria-atomic="true">
+        {pending && <p className="mt-3 text-[12px] text-neutral-600">Saving decisions…</p>}
+        {batchError && <p className="mt-3 text-[12px] text-red-700">{batchError}</p>}
+        {outcomes.length > 0 && (
+          <div className="mt-3 rounded-xl border border-neutral-100 bg-white p-3 text-[12px]">
+            <p className="font-semibold text-ink">{outcomes.filter(({ ok }) => ok).length} saved; {rowErrors.size} failed.</p>
+            <ul className="mt-1 space-y-0.5">
+              {outcomes.map(({ id, label, ok, message }) => (
+                <li key={id} className={ok ? "break-words text-neutral-600" : "break-words text-red-700"}>
+                  {label}: {message}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -131,24 +258,7 @@ export default function ScoutingReview({ suggestions, requests }: { suggestions:
         </section>
       )}
 
-      <section aria-labelledby="suggested-companies">
-        <h2 id="suggested-companies" className="text-[14.5px] font-semibold text-ink">Suggested companies</h2>
-        <p className="mb-3 mt-1 text-[12px] text-neutral-500">
-          From your own mailbox (last 30 days): companies you write with that aren&apos;t in Companies yet. Only you see
-          these.
-        </p>
-        {suggestions.length === 0 ? (
-          <div className="vq-card-static rounded-[14px] bg-white p-6 text-center text-[12.5px] text-neutral-400">
-            No suggestions right now.
-          </div>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2">
-            {suggestions.map((suggestion) => (
-              <SuggestionCard key={suggestion.id} suggestion={suggestion} onDone={done} />
-            ))}
-          </div>
-        )}
-      </section>
+      <CompanySuggestions suggestions={suggestions} refresh={() => router.refresh()} />
       {message && <p role="status" className="text-[11.5px] text-cyan-800">{message}</p>}
     </>
   );

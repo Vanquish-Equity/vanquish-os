@@ -198,28 +198,81 @@ export async function setContactMode(mode: ContactMode): Promise<Result> {
   return { ok: true, message: "Saved." };
 }
 
-export async function acceptSuggestion(id: string, name: string): Promise<Result> {
-  const session = await scoutingSession();
-  if (!session) return { ok: false, message: "Sign in to continue." };
-  const { error } = await session.supabase.rpc("accept_company_suggestion", { p_id: id, p_name: name });
-  if (error) return { ok: false, message: error.message.startsWith("Enter") || error.message.startsWith("This") ? error.message : "Could not create the company." };
-  revalidatePath("/tasks");
-  revalidatePath("/companies");
-  revalidatePath("/people");
-  return { ok: true, message: "Company created." };
-}
+type SuggestionDecision = "create" | "dismiss";
+type SuggestionSelection = { id: string; name?: string };
+type SuggestionOutcome =
+  | { id: string; ok: true; message: string }
+  | { id: string; ok: false; message: string; reason?: "unavailable" };
+type SuggestionBatchResult = { ok: true; rows: SuggestionOutcome[] } | { ok: false; message: string };
 
-export async function dismissSuggestion(id: string): Promise<Result> {
+const MAX_SUGGESTION_BATCH = 60;
+const SUGGESTION_ID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+
+export async function decideCompanySuggestions(
+  decision: SuggestionDecision,
+  selections: SuggestionSelection[],
+): Promise<SuggestionBatchResult> {
   const session = await scoutingSession();
   if (!session) return { ok: false, message: "Sign in to continue." };
-  const { data, error } = await session.supabase
-    .from("company_suggestions")
-    .update({ status: "dismissed", updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .select("id");
-  if (error || !data?.length) return { ok: false, message: "Could not dismiss the suggestion." };
-  revalidatePath("/tasks");
-  return { ok: true };
+  // Scanning permission is separate from reviewing existing suggestions.
+  // The RPC and table policies check the active member and row ownership.
+  if (
+    (decision !== "create" && decision !== "dismiss") ||
+    !Array.isArray(selections) ||
+    selections.length === 0 ||
+    selections.length > MAX_SUGGESTION_BATCH ||
+    !selections.every((selection) =>
+      selection && typeof selection.id === "string" && SUGGESTION_ID.test(selection.id)) ||
+    new Set(selections.map(({ id }) => id.toLowerCase())).size !== selections.length
+  ) {
+    return { ok: false, message: "Select up to 60 different company suggestions." };
+  }
+
+  // Each approval retains the existing transaction for the company and its
+  // contacts. A failure on one row does not undo or skip any other row.
+  const rows: SuggestionOutcome[] = [];
+  for (const selection of selections) {
+    const id = selection.id;
+    const failed = decision === "create" ? "Could not create the company." : "Could not dismiss the suggestion.";
+    const unavailable = {
+      id, ok: false, reason: "unavailable", message: "This suggestion is no longer open or available.",
+    } as const;
+    try {
+      if (decision === "create") {
+        const name = typeof selection.name === "string" ? selection.name.trim() : "";
+        if (!name || Array.from(name).length > 200) {
+          rows.push({ id, ok: false, message: "Enter a company name of 1 to 200 characters." });
+          continue;
+        }
+        const { error } = await session.supabase.rpc("accept_company_suggestion", { p_id: id, p_name: name });
+        rows.push(error
+          ? (error.code === "22023" ? unavailable : { id, ok: false, message: failed })
+          : { id, ok: true, message: "Company created." });
+      } else {
+        const { data, error } = await session.supabase
+          .from("company_suggestions")
+          .update({ status: "dismissed", updated_at: new Date().toISOString() })
+          .eq("id", id)
+          .eq("member_email", session.email)
+          .eq("status", "open")
+          .select("id");
+        rows.push(error ? { id, ok: false, message: failed }
+          : data?.length ? { id, ok: true, message: "Dismissed." }
+            : unavailable);
+      }
+    } catch {
+      rows.push({ id, ok: false, message: failed });
+    }
+  }
+
+  if (rows.some(({ ok }) => ok)) {
+    revalidatePath("/tasks");
+    if (decision === "create") {
+      revalidatePath("/companies");
+      revalidatePath("/people");
+    }
+  }
+  return { ok: true, rows };
 }
 
 export async function decideContactRequest(id: string, accept: boolean): Promise<Result> {

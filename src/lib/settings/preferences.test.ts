@@ -12,7 +12,7 @@ describe("settings preferences", () => {
   it("a mention remains visible if chat messages are hidden", () => {
     expect(notificationKinds(2)).toEqual(["chat_mention", "comment_mention", "comment_reply", "contact_note_tag"]);
     expect(notificationKinds(0)).toEqual([]);
-    expect(notificationKinds(1)).toEqual(["task_assigned", "contact_reminder"]);
+    expect(notificationKinds(1)).toEqual(["task_assigned", "contact_reminder", "company_suggestions_digest"]);
   });
 
   it("maps every saved landing value to where it goes", () => {
