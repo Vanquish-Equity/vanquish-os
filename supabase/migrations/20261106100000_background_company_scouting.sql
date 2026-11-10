@@ -9,7 +9,7 @@ create table if not exists private.company_scout_accounts (
   generation uuid not null default gen_random_uuid(),
   next_run_at timestamptz not null default now(),
   last_scanned_at timestamptz,
-  last_error text check (last_error in ('unavailable','revoked','rate_limited','reconnect')),
+  last_error text check (last_error in ('unavailable','revoked','rate_limited','reconnect','deadline')),
   capped boolean not null default false
 );
 create table if not exists private.company_scout_jobs (
@@ -21,7 +21,7 @@ create table if not exists private.company_scout_jobs (
   generation uuid not null,
   connection_version timestamptz not null,
   mode text not null check (mode in ('worker','member')),
-  worker_sub uuid references private.machine_identities(sub),
+  worker_sub uuid references private.machine_identities(sub) on delete cascade,
   check ((mode='worker')=(worker_sub is not null))
 );
 create index if not exists company_scout_accounts_due on private.company_scout_accounts(next_run_at,email) where enabled;
@@ -43,8 +43,20 @@ language plpgsql security definer set search_path='' as $$
 begin
  if tg_table_name='google_mailbox_connections' then
   delete from private.company_scout_jobs where email=old.email;
+  -- Disconnect/reconnect and credential replacement require fresh member consent.
+  -- There is no stored provider-mailbox identity to prove a replacement is the same mailbox.
+  if tg_op='DELETE' or new.refresh_token_encrypted is distinct from old.refresh_token_encrypted
+    or new.refresh_token_iv is distinct from old.refresh_token_iv or new.refresh_token_tag is distinct from old.refresh_token_tag
+    or not (new.granted_scopes && array['https://www.googleapis.com/auth/gmail.readonly','https://www.googleapis.com/auth/gmail.modify']) then
+   update private.company_scout_accounts set enabled=false,generation=gen_random_uuid(),last_error='revoked' where email=old.email;
+  end if;
  elsif tg_table_name='member_permissions' then
-  if old.permission='email_scouting' then delete from private.company_scout_jobs where email=old.email; end if;
+  if old.permission='email_scouting' then
+   delete from private.company_scout_jobs where email=old.email;
+   if tg_op='DELETE' or new.permission is distinct from old.permission or new.email is distinct from old.email then
+    update private.company_scout_accounts set enabled=false,generation=gen_random_uuid(),last_error='revoked' where email=old.email;
+   end if;
+  end if;
  elsif tg_table_name='app_members' then
   if not new.is_active then delete from private.company_scout_jobs where email=new.email; end if;
  elsif tg_table_name='machine_identities' then
@@ -98,7 +110,9 @@ language plpgsql security definer set search_path='' as $$
 declare me text:=private.require_member();
 begin
  return coalesce((select jsonb_build_object('enabled',enabled,'lastScannedAt',last_scanned_at,'capped',capped,'lastError',last_error)
-  from private.company_scout_accounts where email=me),jsonb_build_object('enabled',false));
+  from private.company_scout_accounts where email=me),jsonb_build_object('enabled',false))
+  || jsonb_build_object('workerAvailable',exists(select 1 from private.machine_identities
+      where enabled and not relationships_only and company_scanning_enabled));
 end$$;
 create or replace function public.configure_company_scouting(p_enabled boolean) returns void
 language plpgsql security definer set search_path='' as $$
@@ -277,7 +291,7 @@ language plpgsql security definer set search_path='' as $$
 declare j private.company_scout_jobs;
 begin
  j:=private.require_company_scout_job(p_id,p_lease,p_worker);
- update private.company_scout_accounts set next_run_at=now()+interval '1 hour',last_error=case when p_code in ('revoked','rate_limited','reconnect') then p_code else 'unavailable' end where email=j.email;
+ update private.company_scout_accounts set next_run_at=now()+interval '1 hour',last_error=case when p_code in ('revoked','rate_limited','reconnect','deadline') then p_code else 'unavailable' end where email=j.email;
  -- DELETE: only the failed ephemeral lease. Read jobs may run again later.
  delete from private.company_scout_jobs where id=j.id;
 end$$;

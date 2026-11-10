@@ -139,11 +139,12 @@ waits one hour, and an abandoned lease can be reclaimed after expiry. Requests
 are reads only; safe retry never sends mail. Manual scans use the same lease.
 A background run can be delayed by existing sync work or Actions scheduling.
 Missing P4 SQL causes the new worker step to skip without disrupting the
-existing relationship synchronization. A rejected worker identity stops work.
+existing relationship synchronization. A rejected identity at claim stops company work; an invalidated lease skips that
+member, and the LP step still executes behind its own authorization checks.
 
 To pause, the owner disables this machine's company-scanning capability or the
 member turns off their background consent. Either invalidates outstanding
-leases. Keep registry rows rather than deleting an identity. To roll back the
+leases. Deleting an identity cascades only its ephemeral scan leases. To roll back the
 application, pause first and restore the preceding worker/app. Retain the new
 metadata and all existing suggestions and notices; schema destruction is not
 needed for an operational rollback. Do not undo earlier Auth/relationship
@@ -152,3 +153,24 @@ migrations or delete accepted CRM records.
 Verification uses synthetic unit/UI fixtures and the complete ordered SQL chain
 on the CI's disposable native PostgreSQL 16 service. It is not an assertion of
 real Google accuracy, hosted database configuration, or scheduled timing.
+
+
+P4 owner activation (only after independent review; replace the subject locally):
+
+```sql
+-- OWNER ACTION: enables company scanning and lifts this identity's CRM/Drive guard.
+update private.machine_identities
+set relationships_only = false, company_scanning_enabled = true
+where sub = '<owner-selected-auth-subject>'::uuid;
+```
+
+`relationships_only=false` removes the identity's relationships-only CRM/Drive
+restriction; do not apply this to the current production identity merely to make
+a test pass. Prefer an owner-reviewed dedicated identity. Independent per-member
+consent, permissions and LP capability still apply. The PR does not run this SQL.
+
+Reconnect/credential replacement or permission revocation withdraws company
+consent, so restoration requires a new explicit opt-in. The company step has a
+bounded reader/run deadline with time left for a failure checkpoint and remaining
+phases; its error boundary never suppresses LP. Transport stays unchanged and
+mutations are not introduced. Deadline failures store only a safe code.

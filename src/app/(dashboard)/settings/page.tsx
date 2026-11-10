@@ -91,6 +91,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         <ScoutingSettings
           backgroundEnabled={Boolean(companyScanState?.enabled)}
           backgroundAvailable={!companyScanError}
+          workerAvailable={companyScanState?.workerAvailable === true}
+          capped={companyScanState?.capped === true}
+          lastError={typeof companyScanState?.lastError === "string" ? companyScanState.lastError : null}
           contactMode={(scoutingSettings?.contact_mode as "request" | "skip" | "auto" | undefined) ?? "request"}
           lastScannedAt={scoutingSettings?.last_scanned_at ?? null}
           googleConnected={mailbox.connected}

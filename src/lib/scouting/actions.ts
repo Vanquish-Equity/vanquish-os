@@ -33,12 +33,20 @@ export async function scanMailboxNow(): Promise<Result> {
   if (!job) return { ok: false, message: "Your mailbox is already being scanned. Try again after it finishes." };
   try {
     const context = await session.supabase.rpc("my_company_scan_context", { p_id: job.id, p_lease: job.lease });
-    if (context.error || !context.data) return { ok: false, message: "Scan permission or connection changed. No suggestions were saved." };
+    if (context.error || !context.data) {
+      await session.supabase.rpc("fail_my_company_scan", { p_id: job.id, p_lease: job.lease });
+      return { ok: false, message: "Scan context unavailable or authorization changed. No suggestions were saved." };
+    }
     const batch = await readCompanyScan(await googleClient(), context.data as CompanyScanContext);
     const result = await session.supabase.rpc("commit_my_company_scan", {
       p_id: job.id, p_lease: job.lease, p_rows: batch.rows, p_capped: batch.capped,
     });
-    if (result.error) return { ok: false, message: "Scan permission or connection changed. No suggestions were saved." };
+    if (result.error) {
+      await session.supabase.rpc("fail_my_company_scan", { p_id: job.id, p_lease: job.lease });
+      return { ok: false, message: result.error.code === "22023"
+        ? "Scan data could not be validated. No suggestions were saved."
+        : "Scan could not be saved or authorization changed. No suggestions were saved." };
+    }
     revalidatePath("/tasks");
     revalidatePath("/settings");
     const count = typeof result.data === "number" ? result.data : 0;
@@ -62,7 +70,11 @@ export async function configureCompanyScouting(enabled: boolean): Promise<Result
   const { error } = await db.rpc("configure_company_scouting", { p_enabled: enabled });
   if (error) return { ok: false, message: "Could not update scanning. Check permission and Google connection." };
   revalidatePath("/settings");
-  return { ok: true, message: enabled ? "Background company scanning enabled." : "Background company scanning disabled; in-flight scans cannot save." };
+  if (!enabled) return { ok: true, message: "Background company scanning disabled; in-flight scans cannot save." };
+  const state = await db.rpc("my_company_scouting_state");
+  return { ok: true, message: state.data?.workerAvailable === true && !state.error
+    ? "Background company scanning enabled."
+    : "Consent saved. Pending activation by the administrator." };
 }
 
 export async function setContactMode(mode: ContactMode): Promise<Result> {

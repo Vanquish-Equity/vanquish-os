@@ -256,3 +256,26 @@ leaves the existing sync jobs running; manual company scanning reports that
 its migration is unavailable. If SQL ships first, all background scans remain
 off. Old browser clients continue to follow the previous manual contract until
 they reload; deploy/reload clients before enabling the new background option.
+
+
+### P4 consent, limits and status
+
+A member opts in separately from connecting Google. Disconnecting Google,
+replacing credentials (possibly another mailbox), losing Gmail read scopes or
+revoking `email_scouting` turns background consent off and invalidates the lease.
+Restoring access requires explicit opt-in again. Manual scans remain explicit.
+The settings display pending administrator activation until a capable identity
+exists, the last bounded failure status, and whether the newest-500 limit was hit.
+
+Before commit, the shared reader converts international domains to ASCII/punycode,
+rejects invalid domains, bounds suggestion/contact names, drops invalid contact
+addresses, keeps at most ten contacts per domain and the highest-priority 500
+suggestions. One malformed suggestion does not poison other valid suggestions;
+the database still strictly rejects an invalid batch. Dates stay inside the read
+window and never in the future. Invalid rows are discarded without logging them.
+
+The reader and company-worker run have explicit deadlines; budget exhaustion
+checkpoints `deadline`. Lost/revoked leases are abandoned and the next member can
+run. An identity rejection at claim stops company work; its scheduler boundary
+still lets the independent LP phase execute. Provider 401/403 map to `reconnect`,
+429 to `rate_limited`; revoked authorization is separate from provider downtime.

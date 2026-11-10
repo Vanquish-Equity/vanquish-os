@@ -200,7 +200,11 @@ SQL-managed subject registry; `require_worker_identity()` locks/checks the enabl
 identity on every RPC. Service identities are excluded from membership, UI and
 RLS even if disabled. Legacy machine roles and Gmail push are inactive.
 
-Phase 2 adds default-false `lp_scanning_enabled`. LP worker RPCs first call the
+Phase 2 adds default-false `lp_scanning_enabled`; P4 adds separate default-false
+`company_scanning_enabled`. Company scanning also requires fresh member opt-in
+and `email_scouting`; disconnecting, replacing credentials or revoking that
+permission withdraws opt-in. A reconnect/regrant never resumes it automatically.
+LP worker RPCs first call the
 same identity guard, then require that capability and `relationships_only=false`.
 No direct LP/fundraising table grants or decision RPCs are available to machines.
 Each new table includes scalar-SELECT machine isolation in USING/WITH CHECK.

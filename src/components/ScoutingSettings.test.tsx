@@ -21,3 +21,14 @@ it("does not offer opt-in before its migration or without Google",()=>{
  ui.rerender(<ScoutingSettings contactMode="request" lastScannedAt={null} googleConnected={false} backgroundAvailable/>);
  expect(screen.queryByRole("checkbox")).toBeNull();
 });
+
+it("shows pending activation, capped coverage and a bounded failure message",()=>{
+ const ui=render(<ScoutingSettings contactMode="request" lastScannedAt={null} googleConnected backgroundAvailable backgroundEnabled capped lastError="rate_limited"/>);
+ expect(screen.getByText("Pending activation by the administrator.")).toBeTruthy();
+ expect(screen.getByText(/Last scan reached the newest 500-email limit/)).toBeTruthy();
+ expect(screen.getByRole("status").textContent).toBe("Google limited requests. The scan was deferred.");
+ ui.rerender(<ScoutingSettings contactMode="request" lastScannedAt={null} googleConnected backgroundAvailable backgroundEnabled workerAvailable lastError="deadline"/>);
+ expect(screen.queryByText("Pending activation by the administrator.")).toBeNull();
+ expect(screen.getByRole("status").textContent).toContain("time budget");
+ expect(screen.queryByText(/Last scan reached/)).toBeNull();
+});
