@@ -1,5 +1,6 @@
 "use server";
 
+import { logActivity } from "@/lib/activity/log";
 import { revalidatePath } from "next/cache";
 import { actionAccessError, getAccess } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/server";
@@ -21,6 +22,8 @@ export async function saveFounderProfile(personId: string, fields: unknown) {
     ok: false as const,
     message: MISSING_SCHEMA.has(error?.code ?? "") ? "Location and origin need the database update." : "Location and origin could not be saved.",
   };
+  await logActivity({ eventType: "PERSON_UPDATED", targetType: "person", targetId: personId,
+    payload: { fields: ["city", "country", "origin"] } }, db);
   revalidatePath("/people");
   revalidatePath(`/people/${personId}`);
   return { ok: true as const };
@@ -40,18 +43,18 @@ export async function exportShownPeople(ids: unknown) {
   if (identity.status !== "member") return { ok: false as const, message: "Sign in as an active member to export." };
   const db = await createClient();
   const rows: { id: string; name: string; title: string | null; city: string | null; country: string | null; origin: string | null }[] = [];
-  for (let offset = 0; offset < ids.length; offset += 200) {
+  for (let offset = 0; offset < ids.length; offset += 100) {
     // Each batch repeats the server membership check and RLS re-evaluates
     // active membership and machine isolation for the actual SELECT.
     const { data: member, error: membershipError } = await db.from("app_members")
       .select("email").eq("email", identity.email).eq("is_active", true).maybeSingle();
     if (membershipError || !member) return { ok: false as const, message: "Export unavailable. Membership changed." };
     const { data, error } = await db.from("people").select("id,name,title,city,country,origin")
-      .in("id", ids.slice(offset, offset + 200)).is("archived_at", null).order("id").limit(200);
+      .in("id", ids.slice(offset, offset + 100)).is("archived_at", null).order("id").limit(100);
     if (error || !data) return { ok: false as const, message: "Export unavailable. Check current access and the database update." };
     rows.push(...data);
   }
-  return { ok: true as const, csv: csvRows([
+  return { ok: true as const, csv: "\uFEFF" + csvRows([
     ["scope", "shown active contacts only", "timezone", "UTC", "currency", "N/A", "row cap", 1000],
     ["consistency", "Concurrent export; not a snapshot", "rows", rows.length],
     ["id", "name", "title", "city", "country", "origin"],

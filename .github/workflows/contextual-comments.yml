@@ -265,3 +265,8 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261106200000_founder_profile_fields.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261106200000_founder_profile_fields.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/founder_profile_fields.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261106210000_founder_profile_merge.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261106210000_founder_profile_merge.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/founder_profile_merge.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/founder_profile_fields.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/people_duplicates.sql > /dev/null

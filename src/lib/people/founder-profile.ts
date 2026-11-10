@@ -15,7 +15,11 @@ export function cleanFounderProfile(input: unknown): FounderProfile | null {
   const result = { ...EMPTY_FOUNDER_PROFILE };
   for (const { key, max } of FOUNDER_FIELDS) {
     if (value[key] !== null && value[key] !== undefined && typeof value[key] !== "string") return null;
-    const text = typeof value[key] === "string" ? value[key].trim() : "";
+    const raw = typeof value[key] === "string" ? value[key] : "";
+    // These zero-width format characters cannot constitute a useful value.
+    const visible = raw.replace(/[\u200B-\u200D\u2060\uFEFF]/gu, "");
+    if (raw !== visible && !visible.trim()) return null;
+    const text = raw.trim();
     if (Array.from(text).length > max) return null;
     result[key] = text || null;
   }

@@ -343,7 +343,7 @@ export default async function PeoplePage({
         me={access.email ?? ""}
       />
 
-      <PeopleProfileExport ids={rows.map(({ id }) => id)} />
+      <PeopleProfileExport ids={rows.slice(0, 1000).map(({ id }) => id)} truncated={rows.length > 1000} />
       {valuesFailed && <p role="status" className="text-sm text-neutral-600">Column values are unavailable. Refresh to try again.</p>}
       {tagFilters.size > 0 && <p className="text-xs text-neutral-600">{rows.length} matches in the loaded directory. Selected labels in each column match any of those labels.</p>}
       {!mailbox.connected && rows.length > 0 && (

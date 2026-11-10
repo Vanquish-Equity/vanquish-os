@@ -707,7 +707,10 @@ and full contact page show optional **City**, **Country**, and **Origin**.
 Members enter them manually; the application does not infer a location or
 origin from a mailbox, company, nationality, or name. City and Country accept
 up to 120 characters; Origin accepts 160. Clearing an input stores null.
-The database rejects empty or whitespace-only non-null values. Existing
+The database rejects empty or whitespace-only non-null values. The follow-up
+migration `20261106210000_founder_profile_merge.sql` also rejects values made
+only of whitespace and U+200B/U+200C/U+200D/U+2060/U+FEFF zero-width markers,
+in the action and in the CHECKs. It does not remove existing data. Existing
 People read/write policies and machine isolation still govern every field;
 the migration does not populate existing contacts or change old column ACLs.
 
@@ -721,14 +724,29 @@ is deferred.
 
 **Export shown (CSV)** exports up to the current 1,000 displayed active
 contacts, not the complete database. The server re-reads only the submitted
-visible IDs in batches of 200 under RLS, checks current membership before
+visible IDs in batches of 100 under RLS, checks current membership before
 each batch, and buffers the bounded result before offering a download.
 Columns are fixed: ID, Name, Title, City, Country, Origin. No email, mailbox
 evidence, private notes, files, or private board fields are included.
-Spreadsheet formula prefixes are escaped. Metadata labels UTC and currency
+When more than 1,000 contacts are displayed, the button exports the first
+1,000 and shows that additional displayed contacts are excluded. CSV starts
+with a UTF-8 BOM for spreadsheet compatibility. Spreadsheet formula prefixes
+are escaped. Metadata labels UTC and currency
 N/A; concurrent edits mean this download is not a snapshot. It is a download
 of the shown directory, not a reporting export with the Phase 3 time-window
 quota or accounting contract.
+
+Saving the location/origin records the existing `PERSON_UPDATED` activity
+with field names only, without copying their values to activity metadata.
+The follow-up merge migration fills each blank kept City/Country/Origin from
+the discarded duplicate and preserves every existing kept value. It retains
+the original `merge_people` member/Portfolio authorization, all other moves,
+archive behavior, function owner and execution ACL via `CREATE OR REPLACE`.
+The original duplicate suite is repeated after the new migration in CI.
+Apply the original field migration, then the follow-up merge migration, then
+deploy the application. SQL-first remains compatible with the previous app.
+If only the app is deployed, the export fixes work but duplicate merging
+still has the old behavior until the follow-up SQL is applied.
 
 CSV import for these fields is deferred: the existing transactional import
 RPC has duplicate/restore/LP/group handling, and this change leaves that

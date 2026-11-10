@@ -13,6 +13,9 @@ describe("founder profile values", () => {
   ])("rejects invalid or unrecognized input: %j", (input) => {
     expect(cleanFounderProfile(input)).toBeNull();
   });
+  it.each(["\u200B", " \u200C\u200D ", "\u2060", "\uFEFF"])("rejects zero-width-only values %j", (text) => {
+    for (const field of ["city", "country", "origin"]) expect(cleanFounderProfile({ [field]: text })).toBeNull();
+  });
   it("counts Unicode characters consistently with the SQL length limit", () => {
     expect(cleanFounderProfile({ city: "é".repeat(120), country: null, origin: "😀".repeat(160) })).not.toBeNull();
     expect(cleanFounderProfile({ city: "é".repeat(121) })).toBeNull();
