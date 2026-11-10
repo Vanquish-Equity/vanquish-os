@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { googleClientFromSecret,GoogleError,type GoogleSecret } from "../src/lib/google/transport";
 import { gmailBatch,calendarBatch,type SyncCursor } from "../src/lib/sync/engine";
 import {driveBatch,type DriveCursor,type DriveContext} from "../src/lib/sync/drive-engine";
+import {runCompanyScoutWorker} from "../src/lib/scouting/worker";
 import {runLpWorker} from "../src/lib/lp-scouting/worker";
 import type { ResolutionIndex } from "../src/lib/sync/resolver";
 
@@ -46,6 +47,7 @@ async function main() {
       console.error(`Sync batch deferred (${code}).`);
     }
   }
+  await runCompanyScoutWorker(db,credentials);
   await runLpWorker(db,credentials,process.env.LP_SCOUTING_WORKER_ENABLED==="true");
 }
 main().catch(error=>{console.error(error instanceof WorkerIdentityError ? error.message : "Worker stopped. Check its configuration and workspace health.");process.exitCode=1;});

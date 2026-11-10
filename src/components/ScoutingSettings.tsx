@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import Checkbox from "@/components/Checkbox";
 import RelativeTime from "@/components/RelativeTime";
 import SelectMenu from "@/components/SelectMenu";
-import { scanMailboxNow, setContactMode, type ContactMode } from "@/lib/scouting/actions";
+import { configureCompanyScouting, scanMailboxNow, setContactMode, type ContactMode } from "@/lib/scouting/actions";
 import { REVIEW_HREF } from "@/lib/tasks/tabs";
 
 const MODES: { value: ContactMode; label: string }[] = [
@@ -18,10 +19,14 @@ export default function ScoutingSettings({
   contactMode,
   lastScannedAt,
   googleConnected,
+  backgroundEnabled = false,
+  backgroundAvailable = false,
 }: {
   contactMode: ContactMode;
   lastScannedAt: string | null;
   googleConnected: boolean;
+  backgroundEnabled?: boolean;
+  backgroundAvailable?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -44,12 +49,18 @@ export default function ScoutingSettings({
         Spam and Trash) for companies you write with that aren&apos;t in Companies yet, and lists them in{" "}
         <Link href={REVIEW_HREF} className="font-semibold text-cyan-700 hover:underline">Review</Link>. Only you see your
         suggestions. Stored per suggestion: the domain, thread counts, dates and the contacts&apos; names and emails —
-        never subjects or message content. Runs every few hours while you use Vanquish OS.
+        never subjects or message content. Background scans run when you opt in and the scheduled worker is authorized; opening a page does not scan.
       </p>
       {!googleConnected ? (
         <p className="mt-3 text-[12px] text-neutral-500">Connect Google above to use this.</p>
       ) : (
         <div className="mt-4 flex flex-col gap-3">
+          <label className="flex min-h-10 items-center gap-2 text-xs text-ink">
+            <Checkbox checked={backgroundEnabled} disabled={pending || !backgroundAvailable}
+              onChange={(event) => run(() => configureCompanyScouting(event.target.checked))} />
+            Scan my mailbox for new companies in the background
+          </label>
+          {!backgroundAvailable && <p className="text-xs text-neutral-500">Background scanning requires the reviewed database migration.</p>}
           <div className="max-w-[360px] text-[11px] font-semibold text-ink">
             When I create a company from a suggestion, its contacts…
             <SelectMenu

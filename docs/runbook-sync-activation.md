@@ -115,3 +115,40 @@ Storage provider settings remain untouched. Never use it merely to undo LP UI.
 Gmail push remains disabled. Future activation needs a separately reviewed
 signal-only identity, OIDC issuer/audience checks, bounded/replay-safe payloads,
 watch lifecycle and owner-controlled Pub/Sub setup. Polling needs no push setup.
+
+## Background company scanning (P4)
+
+This uses the existing scheduled Auth worker and adds no environment variable,
+Google scope, sender, or AI provider. Review `docs/settings.md` first. The
+migration adds only the default-false machine capability, private opt-in/job
+metadata, lease-bound APIs and lease invalidation triggers. It does not opt in
+members or enable any existing machine.
+
+Activation is **owner-reviewed SQL → app/worker deploy → owner-reviewed machine
+capability → individual member opt-in → owner supervised read-only test**.
+The owner must explicitly allow company scanning and change the selected
+identity out of relationships-only mode; do not broaden an identity merely to
+make a test pass. The other CRM/Drive/LP consents and capabilities remain
+independent. Do not enable preview against a shared production database as a
+test. No hosted SQL or activation is performed by the PR.
+
+The worker renews its Auth session before every RPC and claims at most five
+company scan leases per invocation. Each lease lasts ten minutes; expired or
+replaced leases cannot commit. A successful scan waits six hours, a failed read
+waits one hour, and an abandoned lease can be reclaimed after expiry. Requests
+are reads only; safe retry never sends mail. Manual scans use the same lease.
+A background run can be delayed by existing sync work or Actions scheduling.
+Missing P4 SQL causes the new worker step to skip without disrupting the
+existing relationship synchronization. A rejected worker identity stops work.
+
+To pause, the owner disables this machine's company-scanning capability or the
+member turns off their background consent. Either invalidates outstanding
+leases. Keep registry rows rather than deleting an identity. To roll back the
+application, pause first and restore the preceding worker/app. Retain the new
+metadata and all existing suggestions and notices; schema destruction is not
+needed for an operational rollback. Do not undo earlier Auth/relationship
+migrations or delete accepted CRM records.
+
+Verification uses synthetic unit/UI fixtures and the complete ordered SQL chain
+on the CI's disposable native PostgreSQL 16 service. It is not an assertion of
+real Google accuracy, hosted database configuration, or scheduled timing.
