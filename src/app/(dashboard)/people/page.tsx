@@ -1,3 +1,4 @@
+import PeopleProfileExport from "@/components/people/PeopleProfileExport";
 import ContactDiscovery from "@/components/people/ContactDiscovery";
 import DirectoryTableScroll from "@/components/DirectoryTableScroll";
 import ColumnResizeHandle from "@/components/ColumnResizeHandle";
@@ -63,6 +64,9 @@ type PersonRow = {
   id: string;
   name: string;
   title: string | null;
+  city?: string | null;
+  country?: string | null;
+  origin?: string | null;
   linkedin_url: string | null;
   primary_organization_id: string | null;
   organization_name: string | null;
@@ -150,11 +154,11 @@ export default async function PeoplePage({
     groupMemberIds = (members ?? []).map((m) => m.person_id as string);
   }
 
-  const loadPeople = (withOrganization: boolean) => {
+  const loadPeople = (withOrganization: boolean, withFounder = false) => {
     let peopleQuery = supabase
       .from("people")
       .select(
-        `id,name,title,linkedin_url,primary_organization_id,${withOrganization ? "organization_name," : ""}is_potential_lp,organization:companies(id,name),person_emails(email,is_primary),person_group_members(group_id)`
+        `id,name,title,${withFounder ? "city,country,origin," : ""}linkedin_url,primary_organization_id,${withOrganization ? "organization_name," : ""}is_potential_lp,organization:companies(id,name),person_emails(email,is_primary),person_group_members(group_id)`
       )
       .is("archived_at", null);
     if (showLps) peopleQuery = peopleQuery.eq("is_potential_lp", true);
@@ -182,7 +186,9 @@ export default async function PeoplePage({
     // Name order is applied in SQL so a name sort picks the right rows
     // even past the API row cap; other sorts reorder the same rows below.
     (async () => {
-      const result = await loadPeople(true);
+      const needsFounder = ["city", "country", "origin"].some((column) => shown.has(column as never));
+      let result = await loadPeople(true, needsFounder);
+      if (result.error?.code === "42703" && needsFounder) result = await loadPeople(true);
       return result.error?.code === "42703" ? await loadPeople(false) : result;
     })() as unknown as Promise<{ data: PersonRow[] | null }>,
     supabase
@@ -337,6 +343,7 @@ export default async function PeoplePage({
         me={access.email ?? ""}
       />
 
+      <PeopleProfileExport ids={rows.map(({ id }) => id)} />
       {valuesFailed && <p role="status" className="text-sm text-neutral-600">Column values are unavailable. Refresh to try again.</p>}
       {tagFilters.size > 0 && <p className="text-xs text-neutral-600">{rows.length} matches in the loaded directory. Selected labels in each column match any of those labels.</p>}
       {!mailbox.connected && rows.length > 0 && (
@@ -376,6 +383,12 @@ export default async function PeoplePage({
               {shown.has("last_email") && <th className="relative py-3 pl-4 pr-7 font-semibold">Last email<ColumnResizeHandle label="Last email" /></th>}
               {shown.has("next_meeting") && <th className="relative py-3 pl-4 pr-7 font-semibold">Next meeting<ColumnResizeHandle label="Next meeting" /></th>}
               {shown.has("last_interaction") && <th className="relative py-3 pl-4 pr-7 font-semibold">Last interaction<ColumnResizeHandle label="Last interaction" /></th>}
+              {(["city", "country", "origin"] as const).map((key) => shown.has(key) && (
+                <th key={key} scope="col" className="relative py-3 pl-4 pr-7 font-semibold">
+                  {{ city: "City", country: "Country", origin: "Origin" }[key]}
+                  <ColumnResizeHandle label={{ city: "City", country: "Country", origin: "Origin" }[key]} />
+                </th>
+              ))}
               {fields.map((field) => <th key={field.id} scope="col" className="relative py-2 pl-2 pr-7 align-top">
                 {field.filterable && field.options.length ? <details>
                   <summary className="cursor-pointer normal-case text-neutral-800">{field.name}{tagFilters.has(field.id) ? ` · ${tagFilters.get(field.id)?.size} selected` : ""}</summary>
@@ -491,6 +504,9 @@ export default async function PeoplePage({
                   })()}
                 </td>
                 )}
+                {(["city", "country", "origin"] as const).map((key) => shown.has(key) && (
+                  <td key={key} className="px-4 py-3 text-neutral-600">{p[key] || "—"}</td>
+                ))}
                 {fields.map((field) => {
                   const stored = values.get(p.id)?.get(field.id);
                   return <td key={field.id} className="min-w-36 align-top">{!valuesFailed &&

@@ -699,3 +699,42 @@ can enter a city that is not in the suggestions. The migration copies existing
 active text Location custom values once (including any demo labels), leaving
 the original custom values intact. Apply the migration before enabling the
 native editor; it does not assign synthetic locations.
+
+### Contact location and origin (P8)
+
+After migration `20261106200000_founder_profile_fields.sql`, the contact panel
+and full contact page show optional **City**, **Country**, and **Origin**.
+Members enter them manually; the application does not infer a location or
+origin from a mailbox, company, nationality, or name. City and Country accept
+up to 120 characters; Origin accepts 160. Clearing an input stores null.
+The database rejects empty or whitespace-only non-null values. Existing
+People read/write policies and machine isolation still govern every field;
+the migration does not populate existing contacts or change old column ACLs.
+
+These three fields are optional People table columns, unchecked by default,
+under the existing Columns control. Legacy saved column selections retain
+them. Version-1 customization views still have their existing server
+allowlist (Name, Company, Email, LinkedIn and the permitted custom field);
+their save hint reports founder fields as omitted rather than silently
+storing an unsupported specification. Extending that separate view contract
+is deferred.
+
+**Export shown (CSV)** exports up to the current 1,000 displayed active
+contacts, not the complete database. The server re-reads only the submitted
+visible IDs in batches of 200 under RLS, checks current membership before
+each batch, and buffers the bounded result before offering a download.
+Columns are fixed: ID, Name, Title, City, Country, Origin. No email, mailbox
+evidence, private notes, files, or private board fields are included.
+Spreadsheet formula prefixes are escaped. Metadata labels UTC and currency
+N/A; concurrent edits mean this download is not a snapshot. It is a download
+of the shown directory, not a reporting export with the Phase 3 time-window
+quota or accounting contract.
+
+CSV import for these fields is deferred: the existing transactional import
+RPC has duplicate/restore/LP/group handling, and this change leaves that
+contract untouched. Optional fields can be entered after import. If the app
+deploys before SQL, profiles show a database-update message and the optional
+table cells are empty; existing contact operations keep working. If SQL comes
+first, columns remain null until a member edits them. Pause by deploying the
+previous app; retain the additive columns and their entered data rather than
+dropping them.
