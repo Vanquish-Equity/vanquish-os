@@ -5,10 +5,14 @@ import { createClient } from "@supabase/supabase-js";
 import { googleClientFromSecret,GoogleError,type GoogleSecret } from "../src/lib/google/transport";
 import { gmailBatch,calendarBatch,type SyncCursor } from "../src/lib/sync/engine";
 import {driveBatch,type DriveCursor,type DriveContext} from "../src/lib/sync/drive-engine";
+import {runCompanyScoutWorker} from "../src/lib/scouting/worker";
 import {runLpWorker} from "../src/lib/lp-scouting/worker";
 import type { ResolutionIndex } from "../src/lib/sync/resolver";
 
 async function main() {
+  // Includes time already spent in relationship/Drive reads; leave two minutes
+  // before the Action limit for company checkpoints and the independent LP step.
+  const companyDeadline=Date.now()+8*60_000;
   const url=process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if(!url||!key)throw new Error("Worker configuration is incomplete.");
@@ -45,6 +49,12 @@ async function main() {
       if(failed.error)throw new WorkerIdentityError("Worker failure checkpoint rejected; stopping.");
       console.error(`Sync batch deferred (${code}).`);
     }
+  }
+  try {
+    await runCompanyScoutWorker(db,credentials,companyDeadline);
+  } catch(error) {
+    console.error(error instanceof WorkerIdentityError ? "Company scanning authorization unavailable; continuing to LP." : "Company scanning unavailable; continuing to LP.");
+    process.exitCode=1;
   }
   await runLpWorker(db,credentials,process.env.LP_SCOUTING_WORKER_ENABLED==="true");
 }
