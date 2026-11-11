@@ -15,6 +15,8 @@ import SettingsPanel from "@/components/SettingsPanel";
 import AdminSettings from "@/components/AdminSettings";
 import RelationshipSyncSettings from "@/components/RelationshipSyncSettings";
 import ScoutingSettings from "@/components/ScoutingSettings";
+import EmailFollowupSettings from "@/components/EmailFollowupSettings";
+import { hasFollowupScope, type FollowupState } from "@/lib/email-followups/model";
 import StageRulesSettings, { type StageRule } from "@/components/StageRulesSettings";
 import StageRequirementsSettings from "@/components/StageRequirementsSettings";
 import { getPipelineStages } from "@/lib/taxonomies";
@@ -30,10 +32,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     loadMailboxConnection(supabase),
     supabase.from("relationship_sync").select("enabled,last_synced_at").eq("member_email", access.email).maybeSingle(),
   ]);
-  const [{ data: scoutingPermission }, { data: scoutingSettings, error: scoutingError }, { data: companyScanState, error: companyScanError }] = await Promise.all([
+  const [{ data: scoutingPermission }, { data: scoutingSettings, error: scoutingError }, { data: companyScanState, error: companyScanError }, followupState] = await Promise.all([
     supabase.from("member_permissions").select("permission").eq("email", access.email).eq("permission", "email_scouting").maybeSingle(),
     supabase.from("scouting_settings").select("contact_mode,last_scanned_at").eq("member_email", access.email).maybeSingle(),
     supabase.rpc("my_company_scouting_state"),
+    supabase.rpc("my_email_followup_state"),
   ]);
   const avatarUrl = profile?.avatar_path
     ? (await supabase.storage.from("member-avatars").createSignedUrl(profile.avatar_path, 3600)).data?.signedUrl ?? null
@@ -86,6 +89,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         initialPipeline={pipeline}
         mailbox={mailbox}
         connectStatus={connect ?? null}
+      />
+      <EmailFollowupSettings
+        state={followupState.error ? null : followupState.data as FollowupState | null}
+        canRead={mailbox.connected && hasFollowupScope(mailbox.grantedScopes)}
       />
       {scoutingPermission && !scoutingError && (
         <ScoutingSettings

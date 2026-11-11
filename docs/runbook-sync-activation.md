@@ -174,3 +174,42 @@ consent, so restoration requires a new explicit opt-in. The company step has a
 bounded reader/run deadline with time left for a failure checkpoint and remaining
 phases; its error boundary never suppresses LP. Transport stays unchanged and
 mutations are not introduced. Deadline failures store only a safe code.
+
+## Unanswered email reminders (P7)
+
+After independent review: **owner applies P7 SQL → app/worker deploy → owner
+authorizes the machine capability → individual member opts in → verify on a
+disposable mailbox**. Migration `20261107100000_unanswered_email_reminders.sql`
+does not change any existing capability or consent. P7 skips a missing RPC
+during app-first rollout; Settings displays database update required. SQL-first
+creates only disabled defaults. No new provider scope, env variable or sender.
+
+Owner-controlled example, only for a separately reviewed identity:
+
+```sql
+update private.machine_identities
+set followup_scanning_enabled = true
+where sub = '<owner-selected-auth-subject>'::uuid;
+```
+
+Like P4, P7 also requires an enabled identity outside relationships-only
+mode; the update above does not change that mode. Do not lift the CRM/Drive
+restriction just to test. The member's separate consent remains required.
+
+P7 runs after company scouting and before LP, behind its own error boundary.
+It shares the eight-minute scheduler deadline from process start, has a
+three-minute run budget and a two-minute reader budget, reserves 30 seconds
+for checkpointing and leaves time before the ten-minute Action limit. Heavy
+earlier sync work may leave no budget; it then claims no lease. It renews Auth
+before each RPC, acquires at most five ten-minute leases per invocation, and
+checks consent, active membership, scopes, generation and connection version
+under row locks. A lost lease skips that member. Successful reviews wait six
+hours; failed reads wait one hour. No partial write after deadline. Logs
+contain only counts and bounded codes.
+
+Pause via member opt-out or by clearing the machine capability. In-flight
+leases are invalidated; keep reminders and dedupe markers. To roll back,
+pause and revert app/worker; retain additive schema and private data. Do not
+apply test fixtures or enable the feature on preview sharing production.
+Native PostgreSQL and mock tests do not verify real Gmail, hosted Supabase,
+scheduled timing or a signed-in browser session.

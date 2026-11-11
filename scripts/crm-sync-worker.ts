@@ -6,6 +6,7 @@ import { googleClientFromSecret,GoogleError,type GoogleSecret } from "../src/lib
 import { gmailBatch,calendarBatch,type SyncCursor } from "../src/lib/sync/engine";
 import {driveBatch,type DriveCursor,type DriveContext} from "../src/lib/sync/drive-engine";
 import {runCompanyScoutWorker} from "../src/lib/scouting/worker";
+import {runEmailFollowupWorker} from "../src/lib/email-followups/worker";
 import {runLpWorker} from "../src/lib/lp-scouting/worker";
 import type { ResolutionIndex } from "../src/lib/sync/resolver";
 
@@ -54,6 +55,12 @@ async function main() {
     await runCompanyScoutWorker(db,credentials,companyDeadline);
   } catch(error) {
     console.error(error instanceof WorkerIdentityError ? "Company scanning authorization unavailable; continuing to LP." : "Company scanning unavailable; continuing to LP.");
+    process.exitCode=1;
+  }
+  try {
+    await runEmailFollowupWorker(db,credentials,companyDeadline);
+  } catch {
+    console.error("Unanswered email review unavailable; continuing to LP.");
     process.exitCode=1;
   }
   await runLpWorker(db,credentials,process.env.LP_SCOUTING_WORKER_ENABLED==="true");
