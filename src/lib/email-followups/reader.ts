@@ -1,11 +1,15 @@
 import { GoogleError, type GoogleClient } from "../google/transport";
-import { parseNamedAddresses } from "../scouting/detect";
+import { FREE_MAIL_DOMAINS, parseNamedAddresses, registrableDomain } from "../scouting/detect";
 import { hasFollowupScope } from "./model";
 
 export const FOLLOWUP_WAIT_UTC_DAYS = 5;
 export const FOLLOWUP_BATCH_CAP = 60;
 export const FOLLOWUP_READ_BUDGET_MS = 120_000;
 const INBOX_CAP = 40;
+const SENDER_GROUP_SIZE = 10;
+const SENDER_GROUP_CAP = 8;
+// Only search-safe mailbox atoms. Never interpolate Gmail query syntax from CRM.
+const SEARCH_EMAIL = /^[a-z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-z0-9.-]+\.[a-z0-9-]+$/;
 const PENDING_CAP = 20;
 const THREAD_MESSAGE_CAP = 200;
 const CONCURRENCY = 5;
@@ -16,7 +20,7 @@ const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const AUTOMATIC = /^(?:no-?reply|do-?not-?reply|notifications?|mailer-daemon|postmaster|bounces?|alerts?|news(?:letter)?|marketing|updates?|billing|invoices?|receipts?|support|help|info|hello|team|calendar-notification)(?:[+._-].*)?$/i;
 const EXCLUDED_LABELS = new Set(["SPAM", "TRASH", "CHAT", "DRAFT", "CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_UPDATES", "CATEGORY_FORUMS"]);
-const HEADERS = ["From", "To", "Cc", "Date", "List-Unsubscribe", "Precedence", "Auto-Submitted"];
+const HEADERS = ["From", "List-Unsubscribe", "Precedence", "Auto-Submitted"];
 const FIELDS = "id,messages(id,threadId,internalDate,labelIds,payload(mimeType,parts(mimeType,parts(mimeType)),headers(name,value)))";
 
 export type FollowupContext = {
@@ -25,6 +29,7 @@ export type FollowupContext = {
   memberEmails: string[];
   contacts: { email: string; personId: string }[];
   pendingThreads: string[];
+  senderGroupOffset?: number;
 };
 
 type Observation = { threadId: string; messageId: string; at: string };
@@ -84,20 +89,43 @@ export async function readFollowupBatch(client: GoogleClient, ctx: FollowupConte
     people.set(email, prior === undefined || prior === contact.personId ? contact.personId : null);
   }
   const members = new Set(ctx.memberEmails.map((email) => email.toLowerCase()));
-  const ownDomain = own.split("@")[1];
+  const ownDomain = registrableDomain(own.split("@")[1]);
+  const ownCorporateDomain = (sender: string) => !FREE_MAIL_DOMAINS.has(ownDomain) &&
+    registrableDomain(sender.split("@")[1]) === ownDomain;
   const pending = new Set(ctx.pendingThreads.filter((id) => ID.test(id)));
   const candidates = new Set<string>();
   const cutoff = (Math.floor(now.getTime() / DAY_MS) - ctx.windowDays) * DAY_MS;
   const newestEligibleEnd = (Math.floor(now.getTime() / DAY_MS) - FOLLOWUP_WAIT_UTC_DAYS + 1) * DAY_MS;
   const query = `in:inbox after:${cutoff / 1000 - 1} before:${newestEligibleEnd / 1000} -in:spam -in:trash -in:chats -category:promotions -category:social -category:updates -category:forums -filename:ics`;
-  // One bounded Gmail page. No page token is persisted, and pending threads
-  // have a separate rotating budget so an archived reply can still close them.
-  const list = new URLSearchParams({ maxResults: String(INBOX_CAP), q: query, fields: "threads(id)" });
-  requireBudget(deadline);
-  const page = await client.request<{ threads?: { id: string }[] }>("gmail", `/threads?${list}`);
-  requireBudget(deadline, 0);
-  for (const thread of (Array.isArray(page.threads) ? page.threads : []).slice(0, INBOX_CAP)) {
-    if (typeof thread?.id === "string" && ID.test(thread.id)) candidates.add(thread.id);
+  // Search only known eligible sender groups. Rotate the group window across
+  // successful runs, and share the detail budget across each group's results.
+  const senders = [...people].filter(([email, person]) => person && validEmail(email) &&
+    SEARCH_EMAIL.test(email) && !members.has(email) && !ownCorporateDomain(email) &&
+    !AUTOMATIC.test(email.split("@")[0])).map(([email]) => email).sort();
+  const groupCount = Math.ceil(senders.length / SENDER_GROUP_SIZE);
+  const cursor = Number.isSafeInteger(ctx.senderGroupOffset) && (ctx.senderGroupOffset ?? 0) >= 0 ? ctx.senderGroupOffset ?? 0 : 0;
+  const groups = Array.from({ length: Math.min(groupCount, SENDER_GROUP_CAP) }, (_, n) => {
+    const start = ((cursor + n) % groupCount) * SENDER_GROUP_SIZE;
+    return senders.slice(start, start + SENDER_GROUP_SIZE);
+  });
+  const pages: { id: string }[][] = [];
+  for (let offset = 0; offset < groups.length; offset += CONCURRENCY) {
+    requireBudget(deadline);
+    const found = await Promise.all(groups.slice(offset, offset + CONCURRENCY).map(async (group) => {
+      const from = group.map((email) => `"${email}"`).join(" OR ");
+      const list = new URLSearchParams({ maxResults: String(INBOX_CAP), q: `${query} from:(${from})`, fields: "threads(id)" });
+      const page = await client.request<{ threads?: { id: string }[] }>("gmail", `/threads?${list}`);
+      return (Array.isArray(page.threads) ? page.threads : []).slice(0, INBOX_CAP);
+    }));
+    requireBudget(deadline, 0);
+    pages.push(...found);
+  }
+  for (let n = 0; n < INBOX_CAP && candidates.size < INBOX_CAP; n++) {
+    for (const page of pages) {
+      const id = page[n]?.id;
+      if (typeof id === "string" && ID.test(id)) candidates.add(id);
+      if (candidates.size >= INBOX_CAP) break;
+    }
   }
   const ids = [...new Set([...pending, ...candidates])];
   const rows: FollowupRow[] = [];
@@ -146,7 +174,7 @@ export async function readFollowupBatch(client: GoogleClient, ctx: FollowupConte
       const from = headers.filter((header) => header.name.toLowerCase() === "from");
       const senders = from.length === 1 ? parseNamedAddresses(from[0].value) : [];
       const sender = senders.length === 1 ? senders[0].email : "";
-      if (!validEmail(sender) || members.has(sender) || sender.split("@")[1] === ownDomain ||
+      if (!validEmail(sender) || members.has(sender) || ownCorporateDomain(sender) ||
         AUTOMATIC.test(sender.split("@")[0])) continue;
       const personId = people.get(sender);
       if (!personId || headers.some(({ name, value }) => {

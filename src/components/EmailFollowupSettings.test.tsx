@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { followupSettingsError } from "@/lib/email-followups/model";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { configureEmailFollowup } from "@/lib/email-followups/actions";
@@ -35,4 +36,24 @@ it("blocks new consent without schema or read scope but still allows withdrawal"
   expect(toggle.disabled).toBe(false);
   fireEvent.click(toggle);
   await waitFor(() => expect(configureEmailFollowup).toHaveBeenCalledWith(false));
+});
+
+it("distinguishes missing migration from other errors and describes partial coverage", () => {
+  const view = render(<EmailFollowupSettings state={null} canRead stateError="unavailable" />);
+  expect(screen.getByText("Could not load reminder settings. Try refreshing.")).toBeTruthy();
+  expect(screen.getByText("Reviews recent threads from your contacts. Coverage is partial.")).toBeTruthy();
+  view.rerender(<EmailFollowupSettings state={null} canRead stateError="migration" />);
+  expect(screen.getByText(/database update is installed/)).toBeTruthy();
+});
+
+it("mounts an empty live region and links the checkbox to its help", () => {
+  render(<EmailFollowupSettings state={{ enabled: false, workerAvailable: false }} canRead />);
+  expect(screen.getByRole("status").textContent).toBe("");
+  expect(screen.getByRole("checkbox").getAttribute("aria-describedby"))
+    .toBe("settings-email-followups-help settings-email-followups-coverage");
+});
+
+it("only maps missing RPC codes to database update required", () => {
+  expect(["42883", "PGRST202", "42501", "57014", undefined].map(followupSettingsError))
+    .toEqual(["migration", "migration", "unavailable", "unavailable", "unavailable"]);
 });

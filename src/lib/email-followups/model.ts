@@ -22,3 +22,7 @@ export type FollowupState = {
 export function hasFollowupScope(scopes: readonly string[]) {
   return GMAIL_FOLLOWUP_SCOPES.some((scope) => scopes.includes(scope));
 }
+
+export function followupSettingsError(code: string | undefined) {
+  return code === "42883" || code === "PGRST202" ? "migration" : "unavailable";
+}

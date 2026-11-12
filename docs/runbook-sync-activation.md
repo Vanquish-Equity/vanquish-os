@@ -204,12 +204,18 @@ earlier sync work may leave no budget; it then claims no lease. It renews Auth
 before each RPC, acquires at most five ten-minute leases per invocation, and
 checks consent, active membership, scopes, generation and connection version
 under row locks. A lost lease skips that member. Successful reviews wait six
-hours; failed reads wait one hour. No partial write after deadline. Logs
+hours; failed reads wait one hour. Claim also advances due time one hour, so
+a killed worker does not reclaim the same mailbox as soon as its lease expires.
+A single future-dated observation is skipped without rejecting valid rows.
+Gmail 403 quota reasons and 429 get the bounded rate_limited code; other Gmail
+403 responses retain the permission/reconnect path. No partial write after
+deadline. Logs
 contain only counts and bounded codes.
 
-Pause via member opt-out or by clearing the machine capability. In-flight
-leases are invalidated; keep reminders and dedupe markers. To roll back,
-pause and revert app/worker; retain additive schema and private data. Do not
+To pause the workspace, clear the machine capability; individual members can
+also opt out. In-flight leases are invalidated. For operational rollback,
+clear the capability and turn member consent off, then revert app/worker.
+Keep the schema, private reminders and deduplication markers. Do not
 apply test fixtures or enable the feature on preview sharing production.
 Native PostgreSQL and mock tests do not verify real Gmail, hosted Supabase,
 scheduled timing or a signed-in browser session.

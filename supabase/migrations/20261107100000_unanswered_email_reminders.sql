@@ -21,6 +21,7 @@ create table if not exists private.email_followup_accounts (
   enabled boolean not null default false,
   generation uuid not null default gen_random_uuid(),
   first_review boolean not null default true,
+  sender_group_offset integer not null default 0 check (sender_group_offset>=0),
   next_run_at timestamptz not null default now(),
   last_review_at timestamptz,
   last_error text check (last_error in ('reconnect','rate_limited','revoked','deadline','unavailable')),
@@ -54,6 +55,8 @@ create table if not exists private.email_followups (
 );
 create index if not exists email_followups_pending
   on private.email_followups(member_email,last_selected_at nulls first,thread_id) where status='pending';
+create index if not exists email_followups_expiry
+  on private.email_followups(member_email,last_inbound_at,thread_id) where status='pending';
 create index if not exists email_followups_person on private.email_followups(person_id);
 do $$declare t text;begin
   foreach t in array array['email_followup_accounts','email_followup_jobs','email_followups'] loop
@@ -68,6 +71,25 @@ end$$;
 create or replace function private.email_followup_read_scope(scopes text[]) returns boolean
 language sql immutable set search_path='' as $$
   select coalesce(scopes && array['https://www.googleapis.com/auth/gmail.readonly','https://www.googleapis.com/auth/gmail.modify'],false)
+$$;
+
+-- Same registrable-domain heuristic and free providers as scouting/detect.ts.
+-- Tests pin the mirror to that list; no external domain lookup.
+create or replace function private.email_followup_domain(address text) returns text
+language sql immutable set search_path='' as $$
+  with labels as (
+    select array_remove(string_to_array(lower(split_part(address,'@',2)),'.'),'') a
+  ), lengths as (select a,cardinality(a) n from labels)
+  select case when n<=2 then array_to_string(a,'.')
+    when length(a[n])=2 and a[n-1]=any(array['co','com','org','net','ac','gov','edu','or','ne','go'])
+      then array_to_string(a[n-2:n],'.')
+    else array_to_string(a[n-1:n],'.') end from lengths
+$$;
+create or replace function private.email_followup_own_domain(owner_address text,sender_address text) returns boolean
+language sql immutable set search_path='' as $$
+  select own_domain<>all(array['gmail.com','googlemail.com','outlook.com','hotmail.com','live.com','msn.com','yahoo.com','ymail.com','icloud.com','me.com','mac.com','aol.com','proton.me','protonmail.com','gmx.com','gmx.net','zoho.com','yandex.com','mail.com','hotmail.es','yahoo.es','outlook.es','live.com.mx','hotmail.co.uk','yahoo.co.uk'])
+    and own_domain=private.email_followup_domain(sender_address)
+  from (select private.email_followup_domain(owner_address) own_domain) d
 $$;
 
 create or replace function private.fence_email_followup() returns trigger
@@ -190,6 +212,9 @@ begin
       on conflict(member_email) do update set id=gen_random_uuid(),lease=gen_random_uuid(),
         lease_until=excluded.lease_until,generation=excluded.generation,connection_version=excluded.connection_version,
         worker_sub=excluded.worker_sub returning * into j;
+    -- Advance due time now, even if the process dies before a checkpoint.
+    update private.email_followup_accounts set next_run_at=now()+interval '1 hour'
+      where member_email=a.member_email;
     return next jsonb_build_object('id',j.id,'lease',j.lease);
     return;
   end loop;
@@ -216,7 +241,8 @@ end$$;
 
 create or replace function public.worker_email_followup_context(p_id uuid,p_lease uuid) returns jsonb
 language plpgsql security definer set search_path='' as $$
-declare j private.email_followup_jobs; contacts jsonb; members jsonb; pending jsonb;
+declare j private.email_followup_jobs; contacts jsonb; members jsonb; pending jsonb; expired record;
+  cutoff timestamptz:=((now() at time zone 'UTC')::date-30)::timestamp at time zone 'UTC';
 begin
   perform private.require_worker_identity();
   perform private.require_email_followup_worker();
@@ -229,10 +255,24 @@ begin
   if jsonb_array_length(contacts)>10000 or jsonb_array_length(members)>1000 then
     raise exception 'Follow-up directory exceeds scan limit' using errcode='54000';
   end if;
-  -- Rotate bounded pending work, including archived or older Gmail threads.
+  -- Retire up to 20 stale observations without touching manual reminders.
+  -- The cutoff also excludes the rest of a stale backlog from the read budget.
+  for expired in select thread_id,reminder_id from private.email_followups
+    where member_email=j.member_email and status='pending' and last_inbound_at<cutoff
+    order by last_inbound_at,thread_id limit 20
+  loop
+    perform 1 from public.contact_reminders where id=expired.reminder_id for update;
+    update private.email_followups set status='handled',updated_at=now()
+      where member_email=j.member_email and thread_id=expired.thread_id and status='pending';
+    if found then
+      update public.contact_reminders set completed_at=now(),completed_by=j.member_email
+        where id=expired.reminder_id and created_by=j.member_email and email_followup_private and completed_at is null;
+    end if;
+  end loop;
+  -- Rotate bounded pending work, including archived Gmail threads.
   with picked as (
     select thread_id from private.email_followups
-      where member_email=j.member_email and status='pending'
+      where member_email=j.member_email and status='pending' and last_inbound_at>=cutoff
       order by last_selected_at nulls first,thread_id limit 20
   ), rotated as (
     update private.email_followups f set last_selected_at=now() from picked
@@ -241,6 +281,7 @@ begin
   return jsonb_build_object('ownEmail',j.member_email,'contacts',contacts,'memberEmails',members,
     'pendingThreads',pending,'windowDays',(select case when first_review then 14 else 30 end
       from private.email_followup_accounts where member_email=j.member_email),
+    'senderGroupOffset',(select sender_group_offset from private.email_followup_accounts where member_email=j.member_email),
     'connection',(select jsonb_build_object('refresh_token_encrypted',c.refresh_token_encrypted,
       'refresh_token_iv',c.refresh_token_iv,'refresh_token_tag',c.refresh_token_tag,'granted_scopes',c.granted_scopes)
       from public.google_mailbox_connections c where c.email=j.member_email));
@@ -274,7 +315,7 @@ begin
       observed:=(r->>'at')::timestamptz;
     exception when data_exception then raise exception 'Invalid follow-up date' using errcode='22023';
     end;
-    if not isfinite(observed) or observed>now() then raise exception 'Invalid follow-up date' using errcode='22023'; end if;
+    if not isfinite(observed) then raise exception 'Invalid follow-up date' using errcode='22023'; end if;
   end loop;
   if (select count(distinct value->>'threadId') from jsonb_array_elements(p_rows))<>jsonb_array_length(p_rows) then
     raise exception 'Duplicate follow-up thread' using errcode='22023';
@@ -295,6 +336,8 @@ begin
   daily_count:=case when a.creation_day=today then a.created_today else 0 end;
   for r in select value from jsonb_array_elements(p_rows) order by value->>'at',value->>'threadId' loop
     at_time:=(r->>'at')::timestamptz;
+    -- Clock skew is not a malformed payload. Skip the observation, not its neighbors.
+    if at_time>now() then continue; end if;
     select * into f from private.email_followups where member_email=j.member_email and thread_id=r->>'threadId';
     if f.reminder_id is not null then
       -- Same lock order as human completion/delete: reminder, then follow-up.
@@ -314,21 +357,36 @@ begin
     if age_days<5 or age_days>(case when a.first_review then 14 else 30 end) then continue; end if;
     if f.thread_id is not null and (at_time<=f.last_inbound_at or r->>'messageId'=f.last_inbound_message_id) then continue; end if;
     sender:=lower(r->>'sender');
-    if split_part(sender,'@',2)=split_part(lower(j.member_email),'@',2)
+    if private.email_followup_own_domain(j.member_email,sender)
       or exists(select 1 from public.app_members m where lower(m.email)=sender) then continue; end if;
     -- Exact active CRM match, rechecked in the write transaction. Ambiguous
-    -- email matches never select an arbitrary person.
+    -- email matches never select an arbitrary person. The proposed contact's
+    -- archive guard is on the locked row; archived alternatives do not count.
     select p.name into person_name from public.people p where p.id=(r->>'personId')::uuid
       and p.archived_at is null and p.id=(select min(e.person_id::text)::uuid
-        from public.person_emails e join public.people other on other.id=e.person_id and other.archived_at is null
+        from public.person_emails e join public.people other on other.id=e.person_id
+          and (other.archived_at is null or other.id=p.id)
         where lower(e.email)=sender having count(distinct e.person_id)=1) for share of p;
     if not found then continue; end if;
-    if f.status='pending' then
+    if f.status='pending' and exists (
+      select 1 from public.contact_reminders c
+        join public.people old_person on old_person.id=c.person_id and old_person.archived_at is null
+      where c.id=f.reminder_id and c.person_id=f.person_id and c.created_by=j.member_email
+        and c.visibility='private' and c.email_followup_private and c.completed_at is null
+    ) then
       update private.email_followups set last_inbound_at=at_time,last_inbound_message_id=r->>'messageId',updated_at=now()
         where member_email=j.member_email and thread_id=f.thread_id;
       continue;
     end if;
     if daily_count>=10 then continue; end if;
+    -- Replace an invisible pending reminder only for a newer inbound. Close
+    -- the old generated row so restoring the contact cannot show duplicates.
+    if f.status='pending' then
+      update private.email_followups set status='handled',updated_at=now()
+        where member_email=j.member_email and thread_id=f.thread_id;
+      update public.contact_reminders set completed_at=now(),completed_by=j.member_email
+        where id=f.reminder_id and created_by=j.member_email and email_followup_private and completed_at is null;
+    end if;
     insert into public.contact_reminders(person_id,title,due_on,visibility,created_by,email_followup_private)
       values((r->>'personId')::uuid,left('Reply to '||person_name,160),today,'private',j.member_email,true)
       returning id into rid;
@@ -341,7 +399,7 @@ begin
     added:=added+1;
   end loop;
   update private.email_followup_accounts set first_review=false,last_review_at=now(),last_error=null,
-    next_run_at=now()+interval '6 hours',creation_day=today,created_today=daily_count where member_email=j.member_email;
+    next_run_at=now()+interval '6 hours',sender_group_offset=(a.sender_group_offset::bigint+8)%2147483647,creation_day=today,created_today=daily_count where member_email=j.member_email;
   -- DELETE: consumed ephemeral lease only.
   delete from private.email_followup_jobs where id=j.id;
   return added;
@@ -363,7 +421,7 @@ end$$;
 
 do $$declare f record;begin
   for f in select p.oid::regprocedure signature,n.nspname from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-    where (n.nspname='private' and p.proname in ('email_followup_read_scope','fence_email_followup',
+    where (n.nspname='private' and p.proname in ('email_followup_read_scope','email_followup_domain','email_followup_own_domain','fence_email_followup',
       'handle_email_followup_reminder','require_email_followup_worker','require_email_followup_job','validate_email_followup_batch'))
       or (n.nspname='public' and p.proname in ('my_email_followup_state','configure_email_followup',
         'worker_claim_email_followup','worker_email_followup_context','worker_commit_email_followup','worker_fail_email_followup'))

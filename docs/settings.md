@@ -295,7 +295,12 @@ message must be inbound, in Inbox, and at least **five UTC calendar days** old.
 The first successful review after opt-in looks back 14 days; later reviews
 look back up to 30. The sender must match one active People record by exact
 email, ignoring case. A company-domain match alone never creates a reminder.
-It skips internal/app-member senders, automated senders, list/bulk/auto-reply
+Inbox delivery qualifies even when a member was copied or blind-copied;
+direct-recipient headers are not requested. It skips other app members and
+senders at the member's registrable company domain, including subdomains.
+Shared free providers such as Gmail and Outlook are exempt from the domain
+rule, but still require an exact active CRM contact match.
+It skips automated senders, list/bulk/auto-reply
 headers, spam, trash, chats, and promotions/social/updates/forums. Calendar
 filtering excludes ICS matches in Gmail search and calendar MIME types when
 present in the metadata response. Neither bodies nor attachment contents are
@@ -303,8 +308,12 @@ requested. Validate calendar filtering with a disposable mailbox before rollout.
 
 Up to ten private reminders are created per UTC day, even if some are deleted
 afterward. The remaining qualifying threads can be picked up on later runs
-within the window. Each run reads at most 40 inbox candidates and 20 rotating
-pending threads; this is not an exhaustive audit of a busy inbox. Only Gmail
+within the window. Search targets known CRM senders in up to eight groups of
+ten addresses; the starting group rotates after a successful review. The
+worker shares at most 40 candidate reads across the groups, plus 20 rotating
+pending threads. Coverage remains partial on busy mailboxes. It requests only
+From, List-Unsubscribe, Precedence and Auto-Submitted headers, plus the Gmail
+IDs, timestamps, labels and narrowly selected MIME types. Only Gmail
 thread/message IDs, time, contact/reminder links and status are stored for
 deduplication. Sender addresses used for matching are not stored in the ledger.
 No subjects, snippets, bodies, attachments, notifications or sends.
@@ -312,7 +321,12 @@ No subjects, snippets, bodies, attachments, notifications or sends.
 A newer sent message closes an open generated reminder, even if the thread
 is no longer in Inbox. Completing/deleting it by hand marks that inbound
 handled. A strictly newer eligible inbound message can create another one,
-with at most one open reminder per thread. Disconnecting Google, replacing
+with at most one open reminder per thread. If a merge hides the old contact's
+reminder, a newer qualifying inbound can replace it under the same daily cap.
+Pending observations older than 30 UTC calendar days leave the read rotation.
+Bounded cleanup marks them handled and closes any associated open generated
+reminder; it leaves manual reminders and deduplication markers intact.
+Disconnecting Google, replacing
 credentials, losing Gmail read scope, or deactivating membership withdraws
 consent. Reconnecting or restoring access requires a fresh opt-in. Pausing
 preserves existing reminders and deduplication markers.

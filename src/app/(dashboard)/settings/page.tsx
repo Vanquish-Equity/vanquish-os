@@ -16,7 +16,7 @@ import AdminSettings from "@/components/AdminSettings";
 import RelationshipSyncSettings from "@/components/RelationshipSyncSettings";
 import ScoutingSettings from "@/components/ScoutingSettings";
 import EmailFollowupSettings from "@/components/EmailFollowupSettings";
-import { hasFollowupScope, type FollowupState } from "@/lib/email-followups/model";
+import { followupSettingsError, hasFollowupScope, type FollowupState } from "@/lib/email-followups/model";
 import StageRulesSettings, { type StageRule } from "@/components/StageRulesSettings";
 import StageRequirementsSettings from "@/components/StageRequirementsSettings";
 import { getPipelineStages } from "@/lib/taxonomies";
@@ -92,6 +92,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       />
       <EmailFollowupSettings
         state={followupState.error ? null : followupState.data as FollowupState | null}
+        stateError={followupSettingsError(followupState.error?.code)}
         canRead={mailbox.connected && hasFollowupScope(mailbox.grantedScopes)}
       />
       {scoutingPermission && !scoutingError && (

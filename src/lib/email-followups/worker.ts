@@ -12,7 +12,7 @@ function classify(error: unknown): FollowupError {
   if (error instanceof LeaseLost) return "revoked";
   if (error instanceof FollowupDeadlineError) return "deadline";
   if (error instanceof GoogleError) {
-    if (error.status === 429) return "rate_limited";
+    if (error.status === 429 || error.reason === "rate_limited") return "rate_limited";
     if (error.status === 401 || error.status === 403 || error.code === "disconnected" || error.code === "permission") return "reconnect";
   }
   return "unavailable";

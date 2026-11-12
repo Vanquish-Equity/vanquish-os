@@ -67,6 +67,7 @@ it("stops on claim authorization rejection and skips missing migrations", async 
 it.each([
   [new GoogleError("unavailable","synthetic provider detail",401), "reconnect"],
   [new GoogleError("unavailable","synthetic provider detail",403), "reconnect"],
+  [new GoogleError("permission","synthetic provider detail",403,"rate_limited"), "rate_limited"],
   [new GoogleError("unavailable","synthetic provider detail",429), "rate_limited"],
   [new FollowupDeadlineError(), "deadline"],
   [new Error("synthetic provider detail"), "unavailable"],
@@ -131,4 +132,12 @@ it("claims at most five members even when the queue remains nonempty", async () 
     name === "worker_email_followup_context" ? ctx : 0 }));
   await runEmailFollowupWorker(db(rpc), credentials, future());
   expect(rpc.mock.calls.filter(([name]) => name === "worker_claim_email_followup")).toHaveLength(5);
+});
+
+it("rejects a commit count above the ten-reminder SQL cap", async () => {
+  const rpc = vi.fn().mockResolvedValueOnce({ data:[job] }).mockResolvedValueOnce({ data:ctx })
+    .mockResolvedValueOnce({ data:11 }).mockResolvedValueOnce({ data:null }).mockResolvedValueOnce({ data:[] });
+  await runEmailFollowupWorker(db(rpc),credentials,future());
+  expect(rpc.mock.calls[3]).toEqual(["worker_fail_email_followup", { p_id:job.id,p_lease:job.lease,p_code:"unavailable" }]);
+  expect(console.log).not.toHaveBeenCalled();
 });

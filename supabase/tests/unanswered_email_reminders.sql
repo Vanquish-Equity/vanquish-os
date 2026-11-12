@@ -50,24 +50,24 @@ begin
 end$$;
 
 insert into public.app_members(email,display_name,is_active) values
- ('p7.owner@workspace.synthetic.test','Synthetic Owner',true),
- ('p7.other@workspace.synthetic.test','Synthetic Other',true),
- ('p7.admin@workspace.synthetic.test','Synthetic Admin',true),
- ('p7.disabled@workspace.synthetic.test','Synthetic Disabled',false),
- ('p7.scope@workspace.synthetic.test','Synthetic Scope',true),
- ('p7.noconn@workspace.synthetic.test','Synthetic No Connection',true);
-insert into public.member_permissions(email,permission) values('p7.admin@workspace.synthetic.test','admin');
+ ('p7.owner@workspace-synthetic.test','Synthetic Owner',true),
+ ('p7.other@workspace-synthetic.test','Synthetic Other',true),
+ ('p7.admin@workspace-synthetic.test','Synthetic Admin',true),
+ ('p7.disabled@workspace-synthetic.test','Synthetic Disabled',false),
+ ('p7.scope@workspace-synthetic.test','Synthetic Scope',true),
+ ('p7.noconn@workspace-synthetic.test','Synthetic No Connection',true);
+insert into public.member_permissions(email,permission) values('p7.admin@workspace-synthetic.test','admin');
 insert into public.people(id,name) values('70000000-0000-4000-8000-000000000001','Synthetic Contact');
 insert into public.person_emails(person_id,email,is_primary)
  values('70000000-0000-4000-8000-000000000001','contact@external.synthetic.test',true);
 insert into public.google_mailbox_connections(email,granted_scopes,refresh_token_encrypted,refresh_token_iv,refresh_token_tag)
  select email,case when email like 'p7.scope@%' then array['https://www.googleapis.com/auth/gmail.send']
    else array['https://www.googleapis.com/auth/gmail.readonly'] end,'synthetic','synthetic','synthetic'
- from public.app_members where email in ('p7.owner@workspace.synthetic.test','p7.other@workspace.synthetic.test',
-   'p7.disabled@workspace.synthetic.test','p7.scope@workspace.synthetic.test');
+ from public.app_members where email in ('p7.owner@workspace-synthetic.test','p7.other@workspace-synthetic.test',
+   'p7.disabled@workspace-synthetic.test','p7.scope@workspace-synthetic.test');
 insert into auth.users(id,email) values
- ('70000000-0000-4000-8000-000000000010','p7.worker@workspace.synthetic.test'),
- ('70000000-0000-4000-8000-000000000011','p7.second@workspace.synthetic.test');
+ ('70000000-0000-4000-8000-000000000010','p7.worker@workspace-synthetic.test'),
+ ('70000000-0000-4000-8000-000000000011','p7.second@workspace-synthetic.test');
 insert into private.machine_identities(sub,enabled,relationships_only) values
  ('70000000-0000-4000-8000-000000000010',true,false),('70000000-0000-4000-8000-000000000011',true,false);
 
@@ -78,20 +78,20 @@ select pg_temp.expect(pg_temp.state('select public.worker_claim_email_followup()
 select pg_temp.expect(pg_temp.state('select * from private.email_followups')='42501','anon tables denied');
 reset role;
 set local role authenticated;
-select pg_temp.who('p7.outsider@workspace.synthetic.test');
+select pg_temp.who('p7.outsider@workspace-synthetic.test');
 select pg_temp.expect(pg_temp.state('select public.configure_email_followup(true)')='42501','nonmember denied');
-select pg_temp.who('p7.disabled@workspace.synthetic.test');
+select pg_temp.who('p7.disabled@workspace-synthetic.test');
 select pg_temp.expect(pg_temp.state('select public.configure_email_followup(true)')='42501','disabled member denied');
-select pg_temp.who('p7.scope@workspace.synthetic.test');
+select pg_temp.who('p7.scope@workspace-synthetic.test');
 select pg_temp.expect(pg_temp.state('select public.configure_email_followup(true)')='42501','no read scope denied');
-select pg_temp.who('p7.noconn@workspace.synthetic.test');
+select pg_temp.who('p7.noconn@workspace-synthetic.test');
 select pg_temp.expect(pg_temp.state('select public.configure_email_followup(true)')='42501','no mailbox denied');
-select pg_temp.who('p7.owner@workspace.synthetic.test');
+select pg_temp.who('p7.owner@workspace-synthetic.test');
 select pg_temp.expect(public.my_email_followup_state()->>'enabled'='false','member off by default');
 select pg_temp.expect(public.my_email_followup_state()->>'workerAvailable'='false','worker off by default');
 select pg_temp.expect(pg_temp.state('select public.worker_claim_email_followup()')='42501','member cannot claim');
 select public.configure_email_followup(true);
-select pg_temp.who('p7.worker@workspace.synthetic.test','70000000-0000-4000-8000-000000000010');
+select pg_temp.who('p7.worker@workspace-synthetic.test','70000000-0000-4000-8000-000000000010');
 select pg_temp.expect(pg_temp.state('select public.configure_email_followup(true)')='42501','machine cannot opt in');
 select pg_temp.expect(pg_temp.state('select public.my_email_followup_state()')='42501','machine cannot see member settings');
 select pg_temp.expect((select count(*)=0 from public.worker_claim_email_followup()),'capability default-off prevents claim');
@@ -99,12 +99,12 @@ reset role;
 
 -- Stale enabled rows are skipped independently of revocation triggers.
 insert into private.email_followup_accounts(member_email,enabled,next_run_at) values
- ('p7.disabled@workspace.synthetic.test',true,'-infinity'),
- ('p7.scope@workspace.synthetic.test',true,'-infinity'),
- ('p7.noconn@workspace.synthetic.test',true,'-infinity');
+ ('p7.disabled@workspace-synthetic.test',true,'-infinity'),
+ ('p7.scope@workspace-synthetic.test',true,'-infinity'),
+ ('p7.noconn@workspace-synthetic.test',true,'-infinity');
 -- Fill the claim probe with stale rows if any eligibility join is removed.
 insert into public.app_members(email,display_name,is_active)
- select 'p7.stale-'||kind||n||'@workspace.synthetic.test','Synthetic Stale',kind<>'disabled'
+ select 'p7.stale-'||kind||n||'@workspace-synthetic.test','Synthetic Stale',kind<>'disabled'
  from unnest(array['disabled','scope','noconn']) kind cross join generate_series(1,5)n;
 insert into private.email_followup_accounts(member_email,enabled,next_run_at)
  select email,true,'-infinity' from public.app_members where email like 'p7.stale-%';
@@ -119,22 +119,22 @@ do $$declare guard text;begin
  foreach guard in array array[' and m.is_active',' and private.email_followup_read_scope(c.granted_scopes)',
    'join public.google_mailbox_connections c on c.email=s.member_email and private.email_followup_read_scope(c.granted_scopes)'] loop
   perform pg_temp.mutant('public.worker_claim_email_followup()',guard,'',
-    'select pg_temp.claim(''mutant-stale''); select pg_temp.expect(pg_temp.context(''mutant-stale'')->>''ownEmail''=''p7.owner@workspace.synthetic.test'',''stale accounts cannot block owner'')',
+    'select pg_temp.claim(''mutant-stale''); select pg_temp.expect(pg_temp.context(''mutant-stale'')->>''ownEmail''=''p7.owner@workspace-synthetic.test'',''stale accounts cannot block owner'')',
     'stale accounts cannot block owner');
  end loop;
 end$$;
 set local role authenticated;
 select pg_temp.claim('first');
-select pg_temp.expect(pg_temp.context('first')->>'ownEmail'='p7.owner@workspace.synthetic.test','stale accounts do not block valid owner');
+select pg_temp.expect(pg_temp.context('first')->>'ownEmail'='p7.owner@workspace-synthetic.test','stale accounts do not block valid owner');
 select pg_temp.expect(pg_temp.context('first')->>'windowDays'='14','first review fourteen days');
 select pg_temp.expect((select count(*)=0 from public.worker_claim_email_followup()),'live lease exclusive');
 select pg_temp.expect(pg_temp.state($q$select public.worker_email_followup_context(id,gen_random_uuid()) from p7_leases where label='first'$q$)='42501','wrong live token');
-select pg_temp.who('p7.second@workspace.synthetic.test','70000000-0000-4000-8000-000000000011');
+select pg_temp.who('p7.second@workspace-synthetic.test','70000000-0000-4000-8000-000000000011');
 select pg_temp.expect(pg_temp.state($q$select pg_temp.context('first')$q$)='42501','another capable worker cannot steal lease');
-select pg_temp.who('p7.other@workspace.synthetic.test');
+select pg_temp.who('p7.other@workspace-synthetic.test');
 select pg_temp.expect(pg_temp.state($q$select pg_temp.context('first')$q$)='42501','member cannot use live worker context');
 select pg_temp.expect(pg_temp.state($q$select pg_temp.commit_batch('first','[]')$q$)='42501','member cannot use live worker commit');
-select pg_temp.who('p7.worker@workspace.synthetic.test','70000000-0000-4000-8000-000000000010');
+select pg_temp.who('p7.worker@workspace-synthetic.test','70000000-0000-4000-8000-000000000010');
 select pg_temp.expect(pg_temp.state('select * from private.email_followups')='42501','machine direct metadata denied');
 reset role;
 
@@ -145,7 +145,6 @@ insert into p7_invalid values
  ('invalid thread ID',jsonb_build_array(pg_temp.inbound('valid',5),pg_temp.inbound('bad/id',5))),
  ('invalid message ID',jsonb_build_array(pg_temp.inbound('valid',5),pg_temp.inbound('bad',5,'x/y'))),
  ('invalid date',jsonb_build_array(pg_temp.inbound('valid',5),pg_temp.inbound('bad',5)||'{"at":"2026-99-01T00:00:00.000Z"}')),
- ('future date',jsonb_build_array(pg_temp.inbound('valid',5),pg_temp.inbound('bad',-1))),
  ('oversized batch',(select jsonb_agg(pg_temp.inbound('batch'||n,5)) from generate_series(1,61)n)),
  ('duplicate thread',jsonb_build_array(pg_temp.inbound('valid',5),pg_temp.inbound('valid',6))),
  ('bad person ID',jsonb_build_array(pg_temp.inbound('valid',5),pg_temp.inbound('bad',5)||'{"personId":"not-id"}')),
@@ -165,7 +164,6 @@ do $$declare item record; payload jsonb;begin
   ('extra field',$q$or (r-array['kind','threadId','messageId','at','sender','personId'])<>'{}'::jsonb$q$),
   ('invalid thread ID',$q$or coalesce(r->>'threadId','') !~ '^[A-Za-z0-9_-]{1,250}$'$q$),
   ('invalid message ID',$q$or coalesce(r->>'messageId','') !~ '^[A-Za-z0-9_-]{1,250}$'$q$),
-  ('future date',' or observed>now()'),
   ('reply carries private fields',$q$or (r->>'kind'='reply' and (r ? 'sender' or r ? 'personId'))$q$),
   ('invalid sender',$q$or coalesce(r->>'sender','') !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'$q$),
   ('oversized batch',$q$if jsonb_array_length(p_rows)>60 then raise exception 'Invalid follow-up batch' using errcode='22023'; end if;$q$),
@@ -184,8 +182,8 @@ end$$;
 select pg_temp.mutant('private.require_email_followup_job(uuid,uuid)',' and lease=p_lease','',
  $q$select pg_temp.expect(pg_temp.state('select public.worker_email_followup_context(id,gen_random_uuid()) from p7_leases where label=''first''')='42501','wrong live token')$q$,'wrong live token');
 select pg_temp.mutant('private.require_email_followup_job(uuid,uuid)',' and worker_sub=auth.uid()','',
- $q$select pg_temp.who('p7.second@workspace.synthetic.test','70000000-0000-4000-8000-000000000011'); select pg_temp.expect(pg_temp.state('select pg_temp.context(''first'')')='42501','worker lease owner')$q$,'worker lease owner');
-select pg_temp.who('p7.worker@workspace.synthetic.test','70000000-0000-4000-8000-000000000010');
+ $q$select pg_temp.who('p7.second@workspace-synthetic.test','70000000-0000-4000-8000-000000000011'); select pg_temp.expect(pg_temp.state('select pg_temp.context(''first'')')='42501','worker lease owner')$q$,'worker lease owner');
+select pg_temp.who('p7.worker@workspace-synthetic.test','70000000-0000-4000-8000-000000000010');
 
 -- Each fence uses a real lease and disables only the condition under test.
 create temp table p7_first_job as select j.* from private.email_followup_jobs j join p7_leases l on l.id=j.id where l.label='first';
@@ -208,13 +206,23 @@ insert into private.email_followup_jobs select * from p7_first_job;
 select pg_temp.expect(pg_temp.state($q$select pg_temp.context('first')$q$)='42501','capability required on live context');
 select pg_temp.mutant('private.require_email_followup_worker()',' and followup_scanning_enabled','',
  $q$select pg_temp.expect(pg_temp.state('select pg_temp.context(''first'')')='42501','capability required on live context')$q$,'capability required on live context');
+do $$declare f record;begin
+ for f in select * from (values
+   ('public.worker_commit_email_followup(uuid,uuid,jsonb)', 'select pg_temp.commit_batch(''first'',''[]'')', 'commit capability required on live lease'),
+   ('public.worker_fail_email_followup(uuid,uuid,text)', 'select public.worker_fail_email_followup(id,lease,''unavailable'') from p7_leases where label=''first''', 'fail capability required on live lease')
+ ) t(sig,sql,label) loop
+   perform pg_temp.expect(pg_temp.state(f.sql)='42501',f.label);
+   perform pg_temp.mutant(f.sig,'perform private.require_email_followup_worker();','',
+      format('select pg_temp.expect(pg_temp.state(%L)=''42501'',%L)',f.sql,f.label),f.label);
+ end loop;
+end$$;
 update private.machine_identities set followup_scanning_enabled=true where sub='70000000-0000-4000-8000-000000000010';
 
 -- Date boundaries and sender revalidation.
 create function pg_temp.first_window() returns void language plpgsql as $$
 begin
  perform pg_temp.expect(pg_temp.commit_batch('first',jsonb_build_array(pg_temp.inbound('too-young',4),
-   pg_temp.inbound('minimum',5),pg_temp.inbound('first-limit',14),pg_temp.inbound('outside-first',15),
+   pg_temp.inbound('minimum',5)||'{"sender":"CONTACT@EXTERNAL.SYNTHETIC.TEST"}',pg_temp.inbound('first-limit',14),pg_temp.inbound('outside-first',15),
    pg_temp.inbound('outside-ever',31),pg_temp.inbound('wrong-sender',7)||'{"sender":"unknown@external.synthetic.test"}'))=2,
    'first review window and exact sender');
 end$$;
@@ -224,9 +232,11 @@ select pg_temp.mutant('public.worker_commit_email_followup(uuid,uuid,jsonb)','wh
  'select pg_temp.first_window()','first review window and exact sender');
 select pg_temp.mutant('public.worker_commit_email_followup(uuid,uuid,jsonb)','where lower(e.email)=sender','where e.person_id=p.id',
  'select pg_temp.first_window()','first review window and exact sender');
+select pg_temp.mutant('public.worker_commit_email_followup(uuid,uuid,jsonb)', $q$sender:=lower(r->>'sender')$q$,$q$sender:=r->>'sender'$q$,
+ 'select pg_temp.first_window()','first review window and exact sender');
 select pg_temp.first_window();
 select pg_temp.expect((select count(*)=2 and bool_and(visibility='private' and due_on=(now() at time zone 'UTC')::date
-  and title='Reply to Synthetic Contact' and created_by='p7.owner@workspace.synthetic.test') from public.contact_reminders where email_followup_private),'private generic owner reminders');
+  and title='Reply to Synthetic Contact' and created_by='p7.owner@workspace-synthetic.test') from public.contact_reminders where email_followup_private),'private generic owner reminders');
 select pg_temp.expect(not exists(select 1 from public.contact_reminder_recipients r join public.contact_reminders c on c.id=r.reminder_id where c.email_followup_private),'no reminder recipients');
 select pg_temp.expect(not exists(select 1 from public.notifications where recipient_email like 'p7.%'),'zero notifications');
 
@@ -234,7 +244,7 @@ create temp table p7_reminders as select thread_id,reminder_id from private.emai
 grant select on p7_reminders to authenticated;
 create function pg_temp.manual_handle() returns void language plpgsql as $$
 begin
- perform pg_temp.who('p7.owner@workspace.synthetic.test');
+ perform pg_temp.who('p7.owner@workspace-synthetic.test');
  perform public.complete_contact_reminder((select reminder_id from p7_reminders where thread_id='minimum'));
  delete from public.contact_reminders where id=(select reminder_id from p7_reminders where thread_id='first-limit');
  perform pg_temp.expect((select count(*)=2 and bool_and(status='handled') from private.email_followups),'completion and deletion handled');
@@ -243,19 +253,19 @@ select pg_temp.mutant('private.handle_email_followup_reminder()',
  $q$if old.email_followup_private and (tg_op='DELETE' or (old.completed_at is null and new.completed_at is not null)) then$q$,'if false then',
  'select pg_temp.manual_handle()','completion and deletion handled');
 set local role authenticated;
-select pg_temp.who('p7.other@workspace.synthetic.test');
+select pg_temp.who('p7.other@workspace-synthetic.test');
 select pg_temp.expect((select count(*)=0 from public.contact_reminders where email_followup_private),'other cannot read');
 select pg_temp.expect(pg_temp.state($q$select public.complete_contact_reminder(reminder_id) from p7_reminders$q$)='42501','other cannot complete');
 with d as (delete from public.contact_reminders where email_followup_private returning id)
 select pg_temp.expect((select count(*)=0 from d),'other cannot delete');
 select pg_temp.expect(pg_temp.state('select * from private.email_followups')='42501','other cannot read ledger');
-select pg_temp.who('p7.admin@workspace.synthetic.test');
+select pg_temp.who('p7.admin@workspace-synthetic.test');
 select pg_temp.expect((select count(*)=0 from public.contact_reminders where email_followup_private),'admin cannot read');
 select pg_temp.expect(pg_temp.state($q$select public.complete_contact_reminder(reminder_id) from p7_reminders$q$)='42501','admin cannot complete');
 with d as (delete from public.contact_reminders where email_followup_private returning id)
 select pg_temp.expect((select count(*)=0 from d),'admin cannot delete');
 select pg_temp.expect(pg_temp.state('select * from private.email_followups')='42501','admin cannot read ledger');
-select pg_temp.who('p7.owner@workspace.synthetic.test');
+select pg_temp.who('p7.owner@workspace-synthetic.test');
 select pg_temp.expect((select count(*)=2 from public.my_contact_reminders()),'owner sees reminders in Home RPC');
 select pg_temp.expect(pg_temp.state($q$update public.contact_reminders set visibility='team' where email_followup_private$q$)='23514','generated reminder cannot be shared');
 select public.complete_contact_reminder((select reminder_id from p7_reminders where thread_id='minimum'));
@@ -283,8 +293,8 @@ do $$declare detected boolean:=false;begin
  raise notice 'P7 mutant detected/restored: generated reminder cannot be shared';
 end$$;
 
-select pg_temp.who('p7.worker@workspace.synthetic.test','70000000-0000-4000-8000-000000000010');
-update private.email_followup_accounts set next_run_at=now() where member_email='p7.owner@workspace.synthetic.test';
+select pg_temp.who('p7.worker@workspace-synthetic.test','70000000-0000-4000-8000-000000000010');
+update private.email_followup_accounts set next_run_at=now() where member_email='p7.owner@workspace-synthetic.test';
 select pg_temp.claim('second');
 select pg_temp.expect(pg_temp.context('second')->>'windowDays'='30','later review thirty days');
 create function pg_temp.repeat_inbound() returns void language plpgsql as $$
@@ -298,23 +308,37 @@ select pg_temp.mutant('public.worker_commit_email_followup(uuid,uuid,jsonb)',
 select pg_temp.mutant('public.worker_commit_email_followup(uuid,uuid,jsonb)','when a.first_review then 14 else 30','when a.first_review then 14 else 31',
  'select pg_temp.repeat_inbound()','same inbound and too old never recreate');
 select pg_temp.repeat_inbound();
-update private.email_followup_accounts set next_run_at=now() where member_email='p7.owner@workspace.synthetic.test';
+update private.email_followup_accounts set next_run_at=now() where member_email='p7.owner@workspace-synthetic.test';
 select pg_temp.claim('newer');
 select pg_temp.expect(pg_temp.commit_batch('newer',jsonb_build_array(pg_temp.inbound('minimum',5,'new-inbound',1),
  pg_temp.inbound('thirty',30)))=2,'new inbound may reopen and thirty accepted');
 select pg_temp.expect((select count(*)=1 from private.email_followups where thread_id='minimum' and status='pending'),'one open per thread');
-update private.email_followup_accounts set next_run_at=now() where member_email='p7.owner@workspace.synthetic.test';
+update private.email_followup_accounts set next_run_at=now() where member_email='p7.owner@workspace-synthetic.test';
 select pg_temp.claim('still-pending');
 create function pg_temp.pending_once() returns void language plpgsql as $$
 begin
  perform pg_temp.expect(pg_temp.commit_batch('still-pending',jsonb_build_array(pg_temp.inbound('minimum',5,'newest-inbound',2)))=0,
   'pending thread cannot create another open reminder');
 end$$;
-select pg_temp.mutant('public.worker_commit_email_followup(uuid,uuid,jsonb)',$q$if f.status='pending' then$q$,'if false then',
+select pg_temp.mutant('public.worker_commit_email_followup(uuid,uuid,jsonb)',$q$if f.status='pending' and exists ($q$,'if false and exists (',
  'select pg_temp.pending_once()','pending thread cannot create another open reminder');
 select pg_temp.pending_once();
 
-update private.email_followup_accounts set next_run_at=now() where member_email='p7.owner@workspace.synthetic.test';
+update private.email_followup_accounts set next_run_at=now() where member_email='p7.owner@workspace-synthetic.test';
+select pg_temp.claim('skew');
+create function pg_temp.clock_skew() returns void language plpgsql as $$
+begin
+ perform pg_temp.expect(pg_temp.commit_batch('skew',jsonb_build_array(
+   pg_temp.inbound('valid-neighbor',7),
+   pg_temp.reply('minimum',1)||jsonb_build_object('at',to_char((now()+interval '1 second') at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
+ ))=1,'valid neighbor saves with future observation');
+ perform pg_temp.expect((select status='pending' from private.email_followups where thread_id='minimum'),
+ 'future by one second skips only that observation');
+end$$;
+select pg_temp.mutant('public.worker_commit_email_followup(uuid,uuid,jsonb)','if at_time>now() then continue; end if;','',
+ 'select pg_temp.clock_skew()','future by one second skips only that observation');
+select pg_temp.clock_skew();
+update private.email_followup_accounts set next_run_at=now() where member_email='p7.owner@workspace-synthetic.test';
 select pg_temp.claim('answered');
 select pg_temp.expect(pg_temp.context('answered')->'pendingThreads' ? 'minimum','pending threads tracked outside inbox');
 create function pg_temp.answer_reminder() returns void language plpgsql as $$
@@ -331,7 +355,7 @@ select pg_temp.answer_reminder();
 
 -- The daily budget counts creations even if a reminder is deleted.
 update private.email_followup_accounts set next_run_at=now(),creation_day=(now() at time zone 'UTC')::date-1
- where member_email='p7.owner@workspace.synthetic.test';
+ where member_email='p7.owner@workspace-synthetic.test';
 select pg_temp.claim('daily');
 create function pg_temp.daily_limit() returns void language plpgsql as $$
 declare rows jsonb;
@@ -344,20 +368,20 @@ select pg_temp.mutant('public.worker_commit_email_followup(uuid,uuid,jsonb)','if
 select pg_temp.expect(pg_temp.commit_batch('daily',(select jsonb_agg(pg_temp.inbound('daily'||n,5)) from generate_series(1,11)n))=10,'ten daily max');
 select pg_temp.expect((select count(*)=10 from private.email_followups where thread_id like 'daily%'),'only ten saved');
 delete from public.contact_reminders where id=(select reminder_id from private.email_followups where thread_id='daily1');
-update private.email_followup_accounts set next_run_at=now() where member_email='p7.owner@workspace.synthetic.test';
+update private.email_followup_accounts set next_run_at=now() where member_email='p7.owner@workspace-synthetic.test';
 select pg_temp.claim('full');
 select pg_temp.expect(pg_temp.commit_batch('full',jsonb_build_array(pg_temp.inbound('daily9',5)))=0,'deleting does not refund daily budget');
 update private.email_followup_accounts set next_run_at=now(),creation_day=(now() at time zone 'UTC')::date-1
- where member_email='p7.owner@workspace.synthetic.test';
+ where member_email='p7.owner@workspace-synthetic.test';
 select pg_temp.claim('tomorrow');
 select pg_temp.expect(pg_temp.commit_batch('tomorrow',jsonb_build_array(pg_temp.inbound('daily9',5)))=1,'next UTC day can create overflow');
 
-update private.email_followup_accounts set next_run_at=now() where member_email='p7.owner@workspace.synthetic.test';
+update private.email_followup_accounts set next_run_at=now() where member_email='p7.owner@workspace-synthetic.test';
 select pg_temp.claim('revoked');
 create temp table p7_revoked_job as select j.* from private.email_followup_jobs j join p7_leases l on l.id=j.id where l.label='revoked';
-select pg_temp.who('p7.owner@workspace.synthetic.test');
+select pg_temp.who('p7.owner@workspace-synthetic.test');
 select public.configure_email_followup(false);
-select pg_temp.who('p7.worker@workspace.synthetic.test','70000000-0000-4000-8000-000000000010');
+select pg_temp.who('p7.worker@workspace-synthetic.test','70000000-0000-4000-8000-000000000010');
 select pg_temp.expect(pg_temp.state($q$select pg_temp.commit_batch('revoked',jsonb_build_array(pg_temp.inbound('revoked',5)))$q$)='42501','opt out fences commit');
 select pg_temp.expect((select count(*)=0 from public.worker_claim_email_followup()),'off and stale accounts do not claim');
 select pg_temp.expect(exists(select 1 from public.contact_reminders where email_followup_private),'opt out keeps reminders');
@@ -373,17 +397,17 @@ delete from private.email_followup_jobs where id=(select id from p7_revoked_job)
 create function pg_temp.revoke_connection(kind text,label text) returns void language plpgsql as $$
 declare c public.google_mailbox_connections;
 begin
- perform pg_temp.who('p7.owner@workspace.synthetic.test');
+ perform pg_temp.who('p7.owner@workspace-synthetic.test');
  perform public.configure_email_followup(true);
  if kind='disconnect' then
-   select * into c from public.google_mailbox_connections where email='p7.owner@workspace.synthetic.test';
+   select * into c from public.google_mailbox_connections where email='p7.owner@workspace-synthetic.test';
    delete from public.google_mailbox_connections where email=c.email;
    insert into public.google_mailbox_connections select (c).*;
  elsif kind='replace' then
-   update public.google_mailbox_connections set refresh_token_tag='replacement' where email='p7.owner@workspace.synthetic.test';
+   update public.google_mailbox_connections set refresh_token_tag='replacement' where email='p7.owner@workspace-synthetic.test';
  else
-   update public.google_mailbox_connections set granted_scopes=array['https://www.googleapis.com/auth/gmail.send'] where email='p7.owner@workspace.synthetic.test';
-   update public.google_mailbox_connections set granted_scopes=array['https://www.googleapis.com/auth/gmail.modify'] where email='p7.owner@workspace.synthetic.test';
+   update public.google_mailbox_connections set granted_scopes=array['https://www.googleapis.com/auth/gmail.send'] where email='p7.owner@workspace-synthetic.test';
+   update public.google_mailbox_connections set granted_scopes=array['https://www.googleapis.com/auth/gmail.modify'] where email='p7.owner@workspace-synthetic.test';
  end if;
  perform pg_temp.expect(public.my_email_followup_state()->>'enabled'='false'
    and public.my_email_followup_state()->>'lastError'='revoked',label);
@@ -396,4 +420,244 @@ do $$declare kind text; label text;begin
   perform pg_temp.revoke_connection(kind,label);
  end loop;
 end$$;
+
+-- Review corrections: live fixtures keep each guard independent.
+create function pg_temp.as_worker() returns void language sql as $$
+ select pg_temp.who('p7.worker@workspace-synthetic.test','70000000-0000-4000-8000-000000000010')
+$$;
+create function pg_temp.claim_owner(label text,owner_email text default 'p7.owner@workspace-synthetic.test') returns void
+language plpgsql as $$
+begin
+ perform pg_temp.as_worker();
+ update private.email_followup_accounts set next_run_at='-infinity' where member_email=owner_email;
+ perform pg_temp.claim(label);
+ perform pg_temp.expect(exists(select 1 from p7_leases l join private.email_followup_jobs j on j.id=l.id
+   where l.label=claim_owner.label and j.member_email=owner_email),'claim expected fixture owner');
+end$$;
+create function pg_temp.for_sender(thread text,address text,person uuid,msg text default 'm',age integer default 5)
+returns jsonb language sql as $$
+ select pg_temp.inbound(thread,age,msg)||jsonb_build_object('sender',address,'personId',person)
+$$;
+
+-- Invalid saved permission never makes the worker lie about its first window.
+select pg_temp.who('p7.owner@workspace-synthetic.test');
+update private.email_followup_accounts set first_review=false where member_email='p7.owner@workspace-synthetic.test';
+create function pg_temp.reopt() returns void language plpgsql as $$
+begin
+ perform public.configure_email_followup(true);
+ perform pg_temp.expect((select first_review from private.email_followup_accounts
+   where member_email='p7.owner@workspace-synthetic.test'),'reopt starts fresh fourteen-day window');
+end$$;
+select pg_temp.mutant('public.configure_email_followup(boolean)',',first_review=true','',
+ 'select pg_temp.reopt()','reopt starts fresh fourteen-day window');
+select pg_temp.reopt();
+
+-- A generated reminder stays visible after the source contact merges.
+insert into public.people(id,name) values
+ ('70000000-0000-4000-8000-000000000020','Synthetic Keep'),
+ ('70000000-0000-4000-8000-000000000021','Synthetic Merge Source'),
+ ('70000000-0000-4000-8000-000000000022','Synthetic Archived'),
+ ('70000000-0000-4000-8000-000000000023','Synthetic Ambiguous');
+update public.people set archived_at=now() where id='70000000-0000-4000-8000-000000000022';
+insert into public.person_emails(person_id,email,is_primary) values
+ ('70000000-0000-4000-8000-000000000021','merge@external.synthetic.test',true),
+ ('70000000-0000-4000-8000-000000000022','archive@external.synthetic.test',true),
+ ('70000000-0000-4000-8000-000000000022','CONTACT@EXTERNAL.SYNTHETIC.TEST',false),
+ ('70000000-0000-4000-8000-000000000023','AMBIGUOUS@EXTERNAL.SYNTHETIC.TEST',true),
+ ('70000000-0000-4000-8000-000000000001','ambiguous@external.synthetic.test',false),
+ ('70000000-0000-4000-8000-000000000001','colleague@workspace-synthetic.test',false),
+ ('70000000-0000-4000-8000-000000000001','sub@mail.workspace-synthetic.test',false),
+ ('70000000-0000-4000-8000-000000000001','p7.directory@external.synthetic.test',false),
+ ('70000000-0000-4000-8000-000000000001','fixture-contact@gmail.com',false),
+ ('70000000-0000-4000-8000-000000000001','fixture-contact@outlook.com',false);
+insert into public.app_members(email,display_name,is_active) values
+ ('p7.directory@external.synthetic.test','Synthetic Directory Member',true),
+ ('fixture-owner@gmail.com','Synthetic Free Mail',true),
+ ('fixture-owner@outlook.com','Synthetic Free Mail',true);
+insert into public.google_mailbox_connections(email,granted_scopes,refresh_token_encrypted,refresh_token_iv,refresh_token_tag)
+ select email,array['https://www.googleapis.com/auth/gmail.readonly'],'synthetic','synthetic','synthetic'
+ from public.app_members where email in ('fixture-owner@gmail.com','fixture-owner@outlook.com');
+
+update public.contact_reminders set completed_at=now(),completed_by=created_by
+ where email_followup_private and completed_at is null and created_by='p7.owner@workspace-synthetic.test';
+select pg_temp.claim_owner('before-merge');
+select pg_temp.expect(pg_temp.commit_batch('before-merge',jsonb_build_array(pg_temp.for_sender(
+ 'merge','merge@external.synthetic.test','70000000-0000-4000-8000-000000000021','m1',6)))=1,'merge fixture reminder created');
+create temp table p7_merge_reminder as select reminder_id from private.email_followups where thread_id='merge';
+select pg_temp.who('p7.owner@workspace-synthetic.test');
+select public.merge_people('70000000-0000-4000-8000-000000000020','70000000-0000-4000-8000-000000000021');
+select pg_temp.claim_owner('after-merge');
+create function pg_temp.recreate_after_merge() returns void language plpgsql as $$
+begin
+ perform pg_temp.expect(pg_temp.commit_batch('after-merge',jsonb_build_array(pg_temp.for_sender(
+  'merge','merge@external.synthetic.test','70000000-0000-4000-8000-000000000020','m2',5)))=1,
+  'new inbound after merge replaces hidden reminder');
+ perform pg_temp.expect((select f.person_id='70000000-0000-4000-8000-000000000020' and c.completed_at is null
+  from private.email_followups f join public.contact_reminders c on c.id=f.reminder_id where f.thread_id='merge'),
+  'replacement points at visible contact');
+end$$;
+select pg_temp.mutant('public.worker_commit_email_followup(uuid,uuid,jsonb)',' and old_person.archived_at is null','',
+ 'select pg_temp.recreate_after_merge()','new inbound after merge replaces hidden reminder');
+select pg_temp.recreate_after_merge();
+select pg_temp.expect((select completed_at is not null from public.contact_reminders where id=(select reminder_id from p7_merge_reminder)),
+ 'old merged reminder closed, never duplicated');
+set local role authenticated;
+select pg_temp.who('p7.owner@workspace-synthetic.test');
+select pg_temp.expect(exists(select 1 from public.my_contact_reminders() where person_id='70000000-0000-4000-8000-000000000020'),
+ 'replacement visible in Home reminders after merge');
+reset role;
+
+-- Corporate registrable domain, member exclusion, archive and ambiguity are
+-- enforced again at commit, independently of the worker's search.
+select pg_temp.claim_owner('exact');
+create function pg_temp.exact_contact_rules() returns void language plpgsql as $$
+begin
+ perform pg_temp.expect(pg_temp.commit_batch('exact',jsonb_build_array(
+  pg_temp.for_sender('corp','colleague@workspace-synthetic.test','70000000-0000-4000-8000-000000000001'),
+  pg_temp.for_sender('sub','sub@mail.workspace-synthetic.test','70000000-0000-4000-8000-000000000001'),
+  pg_temp.for_sender('app-member','p7.directory@external.synthetic.test','70000000-0000-4000-8000-000000000001'),
+  pg_temp.for_sender('archived','archive@external.synthetic.test','70000000-0000-4000-8000-000000000022'),
+  pg_temp.for_sender('ambiguous','ambiguous@external.synthetic.test','70000000-0000-4000-8000-000000000001'),
+  pg_temp.inbound('active-with-archived-alternative',5)))=1,
+  'only unique active external contact accepted');
+ perform pg_temp.expect(exists(select 1 from private.email_followups where thread_id='active-with-archived-alternative'),
+  'only unique active external contact accepted');
+end$$;
+do $$declare m record;begin
+ for m in select * from (values
+  ($q$private.email_followup_own_domain(j.member_email,sender)$q$,'false'),
+  ($q$or exists(select 1 from public.app_members m where lower(m.email)=sender)$q$,''),
+  ($q$and p.archived_at is null and p.id=$q$,'and p.id='),
+  ($q$and (other.archived_at is null or other.id=p.id)$q$,''),
+  ($q$having count(distinct e.person_id)=1$q$,'')
+ ) t(needle,replacement) loop
+   perform pg_temp.mutant('public.worker_commit_email_followup(uuid,uuid,jsonb)',m.needle,m.replacement,
+      'select pg_temp.exact_contact_rules()','only unique active external contact accepted');
+ end loop;
+end$$;
+select pg_temp.mutant('private.email_followup_domain(text)', $q$array_to_string(a[n-1:n],'.') end$q$,
+ $q$array_to_string(a,'.') end$q$,'select pg_temp.exact_contact_rules()','only unique active external contact accepted');
+select pg_temp.exact_contact_rules();
+-- The ambiguity mutant selects the smallest UUID; the fixture above proposes
+-- that UUID so a missing uniqueness check actually changes the outcome.
+
+create function pg_temp.free_provider(provider text) returns void language plpgsql as $$
+declare email text:='fixture-owner@'||provider;
+begin
+ perform pg_temp.who(email);
+ perform public.configure_email_followup(true);
+ perform pg_temp.claim_owner('free-'||provider,email);
+ perform pg_temp.expect(pg_temp.commit_batch('free-'||provider,jsonb_build_array(pg_temp.for_sender(
+  'free-thread','fixture-contact@'||provider,'70000000-0000-4000-8000-000000000001')))=1,
+  'same free provider accepted');
+end$$;
+do $$declare guard text;begin
+ guard:=substring(pg_get_functiondef('private.email_followup_own_domain(text,text)'::regprocedure)
+   from 'own_domain<>all\(array\[[^]]+\]\)[[:space:]]+and ');
+ perform pg_temp.mutant('private.email_followup_own_domain(text,text)',guard,'',
+   'select pg_temp.free_provider(''gmail.com'')','same free provider accepted');
+end$$;
+select pg_temp.free_provider('gmail.com');
+select pg_temp.free_provider('outlook.com');
+
+-- A crash before commit leaves a backoff even after its lease expires.
+create function pg_temp.claim_backoff() returns void language plpgsql as $$
+begin
+ perform pg_temp.claim_owner('backoff');
+ perform pg_temp.expect((select next_run_at=now()+interval '1 hour' from private.email_followup_accounts
+   where member_email='p7.owner@workspace-synthetic.test'),'claim advances due time before crash');
+end$$;
+select pg_temp.mutant('public.worker_claim_email_followup()', $q$now()+interval '1 hour'$q$, 'now()',
+ 'select pg_temp.claim_backoff()','claim advances due time before crash');
+select pg_temp.claim_backoff();
+update private.email_followup_jobs set lease_until=now()-interval '1 second' where member_email='p7.owner@workspace-synthetic.test';
+select pg_temp.claim_owner('after-crash','fixture-owner@gmail.com');
+select pg_temp.expect(pg_temp.context('after-crash')->>'ownEmail'='fixture-owner@gmail.com','crashed mailbox does not block next owner');
+create function pg_temp.fail_backoff() returns void language plpgsql as $$
+begin
+ perform public.worker_fail_email_followup(id,lease,'rate_limited') from p7_leases where label='after-crash';
+ perform pg_temp.expect((select next_run_at=now()+interval '1 hour' and last_error='rate_limited'
+  from private.email_followup_accounts where member_email='fixture-owner@gmail.com'),'failed review waits one hour');
+end$$;
+select pg_temp.mutant('public.worker_fail_email_followup(uuid,uuid,text)', $q$now()+interval '1 hour'$q$, 'now()',
+ 'select pg_temp.fail_backoff()','failed review waits one hour');
+select pg_temp.fail_backoff();
+
+-- Test UTC with a session offset whose calendar day is guaranteed different.
+select set_config('TimeZone',case when extract(hour from now() at time zone 'UTC')>=10 then 'Pacific/Kiritimati' else 'Etc/GMT+12' end,true);
+select pg_temp.expect(now()::date<>(now() at time zone 'UTC')::date,'non-UTC date fixture differs');
+select pg_temp.claim_owner('utc');
+create function pg_temp.utc_checkpoint() returns void language plpgsql as $$
+declare old_offset integer;
+begin
+ select sender_group_offset into old_offset from private.email_followup_accounts where member_email='p7.owner@workspace-synthetic.test';
+ perform pg_temp.expect(pg_temp.commit_batch('utc','[]')=0,'empty review succeeds');
+ perform pg_temp.expect((select creation_day=(now() at time zone 'UTC')::date
+   from private.email_followup_accounts where member_email='p7.owner@workspace-synthetic.test'),'checkpoint day is UTC');
+ perform pg_temp.expect((select next_run_at=now()+interval '6 hours'
+   from private.email_followup_accounts where member_email='p7.owner@workspace-synthetic.test'),'successful review waits six hours');
+ perform pg_temp.expect((select sender_group_offset=old_offset+8 from private.email_followup_accounts
+   where member_email='p7.owner@workspace-synthetic.test'),'checkpoint advances sender group cursor');
+end$$;
+select pg_temp.mutant('public.worker_commit_email_followup(uuid,uuid,jsonb)', $q$today date:=(now() at time zone 'UTC')::date$q$, 'today date:=now()::date',
+ 'select pg_temp.utc_checkpoint()','checkpoint day is UTC');
+select pg_temp.mutant('public.worker_commit_email_followup(uuid,uuid,jsonb)', $q$now()+interval '6 hours'$q$, 'now()',
+ 'select pg_temp.utc_checkpoint()','successful review waits six hours');
+select pg_temp.mutant('public.worker_commit_email_followup(uuid,uuid,jsonb)','a.sender_group_offset::bigint+8','a.sender_group_offset::bigint+0',
+ 'select pg_temp.utc_checkpoint()','checkpoint advances sender group cursor');
+select pg_temp.utc_checkpoint();
+select set_config('TimeZone','UTC',true);
+
+-- Context only includes active contacts and rotates pending oldest first.
+-- Forty expired rows cannot steal slots, including those beyond cleanup cap.
+update private.email_followups set last_inbound_at=now()-interval '31 days'
+ where member_email='p7.owner@workspace-synthetic.test' and thread_id='merge';
+insert into private.email_followups(member_email,thread_id,last_inbound_at,last_inbound_message_id,status,last_selected_at)
+ select 'p7.owner@workspace-synthetic.test','a-expired-'||n,now()-interval '32 days','old','pending',null
+ from generate_series(1,39)n;
+insert into private.email_followups(member_email,thread_id,last_inbound_at,last_inbound_message_id,status,last_selected_at)
+ select 'p7.owner@workspace-synthetic.test','rotation-'||n,now()-interval '5 days','m','pending',now()
+ from generate_series(1,25)n;
+insert into private.email_followups(member_email,thread_id,last_inbound_at,last_inbound_message_id,status,last_selected_at)
+ values('p7.owner@workspace-synthetic.test','rotation-new',now()-interval '5 days','m','pending',null);
+select pg_temp.claim_owner('rotation');
+create function pg_temp.check_rotation() returns void language plpgsql as $$
+declare ctx jsonb:=pg_temp.context('rotation');
+begin
+ perform pg_temp.expect(not exists(select 1 from jsonb_array_elements(ctx->'contacts') c
+   where c->>'email'='archive@external.synthetic.test'),'context excludes archived contacts');
+ perform pg_temp.expect(not exists(select 1 from jsonb_array_elements_text(ctx->'pendingThreads') p
+   where p like 'a-expired-%' or p='merge'),'expired ledger cannot occupy pending slots');
+ perform pg_temp.expect(ctx->'pendingThreads' ? 'rotation-new' and jsonb_array_length(ctx->'pendingThreads')=20,
+   'context rotates unselected before already checked');
+ perform pg_temp.expect((select count(*)=20 from private.email_followups where thread_id like 'a-expired-%' and status='handled'),
+   'expiry handles bounded stale backlog');
+end$$;
+select pg_temp.mutant('public.worker_email_followup_context(uuid,uuid)',' and p.archived_at is null','',
+ 'select pg_temp.check_rotation()','context excludes archived contacts');
+select pg_temp.mutant('public.worker_email_followup_context(uuid,uuid)',' and last_inbound_at>=cutoff','',
+ 'select pg_temp.check_rotation()','expired ledger cannot occupy pending slots');
+select pg_temp.mutant('public.worker_email_followup_context(uuid,uuid)','order by last_selected_at nulls first,thread_id','order by last_selected_at nulls last,thread_id',
+ 'select pg_temp.check_rotation()','context rotates unselected before already checked');
+select pg_temp.mutant('public.worker_email_followup_context(uuid,uuid)','order by last_inbound_at,thread_id limit 20','order by last_inbound_at,thread_id limit 0',
+ 'select pg_temp.check_rotation()','expiry handles bounded stale backlog');
+select pg_temp.check_rotation();
+-- A subsequent bounded context retires the remaining stale generated reminder.
+select pg_temp.context('rotation');
+select pg_temp.expect((select f.status='handled' and c.completed_at is not null from private.email_followups f
+ join public.contact_reminders c on c.id=f.reminder_id where f.thread_id='merge'),'expired auto reminder closed and ledger handled');
+
+create function pg_temp.deactivate() returns void language plpgsql as $$
+begin
+ update public.app_members set is_active=false where email='p7.owner@workspace-synthetic.test';
+ perform pg_temp.expect((select not enabled and last_error='revoked' from private.email_followup_accounts
+  where member_email='p7.owner@workspace-synthetic.test'),'inactive member withdraws consent');
+ perform pg_temp.expect(pg_temp.state($q$select pg_temp.context('rotation')$q$)='42501','inactive member lease denied');
+end$$;
+select pg_temp.mutant('private.fence_email_followup()', $q$elsif tg_table_name='app_members' then$q$, $q$elsif false then$q$,
+ 'select pg_temp.deactivate()','inactive member withdraws consent');
+select pg_temp.deactivate();
+
+select pg_temp.expect(not exists(select 1 from public.notifications where recipient_email like 'p7.%' or recipient_email like 'fixture-owner@%'),
+ 'review fixes still emit no notifications');
 rollback;
