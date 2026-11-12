@@ -15,15 +15,16 @@ import SettingsPanel from "@/components/SettingsPanel";
 import AdminSettings from "@/components/AdminSettings";
 import RelationshipSyncSettings from "@/components/RelationshipSyncSettings";
 import ScoutingSettings from "@/components/ScoutingSettings";
-import EmailFollowupSettings from "@/components/EmailFollowupSettings";
-import { followupSettingsError, hasFollowupScope, type FollowupState } from "@/lib/email-followups/model";
+import MailHeadersConsentSettings from "@/components/MailHeadersConsentSettings";
+import { mailHeadersStateError, type MailHeadersState } from "@/lib/mail-headers/model";
+import { firstParam } from "@/lib/url/first-param";
 import StageRulesSettings, { type StageRule } from "@/components/StageRulesSettings";
 import StageRequirementsSettings from "@/components/StageRequirementsSettings";
 import { getPipelineStages } from "@/lib/taxonomies";
 
 export const dynamic = "force-dynamic";
 
-export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ connect?: string }> }) {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ connect?: string | string[] }> }) {
   const { connect } = await searchParams;
   const access = await requireMember();
   const supabase = await createClient();
@@ -32,11 +33,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     loadMailboxConnection(supabase),
     supabase.from("relationship_sync").select("enabled,last_synced_at").eq("member_email", access.email).maybeSingle(),
   ]);
-  const [{ data: scoutingPermission }, { data: scoutingSettings, error: scoutingError }, { data: companyScanState, error: companyScanError }, followupState] = await Promise.all([
-    supabase.from("member_permissions").select("permission").eq("email", access.email).eq("permission", "email_scouting").maybeSingle(),
-    supabase.from("scouting_settings").select("contact_mode,last_scanned_at").eq("member_email", access.email).maybeSingle(),
-    supabase.rpc("my_company_scouting_state"),
-    supabase.rpc("my_email_followup_state"),
+  const [scoutingSettings, mailHeaders] = await Promise.all([
+    access.permissions.has("email_scouting")
+      ? supabase.from("scouting_settings").select("contact_mode,last_scanned_at").eq("member_email", access.email).maybeSingle()
+      : null,
+    supabase.rpc("my_mail_headers_consent_state"),
   ]);
   const avatarUrl = profile?.avatar_path
     ? (await supabase.storage.from("member-avatars").createSignedUrl(profile.avatar_path, 3600)).data?.signedUrl ?? null
@@ -88,29 +89,23 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         initialLanding={landing}
         initialPipeline={pipeline}
         mailbox={mailbox}
-        connectStatus={connect ?? null}
+        connectStatus={firstParam(connect) ?? null}
       />
-      <EmailFollowupSettings
-        state={followupState.error ? null : followupState.data as FollowupState | null}
-        stateError={followupSettingsError(followupState.error?.code)}
-        canRead={mailbox.connected && hasFollowupScope(mailbox.grantedScopes)}
+      <MailHeadersConsentSettings
+        state={mailHeaders.error ? null : mailHeaders.data as MailHeadersState | null}
+        stateError={mailHeaders.error ? mailHeadersStateError(mailHeaders.error.code) ?? "unavailable" : undefined}
       />
-      {scoutingPermission && !scoutingError && (
-        <ScoutingSettings
-          backgroundEnabled={Boolean(companyScanState?.enabled)}
-          backgroundAvailable={!companyScanError}
-          workerAvailable={companyScanState?.workerAvailable === true}
-          capped={companyScanState?.capped === true}
-          lastError={typeof companyScanState?.lastError === "string" ? companyScanState.lastError : null}
-          contactMode={(scoutingSettings?.contact_mode as "request" | "skip" | "auto" | undefined) ?? "request"}
-          lastScannedAt={scoutingSettings?.last_scanned_at ?? null}
-          googleConnected={mailbox.connected}
-        />
-      )}
       {!relationshipError && (
         <RelationshipSyncSettings
           enabled={Boolean(relationshipSync?.enabled)}
           lastSyncedAt={relationshipSync?.last_synced_at ?? null}
+          googleConnected={mailbox.connected}
+        />
+      )}
+      {scoutingSettings && !scoutingSettings.error && (
+        <ScoutingSettings
+          contactMode={(scoutingSettings.data?.contact_mode as "request" | "skip" | "auto" | undefined) ?? "request"}
+          lastScannedAt={scoutingSettings.data?.last_scanned_at ?? null}
           googleConnected={mailbox.connected}
         />
       )}

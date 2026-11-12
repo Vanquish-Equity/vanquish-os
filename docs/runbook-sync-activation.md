@@ -194,7 +194,7 @@ where sub = '<owner-selected-auth-subject>'::uuid;
 
 Like P4, P7 also requires an enabled identity outside relationships-only
 mode; the update above does not change that mode. Do not lift the CRM/Drive
-restriction just to test. The member's separate consent remains required.
+restriction just to test. The member's [unified mail header consent](#unified-mail-header-consent-p11) remains required.
 
 P7 runs after company scouting and before LP, behind its own error boundary.
 It shares the eight-minute scheduler deadline from process start, has a
@@ -219,3 +219,40 @@ Keep the schema, private reminders and deduplication markers. Do not
 apply test fixtures or enable the feature on preview sharing production.
 Native PostgreSQL and mock tests do not verify real Gmail, hosted Supabase,
 scheduled timing or a signed-in browser session.
+
+
+## Unified mail header consent (P11)
+
+After independent review: **owner applies P11 SQL → deploy app and worker →
+owner reviews the existing P4/P7 machine capabilities → member explicitly
+authorizes mail headers → verify on a disposable mailbox**. The migration
+requires P4 and P7 and creates no member opt-in. It never changes flags,
+Google scopes, environment settings or relationships-only identities. Do not
+enable features in a preview sharing production.
+
+- **SQL first:** old member toggle RPCs remain callable and save legacy flags
+  while there is no unified record. Neither flag can authorize background work
+  without a unified grant. Old RPCs become harmless no-ops for a member with a
+  unified record; remove them in a separately reviewed compatibility cleanup.
+  Manual Scan now and relationship sync continue to work.
+- **App first:** the card distinguishes a missing database update from an
+  ordinary settings error and disables the toggle. Manual Scan now and
+  relationship sync remain independent. P11 cannot enforce its new contract
+  until the SQL is installed: older database worker gates remain in effect,
+  so use SQL first.
+- **Pause:** individual members uncheck the shared consent. To pause workspace
+  background reads, the owner clears the two existing P4/P7 capabilities on
+  every eligible worker, without changing relationship or LP access. This
+  invalidates their active leases. A request already sent to Gmail can finish,
+  but a revoked lease cannot save results. Keep all data and the P11 schema;
+  if necessary, revert the app/worker after pausing. Reverting the UI does not
+  restore the old authorization gates or create consent.
+
+Gmail credential replacement, disconnect, scope loss, member deactivation or
+scouting permission removal switches both backgrounds off and records one
+revocation. Reconnect/regrant does not resume them. Verify both features on a
+disposable mailbox, including opt-out during an in-flight lease and a member
+without company permission. The automated suite uses synthetic fixtures,
+native PostgreSQL, and mock provider calls; it does not prove real provider or
+scheduled behavior. Future P10 uses the same consent plus a separately and
+explicitly started import; this migration creates no import jobs.

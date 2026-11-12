@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { configureCompanyScouting, maybeScanMailbox, scanMailboxNow } from "./actions";
+import { maybeScanMailbox, scanMailboxNow } from "./actions";
 const { getAccess, createClient, rpc, googleClient, readCompanyScan, revalidatePath } = vi.hoisted(() => ({
  getAccess: vi.fn(), createClient: vi.fn(), rpc: vi.fn(), googleClient: vi.fn(), readCompanyScan: vi.fn(), revalidatePath: vi.fn(),
 }));
@@ -34,18 +34,6 @@ it("fails closed if context authorization was withdrawn",async()=>{
 it("does not claim success after commit authorization is withdrawn",async()=>{
  rpc.mockImplementation(async(name:string)=>({data:name==="claim_my_company_scan"?[job]:{},error:name==="commit_my_company_scan"?{code:"42501"}:null}));
  expect(await scanMailboxNow()).toMatchObject({ok:false});expect(revalidatePath).not.toHaveBeenCalled();expect(rpc).toHaveBeenCalledWith("fail_my_company_scan",{p_id:job.id,p_lease:job.lease});
-});
-it("background opt-in derives the member from the session instead of sending an email",async()=>{
- expect(await configureCompanyScouting(true)).toMatchObject({ok:true});expect(rpc).toHaveBeenCalledWith("configure_company_scouting",{p_enabled:true});
-});
-
-it("shows pending administrator activation after opt-in without worker capability",async()=>{
- rpc.mockResolvedValue({data:{workerAvailable:false},error:null});
- expect(await configureCompanyScouting(true)).toMatchObject({ok:true,message:"Consent saved. Pending activation by the administrator."});
-});
-it("only confirms enabled when the state reports an authorized worker",async()=>{
- rpc.mockResolvedValue({data:{workerAvailable:true},error:null});
- expect(await configureCompanyScouting(true)).toMatchObject({ok:true,message:"Background company scanning enabled."});
 });
 it("distinguishes SQL row validation from revoked authorization and releases its lease",async()=>{
  rpc.mockImplementation(async(name:string)=>({data:name==="claim_my_company_scan"?[job]:{},error:name==="commit_my_company_scan"?{code:"22023"}:null}));

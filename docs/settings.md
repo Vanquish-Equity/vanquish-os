@@ -212,16 +212,16 @@ Relationship history now queues the external durable worker instead of reading
 Gmail/Calendar in the browser. Its consent stays independent of CRM activity
 and subject/title sharing. Pause retains published history; Delete my history
 removes only this member's relationship publication and private provenance and
-turns that sink off. Company scouting has a separate default-off background
-opt-in and retains an explicit manual scan.
+turns that sink off. Mail header consent covers background company detection and unanswered email
+reminders; company scouting retains an explicit manual scan.
 Integration health exposes own-account success/checkpoint times and safe retry;
 see [Sync activation runbook](runbook-sync-activation.md).
 
 ### Background company scouting
 
-Migration `20261106100000_background_company_scouting.sql` adds an explicit
-member opt-in, off by default, in Email scouting. Opening Home or another tab
-no longer scans Gmail. **Scan now** remains an explicit operation. Both paths
+Background company detection uses the default-off **Mail header consent**
+card. Opening Home or another tab does not scan Gmail. **Scan now** remains an
+explicit operation independent of the background consent. Both paths
 use the same per-member database lease, so only one scan can run at a time.
 The scheduled worker checks due members when it runs; a successful scan is due
 again after six hours. GitHub Actions scheduling can be delayed and is not a
@@ -237,7 +237,7 @@ kind is added, and no CRM Company or Person is created by a scan.
 
 An active member, `email_scouting`, a connected Gmail mailbox with an existing
 `gmail.readonly` or `gmail.modify` scope, and a current lease are required at
-claim, context and commit. Background jobs also require opt-in. Consent changes,
+claim, context and commit. Background jobs also require live unified consent and the internal feature flag. Consent changes,
 connection changes, permission revocation, member deactivation and machine
 revocation invalidate leases. An HTTP read already in flight may finish, but
 its stale lease cannot save. Existing suggestions remain private and can still
@@ -249,23 +249,36 @@ capability defaults false. This migration does not enable an identity or opt in
 a member. Directory context is limited to 10,000 entries of each kind; an
 oversized directory fails closed rather than scanning with partial exclusions.
 
-Deploy the SQL first, then the worker and app, then let the owner separately
-review machine authorization and let each member opt in. If app/worker ships
-first, the scheduled scanner treats a missing claim RPC as unavailable and
-leaves the existing sync jobs running; manual company scanning reports that
-its migration is unavailable. If SQL ships first, all background scans remain
-off. Old browser clients continue to follow the previous manual contract until
-they reload; deploy/reload clients before enabling the new background option.
+### Mail header consent (P11)
 
+In Settings, **Allow Vanquish to read my email headers** is one explicit,
+default-off choice for background company detection and unanswered email
+reminders. Connecting Google, installing the migration, and enabling a worker
+do not grant member consent. It covers sender and recipient details, dates,
+thread IDs, and the bounded Gmail metadata described below. It does not cover
+message content, stored subjects, attachments or AI. Relationship sync has a
+separate card and retains its existing history and CRM publication controls.
 
-### P4 consent, limits and status
+Company detection also needs the administrator-granted `email_scouting`
+permission. Reminders do not. Each feature displays whether it is off,
+missing Google access or permission, waiting for an authorized worker, or
+active. Active means eligible for the scheduled worker, not real-time or
+exhaustive coverage. The card displays each feature's last successful review
+and safe errors. Company scouting still has **Scan now** and the contact
+preference under Email scouting; a manual scan grants no ongoing permission.
 
-A member opts in separately from connecting Google. Disconnecting Google,
-replacing credentials (possibly another mailbox), losing Gmail read scopes or
-revoking `email_scouting` turns background consent off and invalidates the lease.
-Restoring access requires explicit opt-in again. Manual scans remain explicit.
-The settings display pending administrator activation until a capable identity
-exists, the last bounded failure status, and whether the newest-500 limit was hit.
+Uncheck the consent box to stop both background reviews and invalidate their
+leases. Disconnecting Google, replacing its refresh credential, losing Gmail
+read scope, deactivating a member, or removing `email_scouting` revokes both
+features. Restoring access does not restart them; the member must authorize
+again. If company permission is granted for the first time after opting in to
+reminders, withdraw and authorize again to include it. Existing suggestions,
+reminders and history are retained.
+
+A later historical import (P10) must check this same consent and generation
+when it claims, reads and commits. It has no separate permission switch: the
+member must explicitly choose **Start import** and its window/preview with
+consent active. P11 neither implements nor starts historical import.
 
 Before commit, the shared reader converts international domains to ASCII/punycode,
 rejects invalid domains, bounds suggestion/contact names, drops invalid contact
@@ -282,13 +295,12 @@ still lets the independent LP phase execute. Provider 401/403 map to `reconnect`
 
 ### Unanswered email reminders (P7)
 
-**Review my inbox for unanswered email** is off by default and separate from
-Email scouting. It needs an active member and a connected Gmail mailbox with
+Unanswered email reminders use **Mail header consent** and need an active
+member and a connected Gmail mailbox with
 `https://www.googleapis.com/auth/gmail.readonly` or
 `https://www.googleapis.com/auth/gmail.modify`. It requests no additional
 Google scopes or app permissions. If the workspace owner has not authorized a
-worker, consent is saved but the setting displays pending admin activation.
-It also shows the last successful review and a bounded failure message.
+worker, the feature displays pending administrator activation.
 
 The worker reviews headers in a bounded inbox sample. The latest non-draft
 message must be inbound, in Inbox, and at least **five UTC calendar days** old.
@@ -326,7 +338,5 @@ reminder, a newer qualifying inbound can replace it under the same daily cap.
 Pending observations older than 30 UTC calendar days leave the read rotation.
 Bounded cleanup marks them handled and closes any associated open generated
 reminder; it leaves manual reminders and deduplication markers intact.
-Disconnecting Google, replacing
-credentials, losing Gmail read scope, or deactivating membership withdraws
-consent. Reconnecting or restoring access requires a fresh opt-in. Pausing
-preserves existing reminders and deduplication markers.
+Pausing or revoking mail header consent preserves existing reminders and
+deduplication markers.
