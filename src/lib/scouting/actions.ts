@@ -63,20 +63,6 @@ export async function maybeScanMailbox(): Promise<{ scanned: boolean }> {
   return { scanned: false };
 }
 
-export async function configureCompanyScouting(enabled: boolean): Promise<Result> {
-  const access = await getAccess();
-  if (access.status !== "member" || typeof enabled !== "boolean") return { ok: false, message: "Sign in to continue." };
-  const db = await createClient();
-  const { error } = await db.rpc("configure_company_scouting", { p_enabled: enabled });
-  if (error) return { ok: false, message: "Could not update scanning. Check permission and Google connection." };
-  revalidatePath("/settings");
-  if (!enabled) return { ok: true, message: "Background company scanning disabled; in-flight scans cannot save." };
-  const state = await db.rpc("my_company_scouting_state");
-  return { ok: true, message: state.data?.workerAvailable === true && !state.error
-    ? "Background company scanning enabled."
-    : "Consent saved. Pending activation by the administrator." };
-}
-
 export async function setContactMode(mode: ContactMode): Promise<Result> {
   const session = await scoutingSession();
   if (!session) return { ok: false, message: "Sign in to continue." };

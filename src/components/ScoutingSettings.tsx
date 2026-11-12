@@ -3,19 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import Checkbox from "@/components/Checkbox";
 import RelativeTime from "@/components/RelativeTime";
 import SelectMenu from "@/components/SelectMenu";
-import { configureCompanyScouting, scanMailboxNow, setContactMode, type ContactMode } from "@/lib/scouting/actions";
+import { scanMailboxNow, setContactMode, type ContactMode } from "@/lib/scouting/actions";
 import { REVIEW_HREF } from "@/lib/tasks/tabs";
-
-const SCAN_ERRORS: Record<string, string> = {
-  revoked: "Background consent was withdrawn. Check access and opt in again.",
-  reconnect: "Reconnect Google to restore mailbox reading.",
-  rate_limited: "Google limited requests. The scan was deferred.",
-  deadline: "The scan reached its time budget. No partial suggestions were saved.",
-  unavailable: "The last scan could not finish. It will be tried later.",
-};
 
 const MODES: { value: ContactMode; label: string }[] = [
   { value: "request", label: "Ask me first (contact requests)" },
@@ -27,20 +18,10 @@ export default function ScoutingSettings({
   contactMode,
   lastScannedAt,
   googleConnected,
-  backgroundEnabled = false,
-  backgroundAvailable = false,
-  workerAvailable = false,
-  capped = false,
-  lastError = null,
 }: {
   contactMode: ContactMode;
   lastScannedAt: string | null;
   googleConnected: boolean;
-  backgroundEnabled?: boolean;
-  backgroundAvailable?: boolean;
-  workerAvailable?: boolean;
-  capped?: boolean;
-  lastError?: string | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -63,23 +44,12 @@ export default function ScoutingSettings({
         Spam and Trash) for companies you write with that aren&apos;t in Companies yet, and lists them in{" "}
         <Link href={REVIEW_HREF} className="font-semibold text-cyan-700 hover:underline">Review</Link>. Only you see your
         suggestions. Stored per suggestion: the domain, thread counts, dates and the contacts&apos; names and emails —
-        never subjects or message content. Background scans run when you opt in and the scheduled worker is authorized; opening a page does not scan.
+        never subjects or message content. Scan now authorizes a single review; background consent is managed separately above.
       </p>
       {!googleConnected ? (
         <p className="mt-3 text-[12px] text-neutral-500">Connect Google above to use this.</p>
       ) : (
         <div className="mt-4 flex flex-col gap-3">
-          <label className="flex min-h-10 items-center gap-2 text-xs text-ink">
-            <Checkbox checked={backgroundEnabled} disabled={pending || !backgroundAvailable}
-              onChange={(event) => run(() => configureCompanyScouting(event.target.checked))} />
-            Scan my mailbox for new companies in the background
-          </label>
-          {!backgroundAvailable && <p className="text-xs text-neutral-500">Background scanning requires the reviewed database migration.</p>}
-          {backgroundAvailable && backgroundEnabled && !workerAvailable && (
-            <p className="text-xs text-neutral-500">Pending activation by the administrator.</p>
-          )}
-          {capped && <p className="text-xs text-neutral-500">Last scan reached the newest 500-email limit; older emails in the window were not scanned.</p>}
-          {lastError && <p role="status" className="text-xs text-neutral-500">{SCAN_ERRORS[lastError] ?? SCAN_ERRORS.unavailable}</p>}
           <div className="max-w-[360px] text-[11px] font-semibold text-ink">
             When I create a company from a suggestion, its contacts…
             <SelectMenu

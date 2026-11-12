@@ -201,9 +201,8 @@ identity on every RPC. Service identities are excluded from membership, UI and
 RLS even if disabled. Legacy machine roles and Gmail push are inactive.
 
 Phase 2 adds default-false `lp_scanning_enabled`; P4 adds separate default-false
-`company_scanning_enabled`. Company scanning also requires fresh member opt-in
-and `email_scouting`; disconnecting, replacing credentials or revoking that
-permission withdraws opt-in. A reconnect/regrant never resumes it automatically.
+`company_scanning_enabled`. Company scanning also requires member consent and `email_scouting`. See the
+unified mail header boundary below for revocation and reauthorization.
 LP worker RPCs first call the
 same identity guard, then require that capability and `relationships_only=false`.
 No direct LP/fundraising table grants or decision RPCs are available to machines.
@@ -230,7 +229,7 @@ or activate features. See [reporting](crm-reporting.md) for the complete contrac
 
 P7 adds a default-false `followup_scanning_enabled` capability, separate from
 company and LP scouting. Only an enabled registered Auth identity outside
-relationships-only mode with this capability can claim a P7 lease. Member
+relationships-only mode with this capability can claim a P7 lease. Unified member
 consent and live Gmail read scope are required for every lease context and
 commit. Neither ordinary members, admins nor machines have direct grants on
 the private follow-up account, lease or thread tables. Member RPCs derive the
@@ -238,3 +237,24 @@ owner from the session; worker RPCs derive the owner from the live lease.
 Generated reminders use existing owner-only reminder visibility plus a CHECK
 that prevents changing them to team/shared. No new member permission or
 notification kind is introduced.
+
+
+### Unified mail header consent boundary (P11)
+
+Only the active human member can call `configure_mail_headers_consent(boolean)`
+or `my_mail_headers_consent_state()` for themselves. Neither takes an email
+argument. No table grants are available to members, admins, anon, or the
+registered machine. The private table uses RLS and restrictive machine
+isolation. The state reader is lock-free and exposes only per-feature status
+and worker availability booleans, never a worker identifier or mailbox token.
+
+P4/P7 background claim, context, commit and failure checkpoint require both a
+live unified consent row and their own internal account authorization. The
+transaction locks live membership and mailbox access, and the company
+permission for P4, before locking the consent row for share and the account
+and lease rows. Revoking access rotates the generations and removes only
+ephemeral leases. Member-initiated Scan now continues to require live
+membership, Google and `email_scouting`, and does not grant background access.
+Relationship sync and LP permissions, scopes and machine capabilities are
+unchanged. Future P10 must revalidate this consent and generation as well as
+its own explicitly started import job.

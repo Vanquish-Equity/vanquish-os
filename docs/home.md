@@ -384,14 +384,14 @@ does not send locations to a map service.
 
 ### Private unanswered email reminders
 
-After P7 is installed and both the workspace owner and the member have opted
-in, the existing **My reminders** card also shows private reminders titled
+With an authorized reminder worker and the member's **Mail header consent**
+enabled in Settings, the existing **My reminders** card shows private reminders titled
 “Reply to [contact]” for qualifying unanswered Gmail threads. They appear on
 the contact panel as well. Other members and admins cannot see them; generated
 reminders cannot be shared. They create no notification or outgoing email.
 Replying in Gmail can close the reminder after a later review. Completing or
-deleting it yourself suppresses that same inbound message. Turning reviews off
-keeps reminders already created. Generated reminders are due on the UTC day
+deleting it yourself suppresses that same inbound message. Withdrawing mail header consent stops future background reviews and keeps
+reminders already created. Generated reminders are due on the UTC day
 they are created and share the existing ten-item, due-date-ordered Home list.
 As a result, a later-due manual reminder can move off Home, but it remains on
 its contact. Reviews close generated reminders that age out of the 30-day
