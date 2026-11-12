@@ -238,3 +238,21 @@ owner from the session; worker RPCs derive the owner from the live lease.
 Generated reminders use existing owner-only reminder visibility plus a CHECK
 that prevents changing them to team/shared. No new member permission or
 notification kind is introduced.
+
+## Response security headers
+
+`next.config.ts` applies `src/lib/security/headers.ts` to every route:
+`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, a strict
+`Referrer-Policy`, a `Permissions-Policy` that disables camera, microphone,
+geolocation, payment and USB, `Cross-Origin-Opener-Policy:
+same-origin-allow-popups` (Google sign-in is a full-page redirect), and a CSP
+limited to `frame-ancestors 'none'; base-uri 'self'; object-src 'none'`.
+Vercel adds HSTS. The CSP intentionally has no `script-src`, `img-src`,
+`style-src` or `form-action`: the sandboxed mail iframes use `srcDoc` and
+inherit the parent's CSP, so those directives would break "Load remote
+images" or the sign-in redirect. A nonce-based script policy is a separate
+change that needs its own test. `src/lib/security/headers.test.ts` guards this.
+
+Migration `20261108100000_pin_trigger_function_search_path` pins `search_path`
+on `public.set_updated_at` and `public.prevent_deal_status_history_mutation`
+(Supabase advisor `function_search_path_mutable`); behavior is unchanged.

@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { SECURITY_HEADERS } from "./src/lib/security/headers";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["pdf-parse", "pdfjs-dist"],
@@ -6,6 +7,9 @@ const nextConfig: NextConfig = {
   // recipients). Keep them out of terminals and shared logs.
   logging: {
     serverFunctions: false,
+  },
+  async headers() {
+    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
   // Overview and Reporting became tabs of Home. Temporary (307) redirects so
   // bookmarks, notification links and saved landing pages keep working and the

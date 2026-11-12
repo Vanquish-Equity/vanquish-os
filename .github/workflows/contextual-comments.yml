@@ -277,4 +277,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261107100000_unanswered_email_reminders.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261107100000_unanswered_email_reminders.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/unanswered_email_reminders.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261108100000_pin_trigger_function_search_path.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261108100000_pin_trigger_function_search_path.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/pin_trigger_function_search_path.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/contact_privacy.sql > /dev/null
