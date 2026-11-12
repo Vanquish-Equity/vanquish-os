@@ -53,3 +53,23 @@ describe("Google transport when the perf hook cannot load", () => {
     await expect(client.request("gmail", "/messages/x")).rejects.toMatchObject({ code: "not_found", status: 404 });
   });
 });
+
+it.each([
+  ["rateLimitExceeded", "rate_limited"],
+  ["userRateLimitExceeded", "rate_limited"],
+  ["insufficientPermissions", undefined],
+])("keeps only the classified Gmail 403 reason for %s", async (reason, expected) => {
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => url.includes("oauth2")
+    ? new Response(JSON.stringify({ access_token: "synthetic" }))
+    : new Response(JSON.stringify({ error: { errors: [{ reason }], message: "synthetic private detail" } }), { status: 403 })));
+  const client = await googleClientFromSecret(secret);
+  await expect(client.request("gmail", "/threads")).rejects.toMatchObject({ status: 403, code: "permission", reason: expected,
+    message: "Google denied access. Check the account permissions or reconnect Google." });
+});
+it("does not inspect a quota reason beyond the bounded Gmail error envelope", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => url.includes("oauth2")
+    ? new Response(JSON.stringify({ access_token: "synthetic" }))
+    : new Response(JSON.stringify({ filler: "x".repeat(16_384), error: { errors: [{ reason: "rateLimitExceeded" }] } }), { status: 403 })));
+  const client = await googleClientFromSecret(secret);
+  await expect(client.request("gmail", "/threads")).rejects.toMatchObject({ status: 403, code: "permission", reason: undefined });
+});

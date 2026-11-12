@@ -36,10 +36,34 @@ export class GoogleError extends Error {
       "disconnected" | "permission" | "unavailable" | "not_found" | "conflict" | "expired_cursor",
     message: string,
     public status?: number,
+    public reason?: "rate_limited",
   ) {
     super(message);
   }
 }
+// Read at most a small error envelope and keep only a whitelisted reason.
+async function gmailRateLimitReason(response: Response): Promise<"rate_limited" | undefined> {
+  const reader = response.body?.getReader();
+  if (!reader) return;
+  const decoder = new TextDecoder();
+  let size = 0;
+  let text = "";
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > 16_384) { await reader.cancel(); return; }
+      text += decoder.decode(value, { stream: true });
+    }
+    const data = JSON.parse(text + decoder.decode()) as { error?: { errors?: { reason?: string }[] } };
+    if (Array.isArray(data?.error?.errors) && data.error.errors.some((entry) =>
+      entry?.reason === "rateLimitExceeded" || entry?.reason === "userRateLimitExceeded")) return "rate_limited";
+  } catch {
+    // Malformed error responses retain the generic permission classification.
+  } finally { reader.releaseLock(); }
+}
+
 export type GoogleClient = {
   scopes: string[];
   request: <T>(
@@ -155,6 +179,7 @@ export async function googleClientFromSecret(secret:GoogleSecret):Promise<Google
             "permission",
             "Google denied access. Check the account permissions or reconnect Google.",
             res.status,
+            service === "gmail" ? await gmailRateLimitReason(res) : undefined,
           );
         if (res.status === 404)
           throw new GoogleError(

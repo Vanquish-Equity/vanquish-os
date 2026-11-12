@@ -102,6 +102,9 @@ export async function updateContactReminder(personId: string, reminderId: string
   const db = await createClient();
   const { data, error } = await db.from("contact_reminders").update({ title: title.trim(), due_on: dueAt, visibility: who.mode })
     .eq("id", reminderId).eq("person_id", personId).eq("created_by", who.email).select("id");
+  if (error?.code === "23514" && error.message.includes("contact_reminders_email_followup_private")) {
+    return { ok: false, message: "This reminder comes from an email and must stay private." };
+  }
   if (error || data?.length !== 1) return { ok: false, message: "Couldn't update the reminder." };
   return (await syncRecipients(db, "contact_reminder_recipients", "reminder_id", reminderId, who.list))
     ? done() : { ok: false, message: "Couldn't update who is included." };

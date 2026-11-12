@@ -274,3 +274,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f supabase/tests/founder_profile_merge.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/founder_profile_fields.sql > /dev/null
           psql -v ON_ERROR_STOP=1 -f supabase/tests/people_duplicates.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261107100000_unanswered_email_reminders.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261107100000_unanswered_email_reminders.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/unanswered_email_reminders.sql > /dev/null
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/contact_privacy.sql > /dev/null

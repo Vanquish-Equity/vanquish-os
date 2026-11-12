@@ -5,6 +5,7 @@ const m = vi.hoisted(() => ({
   rpc: vi.fn(),
   insertError: null as unknown,
   recipientError: null as unknown,
+  updateError: null as unknown,
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth/access", () => ({
@@ -23,6 +24,11 @@ vi.mock("@/lib/supabase/server", () => ({
           select: () => ({ single: async () => ({ data: error ? null : { id: "11111111-1111-1111-1111-111111111111" }, error }) }),
         });
       },
+      update: (value: unknown) => {
+        m.calls.push({ table, op: "update", value });
+        const chain = { eq: () => chain, select: async () => ({ data: null, error: m.updateError }) };
+        return chain;
+      },
       select: () => ({ eq: () => ({ limit: async () => ({ data: [], error: null }) }) }),
       delete: () => ({
         eq: (_column: string, value: unknown) => {
@@ -34,7 +40,7 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 
-import { completeContactReminder, createContactReminder, saveContactNote } from "./contact-workspace-actions";
+import { completeContactReminder, createContactReminder, saveContactNote, updateContactReminder } from "./contact-workspace-actions";
 
 const person = "22222222-2222-2222-2222-222222222222";
 const reminder = "33333333-3333-3333-3333-333333333333";
@@ -44,6 +50,7 @@ beforeEach(() => {
   m.rpc.mockReset();
   m.insertError = null;
   m.recipientError = null;
+  m.updateError = null;
 });
 
 describe("contact reminders", () => {
@@ -112,4 +119,13 @@ describe("contact notes", () => {
     for (const result of results) expect(result.ok).toBe(false);
     expect(m.calls).toHaveLength(0);
   });
+});
+
+it("explains the generated reminder privacy constraint without exposing database details", async () => {
+  m.updateError = { code: "23514", message: "contact_reminders_email_followup_private synthetic database detail" };
+  await expect(updateContactReminder(person, reminder, "Follow up", "2026-12-01", "team", []))
+    .resolves.toEqual({ ok: false, message: "This reminder comes from an email and must stay private." });
+  m.updateError = { code: "23514", message: "different constraint synthetic database detail" };
+  await expect(updateContactReminder(person, reminder, "Follow up", "2026-12-01", "team", []))
+    .resolves.toEqual({ ok: false, message: "Couldn't update the reminder." });
 });

@@ -279,3 +279,54 @@ checkpoints `deadline`. Lost/revoked leases are abandoned and the next member ca
 run. An identity rejection at claim stops company work; its scheduler boundary
 still lets the independent LP phase execute. Provider 401/403 map to `reconnect`,
 429 to `rate_limited`; revoked authorization is separate from provider downtime.
+
+### Unanswered email reminders (P7)
+
+**Review my inbox for unanswered email** is off by default and separate from
+Email scouting. It needs an active member and a connected Gmail mailbox with
+`https://www.googleapis.com/auth/gmail.readonly` or
+`https://www.googleapis.com/auth/gmail.modify`. It requests no additional
+Google scopes or app permissions. If the workspace owner has not authorized a
+worker, consent is saved but the setting displays pending admin activation.
+It also shows the last successful review and a bounded failure message.
+
+The worker reviews headers in a bounded inbox sample. The latest non-draft
+message must be inbound, in Inbox, and at least **five UTC calendar days** old.
+The first successful review after opt-in looks back 14 days; later reviews
+look back up to 30. The sender must match one active People record by exact
+email, ignoring case. A company-domain match alone never creates a reminder.
+Inbox delivery qualifies even when a member was copied or blind-copied;
+direct-recipient headers are not requested. It skips other app members and
+senders at the member's registrable company domain, including subdomains.
+Shared free providers such as Gmail and Outlook are exempt from the domain
+rule, but still require an exact active CRM contact match.
+It skips automated senders, list/bulk/auto-reply
+headers, spam, trash, chats, and promotions/social/updates/forums. Calendar
+filtering excludes ICS matches in Gmail search and calendar MIME types when
+present in the metadata response. Neither bodies nor attachment contents are
+requested. Validate calendar filtering with a disposable mailbox before rollout.
+
+Up to ten private reminders are created per UTC day, even if some are deleted
+afterward. The remaining qualifying threads can be picked up on later runs
+within the window. Search targets known CRM senders in up to eight groups of
+ten addresses; the starting group rotates after a successful review. The
+worker shares at most 40 candidate reads across the groups, plus 20 rotating
+pending threads. Coverage remains partial on busy mailboxes. It requests only
+From, List-Unsubscribe, Precedence and Auto-Submitted headers, plus the Gmail
+IDs, timestamps, labels and narrowly selected MIME types. Only Gmail
+thread/message IDs, time, contact/reminder links and status are stored for
+deduplication. Sender addresses used for matching are not stored in the ledger.
+No subjects, snippets, bodies, attachments, notifications or sends.
+
+A newer sent message closes an open generated reminder, even if the thread
+is no longer in Inbox. Completing/deleting it by hand marks that inbound
+handled. A strictly newer eligible inbound message can create another one,
+with at most one open reminder per thread. If a merge hides the old contact's
+reminder, a newer qualifying inbound can replace it under the same daily cap.
+Pending observations older than 30 UTC calendar days leave the read rotation.
+Bounded cleanup marks them handled and closes any associated open generated
+reminder; it leaves manual reminders and deduplication markers intact.
+Disconnecting Google, replacing
+credentials, losing Gmail read scope, or deactivating membership withdraws
+consent. Reconnecting or restoring access requires a fresh opt-in. Pausing
+preserves existing reminders and deduplication markers.

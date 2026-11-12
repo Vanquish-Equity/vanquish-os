@@ -225,3 +225,16 @@ have restrictive scalar-SELECT machine isolation; the Auth worker gains no
 reporting capability. Weekly references belong only to the active subscribed
 member, and generation rechecks opt-in. Only SQL owners attest fund reconciliation
 or activate features. See [reporting](crm-reporting.md) for the complete contract.
+
+### Private unanswered email reminder worker
+
+P7 adds a default-false `followup_scanning_enabled` capability, separate from
+company and LP scouting. Only an enabled registered Auth identity outside
+relationships-only mode with this capability can claim a P7 lease. Member
+consent and live Gmail read scope are required for every lease context and
+commit. Neither ordinary members, admins nor machines have direct grants on
+the private follow-up account, lease or thread tables. Member RPCs derive the
+owner from the session; worker RPCs derive the owner from the live lease.
+Generated reminders use existing owner-only reminder visibility plus a CHECK
+that prevents changing them to team/shared. No new member permission or
+notification kind is introduced.

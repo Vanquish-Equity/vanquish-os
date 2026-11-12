@@ -205,6 +205,7 @@ describe("Auth company scouting worker", () => {
       "../src/lib/sync/worker-session": { workerCredentials: () => credentials, signInWorker: async () => {}, renewWorkerSession: async () => {}, validateWorkerApiKey: () => {}, WorkerIdentityError },
       "@supabase/supabase-js": { createClient: () => ({ rpc: async () => ({ data: [] }) }) },
       "../src/lib/scouting/worker": { runCompanyScoutWorker: company },
+      "../src/lib/email-followups/worker": { runEmailFollowupWorker: async () => {} },
       "../src/lib/lp-scouting/worker": { runLpWorker: lp },
     };
     const source = readFileSync("scripts/crm-sync-worker.ts", "utf8").replace(/^main\(\)\.catch.*$/m, "main()");
