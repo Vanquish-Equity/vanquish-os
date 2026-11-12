@@ -7,13 +7,16 @@ export const PEOPLE_COLUMNS = [
   { key: "last_email", label: "Last email" },
   { key: "next_meeting", label: "Next meeting" },
   { key: "last_interaction", label: "Last interaction (team)" },
+  { key: "city", label: "City" },
+  { key: "country", label: "Country" },
+  { key: "origin", label: "Origin" },
 ] as const;
 
 export type PeopleColumn = (typeof PEOPLE_COLUMNS)[number]["key"];
 
 const KEYS = new Set<string>(PEOPLE_COLUMNS.map((column) => column.key));
 
-// null = no explicit choice, i.e. every column (the default).
+// null = the existing default columns; founder fields are opt-in.
 export function parsePeopleColumns(value: unknown): PeopleColumn[] | null {
   const list = Array.isArray(value) ? value : typeof value === "string" ? [value] : null;
   if (!list) return null;
@@ -22,5 +25,5 @@ export function parsePeopleColumns(value: unknown): PeopleColumn[] | null {
 }
 
 export function visiblePeopleColumns(cols: PeopleColumn[] | null): Set<PeopleColumn> {
-  return new Set(cols ?? PEOPLE_COLUMNS.map((column) => column.key));
+  return new Set(cols ?? PEOPLE_COLUMNS.map((column) => column.key).filter((key) => !["city", "country", "origin"].includes(key)));
 }

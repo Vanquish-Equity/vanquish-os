@@ -4,6 +4,8 @@ import ContactWorkspace from "@/components/people/ContactWorkspace";
 import Link from "next/link";
 import { composeHref } from "@/lib/communications/compose-link";
 import ContactActivity from "@/components/people/ContactActivity";
+import ContactFounderFields from "@/components/people/ContactFounderFields";
+import { EMPTY_FOUNDER_PROFILE } from "@/lib/people/founder-profile";
 import ContactOrganization from "@/components/people/ContactOrganization";
 import RelationshipIntelligenceSection from "@/components/RelationshipIntelligenceSection";
 import { relationshipIntelligenceState } from "@/lib/relationships/intelligence-queries";
@@ -31,7 +33,7 @@ export default async function ContactProfile({ id, companies, full = false }: {
 
   const today = new Date().toISOString().slice(0, 10);
   const since = new Date(Date.parse(today) - 89 * 86_400_000).toISOString().slice(0, 10);
-  const [intelligence, activity, members, groupResult, dealResult, noteAttempt, reminderResult, fileResult] = await Promise.all([
+  const [intelligence, activity, members, groupResult, dealResult, noteAttempt, reminderResult, fileResult, founderResult] = await Promise.all([
     relationshipIntelligenceState().catch(() => ({ enabled: false, allowed: false })),
     db.from("relationship_interactions").select("member_email,kind,occurred_on,last_at")
       .eq("person_id", id).gte("occurred_on", since).lte("occurred_on", today)
@@ -45,7 +47,9 @@ export default async function ContactProfile({ id, companies, full = false }: {
     db.from("contact_reminders").select("id,title,due_on,visibility,created_by,completed_at,completed_by,recipients:contact_reminder_recipients(member_email)")
       .eq("person_id", id).order("completed_at", { ascending: true, nullsFirst: true }).order("due_on").order("id").limit(60),
     canReadFiles ? db.storage.from("contact-files").list(id, { limit: 50, sortBy: { column: "created_at", order: "desc" } }) : undefined,
+    db.from("people").select("city,country,origin").eq("id", id).is("archived_at", null).maybeSingle(),
   ]);
+  const founder = founderResult.error || !founderResult.data ? null : founderResult.data;
   // Before the privacy migration is applied, notes load without visibility.
   type NoteRow = { id: string; author_email: string; body: string; created_at: string; visibility?: Visibility;
     recipients?: { member_email: string }[] | null };
@@ -130,6 +134,9 @@ export default async function ContactProfile({ id, companies, full = false }: {
         <div className="mt-3"><ContactOrganization key={id} personId={id} companyId={person.primary_organization_id ?? ""} organizationName={person.organization_name ?? ""} companies={companies} /></div>
       </details>}
     </section>
+
+    <ContactFounderFields key={JSON.stringify([id, founder])} personId={id}
+      fields={founder ?? EMPTY_FOUNDER_PROFILE} available={Boolean(founder)} />
 
     <ContactWorkspace key={id} personId={id}
       members={memberOptions}
