@@ -30,9 +30,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     loadMailboxConnection(supabase),
     supabase.from("relationship_sync").select("enabled,last_synced_at").eq("member_email", access.email).maybeSingle(),
   ]);
-  const [{ data: scoutingPermission }, { data: scoutingSettings, error: scoutingError }] = await Promise.all([
+  const [{ data: scoutingPermission }, { data: scoutingSettings, error: scoutingError }, { data: companyScanState, error: companyScanError }] = await Promise.all([
     supabase.from("member_permissions").select("permission").eq("email", access.email).eq("permission", "email_scouting").maybeSingle(),
     supabase.from("scouting_settings").select("contact_mode,last_scanned_at").eq("member_email", access.email).maybeSingle(),
+    supabase.rpc("my_company_scouting_state"),
   ]);
   const avatarUrl = profile?.avatar_path
     ? (await supabase.storage.from("member-avatars").createSignedUrl(profile.avatar_path, 3600)).data?.signedUrl ?? null
@@ -88,6 +89,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       />
       {scoutingPermission && !scoutingError && (
         <ScoutingSettings
+          backgroundEnabled={Boolean(companyScanState?.enabled)}
+          backgroundAvailable={!companyScanError}
+          workerAvailable={companyScanState?.workerAvailable === true}
+          capped={companyScanState?.capped === true}
+          lastError={typeof companyScanState?.lastError === "string" ? companyScanState.lastError : null}
           contactMode={(scoutingSettings?.contact_mode as "request" | "skip" | "auto" | undefined) ?? "request"}
           lastScannedAt={scoutingSettings?.last_scanned_at ?? null}
           googleConnected={mailbox.connected}

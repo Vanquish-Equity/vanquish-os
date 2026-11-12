@@ -68,8 +68,8 @@ a new company's contacts.
 - **Scan** (`src/lib/scouting/actions.ts`, logic in `detect.ts`): with the
   permission and Gmail connected, reads From/To/Cc headers of the newest 500
   emails of the last 30 days outside Spam, Trash, Chats, Promotions, Social,
-  Updates and Forums. Runs from **Scan now** in Settings and quietly once per
-  browser tab when the last scan is over 6 hours old (no background worker).
+  Updates and Forums. Runs from **Scan now** in Settings or the scheduled
+  worker after explicit member opt-in; opening a browser tab does not scan.
 - **What counts**: addresses grouped by registrable domain
   (`mail.acme.co.uk` → `acme.co.uk`), skipping the member's own domain,
   personal providers (Gmail, Outlook, iCloud, …), Admin's **ignored
@@ -212,6 +212,70 @@ Relationship history now queues the external durable worker instead of reading
 Gmail/Calendar in the browser. Its consent stays independent of CRM activity
 and subject/title sharing. Pause retains published history; Delete my history
 removes only this member's relationship publication and private provenance and
-turns that sink off. Company scouting keeps its existing browser/manual path.
+turns that sink off. Company scouting has a separate default-off background
+opt-in and retains an explicit manual scan.
 Integration health exposes own-account success/checkpoint times and safe retry;
 see [Sync activation runbook](runbook-sync-activation.md).
+
+### Background company scouting
+
+Migration `20261106100000_background_company_scouting.sql` adds an explicit
+member opt-in, off by default, in Email scouting. Opening Home or another tab
+no longer scans Gmail. **Scan now** remains an explicit operation. Both paths
+use the same per-member database lease, so only one scan can run at a time.
+The scheduled worker checks due members when it runs; a successful scan is due
+again after six hours. GitHub Actions scheduling can be delayed and is not a
+real-time notification contract.
+
+Both paths call the same detector over at most the newest 500 messages of the
+last 30 days. Google requests specify metadata format, a header-only response
+mask, and From/To/Cc only. No body, subject, attachment, or email snapshot is
+stored. Suggestions retain their existing private metadata and human approval
+workflow. Existing/dismissed suggestions are never reopened. New worker
+suggestions increment only their owner's existing daily notice; no notification
+kind is added, and no CRM Company or Person is created by a scan.
+
+An active member, `email_scouting`, a connected Gmail mailbox with an existing
+`gmail.readonly` or `gmail.modify` scope, and a current lease are required at
+claim, context and commit. Background jobs also require opt-in. Consent changes,
+connection changes, permission revocation, member deactivation and machine
+revocation invalidate leases. An HTTP read already in flight may finish, but
+its stale lease cannot save. Existing suggestions remain private and can still
+be reviewed after opting out. Direct machine table access remains denied.
+
+The same Auth worker needs a separate owner-controlled
+`company_scanning_enabled` capability and `relationships_only = false`. The new
+capability defaults false. This migration does not enable an identity or opt in
+a member. Directory context is limited to 10,000 entries of each kind; an
+oversized directory fails closed rather than scanning with partial exclusions.
+
+Deploy the SQL first, then the worker and app, then let the owner separately
+review machine authorization and let each member opt in. If app/worker ships
+first, the scheduled scanner treats a missing claim RPC as unavailable and
+leaves the existing sync jobs running; manual company scanning reports that
+its migration is unavailable. If SQL ships first, all background scans remain
+off. Old browser clients continue to follow the previous manual contract until
+they reload; deploy/reload clients before enabling the new background option.
+
+
+### P4 consent, limits and status
+
+A member opts in separately from connecting Google. Disconnecting Google,
+replacing credentials (possibly another mailbox), losing Gmail read scopes or
+revoking `email_scouting` turns background consent off and invalidates the lease.
+Restoring access requires explicit opt-in again. Manual scans remain explicit.
+The settings display pending administrator activation until a capable identity
+exists, the last bounded failure status, and whether the newest-500 limit was hit.
+
+Before commit, the shared reader converts international domains to ASCII/punycode,
+rejects invalid domains, bounds suggestion/contact names, drops invalid contact
+addresses, keeps at most ten contacts per domain and the highest-priority 500
+suggestions. One malformed suggestion does not poison other valid suggestions;
+the database still strictly rejects an invalid batch. Dates stay inside the read
+window and never in the future. Invalid rows are discarded without logging them.
+
+The reader and company-worker run have explicit deadlines; budget exhaustion
+checkpoints `deadline`. Lost/revoked leases are abandoned and the next member can
+run. An identity rejection at claim stops company work; its scheduler boundary
+still lets the independent LP phase execute. Provider 401/403 map to `reconnect`,
+429 to `rate_limited`; revoked authorization is separate from provider downtime.
